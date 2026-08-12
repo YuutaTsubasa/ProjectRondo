@@ -4,7 +4,7 @@ namespace ProjectRondo.Domain.Hub.Character;
 public static class MovementConstants
 {
 	/// <summary>Top planar speed in metres per second.</summary>
-	public const float MaxSpeed = 6f;
+	public const float MaxSpeed = 12f;
 
 	/// <summary>Planar acceleration towards the target velocity in metres per second squared.</summary>
 	public const float Acceleration = 40f;

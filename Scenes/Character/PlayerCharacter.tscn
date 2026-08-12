@@ -1,42 +1,27 @@
-[gd_scene load_steps=7 format=3]
+[gd_scene load_steps=4 format=3]
 
 [ext_resource type="Script" path="res://Scripts/Character/PlayerController.cs" id="1_ctrl"]
-
-[sub_resource type="CapsuleMesh" id="CapsuleMesh_body"]
-radius = 0.5
-height = 2.0
-
-[sub_resource type="StandardMaterial3D" id="Material_body"]
-albedo_color = Color(0.29, 0.56, 0.89, 1)
-
-[sub_resource type="BoxMesh" id="BoxMesh_nose"]
-size = Vector3(0.3, 0.3, 0.5)
-
-[sub_resource type="StandardMaterial3D" id="Material_nose"]
-albedo_color = Color(0.95, 0.77, 0.22, 1)
+[ext_resource type="PackedScene" path="res://Assets/Characters/Knight/knight.glb" id="2_knight"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape_body"]
-radius = 0.5
-height = 2.0
+radius = 0.9
+height = 5.0
 
 [node name="PlayerCharacter" type="CharacterBody3D"]
 script = ExtResource("1_ctrl")
 
-[node name="Mesh" type="MeshInstance3D" parent="."]
-mesh = SubResource("CapsuleMesh_body")
-surface_material_override/0 = SubResource("Material_body")
+[node name="Visual" type="Node3D" parent="."]
 
-[node name="Nose" type="MeshInstance3D" parent="Mesh"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.4, -0.55)
-mesh = SubResource("BoxMesh_nose")
-surface_material_override/0 = SubResource("Material_nose")
+[node name="KnightModel" parent="Visual" instance=ExtResource("2_knight")]
+transform = Transform3D(-5.2, 0, 0, 0, 5.2, 0, 0, 0, -5.2, 0, 0, 0)
 
 [node name="Collision" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.5, 0)
 shape = SubResource("CapsuleShape_body")
 
 [node name="SpringArm" type="SpringArm3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.6, 0)
-spring_length = 4.5
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.8, 0)
+spring_length = 8.0
 collision_mask = 0
 
 [node name="Camera" type="Camera3D" parent="SpringArm"]

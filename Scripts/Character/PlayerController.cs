@@ -22,7 +22,7 @@ public partial class PlayerController : CharacterBody3D
 	private readonly MovementConfig _config = MovementConfig.Default;
 	private readonly ReactiveProperty<bool> _isGrounded = new(true);
 
-	private MeshInstance3D _mesh = null!;
+	private Node3D _visual = null!;
 	private SpringArm3D _springArm = null!;
 	private Vector2 _facing = new(0f, -1f);
 	private float _yaw;
@@ -34,7 +34,7 @@ public partial class PlayerController : CharacterBody3D
 	public override void _Ready()
 	{
 		InputBindings.Ensure();
-		_mesh = GetNode<MeshInstance3D>("Mesh");
+		_visual = GetNode<Node3D>("Visual");
 		_springArm = GetNode<SpringArm3D>("SpringArm");
 		_springArm.Rotation = new Vector3(_pitch, _yaw, 0f);
 		Input.MouseMode = Input.MouseModeEnum.Captured;
@@ -92,7 +92,7 @@ public partial class PlayerController : CharacterBody3D
 	private void FaceMovement(float delta)
 	{
 		var target = Mathf.Atan2(-_facing.X, -_facing.Y);
-		_mesh.Rotation = _mesh.Rotation with { Y = Mathf.LerpAngle(_mesh.Rotation.Y, target, TurnSpeed * delta) };
+		_visual.Rotation = _visual.Rotation with { Y = Mathf.LerpAngle(_visual.Rotation.Y, target, TurnSpeed * delta) };
 	}
 
 	private void RotateCamera(Vector2 relative)

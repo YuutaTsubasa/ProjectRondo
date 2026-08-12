@@ -18,7 +18,3 @@ config/icon="res://icon.svg"
 [dotnet]
 
 project/assembly_name="ProjectRondo"
-
-[rendering]
-
-renderer/rendering_method="forward_plus"
