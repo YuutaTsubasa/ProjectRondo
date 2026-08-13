@@ -14,9 +14,10 @@ script = ExtResource("1_box")
 [node name="PortraitRect" type="TextureRect" parent="."]
 unique_name_in_owner = true
 layout_mode = 1
-anchor_bottom = 1.0
-offset_left = 24.0
-offset_right = 484.0
+offset_left = -175.0
+offset_top = -70.0
+offset_right = 735.0
+offset_bottom = 1295.0
 expand_mode = 1
 stretch_mode = 5
 
