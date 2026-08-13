@@ -19,18 +19,16 @@ public sealed record DialogueGraph(ImmutableDictionary<NodeId, DialogueNode> Nod
 		var hasStart = Nodes.ContainsKey(StartId);
 		var reachable = hasStart ? ReachableFrom(StartId) : ImmutableHashSet<NodeId>.Empty;
 
-		IEnumerable<DialogueGraphError> missingStart = hasStart
-			? Enumerable.Empty<DialogueGraphError>()
-			: [new MissingStartNode(StartId)];
+		IEnumerable<DialogueGraphError> missingStart = hasStart ? [] : [new MissingStartNode(StartId)];
 
 		var dangling = Nodes.Values
 			.SelectMany(node => Targets(node).Select(target => (From: node.Id, Target: target)))
 			.Where(edge => !Nodes.ContainsKey(edge.Target))
 			.Select(edge => (DialogueGraphError)new DanglingReference(edge.From, edge.Target));
 
-		var unreachable = hasStart
+		IEnumerable<DialogueGraphError> unreachable = hasStart
 			? Nodes.Keys.Where(id => !reachable.Contains(id)).Select(id => (DialogueGraphError)new UnreachableNode(id))
-			: Enumerable.Empty<DialogueGraphError>();
+			: [];
 
 		return missingStart.Concat(dangling).Concat(unreachable).ToImmutableArray();
 	}
@@ -38,9 +36,9 @@ public sealed record DialogueGraph(ImmutableDictionary<NodeId, DialogueNode> Nod
 	/// <summary>The node ids a node's exit can lead to: the linear next, each branch target, or none for an end.</summary>
 	private static IEnumerable<NodeId> Targets(DialogueNode node) =>
 		node.Exit.Match<IEnumerable<NodeId>>(
-			linear => new[] { linear.Next },
+			linear => [linear.Next],
 			branch => branch.Choices.Select(choice => choice.Target),
-			_ => Enumerable.Empty<NodeId>());
+			_ => []);
 
 	/// <summary>The set of node ids reachable from <paramref name="start"/> by following exits present in the graph.</summary>
 	private ImmutableHashSet<NodeId> ReachableFrom(NodeId start)
