@@ -18,7 +18,7 @@ public partial class DialogueBox : Control
 
 	private DialogueSession? _session;
 	private readonly List<IDisposable> _bindings = new();
-	private float _revealed;
+	private Tween? _tween;
 	private bool _typing;
 
 	public override void _Ready()
@@ -44,18 +44,6 @@ public partial class DialogueBox : Control
 		Show();
 	}
 
-	public override void _Process(double delta)
-	{
-		if (!_typing) return;
-
-		_revealed += CharactersPerSecond * (float)delta;
-		_line.VisibleCharacters = (int)_revealed;
-		if (_revealed >= _line.GetTotalCharacterCount())
-		{
-			CompleteLine();
-		}
-	}
-
 	public override void _UnhandledInput(InputEvent @event)
 	{
 		var advance = @event.IsActionPressed("ui_accept")
@@ -75,14 +63,30 @@ public partial class DialogueBox : Control
 
 	private void StartTypewriter(string line)
 	{
+		_tween?.Kill();
+		_tween = null;
 		_line.Text = line;
 		_line.VisibleCharacters = 0;
-		_revealed = 0f;
-		_typing = _line.GetTotalCharacterCount() > 0;
+		if (line.Length == 0)
+		{
+			_typing = false;
+			return;
+		}
+
+		_typing = true;
+		_tween = CreateTween();
+		_tween.TweenProperty(_line, "visible_characters", line.Length, line.Length / CharactersPerSecond);
+		_tween.Finished += () =>
+		{
+			_typing = false;
+			_tween = null;
+		};
 	}
 
 	private void CompleteLine()
 	{
+		_tween?.Kill();
+		_tween = null;
 		_line.VisibleCharacters = -1;
 		_typing = false;
 	}
@@ -94,15 +98,18 @@ public partial class DialogueBox : Control
 			child.QueueFree();
 		}
 
+		Button? first = null;
 		for (var index = 0; index < choices.Length; index++)
 		{
 			var captured = index;
 			var button = new Button { Text = choices[index].Label };
 			button.Pressed += () => _session?.Select(captured);
 			_choices.AddChild(button);
+			first ??= button;
 		}
 
 		_choices.Visible = choices.Length > 0;
+		first?.GrabFocus();
 	}
 
 	private void Close()
@@ -113,8 +120,9 @@ public partial class DialogueBox : Control
 		}
 		_bindings.Clear();
 		_session = null;
+		_tween?.Kill();
+		_tween = null;
 		_typing = false;
-		_revealed = 0f;
 		Hide();
 	}
 
