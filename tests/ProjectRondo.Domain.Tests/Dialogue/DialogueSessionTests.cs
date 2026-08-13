@@ -83,4 +83,33 @@ public sealed class DialogueSessionTests
 
 		Assert.True(finished);
 	}
+
+	[Fact]
+	public void InvalidInput_DoesNotEmitANewState()
+	{
+		using var session = NewSession();
+		var emissions = 0;
+		using var d = session.State.Subscribe(_ => emissions++);
+
+		Assert.Equal(1, emissions);   // initial replay on subscribe
+
+		session.Select(0);            // Select on a line (Greet) -> no-op
+		Assert.Equal(1, emissions);
+
+		session.Advance();            // Greet -> Ask (valid)
+		Assert.Equal(2, emissions);
+
+		session.Advance();            // Advance on a branch (Ask) -> no-op
+		session.Select(9);            // out of range -> no-op
+		Assert.Equal(2, emissions);
+	}
+
+	[Fact]
+	public void Dispose_IsSafeAndIdempotent()
+	{
+		var session = NewSession();
+
+		session.Dispose();
+		session.Dispose();
+	}
 }
