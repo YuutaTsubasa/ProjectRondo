@@ -112,4 +112,36 @@ public sealed class DialogueSessionTests
 		session.Dispose();
 		session.Dispose();
 	}
+
+	[Fact]
+	public void Speaker_SuppressesRepeatedValues()
+	{
+		using var session = NewSession();
+		var count = 0;
+		using var d = session.Speaker.Subscribe(_ => count++);
+
+		session.Advance();   // Greet -> Ask
+		session.Select(0);   // Ask -> Left
+		session.Advance();   // Left -> Ended
+
+		Assert.Equal(1, count);   // "Nina" throughout -> a single emission
+	}
+
+	[Fact]
+	public void Line_ReEmitsEvenWhenTheLineTextRepeats()
+	{
+		var speaker = new Speaker("Nina");
+		var portrait = new PortraitKey("normal");
+		var first = new DialogueNode(new NodeId("a"), speaker, "同一句", portrait, NodeExit.Line(new NodeId("b")));
+		var second = new DialogueNode(new NodeId("b"), speaker, "同一句", portrait, NodeExit.End);
+		using var session = new DialogueSession(DialogueGraph.FromNodes(first.Id, first, second));
+		var count = 0;
+		using var d = session.Line.Subscribe(_ => count++);
+
+		Assert.Equal(1, count);   // initial line
+
+		session.Advance();        // a -> b, identical line text
+
+		Assert.Equal(2, count);   // re-emits so the typewriter restarts
+	}
 }

@@ -17,9 +17,10 @@ public sealed class DialogueSession : IDisposable
 	{
 		_graph = graph;
 		_state = new ReactiveProperty<DialogueState>(DialoguePlayback.Start(graph));
-		Speaker = _state.Select(NodeOf).Select(node => node.Speaker).DistinctUntilChanged();
-		Line = _state.Select(NodeOf).Select(node => node.Line).DistinctUntilChanged();
-		Portrait = _state.Select(NodeOf).Select(node => node.Portrait).DistinctUntilChanged();
+		var node = _state.Select(NodeOf);
+		Speaker = node.Select(current => current.Speaker).DistinctUntilChanged();
+		Line = node.Select(current => current.Line);
+		Portrait = node.Select(current => current.Portrait).DistinctUntilChanged();
 		Choices = _state.Select(state => state.IsAwaitingChoice ? state.AsAwaitingChoice.Choices : []).DistinctUntilChanged();
 		IsFinished = _state.Select(state => state.IsEnded).DistinctUntilChanged();
 	}
@@ -30,7 +31,7 @@ public sealed class DialogueSession : IDisposable
 	/// <summary>The speaker of the current line.</summary>
 	public Observable<Speaker> Speaker { get; }
 
-	/// <summary>The text of the current line.</summary>
+	/// <summary>The text of the current line; re-emits on every line change (no distinct filter) so a typewriter restarts even when the text repeats.</summary>
 	public Observable<string> Line { get; }
 
 	/// <summary>The portrait key of the current line.</summary>
