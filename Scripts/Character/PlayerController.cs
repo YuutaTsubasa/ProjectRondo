@@ -18,12 +18,18 @@ public partial class PlayerController : CharacterBody3D
 	private const float MinPitch = -1.2f;
 	private const float MaxPitch = 0.6f;
 	private const float TurnSpeed = 12f;
+	private const string IdleAnimation = "Idle";
+	private const string WalkAnimation = "Walk";
+	private const float WalkAnimationThreshold = 0.6f;
+	private const float AnimationBlend = 0.2f;
 
 	private readonly MovementConfig _config = MovementConfig.Default;
 	private readonly ReactiveProperty<bool> _isGrounded = new(true);
 
 	private Node3D _visual = null!;
 	private SpringArm3D _springArm = null!;
+	private AnimationPlayer _animator = null!;
+	private string _animationState = IdleAnimation;
 	private Vector2 _facing = new(0f, -1f);
 	private float _yaw;
 	private float _pitch = -0.35f;
@@ -37,6 +43,8 @@ public partial class PlayerController : CharacterBody3D
 		_visual = GetNode<Node3D>("Visual");
 		_springArm = GetNode<SpringArm3D>("SpringArm");
 		_springArm.Rotation = new Vector3(_pitch, _yaw, 0f);
+		_animator = GetNode<AnimationPlayer>("Visual/KnightModel/AnimationPlayer");
+		_animator.Play(IdleAnimation);
 		Input.MouseMode = Input.MouseModeEnum.Captured;
 	}
 
@@ -66,6 +74,17 @@ public partial class PlayerController : CharacterBody3D
 		_facing = motion.Facing.ToGodot();
 		_isGrounded.Value = IsOnFloor();
 		FaceMovement(step);
+		UpdateAnimation();
+	}
+
+	private void UpdateAnimation()
+	{
+		var planarSpeed = new Vector2(Velocity.X, Velocity.Z).Length();
+		var desired = planarSpeed > WalkAnimationThreshold ? WalkAnimation : IdleAnimation;
+		if (desired == _animationState) return;
+
+		_animator.Play(desired, AnimationBlend);
+		_animationState = desired;
 	}
 
 	private CharacterMotion CurrentMotion() =>

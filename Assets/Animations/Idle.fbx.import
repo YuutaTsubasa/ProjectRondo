@@ -3,13 +3,13 @@
 importer="scene"
 importer_version=1
 type="PackedScene"
-uid="uid://baqu4cya1dccx"
-path="res://.godot/imported/knight.glb-6cb247e9169180ac82267f34f83c8820.scn"
+uid="uid://b0rky2d7pucy1"
+path="res://.godot/imported/Idle.fbx-870e0448fcbffcaed5fa855ea6c35963.scn"
 
 [deps]
 
-source_file="res://Assets/Characters/Knight/knight.glb"
-dest_files=["res://.godot/imported/knight.glb-6cb247e9169180ac82267f34f83c8820.scn"]
+source_file="res://Assets/Animations/Idle.fbx"
+dest_files=["res://.godot/imported/Idle.fbx-870e0448fcbffcaed5fa855ea6c35963.scn"]
 
 [params]
 
@@ -32,7 +32,7 @@ meshes/force_disable_compression=false
 skins/use_named_skins=true
 animation/import=true
 animation/fps=30
-animation/trimming=false
+animation/trimming=true
 animation/remove_immutable_tracks=true
 animation/import_rest_as_RESET=false
 import_script/path=""
@@ -41,13 +41,14 @@ materials/extract_format=0
 materials/extract_path=""
 _subresources={
 "nodes": {
-"PATH:Armature/Skeleton3D": {
-"retarget/bone_map": Resource("res://Assets/Retarget/cc_base_humanoid.tres"),
+"PATH:Skeleton3D": {
+"retarget/bone_map": Resource("res://Assets/Retarget/mixamo_humanoid.tres"),
 "retarget/bone_renamer/rename_bones": true,
 "retarget/bone_renamer/unique_node/make_unique": false
 }
 }
 }
-gltf/naming_version=2
-gltf/embedded_image_handling=1
-gltf/texture_map_mode=1
+fbx/importer=0
+fbx/allow_geometry_helper_nodes=false
+fbx/embedded_image_handling=1
+fbx/naming_version=2
