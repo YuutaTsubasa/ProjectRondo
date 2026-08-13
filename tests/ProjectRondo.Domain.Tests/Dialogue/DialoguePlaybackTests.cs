@@ -54,4 +54,47 @@ public sealed class DialoguePlaybackTests
 		Assert.True(chosen.IsSpeaking);
 		Assert.Equal(new NodeId(expectedNode), chosen.AsSpeaking.Current.Id);
 	}
+
+	[Fact]
+	public void Select_OnALine_IsANoOp()
+	{
+		var atLine = DialoguePlayback.Start(Graph);
+
+		var result = DialoguePlayback.Step(Graph, atLine, DialogueInput.Select(0));
+
+		Assert.Same(atLine, result);
+	}
+
+	[Fact]
+	public void Advance_OnAChoice_IsANoOp()
+	{
+		var atChoice = DialoguePlayback.Step(Graph, DialoguePlayback.Start(Graph), DialogueInput.Advance);
+
+		var result = DialoguePlayback.Step(Graph, atChoice, DialogueInput.Advance);
+
+		Assert.Same(atChoice, result);
+	}
+
+	[Theory]
+	[InlineData(-1)]
+	[InlineData(2)]
+	public void Select_OutOfRange_IsANoOp(int index)
+	{
+		var atChoice = DialoguePlayback.Step(Graph, DialoguePlayback.Start(Graph), DialogueInput.Advance);
+
+		var result = DialoguePlayback.Step(Graph, atChoice, DialogueInput.Select(index));
+
+		Assert.Same(atChoice, result);
+	}
+
+	[Fact]
+	public void AnyInput_AfterEnd_IsANoOp()
+	{
+		var atChoice = DialoguePlayback.Step(Graph, DialoguePlayback.Start(Graph), DialogueInput.Advance);
+		var atLeft = DialoguePlayback.Step(Graph, atChoice, DialogueInput.Select(0));
+		var ended = DialoguePlayback.Step(Graph, atLeft, DialogueInput.Advance);
+
+		Assert.Same(ended, DialoguePlayback.Step(Graph, ended, DialogueInput.Advance));
+		Assert.Same(ended, DialoguePlayback.Step(Graph, ended, DialogueInput.Select(0)));
+	}
 }
