@@ -41,4 +41,17 @@ public sealed class DialoguePlaybackTests
 		Assert.True(ended.IsEnded);
 		Assert.Equal(DialogueGraphFixture.Left, ended.AsEnded.Last.Id);
 	}
+
+	[Theory]
+	[InlineData(0, "left")]
+	[InlineData(1, "right")]
+	public void Select_FromAChoice_RoutesToTheChosenTarget(int index, string expectedNode)
+	{
+		var atChoice = DialoguePlayback.Step(Graph, DialoguePlayback.Start(Graph), DialogueInput.Advance);
+
+		var chosen = DialoguePlayback.Step(Graph, atChoice, DialogueInput.Select(index));
+
+		Assert.True(chosen.IsSpeaking);
+		Assert.Equal(new NodeId(expectedNode), chosen.AsSpeaking.Current.Id);
+	}
 }
