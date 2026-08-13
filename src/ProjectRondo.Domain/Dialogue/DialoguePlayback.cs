@@ -8,7 +8,11 @@ namespace ProjectRondo.Domain.Dialogue;
 /// </summary>
 public static class DialoguePlayback
 {
-	/// <summary>The state at the graph's start node.</summary>
+	/// <summary>
+	/// The state at the graph's start node. Assumes <see cref="DialogueGraph.StartId"/> exists in
+	/// <see cref="DialogueGraph.Nodes"/> — a graph-construction invariant — and throws otherwise.
+	/// Mid-playback references to a missing node (see <see cref="Go"/>) are instead treated as a no-op.
+	/// </summary>
 	public static DialogueState Start(DialogueGraph graph) => StateOf(graph.Nodes[graph.StartId]);
 
 	/// <summary>Advances the dialogue by one input, returning the same state for invalid input.</summary>

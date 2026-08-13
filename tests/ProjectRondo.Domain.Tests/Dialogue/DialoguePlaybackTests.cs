@@ -97,4 +97,17 @@ public sealed class DialoguePlaybackTests
 		Assert.Same(ended, DialoguePlayback.Step(Graph, ended, DialogueInput.Advance));
 		Assert.Same(ended, DialoguePlayback.Step(Graph, ended, DialogueInput.Select(0)));
 	}
+
+	[Fact]
+	public void Advance_ToAMissingNode_IsANoOp()
+	{
+		var speaker = new Speaker("Nina");
+		var dangling = new DialogueNode(new NodeId("start"), speaker, "…", new PortraitKey("smile"), NodeExit.Line(new NodeId("nowhere")));
+		var graph = DialogueGraph.FromNodes(dangling.Id, dangling);
+		var state = DialoguePlayback.Start(graph);
+
+		var result = DialoguePlayback.Step(graph, state, DialogueInput.Advance);
+
+		Assert.Same(state, result);
+	}
 }
