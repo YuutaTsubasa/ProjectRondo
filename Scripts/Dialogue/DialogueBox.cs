@@ -34,6 +34,7 @@ public partial class DialogueBox : Control
 	/// <summary>Binds and shows the dialogue for <paramref name="session"/>.</summary>
 	public void Open(DialogueSession session)
 	{
+		Close();
 		_session = session;
 		_bindings.Add(session.Speaker.Subscribe(speaker => _name.Text = speaker.Name));
 		_bindings.Add(session.Portrait.Subscribe(key => _portrait.Texture = _library.Resolve(key)));

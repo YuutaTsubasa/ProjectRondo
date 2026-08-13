@@ -5,7 +5,7 @@ namespace ProjectRondo.Dialogue;
 
 /// <summary>
 /// Resolves a <see cref="PortraitKey"/> to a portrait texture, falling back to a default when the key has
-/// no dedicated art yet. Card #4 fills <see cref="_byKey"/> with per-emotion textures; until then every key
+/// no dedicated art yet. Card #4 fills the key map with per-emotion textures; until then every key
 /// resolves to the neutral portrait.
 /// </summary>
 public sealed class PortraitLibrary
