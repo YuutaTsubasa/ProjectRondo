@@ -110,4 +110,27 @@ public sealed class DialoguePlaybackTests
 
 		Assert.Same(state, result);
 	}
+
+	[Fact]
+	public void Start_OnABranchStartNode_AwaitsChoice()
+	{
+		var speaker = new Speaker("Nina");
+		var ask = new DialogueNode(new NodeId("ask"), speaker, "左或右？", new PortraitKey("think"),
+			NodeExit.Branch(new DialogueChoice("左", new NodeId("left")), new DialogueChoice("右", new NodeId("right"))));
+		var graph = DialogueGraph.FromNodes(ask.Id, ask);
+
+		var state = DialoguePlayback.Start(graph);
+
+		Assert.True(state.IsAwaitingChoice);
+		Assert.Equal(ask.Id, state.AsAwaitingChoice.Current.Id);
+		Assert.Equal(2, state.AsAwaitingChoice.Choices.Length);
+	}
+
+	[Fact]
+	public void Start_WithAMissingStartNode_Throws()
+	{
+		var graph = DialogueGraph.FromNodes(new NodeId("absent"));
+
+		Assert.Throws<KeyNotFoundException>(() => DialoguePlayback.Start(graph));
+	}
 }
