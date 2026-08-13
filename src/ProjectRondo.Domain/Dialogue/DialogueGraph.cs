@@ -19,7 +19,9 @@ public sealed record DialogueGraph(ImmutableDictionary<NodeId, DialogueNode> Nod
 		var hasStart = Nodes.ContainsKey(StartId);
 		var reachable = hasStart ? ReachableFrom(StartId) : ImmutableHashSet<NodeId>.Empty;
 
-		IEnumerable<DialogueGraphError> missingStart = hasStart ? [] : [new MissingStartNode(StartId)];
+		IEnumerable<DialogueGraphError> missingStart = hasStart
+			? Enumerable.Empty<DialogueGraphError>()
+			: [new MissingStartNode(StartId)];
 
 		var dangling = Nodes.Values
 			.SelectMany(node => Targets(node).Select(target => (From: node.Id, Target: target)))
@@ -50,8 +52,7 @@ public sealed record DialogueGraph(ImmutableDictionary<NodeId, DialogueNode> Nod
 		while (pending.Count > 0)
 		{
 			var id = pending.Pop();
-			// A dangling target id may enter `visited`; harmless — `unreachable` only scans real Nodes.Keys.
-			if (!visited.Add(id) || !Nodes.TryGetValue(id, out var node))
+			if (!Nodes.TryGetValue(id, out var node) || !visited.Add(id))
 				continue;
 
 			foreach (var target in Targets(node))
