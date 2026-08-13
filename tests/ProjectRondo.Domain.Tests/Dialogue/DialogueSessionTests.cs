@@ -1,0 +1,147 @@
+using System.Collections.Immutable;
+using ProjectRondo.Domain.Dialogue;
+using R3;
+
+namespace ProjectRondo.Domain.Tests.Dialogue;
+
+public sealed class DialogueSessionTests
+{
+	private static DialogueSession NewSession() => new(DialogueGraphFixture.Build());
+
+	[Fact]
+	public void Starts_AtTheStartNode()
+	{
+		using var session = NewSession();
+
+		Assert.True(session.State.CurrentValue.IsSpeaking);
+		Assert.Equal(DialogueGraphFixture.Greet, session.State.CurrentValue.AsSpeaking.Current.Id);
+	}
+
+	[Fact]
+	public void Advance_MovesToTheNextNode()
+	{
+		using var session = NewSession();
+
+		session.Advance();
+
+		Assert.True(session.State.CurrentValue.IsAwaitingChoice);
+		Assert.Equal(DialogueGraphFixture.Ask, session.State.CurrentValue.AsAwaitingChoice.Current.Id);
+	}
+
+	[Fact]
+	public void Select_RoutesToTheChosenTarget()
+	{
+		using var session = NewSession();
+
+		session.Advance();   // Greet -> Ask (branch)
+		session.Select(0);   // choose left
+
+		Assert.True(session.State.CurrentValue.IsSpeaking);
+		Assert.Equal(DialogueGraphFixture.Left, session.State.CurrentValue.AsSpeaking.Current.Id);
+	}
+
+	[Fact]
+	public void Speaker_Line_Portrait_ReflectTheCurrentNode()
+	{
+		using var session = NewSession();
+		var speaker = default(Speaker);
+		var line = string.Empty;
+		var portrait = default(PortraitKey);
+		using var d1 = session.Speaker.Subscribe(value => speaker = value);
+		using var d2 = session.Line.Subscribe(value => line = value);
+		using var d3 = session.Portrait.Subscribe(value => portrait = value);
+
+		Assert.Equal("Nina", speaker.Name);
+		Assert.Equal("哈囉！", line);
+		Assert.Equal(new PortraitKey("smile"), portrait);
+	}
+
+	[Fact]
+	public void Choices_AreEmptyOnALine_AndPopulatedOnABranch()
+	{
+		using var session = NewSession();
+		var choices = default(ImmutableArray<DialogueChoice>);
+		using var d = session.Choices.Subscribe(value => choices = value);
+
+		Assert.Empty(choices);   // at Greet (a line)
+
+		session.Advance();       // to Ask (a branch)
+
+		Assert.Equal(2, choices.Length);
+	}
+
+	[Fact]
+	public void IsFinished_BecomesTrueAtTheEnd()
+	{
+		using var session = NewSession();
+		var finished = false;
+		using var d = session.IsFinished.Subscribe(value => finished = value);
+
+		session.Advance();   // Ask
+		session.Select(0);   // Left (a line with an end exit)
+		session.Advance();   // Ended
+
+		Assert.True(finished);
+	}
+
+	[Fact]
+	public void InvalidInput_DoesNotEmitANewState()
+	{
+		using var session = NewSession();
+		var emissions = 0;
+		using var d = session.State.Subscribe(_ => emissions++);
+
+		Assert.Equal(1, emissions);   // initial replay on subscribe
+
+		session.Select(0);            // Select on a line (Greet) -> no-op
+		Assert.Equal(1, emissions);
+
+		session.Advance();            // Greet -> Ask (valid)
+		Assert.Equal(2, emissions);
+
+		session.Advance();            // Advance on a branch (Ask) -> no-op
+		session.Select(9);            // out of range -> no-op
+		Assert.Equal(2, emissions);
+	}
+
+	[Fact]
+	public void Dispose_IsSafeAndIdempotent()
+	{
+		var session = NewSession();
+
+		session.Dispose();
+		session.Dispose();
+	}
+
+	[Fact]
+	public void Speaker_SuppressesRepeatedValues()
+	{
+		using var session = NewSession();
+		var count = 0;
+		using var d = session.Speaker.Subscribe(_ => count++);
+
+		session.Advance();   // Greet -> Ask
+		session.Select(0);   // Ask -> Left
+		session.Advance();   // Left -> Ended
+
+		Assert.Equal(1, count);   // "Nina" throughout -> a single emission
+	}
+
+	[Fact]
+	public void Line_ReEmitsEvenWhenTheLineTextRepeats()
+	{
+		var speaker = new Speaker("Nina");
+		var portrait = new PortraitKey("normal");
+		var first = new DialogueNode(new NodeId("a"), speaker, "同一句", portrait, NodeExit.Line(new NodeId("b")));
+		var second = new DialogueNode(new NodeId("b"), speaker, "同一句", portrait, NodeExit.End);
+		using var session = new DialogueSession(DialogueGraph.FromNodes(first.Id, first, second));
+		var count = 0;
+		using var d = session.Line.Subscribe(_ => count++);
+
+		Assert.Equal(1, count);   // initial line
+
+		session.Advance();        // a -> b, identical line text
+
+		Assert.Equal(2, count);   // re-emits so the typewriter restarts
+	}
+}
