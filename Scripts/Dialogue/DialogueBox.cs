@@ -50,7 +50,7 @@ public partial class DialogueBox : Control
 
 		_revealed += CharactersPerSecond * (float)delta;
 		_line.VisibleCharacters = (int)_revealed;
-		if (_revealed >= _line.Text.Length)
+		if (_revealed >= _line.GetTotalCharacterCount())
 		{
 			CompleteLine();
 		}
@@ -78,7 +78,7 @@ public partial class DialogueBox : Control
 		_line.Text = line;
 		_line.VisibleCharacters = 0;
 		_revealed = 0f;
-		_typing = line.Length > 0;
+		_typing = _line.GetTotalCharacterCount() > 0;
 	}
 
 	private void CompleteLine()
@@ -113,6 +113,8 @@ public partial class DialogueBox : Control
 		}
 		_bindings.Clear();
 		_session = null;
+		_typing = false;
+		_revealed = 0f;
 		Hide();
 	}
 
