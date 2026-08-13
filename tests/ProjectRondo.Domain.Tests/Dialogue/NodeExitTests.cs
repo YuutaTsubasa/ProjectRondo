@@ -32,6 +32,12 @@ public sealed class NodeExitTests
 	}
 
 	[Fact]
+	public void BranchExit_ConstructedWithNoChoices_Throws()
+	{
+		Assert.Throws<ArgumentException>(() => new BranchExit(ImmutableArray<DialogueChoice>.Empty));
+	}
+
+	[Fact]
 	public void End_IsAShared_EndExit()
 	{
 		var isEnd = NodeExit.End.Match(_ => false, _ => false, _ => true);
