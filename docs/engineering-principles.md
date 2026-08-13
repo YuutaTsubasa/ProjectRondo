@@ -34,7 +34,7 @@ Principles marked **(analyzer)** are nudged or enforced by the analyzers in `.ed
 | 15 | Prefer value semantics and immutability **(analyzer)** | Model with `struct`/`record`; don't mutate inputs or domain values, no exported mutable singletons. Exempt: quarantined per-frame perf mutation (note it). |
 | 16 | Make invalid states unrepresentable | Enforce invariants at the type boundary (smart constructors, branded/narrowed types, parse-don't-validate) so an illegal value can't be constructed — not ad hoc at each call site. |
 | 17 | Avoid single-line comments; use XML summaries | Document types/members with `/// <summary>`, not `//`. Reserve in-body notes for a rare *why* that documents no API surface. |
-| 18 | Prefer `Enumerable.Empty<T>()` / `Array.Empty<T>()` over `[]` | Name empty collections (element type and intent are explicit at the site) rather than a target-typed `[]`. Non-empty collection expressions (`[a, b]`) are fine. |
+| 18 | Prefer collection expression `[]` over `Enumerable.Empty<T>()` / `Array.Empty<T>()` | Write empty collections as `[]` — one syntax for empty and non-empty, and for read-only/array targets the compiler emits the same cached empty as `Array.Empty<T>()`. Exempt only when there is no target type for `[]` to bind to (a bare `var`). |
 
 ## Relationship to tooling
 
