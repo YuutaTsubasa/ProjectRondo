@@ -732,7 +732,7 @@ git commit -m "$(printf 'Add temporary DialogueDemo harness scene (#3)\n\nCo-Aut
 - [ ] **Step 1: Domain 測試全綠**
 
 Run: `DOTNET_ROLL_FORWARD=Major dotnet test tests/ProjectRondo.Domain.Tests/ProjectRondo.Domain.Tests.csproj`
-Expected: 既有 47 + 新增 8（`DialogueSessionTests`）= 55 passed，失敗 0。
+Expected: 既有 47 + 新增 10（`DialogueSessionTests`，含審查後補的兩個 distinct 契約測試）= 57 passed，失敗 0。
 
 - [ ] **Step 2: Godot 表現層 compile-check 全綠**
 
