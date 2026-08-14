@@ -15,6 +15,8 @@ export interface KnightAnimations {
 const TARGET_HEIGHT = 1.9;
 /** Capsule centre sits this far above its feet (radius 0.5 + cylinder half-height 0.5). */
 const CAPSULE_HALF = 1.0;
+/** Small lift so the sole mesh (which extends below the foot bones) rests on the floor, not in it. */
+const FOOT_CLEARANCE = 0.05;
 
 /**
  * Loads the knight GLB, parents it to `parent` (the physics-driven player root), scales it to
@@ -58,7 +60,7 @@ export async function loadKnight(scene: Scene, parent: TransformNode): Promise<K
   if (skeleton && skinned && footBones.length > 0) {
     const observer = scene.onAfterRenderObservable.add(() => {
       const lowest = Math.min(...footBones.map((b) => b.getAbsolutePosition(skinned).y));
-      root.position.y += parent.getAbsolutePosition().y - CAPSULE_HALF - lowest;
+      root.position.y += parent.getAbsolutePosition().y - CAPSULE_HALF + FOOT_CLEARANCE - lowest;
       scene.onAfterRenderObservable.remove(observer);
     });
   }
