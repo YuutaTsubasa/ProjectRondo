@@ -22,6 +22,9 @@ export interface FollowCamera {
 
 export function createFollowCamera(scene: Scene, target: TransformNode, canvas: HTMLCanvasElement): FollowCamera {
   const camera = new TargetCamera('follow', new Vector3(0, HEIGHT, DISTANCE), scene);
+  // Default near plane (1.0) is large: the feet get clipped whenever the orbit brings the camera
+  // within ~1u of them (they vanish, reappear as you rotate). Pull it in.
+  camera.minZ = 0.1;
   let yaw = 0;
   let pitch = -0.35;
 
