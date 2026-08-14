@@ -9,6 +9,11 @@ const MAX_PITCH = 0.6;
 const DISTANCE = 5;
 const HEIGHT = 1.2;
 /**
+ * Height above the player root the camera looks at. Aiming low (mid-body, not the chest) keeps the
+ * feet inside the frame even at maximum look-up pitch — otherwise the soles drop off the bottom edge.
+ */
+const AIM_HEIGHT = 0.3;
+/**
  * Keep the camera this far above the ground (y = 0). Looking up drives the orbit low; without this
  * the camera sinks to/below the floor and the opaque ground plane occludes the whole character.
  */
@@ -46,7 +51,7 @@ export function createFollowCamera(scene: Scene, target: TransformNode, canvas: 
     // Never let the camera dip into the floor, or the opaque ground plane hides the whole character.
     position.y = Math.max(position.y, MIN_CAMERA_HEIGHT);
     camera.position.copyFrom(position);
-    camera.setTarget(t.add(new Vector3(0, HEIGHT * 0.5, 0)));
+    camera.setTarget(t.add(new Vector3(0, AIM_HEIGHT, 0)));
   });
 
   return {
