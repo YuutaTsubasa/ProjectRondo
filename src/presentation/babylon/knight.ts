@@ -15,8 +15,12 @@ export interface KnightAnimations {
 const TARGET_HEIGHT = 1.9;
 /** Capsule centre sits this far above its feet (radius 0.5 + cylinder half-height 0.5). */
 const CAPSULE_HALF = 1.0;
-/** Small lift so the sole mesh (which extends below the foot bones) rests on the floor, not in it. */
-const FOOT_CLEARANCE = 0.05;
+/**
+ * Lift applied when seating so the shoe soles rest on the floor. The sole mesh extends well below
+ * the foot bones we measure against, so without this the feet sink into the ground (and the ground
+ * plane then occludes them from side angles). Tuned visually.
+ */
+const FOOT_CLEARANCE = 0.14;
 
 /**
  * Loads the knight GLB, parents it to `parent` (the physics-driven player root), scales it to
