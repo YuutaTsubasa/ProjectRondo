@@ -6,8 +6,8 @@ import type { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 const SENSITIVITY = 0.005;
 const MIN_PITCH = -1.2;
 const MAX_PITCH = 0.6;
-const DISTANCE = 6;
-const HEIGHT = 2;
+const DISTANCE = 5;
+const HEIGHT = 1.2;
 
 export interface FollowCamera {
   readonly camera: TargetCamera;
@@ -42,8 +42,9 @@ export function createFollowCamera(scene: Scene, target: TransformNode, canvas: 
     camera,
     planarBasis() {
       const fwd = camera.getDirection(Vector3.Forward());
+      const rgt = camera.getDirection(Vector3.Right());
       const f = new Vector3(fwd.x, 0, fwd.z).normalize();
-      const r = new Vector3(f.z, 0, -f.x); // right = forward rotated -90° on Y
+      const r = new Vector3(rgt.x, 0, rgt.z).normalize();
       return { right: { x: r.x, z: r.z }, forward: { x: f.x, z: f.z } };
     },
   };

@@ -4,7 +4,6 @@ import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { Color3 } from '@babylonjs/core/Maths/math.color';
 import { HemisphericLight } from '@babylonjs/core/Lights/hemisphericLight';
 import { CreateGround } from '@babylonjs/core/Meshes/Builders/groundBuilder';
-import { CreateCapsule } from '@babylonjs/core/Meshes/Builders/capsuleBuilder';
 import { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
 // Side-effect: registers the StandardMaterial shader. Required with tree-shaken deep
@@ -22,12 +21,14 @@ import HavokPhysics from '@babylonjs/havok';
 import { createFollowCamera, type FollowCamera } from './followCamera';
 import { createInput } from './input';
 import { createPlayer, type Player } from './playerController';
+import { loadKnight, driveKnightAnimation, type KnightAnimations } from './knight';
 
 export interface HubScene {
   readonly engine: Engine;
   readonly scene: Scene;
   readonly follow: FollowCamera;
   readonly player: Player;
+  readonly knight: KnightAnimations;
 }
 
 export async function createHubScene(canvas: HTMLCanvasElement): Promise<HubScene> {
@@ -54,18 +55,15 @@ export async function createHubScene(canvas: HTMLCanvasElement): Promise<HubScen
 
   const input = createInput();
   const player = createPlayer(scene, playerRoot, follow, input);
-
-  // Temporary visual placeholder for the player capsule (replaced by the glTF knight in SP0/T11).
-  // Matches the controller capsule (radius 0.5, total height 2.0), centered on the root.
-  const capsule = CreateCapsule('playerCapsule', { radius: 0.5, height: 2 }, scene);
-  capsule.parent = playerRoot;
-  const capsuleMaterial = new StandardMaterial('playerMat', scene);
-  capsuleMaterial.diffuseColor = new Color3(0.8, 0.35, 0.3);
-  capsule.material = capsuleMaterial;
+  const knight = await loadKnight(scene, playerRoot);
+  driveKnightAnimation(scene, knight, () => {
+    const v = player.motion.velocity;
+    return Math.hypot(v.x, v.z);
+  });
 
   engine.runRenderLoop(() => scene.render());
   // Size the drawing buffer to the canvas now; the resize event only fires on later changes.
   engine.resize();
   window.addEventListener('resize', () => engine.resize());
-  return { engine, scene, follow, player };
+  return { engine, scene, follow, player, knight };
 }
