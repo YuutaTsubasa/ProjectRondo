@@ -95,23 +95,34 @@ const WALK_THRESHOLD = 0.6;
 const BLEND_PER_SECOND = 1 / 0.2;
 
 /**
- * Cross-fades Idle↔Walk by weight each frame based on `planarSpeed()`. Both groups loop; the walk
- * weight eases toward 1 above {@link WALK_THRESHOLD} and toward 0 below it, idle taking the remainder.
+ * Cross-fades Idle↔Walk by weight each frame based on `planarSpeed()`: the walk weight eases toward
+ * 1 above {@link WALK_THRESHOLD} and toward 0 below it, idle taking the remainder. Crucially, a clip
+ * left playing at weight 0 still bleeds its motion into the pose (that made a standing knight drift
+ * and look unsteady), so the clip that isn't contributing is fully stopped, not just zero-weighted;
+ * both play only during the brief blend.
  */
 export function driveKnightAnimation(
   scene: Scene,
   knight: KnightAnimations,
   planarSpeed: () => number,
 ): void {
-  knight.idle.play(true);
-  knight.walk.play(true);
   let walkWeight = 0;
+  let idlePlaying = knight.idle.isPlaying;
+  let walkPlaying = knight.walk.isPlaying;
   scene.onBeforeRenderObservable.add(() => {
     const dt = scene.getEngine().getDeltaTime() / 1000;
     const target = planarSpeed() > WALK_THRESHOLD ? 1 : 0;
     const maxStep = BLEND_PER_SECOND * dt;
     walkWeight += Math.max(-maxStep, Math.min(maxStep, target - walkWeight));
-    knight.walk.setWeightForAllAnimatables(walkWeight);
-    knight.idle.setWeightForAllAnimatables(1 - walkWeight);
+
+    const wantWalk = walkWeight > 0.001;
+    const wantIdle = walkWeight < 0.999;
+    if (wantWalk && !walkPlaying) { knight.walk.play(true); walkPlaying = true; }
+    else if (!wantWalk && walkPlaying) { knight.walk.stop(); walkPlaying = false; }
+    if (wantIdle && !idlePlaying) { knight.idle.play(true); idlePlaying = true; }
+    else if (!wantIdle && idlePlaying) { knight.idle.stop(); idlePlaying = false; }
+
+    if (walkPlaying) knight.walk.setWeightForAllAnimatables(walkWeight);
+    if (idlePlaying) knight.idle.setWeightForAllAnimatables(1 - walkWeight);
   });
 }
