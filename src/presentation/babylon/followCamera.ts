@@ -3,21 +3,32 @@ import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { TargetCamera } from '@babylonjs/core/Cameras/targetCamera';
 import type { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 
-const SENSITIVITY = 0.005;
-const MIN_PITCH = -1.2;
-const MAX_PITCH = 0.6;
-const DISTANCE = 5;
-const HEIGHT = 1.2;
-/**
- * Height above the player root the camera looks at. Aiming low (mid-body, not the chest) keeps the
- * feet inside the frame even at maximum look-up pitch — otherwise the soles drop off the bottom edge.
- */
-const AIM_HEIGHT = 0.3;
-/**
- * Keep the camera this far above the ground (y = 0). Looking up drives the orbit low; without this
- * the camera sinks to/below the floor and the opaque ground plane occludes the whole character.
- */
-const MIN_CAMERA_HEIGHT = 0.5;
+/** Live-tunable follow-camera settings. Exposed on `window.cameraConfig` in dev for instant tweaking. */
+export interface FollowCameraConfig {
+  sensitivity: number;
+  minPitch: number;
+  maxPitch: number;
+  distance: number;
+  /** Height added to the orbit position (camera rides this far above the aim point's base). */
+  height: number;
+  /** Height above the player root the camera looks at. Lower = feet sit higher in frame. */
+  aimHeight: number;
+  /** Camera never goes below this world Y (keeps it out of the floor). */
+  minCameraHeight: number;
+  /** Near clip plane. Small so close feet aren't clipped. */
+  nearPlane: number;
+}
+
+const DEFAULT_CONFIG: FollowCameraConfig = {
+  sensitivity: 0.005,
+  minPitch: -1.2,
+  maxPitch: 0.6,
+  distance: 5,
+  height: 1.2,
+  aimHeight: 0.3,
+  minCameraHeight: 0.5,
+  nearPlane: 0.1,
+};
 
 export interface FollowCamera {
   readonly camera: TargetCamera;
@@ -26,32 +37,37 @@ export interface FollowCamera {
 }
 
 export function createFollowCamera(scene: Scene, target: TransformNode, canvas: HTMLCanvasElement): FollowCamera {
-  const camera = new TargetCamera('follow', new Vector3(0, HEIGHT, DISTANCE), scene);
-  // Default near plane (1.0) is large: the feet get clipped whenever the orbit brings the camera
-  // within ~1u of them (they vanish, reappear as you rotate). Pull it in.
-  camera.minZ = 0.1;
+  const config: FollowCameraConfig = { ...DEFAULT_CONFIG };
+  if (import.meta.env.DEV) {
+    // Tune live from the console, e.g. `cameraConfig.aimHeight = 0.1`. Changes apply next frame.
+    (window as unknown as { cameraConfig: FollowCameraConfig }).cameraConfig = config;
+  }
+
+  const camera = new TargetCamera('follow', new Vector3(0, config.height, config.distance), scene);
+  camera.minZ = config.nearPlane;
   let yaw = 0;
   let pitch = -0.35;
 
   canvas.addEventListener('click', () => canvas.requestPointerLock());
   canvas.addEventListener('mousemove', (e) => {
     if (document.pointerLockElement !== canvas) return;
-    yaw -= e.movementX * SENSITIVITY;
-    pitch = Math.min(MAX_PITCH, Math.max(MIN_PITCH, pitch - e.movementY * SENSITIVITY));
+    yaw -= e.movementX * config.sensitivity;
+    pitch = Math.min(config.maxPitch, Math.max(config.minPitch, pitch - e.movementY * config.sensitivity));
   });
 
   scene.onBeforeRenderObservable.add(() => {
+    camera.minZ = config.nearPlane;
     const t = target.getAbsolutePosition();
     const offset = new Vector3(
       Math.sin(yaw) * Math.cos(pitch),
       Math.sin(-pitch),
       Math.cos(yaw) * Math.cos(pitch),
-    ).scaleInPlace(DISTANCE);
-    const position = t.add(offset).add(new Vector3(0, HEIGHT, 0));
+    ).scaleInPlace(config.distance);
+    const position = t.add(offset).add(new Vector3(0, config.height, 0));
     // Never let the camera dip into the floor, or the opaque ground plane hides the whole character.
-    position.y = Math.max(position.y, MIN_CAMERA_HEIGHT);
+    position.y = Math.max(position.y, config.minCameraHeight);
     camera.position.copyFrom(position);
-    camera.setTarget(t.add(new Vector3(0, AIM_HEIGHT, 0)));
+    camera.setTarget(t.add(new Vector3(0, config.aimHeight, 0)));
   });
 
   return {
