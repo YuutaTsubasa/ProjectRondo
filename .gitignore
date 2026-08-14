@@ -20,3 +20,7 @@ Thumbs.db
 export.cfg
 export_presets.cfg
 *.translation
+
+node_modules/
+dist/
+src-tauri/target/
