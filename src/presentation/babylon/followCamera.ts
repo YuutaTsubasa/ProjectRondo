@@ -27,7 +27,7 @@ const DEFAULT_CONFIG: FollowCameraConfig = {
   height: 1.2,
   aimHeight: 0.3,
   minCameraHeight: 0.5,
-  nearPlane: 0.1,
+  nearPlane: 0.05,
 };
 
 export interface FollowCamera {

@@ -21,6 +21,8 @@ const CAPSULE_HALF = 1.0;
  * plane then occludes them from side angles). Tuned visually.
  */
 const FOOT_CLEARANCE = 0.14;
+/** Fraction of the idle animation's motion to keep (0 = frozen, 1 = full sway). Kills the side rock. */
+const IDLE_SWAY_KEEP = 0.2;
 
 /**
  * Loads the knight GLB, parents it to `parent` (the physics-driven player root), scales it to
@@ -55,6 +57,9 @@ export async function loadKnight(scene: Scene, parent: TransformNode): Promise<K
   // forward lean on Idle); neutralise both so the knight stands straight rather than tipping over.
   neutralizeRootBoneRotation(idle);
   neutralizeRootBoneRotation(walk);
+  // The mocap idle rocks the torso ~2cm side to side ("leans left then right"). Damp the whole idle
+  // toward its average pose so the knight stands steady, keeping a little life.
+  dampenSwayTowardMean(idle, IDLE_SWAY_KEEP);
   for (const g of groups) g.stop();
   idle.play(true);
 
@@ -86,6 +91,40 @@ function neutralizeRootBoneRotation(group: AnimationGroup): void {
     if (/RL_BoneRoot/i.test(targetName) && targeted.animation.targetProperty === 'rotationQuaternion') {
       for (const key of targeted.animation.getKeys()) {
         (key.value as Quaternion).set(0, 0, 0, 1);
+      }
+    }
+  }
+}
+
+/**
+ * Shrinks every position/rotation track in `group` toward its own average value, keeping only
+ * `keep` of the original motion. Reduces the idle's whole-body sway without freezing it.
+ */
+function dampenSwayTowardMean(group: AnimationGroup, keep: number): void {
+  for (const { animation } of group.targetedAnimations) {
+    const keys = animation.getKeys();
+    if (keys.length === 0) continue;
+    if (animation.targetProperty === 'position') {
+      let mx = 0, my = 0, mz = 0;
+      for (const k of keys) { mx += k.value.x; my += k.value.y; mz += k.value.z; }
+      mx /= keys.length; my /= keys.length; mz /= keys.length;
+      for (const k of keys) {
+        k.value.x = mx + (k.value.x - mx) * keep;
+        k.value.y = my + (k.value.y - my) * keep;
+        k.value.z = mz + (k.value.z - mz) * keep;
+      }
+    } else if (animation.targetProperty === 'rotationQuaternion') {
+      // Approximate mean quaternion by the (hemisphere-aligned) component sum, then slerp toward it.
+      let sx = 0, sy = 0, sz = 0, sw = 0;
+      for (const k of keys) {
+        const q = k.value as Quaternion;
+        const s = q.w < 0 ? -1 : 1;
+        sx += s * q.x; sy += s * q.y; sz += s * q.z; sw += s * q.w;
+      }
+      const n = Math.hypot(sx, sy, sz, sw) || 1;
+      const mean = new Quaternion(sx / n, sy / n, sz / n, sw / n);
+      for (const k of keys) {
+        (k.value as Quaternion).copyFrom(Quaternion.Slerp(mean, k.value as Quaternion, keep));
       }
     }
   }
