@@ -37,6 +37,11 @@ export async function loadKnight(scene: Scene, parent: TransformNode): Promise<K
   root.parent = parent;
   root.position.setAll(0);
 
+  // Skinned-mesh bounding boxes track the bind pose, not the animated pose, so babylon frustum-culls
+  // limbs at some camera angles (a foot vanishes, then reappears when you rotate). Force the knight
+  // meshes to always render — it's one character, the cull savings don't matter.
+  for (const mesh of result.meshes) mesh.alwaysSelectAsActiveMesh = true;
+
   const raw = root.getHierarchyBoundingVectors(true);
   const rawHeight = raw.max.y - raw.min.y;
   if (rawHeight > 0) root.scaling.scaleInPlace(TARGET_HEIGHT / rawHeight);
