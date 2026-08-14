@@ -28,7 +28,9 @@ const FOOT_CLEARANCE = 0.14;
  * animation groups with Idle playing. The mesh inherits the parent's facing rotation.
  */
 export async function loadKnight(scene: Scene, parent: TransformNode): Promise<KnightAnimations> {
-  const result = await ImportMeshAsync('/models/knight_web.glb', scene);
+  // ?v bust: the browser aggressively caches the GLB, so a plain reload keeps serving an old copy.
+  // Bump this whenever knight_web.glb is rebuilt so clients refetch it.
+  const result = await ImportMeshAsync('/models/knight_web.glb?v=3', scene);
   const root = result.meshes[0] as TransformNode;
   root.parent = parent;
   root.position.setAll(0);
