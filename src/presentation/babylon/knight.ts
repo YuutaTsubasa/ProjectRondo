@@ -36,25 +36,41 @@ export async function loadKnight(scene: Scene, parent: TransformNode): Promise<K
   // rotate 180° so its back is to the third-person camera.
   root.rotationQuaternion = Quaternion.FromEulerAngles(0, Math.PI, 0);
 
-  // Seat the lowest vertex at the capsule bottom (parent centre − CAPSULE_HALF).
-  const seated = root.getHierarchyBoundingVectors(true);
-  root.position.y += parent.getAbsolutePosition().y - CAPSULE_HALF - seated.min.y;
+  // Rough initial seating from the bind-pose bounds; refined below once the idle pose is evaluated.
+  const bindBounds = root.getHierarchyBoundingVectors(true);
+  root.position.y += parent.getAbsolutePosition().y - CAPSULE_HALF - bindBounds.min.y;
 
   const groups = result.animationGroups;
   const idle = groups.find((g) => /idle/i.test(g.name)) ?? groups[0];
   const walk = groups.find((g) => /walk/i.test(g.name)) ?? groups[1];
+  // Both clips carry a root-bone reorientation from the retarget (a big ~96° pitch on Walk, a small
+  // forward lean on Idle); neutralise both so the knight stands straight rather than tipping over.
+  neutralizeRootBoneRotation(idle);
   neutralizeRootBoneRotation(walk);
   for (const g of groups) g.stop();
   idle.play(true);
+
+  // Bind-pose bounds don't match the animated idle pose (the knight floated ~0.8u above the floor),
+  // so re-seat once on the actual posed foot bones after the first rendered frame.
+  const skeleton = result.skeletons[0];
+  const skinned = result.meshes.find((m) => m.skeleton === skeleton);
+  const footBones = skeleton?.bones.filter((b) => /toe|foot/i.test(b.name)) ?? [];
+  if (skeleton && skinned && footBones.length > 0) {
+    const observer = scene.onAfterRenderObservable.add(() => {
+      const lowest = Math.min(...footBones.map((b) => b.getAbsolutePosition(skinned).y));
+      root.position.y += parent.getAbsolutePosition().y - CAPSULE_HALF - lowest;
+      scene.onAfterRenderObservable.remove(observer);
+    });
+  }
 
   return { idle, walk };
 }
 
 /**
- * The Mixamo→Character-Creator retarget baked a ~90° X rotation onto the skeleton's root bone
- * (`RL_BoneRoot`) in the Walk clip — a Z-up↔Y-up correction that is wrong once the model is
- * displayed Y-up, so the whole knight pitches onto the floor while walking (Idle is unaffected).
- * Reset that one track to identity; world placement/orientation comes from the player root anyway.
+ * The Mixamo→Character-Creator retarget baked a root-bone (`RL_BoneRoot`) reorientation into each
+ * clip — a ~96° X pitch on Walk and a small forward lean on Idle (a Z-up↔Y-up correction that is
+ * wrong once the model is displayed Y-up), which tips the whole knight over. Reset that one track
+ * to identity; world placement/orientation comes from the player root anyway.
  */
 function neutralizeRootBoneRotation(group: AnimationGroup): void {
   for (const targeted of group.targetedAnimations) {
