@@ -31,7 +31,8 @@ export interface HubScene {
 }
 
 export async function createHubScene(canvas: HTMLCanvasElement): Promise<HubScene> {
-  const engine = new Engine(canvas, true);
+  // preserveDrawingBuffer (dev only) lets tooling screenshot the WebGL canvas.
+  const engine = new Engine(canvas, true, { preserveDrawingBuffer: import.meta.env.DEV, stencil: true });
   const scene = new Scene(engine);
 
   new HemisphericLight('light', new Vector3(0, 1, 0), scene);
