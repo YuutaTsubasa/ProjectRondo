@@ -41,8 +41,10 @@ export function createFollowCamera(scene: Scene, target: TransformNode, canvas: 
   return {
     camera,
     planarBasis() {
-      const fwd = camera.getDirection(Vector3.Forward());
-      const rgt = camera.getDirection(Vector3.Right());
+      // Right-handed scene: the camera looks along its local -Z, so that (not Vector3.Forward(),
+      // which is +Z) is the "into the screen" direction the player should move on W.
+      const fwd = camera.getDirection(new Vector3(0, 0, -1));
+      const rgt = camera.getDirection(new Vector3(1, 0, 0));
       const f = new Vector3(fwd.x, 0, fwd.z).normalize();
       const r = new Vector3(rgt.x, 0, rgt.z).normalize();
       return { right: { x: r.x, z: r.z }, forward: { x: f.x, z: f.z } };

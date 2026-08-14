@@ -31,19 +31,10 @@ export async function loadKnight(scene: Scene, parent: TransformNode): Promise<K
   const rawHeight = raw.max.y - raw.min.y;
   if (rawHeight > 0) root.scaling.scaleInPlace(TARGET_HEIGHT / rawHeight);
 
-  // The glTF importer expresses the RH→LH handedness as a negative-Z scale (a reflection) on the
-  // root AND bakes the same flip into the skeleton's bone matrices. Under a yawing parent this
-  // negative-determinant setup collapses the knight onto the floor mid-turn. Two changes are both
-  // required to keep it upright at every heading:
-  //   1) replace the reflection with a positive scale + a 180° yaw (faces away from camera; the
-  //      only side effect is a left-right mirror, imperceptible on the symmetric armour), and
-  //   2) evaluate skinning on the CPU, which handles the flipped bone matrices GPU skinning does not.
-  const scale = root.scaling;
-  scale.set(Math.abs(scale.x), Math.abs(scale.y), Math.abs(scale.z));
+  // The scene is right-handed (see hubScene), so the glTF loads natively with no handedness
+  // reflection — skinning stays correct under any parent yaw. The model faces +Z on import;
+  // rotate 180° so its back is to the third-person camera.
   root.rotationQuaternion = Quaternion.FromEulerAngles(0, Math.PI, 0);
-  for (const m of result.meshes) {
-    if (m.skeleton) m.computeBonesUsingShaders = false;
-  }
 
   // Seat the lowest vertex at the capsule bottom (parent centre − CAPSULE_HALF).
   const seated = root.getHierarchyBoundingVectors(true);
@@ -52,10 +43,28 @@ export async function loadKnight(scene: Scene, parent: TransformNode): Promise<K
   const groups = result.animationGroups;
   const idle = groups.find((g) => /idle/i.test(g.name)) ?? groups[0];
   const walk = groups.find((g) => /walk/i.test(g.name)) ?? groups[1];
+  neutralizeRootBoneRotation(walk);
   for (const g of groups) g.stop();
   idle.play(true);
 
   return { idle, walk };
+}
+
+/**
+ * The Mixamo→Character-Creator retarget baked a ~90° X rotation onto the skeleton's root bone
+ * (`RL_BoneRoot`) in the Walk clip — a Z-up↔Y-up correction that is wrong once the model is
+ * displayed Y-up, so the whole knight pitches onto the floor while walking (Idle is unaffected).
+ * Reset that one track to identity; world placement/orientation comes from the player root anyway.
+ */
+function neutralizeRootBoneRotation(group: AnimationGroup): void {
+  for (const targeted of group.targetedAnimations) {
+    const targetName = (targeted.target as { name?: string } | null)?.name ?? '';
+    if (/RL_BoneRoot/i.test(targetName) && targeted.animation.targetProperty === 'rotationQuaternion') {
+      for (const key of targeted.animation.getKeys()) {
+        (key.value as Quaternion).set(0, 0, 0, 1);
+      }
+    }
+  }
 }
 
 /** Planar speed above which the knight is fully walking (mirrors Godot's WalkAnimationThreshold). */

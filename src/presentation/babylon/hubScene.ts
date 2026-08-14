@@ -35,6 +35,9 @@ export async function createHubScene(canvas: HTMLCanvasElement): Promise<HubScen
   // preserveDrawingBuffer (dev only) lets tooling screenshot the WebGL canvas.
   const engine = new Engine(canvas, true, { preserveDrawingBuffer: import.meta.env.DEV, stencil: true });
   const scene = new Scene(engine);
+  // Right-handed so glTF (a right-handed format) imports natively — no handedness reflection on
+  // skinned characters, which otherwise collapses them to the floor when the parent yaws.
+  scene.useRightHandedSystem = true;
 
   new HemisphericLight('light', new Vector3(0, 1, 0), scene);
 
