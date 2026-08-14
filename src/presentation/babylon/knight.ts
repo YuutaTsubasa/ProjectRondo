@@ -31,14 +31,19 @@ export async function loadKnight(scene: Scene, parent: TransformNode): Promise<K
   const rawHeight = raw.max.y - raw.min.y;
   if (rawHeight > 0) root.scaling.scaleInPlace(TARGET_HEIGHT / rawHeight);
 
-  // The glTF importer expresses the RH→LH handedness as a negative-Z scale (a reflection).
-  // A negative-determinant transform breaks skeletal skinning the moment the parent yaws — the
-  // knight flips onto its side toward the floor. Replace the reflection with a plain positive
-  // scale and counter the lost orientation with a 180° yaw so the knight faces away from the
-  // camera. (Side effect: a left-right mirror, imperceptible on the symmetric armour.)
+  // The glTF importer expresses the RH→LH handedness as a negative-Z scale (a reflection) on the
+  // root AND bakes the same flip into the skeleton's bone matrices. Under a yawing parent this
+  // negative-determinant setup collapses the knight onto the floor mid-turn. Two changes are both
+  // required to keep it upright at every heading:
+  //   1) replace the reflection with a positive scale + a 180° yaw (faces away from camera; the
+  //      only side effect is a left-right mirror, imperceptible on the symmetric armour), and
+  //   2) evaluate skinning on the CPU, which handles the flipped bone matrices GPU skinning does not.
   const scale = root.scaling;
   scale.set(Math.abs(scale.x), Math.abs(scale.y), Math.abs(scale.z));
   root.rotationQuaternion = Quaternion.FromEulerAngles(0, Math.PI, 0);
+  for (const m of result.meshes) {
+    if (m.skeleton) m.computeBonesUsingShaders = false;
+  }
 
   // Seat the lowest vertex at the capsule bottom (parent centre − CAPSULE_HALF).
   const seated = root.getHierarchyBoundingVectors(true);
