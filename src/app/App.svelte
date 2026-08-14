@@ -3,8 +3,9 @@
   import { createHubScene } from '../presentation/babylon/hubScene';
   let canvas: HTMLCanvasElement;
   onMount(() => {
-    const hub = createHubScene(canvas);
-    if (import.meta.env.DEV) (window as unknown as { hub: unknown }).hub = hub;
+    createHubScene(canvas).then((hub) => {
+      if (import.meta.env.DEV) (window as unknown as { hub: unknown }).hub = hub;
+    });
   });
 </script>
 
