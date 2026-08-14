@@ -8,6 +8,11 @@ const MIN_PITCH = -1.2;
 const MAX_PITCH = 0.6;
 const DISTANCE = 5;
 const HEIGHT = 1.2;
+/**
+ * Keep the camera this far above the ground (y = 0). Looking up drives the orbit low; without this
+ * the camera sinks to/below the floor and the opaque ground plane occludes the whole character.
+ */
+const MIN_CAMERA_HEIGHT = 0.5;
 
 export interface FollowCamera {
   readonly camera: TargetCamera;
@@ -34,7 +39,10 @@ export function createFollowCamera(scene: Scene, target: TransformNode, canvas: 
       Math.sin(-pitch),
       Math.cos(yaw) * Math.cos(pitch),
     ).scaleInPlace(DISTANCE);
-    camera.position.copyFrom(t.add(offset).add(new Vector3(0, HEIGHT, 0)));
+    const position = t.add(offset).add(new Vector3(0, HEIGHT, 0));
+    // Never let the camera dip into the floor, or the opaque ground plane hides the whole character.
+    position.y = Math.max(position.y, MIN_CAMERA_HEIGHT);
+    camera.position.copyFrom(position);
     camera.setTarget(t.add(new Vector3(0, HEIGHT * 0.5, 0)));
   });
 
