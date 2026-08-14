@@ -11,6 +11,8 @@ export const length = (a: Vec2): number => Math.sqrt(lengthSquared(a));
 
 export const normalize = (a: Vec2): Vec2 => {
   const len = length(a);
+  // Intentional: return ZERO (not NaN) for a zero vector. All domain call sites guard
+  // against zero before normalizing, so this only trades C#'s NaN for a safer default.
   return len === 0 ? ZERO : scale(a, 1 / len);
 };
 

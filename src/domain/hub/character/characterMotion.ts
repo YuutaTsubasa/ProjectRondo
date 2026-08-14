@@ -8,5 +8,8 @@ export interface CharacterMotion {
   readonly isGrounded: boolean;
 }
 
-/** Grounded, motionless, facing forward (negative Y in planar space). */
+/**
+ * Grounded, motionless, facing forward. Facing is planar (X/Y), where planar Y maps to world Z
+ * in {@link CharacterMovement.step}; the default `(0, -1)` therefore faces negative world Z.
+ */
 export const IDLE: CharacterMotion = { velocity: ZERO3, facing: vec2(0, -1), isGrounded: true };
