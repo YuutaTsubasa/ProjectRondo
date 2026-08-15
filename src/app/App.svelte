@@ -1,11 +1,19 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { createHubScene } from '../presentation/babylon/hubScene';
+  import { createHubScene, type HubScene } from '../presentation/babylon/hubScene';
   let canvas: HTMLCanvasElement;
   onMount(() => {
-    createHubScene(canvas).then((hub) => {
-      if (import.meta.env.DEV) (window as unknown as { hub: unknown }).hub = hub;
+    let disposed = false;
+    let hub: HubScene | undefined;
+    createHubScene(canvas).then((h) => {
+      if (disposed) { h.dispose(); return; } // unmounted before the async load finished
+      hub = h;
+      if (import.meta.env.DEV) (window as unknown as { hub: unknown }).hub = h;
     });
+    return () => {
+      disposed = true;
+      hub?.dispose();
+    };
   });
 </script>
 

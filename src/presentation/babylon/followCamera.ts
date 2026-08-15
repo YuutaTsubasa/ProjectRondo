@@ -17,6 +17,8 @@ export interface FollowCameraConfig {
   minCameraHeight: number;
   /** Near clip plane. Small so close feet aren't clipped. */
   nearPlane: number;
+  /** Pitch the camera starts at (slightly above, looking down at the character). */
+  initialPitch: number;
 }
 
 const DEFAULT_CONFIG: FollowCameraConfig = {
@@ -28,12 +30,15 @@ const DEFAULT_CONFIG: FollowCameraConfig = {
   aimHeight: 0.3,
   minCameraHeight: 0.5,
   nearPlane: 0.05,
+  initialPitch: -0.35,
 };
 
 export interface FollowCamera {
   readonly camera: TargetCamera;
   /** Flattened, normalized camera right/forward on the X/Z plane, for camera-relative input. */
   planarBasis(): { right: { x: number; z: number }; forward: { x: number; z: number } };
+  /** Removes the canvas pointer listeners. */
+  dispose(): void;
 }
 
 export function createFollowCamera(scene: Scene, target: TransformNode, canvas: HTMLCanvasElement): FollowCamera {
@@ -46,14 +51,16 @@ export function createFollowCamera(scene: Scene, target: TransformNode, canvas: 
   const camera = new TargetCamera('follow', new Vector3(0, config.height, config.distance), scene);
   camera.minZ = config.nearPlane;
   let yaw = 0;
-  let pitch = -0.35;
+  let pitch = config.initialPitch;
 
-  canvas.addEventListener('click', () => canvas.requestPointerLock());
-  canvas.addEventListener('mousemove', (e) => {
+  const onClick = () => canvas.requestPointerLock();
+  const onMouseMove = (e: MouseEvent) => {
     if (document.pointerLockElement !== canvas) return;
     yaw -= e.movementX * config.sensitivity;
     pitch = Math.min(config.maxPitch, Math.max(config.minPitch, pitch - e.movementY * config.sensitivity));
-  });
+  };
+  canvas.addEventListener('click', onClick);
+  canvas.addEventListener('mousemove', onMouseMove);
 
   scene.onBeforeRenderObservable.add(() => {
     camera.minZ = config.nearPlane;
@@ -80,6 +87,10 @@ export function createFollowCamera(scene: Scene, target: TransformNode, canvas: 
       const f = new Vector3(fwd.x, 0, fwd.z).normalize();
       const r = new Vector3(rgt.x, 0, rgt.z).normalize();
       return { right: { x: r.x, z: r.z }, forward: { x: f.x, z: f.z } };
+    },
+    dispose: () => {
+      canvas.removeEventListener('click', onClick);
+      canvas.removeEventListener('mousemove', onMouseMove);
     },
   };
 }

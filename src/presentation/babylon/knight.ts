@@ -58,6 +58,9 @@ export async function loadKnight(scene: Scene, parent: TransformNode): Promise<K
   const groups = result.animationGroups;
   const idle = groups.find((g) => /idle/i.test(g.name)) ?? groups[0];
   const walk = groups.find((g) => /walk/i.test(g.name)) ?? groups[1];
+  if (!idle || !walk) {
+    throw new Error(`knight_web.glb must contain Idle and Walk animations; found: ${groups.map((g) => g.name).join(', ') || '(none)'}`);
+  }
   // Both clips carry a root-bone reorientation from the retarget (a big ~96° pitch on Walk, a small
   // forward lean on Idle); neutralise both so the knight stands straight rather than tipping over.
   neutralizeRootBoneRotation(idle);
@@ -139,6 +142,8 @@ function dampenSwayTowardMean(group: AnimationGroup, keep: number): void {
 const WALK_THRESHOLD = 0.6;
 /** Idle↔Walk cross-fade rate; reaches full weight in ~0.2s (mirrors Godot's AnimationBlend). */
 const BLEND_PER_SECOND = 1 / 0.2;
+/** Weight below/above which a clip is treated as fully idle/fully walking and the other is stopped. */
+const WEIGHT_EPSILON = 0.001;
 
 /**
  * Cross-fades Idle↔Walk by weight each frame based on `planarSpeed()`: the walk weight eases toward
@@ -161,8 +166,8 @@ export function driveKnightAnimation(
     const maxStep = BLEND_PER_SECOND * dt;
     walkWeight += Math.max(-maxStep, Math.min(maxStep, target - walkWeight));
 
-    const wantWalk = walkWeight > 0.001;
-    const wantIdle = walkWeight < 0.999;
+    const wantWalk = walkWeight > WEIGHT_EPSILON;
+    const wantIdle = walkWeight < 1 - WEIGHT_EPSILON;
     if (wantWalk && !walkPlaying) { knight.walk.play(true); walkPlaying = true; }
     else if (!wantWalk && walkPlaying) { knight.walk.stop(); walkPlaying = false; }
     if (wantIdle && !idlePlaying) { knight.idle.play(true); idlePlaying = true; }

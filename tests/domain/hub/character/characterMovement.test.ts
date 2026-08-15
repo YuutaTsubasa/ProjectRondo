@@ -62,4 +62,15 @@ describe('CharacterMovement.step', () => {
     const r = step(IDLE, inputToward(0.5, 0), C, 1);
     expect(r.velocity.x).toBeCloseTo(C.maxSpeed * 0.5, P);
   });
+  // A sub-target frame (delta=0.1) so the step doesn't snap to the target — pins the distinct
+  // acceleration and deceleration rates (swapping them would fail these).
+  it('a partial frame accelerates by acceleration * delta', () => {
+    const r = step(IDLE, inputToward(1, 0), C, 0.1);
+    expect(r.velocity.x).toBeCloseTo(C.acceleration * 0.1, P);
+  });
+  it('a partial frame decelerates by deceleration * delta', () => {
+    const moving: CharacterMotion = { ...IDLE, velocity: vec3(C.maxSpeed, 0, 0) };
+    const r = step(moving, NONE_INPUT, C, 0.1);
+    expect(r.velocity.x).toBeCloseTo(C.maxSpeed - C.deceleration * 0.1, P);
+  });
 });

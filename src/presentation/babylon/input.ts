@@ -4,6 +4,8 @@ export interface InputState {
   axis(): { x: number; y: number };
   /** Returns true once per jump key-press (edge-triggered, then consumed). */
   consumeJump(): boolean;
+  /** Removes the window key listeners. */
+  dispose(): void;
 }
 
 const isJumpKey = (k: string): boolean => k === ' ' || k === 'spacebar';
@@ -12,12 +14,14 @@ export function createInput(): InputState {
   const down = new Set<string>();
   let jumpQueued = false;
 
-  window.addEventListener('keydown', (e) => {
+  const onKeyDown = (e: KeyboardEvent) => {
     const k = e.key.toLowerCase();
     if (!down.has(k) && isJumpKey(k)) jumpQueued = true;
     down.add(k);
-  });
-  window.addEventListener('keyup', (e) => down.delete(e.key.toLowerCase()));
+  };
+  const onKeyUp = (e: KeyboardEvent) => down.delete(e.key.toLowerCase());
+  window.addEventListener('keydown', onKeyDown);
+  window.addEventListener('keyup', onKeyUp);
 
   return {
     axis: () => ({
@@ -28,6 +32,10 @@ export function createInput(): InputState {
       const j = jumpQueued;
       jumpQueued = false;
       return j;
+    },
+    dispose: () => {
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('keyup', onKeyUp);
     },
   };
 }

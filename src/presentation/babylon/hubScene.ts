@@ -29,6 +29,8 @@ export interface HubScene {
   readonly follow: FollowCamera;
   readonly player: Player;
   readonly knight: KnightAnimations;
+  /** Tears the scene down: stops the render loop, removes DOM listeners, disposes the engine. */
+  dispose(): void;
 }
 
 export async function createHubScene(canvas: HTMLCanvasElement): Promise<HubScene> {
@@ -67,6 +69,16 @@ export async function createHubScene(canvas: HTMLCanvasElement): Promise<HubScen
   engine.runRenderLoop(() => scene.render());
   // Size the drawing buffer to the canvas now; the resize event only fires on later changes.
   engine.resize();
-  window.addEventListener('resize', () => engine.resize());
-  return { engine, scene, follow, player, knight };
+  const onResize = () => engine.resize();
+  window.addEventListener('resize', onResize);
+
+  const dispose = () => {
+    window.removeEventListener('resize', onResize);
+    input.dispose();
+    follow.dispose();
+    // engine.dispose() tears down the scene, physics, meshes, observers and the render loop.
+    engine.dispose();
+  };
+
+  return { engine, scene, follow, player, knight, dispose };
 }

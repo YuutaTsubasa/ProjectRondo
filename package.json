@@ -1,17 +1,16 @@
 {
-  "name": "project-web-migration-285b86",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "name": "project-rondo",
+  "version": "0.1.0",
+  "description": "A 3D action game for the web (Svelte + babylon.js + Havok), packaged with Tauri v2.",
+  "private": true,
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
     "tauri": "tauri"
   },
-  "keywords": [],
-  "author": "",
   "license": "ISC",
   "type": "module",
   "devDependencies": {
