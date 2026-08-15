@@ -1,41 +1,74 @@
 # ProjectRondo
 
-A 3D action game built in **Godot 4.7.1 (mono / C#)**. A hub world hosts NPCs that lead into
-Sonic-style 3D levels, Sonic-style 2D levels, and puzzle games (Sudoku, 2048).
+A 3D action game for the **web**, built with **Svelte 5 + TypeScript + babylon.js (Havok physics)**
+and packaged for desktop/mobile with **Tauri v2**. A hub world hosts NPCs that lead into Sonic-style
+3D levels, Sonic-style 2D levels, and puzzle games (Sudoku, 2048).
 
 Engineering approach: **TDD + DDD + Functional + Reactive**.
 
-## Solution layout
+> Migrated from Godot 4 (C#) to the web. The original Godot project is preserved under
+> [`__prototype__/`](__prototype__/) as a behaviour reference.
+
+## Layout
 
 | Path | Purpose |
 | --- | --- |
-| `ProjectRondo.csproj` / `project.godot` | Godot game (presentation layer) at the repo root |
-| `src/ProjectRondo.Domain/` | Pure C# domain — no Godot dependency, uses `System.Numerics` |
-| `tests/ProjectRondo.Domain.Tests/` | xUnit tests for the domain |
-| `Scenes/`, `Scripts/` | Godot scenes and presentation scripts |
+| `src/domain/` | Pure TypeScript domain — no engine/UI imports. Movement, kernel types. The single source of truth, independently testable. |
+| `src/presentation/babylon/` | babylon.js scene: hub, follow camera, Havok character controller, glTF knight. Reads input → calls the domain → applies the result to the physics body. |
+| `src/app/` | Svelte entry + full-window canvas. |
+| `tests/` | Vitest specs (mirror the domain's former xUnit tests). |
+| `public/models/` | `knight_web.glb` (baked Idle/Walk, texture-only optimized). |
+| `src-tauri/` | Tauri v2 shell (desktop/mobile packaging). |
+| `__prototype__/` | The original Godot 4.7.1 (mono/C#) project, kept as a parity reference. |
 
-The domain holds engine-agnostic rules (e.g. `CharacterMovement.Step`, a pure function) so they can be
-test-driven fast without the engine. The Godot layer converts input into domain values, runs the pure
-step, and applies the result to the physics body.
+The domain holds engine-agnostic rules (e.g. `characterMovement.step`, a pure function) so they can be
+test-driven fast without the engine. The babylon layer converts input into domain values, runs the pure
+step, and applies the result to a Havok `PhysicsCharacterController`. Svelte hosts DOM UI.
 
-Stack: `R3` (reactive), `OneOf` + `Optional` (functional), `ZLinq` (LINQ over loops).
+Stack: `@babylonjs/core` + `@babylonjs/havok` + `@babylonjs/loaders`, Svelte 5 (runes), Vite, Vitest,
+Tauri v2. Package manager: **pnpm**.
 
-## Milestone 1 (current)
+## Milestone 1 (current — web parity)
 
-Scaffold + a 3D hub world with a third-person, mouse-look character (`WASD` move, `Space` jump, `Esc`
-to release the mouse). Movement is driven by the pure domain.
+A 3D hub world with a third-person, mouse-look knight (`WASD` move, `Space` jump, click to capture the
+mouse). Movement is driven by the pure domain; the character is a Havok capsule; the knight is a glTF
+model with Idle/Walk animation blended by speed.
 
 ## Develop
 
 ```bash
-# Run the domain tests
-dotnet test
+# Install
+pnpm install
 
-# Build the game
-dotnet build ProjectRondo.csproj
+# Run the domain tests
+pnpm test
+
+# Run in the browser (Vite dev server)
+pnpm dev
+
+# Run as a native desktop app (Tauri v2 — needs the Rust toolchain)
+pnpm tauri dev
 ```
 
-Open `project.godot` in Godot 4.7.1 (mono) and run the main scene `Scenes/Hub/HubWorld.tscn`.
+Open the printed URL (default http://localhost:5173). `pnpm build` produces a static bundle in `dist/`;
+`pnpm tauri build` produces a desktop app bundle.
+
+### Regenerating the knight GLB
+
+The knight model + retargeted animations live in the Godot prototype. Re-export and optimize with:
+
+```bash
+# 1. Export a GLB (mesh + Idle/Walk) from Godot headless
+/Applications/Godot_mono.app/Contents/MacOS/Godot --headless \
+  --path __prototype__ --script res://tools/export_web_glb.gd
+
+# 2. Texture-only optimization (do NOT simplify/quantize/resample — it corrupts the skeletal animation)
+pnpm dlx @gltf-transform/cli resize __prototype__/knight_web.glb /tmp/k.glb --width 1024 --height 1024
+pnpm dlx @gltf-transform/cli webp /tmp/k.glb public/models/knight_web.glb --quality 80
+```
+
+Bump the `?v=N` query on the GLB URL in `src/presentation/babylon/knight.ts` after rebuilding so
+browsers refetch it.
 
 ## Roadmap
 
