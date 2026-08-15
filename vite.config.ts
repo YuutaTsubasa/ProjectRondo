@@ -16,6 +16,8 @@ const forceFullReload = {
 
 export default defineConfig({
   plugins: [svelte(), forceFullReload],
+  // Honor the port assigned via PORT (preview autoPort); fall back to Vite's default in plain dev.
+  server: { port: process.env.PORT ? Number(process.env.PORT) : undefined },
   optimizeDeps: { exclude: ['@babylonjs/havok'] },
   test: {
     environment: 'node',
