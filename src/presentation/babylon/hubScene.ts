@@ -48,10 +48,11 @@ export async function createHubScene(canvas: HTMLCanvasElement): Promise<HubScen
   groundMaterial.diffuseColor = new Color3(0.45, 0.5, 0.55);
   ground.material = groundMaterial;
 
-  // Physics: Havok. The domain owns gravity, so the world gravity is only used by
-  // dynamic bodies (there are none here); the character controller is passed zero gravity.
+  // Physics: Havok. The domain owns all gravity and the character controller is passed zero
+  // gravity, so the world gravity stays zero too — no second, contradictory source of gravity.
+  // (Set a real value here if/when dynamic rigid bodies are introduced.)
   const havok = await HavokPhysics();
-  scene.enablePhysics(new Vector3(0, -9.81, 0), new HavokPlugin(true, havok));
+  scene.enablePhysics(Vector3.Zero(), new HavokPlugin(true, havok));
   new PhysicsAggregate(ground, PhysicsShapeType.BOX, { mass: 0 }, scene); // static floor collider
 
   const playerRoot = new TransformNode('player', scene);

@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && svelte-check",
     "test": "vitest run",
     "test:watch": "vitest",
     "tauri": "tauri"
@@ -19,7 +19,7 @@
     "@tsconfig/svelte": "^5.0.8",
     "svelte": "^5.56.9",
     "svelte-check": "^4.7.6",
-    "typescript": "^7.0.2",
+    "typescript": "^6.0.3",
     "vite": "^8.2.1",
     "vitest": "^4.1.10"
   },

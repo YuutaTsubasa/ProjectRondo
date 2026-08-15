@@ -10,7 +10,7 @@ import { step } from '../../domain/hub/character/characterMovement';
 import { DEFAULT_CONFIG } from '../../domain/hub/character/movementConfig';
 import { IDLE, type CharacterMotion } from '../../domain/hub/character/characterMotion';
 import { planarDirectionFromInput } from './cameraRelativeDirection';
-import { toBabylon } from './vectorConversions';
+import { toBabylon, toVec3 } from './vectorConversions';
 import type { FollowCamera } from './followCamera';
 import type { InputState } from './input';
 
@@ -19,6 +19,12 @@ const RADIUS = 0.5;
 const CYLINDER_HALF_HEIGHT = 0.5;
 const CAPSULE_HEIGHT = CYLINDER_HALF_HEIGHT * 2 + RADIUS * 2;
 const TURN_SPEED = 12;
+/**
+ * Frame-time clamp. A backgrounded tab stalls the render loop; on return the first frame's
+ * getDeltaTime() can be many seconds, and one domain step with a huge dt (gravity*dt, a single
+ * integrate move of hundreds of units) tunnels the capsule through the floor. Cap dt to ~2 frames.
+ */
+const MAX_DT = 1 / 30;
 const DOWN = new Vector3(0, -1, 0);
 const NO_GRAVITY = Vector3.Zero(); // gravity lives in the domain; Havok must not add its own
 
@@ -47,7 +53,7 @@ export function createPlayer(
   const player: Player = { root, motion: IDLE };
 
   scene.onBeforeRenderObservable.add(() => {
-    const dt = scene.getEngine().getDeltaTime() / 1000;
+    const dt = Math.min(scene.getEngine().getDeltaTime() / 1000, MAX_DT);
     if (dt <= 0) return;
 
     const support = controller.checkSupport(dt, DOWN);
@@ -69,7 +75,11 @@ export function createPlayer(
     controller.setVelocity(toBabylon(next.velocity));
     controller.integrate(dt, support, NO_GRAVITY);
     root.position.copyFrom(controller.getPosition());
-    player.motion = next;
+    // Feed the controller's *post-solve* velocity back into the domain (mirrors Godot reading
+    // Velocity after MoveAndSlide). Today the hub is a bare plane so this equals `next.velocity`,
+    // but once there are walls, collide-and-slide reduces/redirects it — storing the pre-integrate
+    // target instead would keep full speed into a wall and ping the character off on release.
+    player.motion = { ...next, velocity: toVec3(controller.getVelocity()) };
 
     faceMovement(root, next.facing.x, next.facing.y, dt);
   });
