@@ -12,13 +12,14 @@ export interface BacklogEntry { readonly speaker: string; readonly line: string;
  * every shown line. Invalid input is a no-op (same state), so the backlog does not grow.
  */
 export function createDialogueSession(graph: DialogueGraph) {
-  let state = $state<DialogueState>(start(graph));
+  const initial = start(graph);
+  let state = $state<DialogueState>(initial);
   const backlog = $state<BacklogEntry[]>([]);
   const record = (s: DialogueState) => {
     const node = currentNode(s);
     backlog.push({ speaker: node.speaker, line: node.line });
   };
-  record(state);
+  record(initial); // seed from the plain local, not the $state rune (avoids a top-level reactive read)
 
   const apply = (next: DialogueState) => {
     if (next === state) return;          // no-op input: nothing changed
