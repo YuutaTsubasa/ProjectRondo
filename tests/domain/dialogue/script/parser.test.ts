@@ -55,13 +55,31 @@ describe('DSL parser', () => {
     expect(errors.some((e) => e.kind === 'choiceWithoutLine')).toBe(true);
   });
 
-  it('reports a duplicate label', () => {
-    const { errors } = parse(':: a\n里昂: x\n:: a\n里昂: y\n');
+  it('reports a duplicate label and refuses to hand back a graph with a silently dropped node', () => {
+    const { graph, errors } = parse(':: a\n里昂: x\n:: a\n里昂: y\n');
     expect(errors.some((e) => e.kind === 'duplicateLabel')).toBe(true);
+    expect(graph).toBeUndefined();
   });
 
-  it('surfaces graph validation errors (dangling target)', () => {
-    const { errors } = parse(':: a\n里昂: x\n-> nowhere\n');
+  it('surfaces graph validation errors (dangling target) while still returning the graph', () => {
+    const { graph, errors } = parse(':: a\n里昂: x\n-> nowhere\n');
     expect(errors.some((e) => e.kind === 'danglingReference')).toBe(true);
+    expect(graph).toBeDefined();
+  });
+
+  it('reports a goto that appears before any line', () => {
+    const { errors } = parse('-> x\n');
+    expect(errors.some((e) => e.kind === 'gotoWithoutLine')).toBe(true);
+  });
+
+  it('reports an unrecognized line (no speaker/colon) as emptyLine', () => {
+    const { errors } = parse('just some text with no colon\n');
+    expect(errors.some((e) => e.kind === 'emptyLine')).toBe(true);
+  });
+
+  it('reports labelWithoutLine at the orphaned label\'s own line, not the line that orphaned it', () => {
+    const { errors } = parse(':: a\n:: b\n里昂: hi\n');
+    const error = errors.find((e) => e.kind === 'labelWithoutLine');
+    expect(error).toEqual({ kind: 'labelWithoutLine', id: 'a', line: 1 });
   });
 });

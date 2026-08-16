@@ -25,6 +25,7 @@ export const parse = (source: string): { graph: DialogueGraph | undefined; error
   const errors: ParseError[] = [];
   const labels = new Set<string>();
   let pendingLabel: string | undefined;
+  let pendingLabelLine = 0;
   let auto = 0;
 
   const prev = (): Building | undefined => nodes[nodes.length - 1];
@@ -32,10 +33,11 @@ export const parse = (source: string): { graph: DialogueGraph | undefined; error
   for (const t of tokens) {
     switch (t.kind) {
       case 'label': {
-        if (pendingLabel !== undefined) errors.push({ kind: 'labelWithoutLine', id: pendingLabel, line: t.line });
+        if (pendingLabel !== undefined) errors.push({ kind: 'labelWithoutLine', id: pendingLabel, line: pendingLabelLine });
         if (labels.has(t.id)) errors.push({ kind: 'duplicateLabel', id: t.id, line: t.line });
         labels.add(t.id);
         pendingLabel = t.id;
+        pendingLabelLine = t.line;
         break;
       }
       case 'line': {
@@ -63,9 +65,13 @@ export const parse = (source: string): { graph: DialogueGraph | undefined; error
             : branchExit([choice]);
         break;
       }
+      default: {
+        const _exhaustive: never = t;
+        break;
+      }
     }
   }
-  if (pendingLabel !== undefined) errors.push({ kind: 'labelWithoutLine', id: pendingLabel, line: 0 });
+  if (pendingLabel !== undefined) errors.push({ kind: 'labelWithoutLine', id: pendingLabel, line: pendingLabelLine });
 
   if (nodes.length === 0) return { graph: undefined, errors };
 
@@ -77,6 +83,11 @@ export const parse = (source: string): { graph: DialogueGraph | undefined; error
     exit: n.exit ?? END_EXIT, // trailing node with no explicit exit ends the dialogue
   }));
   const graph = fromNodes(nodeId(nodes[0].id), built);
+  // A duplicate label (or any other syntactic problem) can make `built` silently
+  // drop or misattribute nodes via the id-keyed Map in fromNodes — don't hand back
+  // a graph that may not reflect the source. validate() errors (dangling/unreachable)
+  // are about a graph we DID build correctly, so those stay non-fatal.
+  const hadSyntaxErrors = errors.length > 0;
   errors.push(...validate(graph));
-  return { graph, errors };
+  return { graph: hadSyntaxErrors ? undefined : graph, errors };
 };
