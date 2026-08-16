@@ -29,7 +29,7 @@ const reachableFrom = (graph: DialogueGraph, start: NodeId): ReadonlySet<NodeId>
   const visited = new Set<NodeId>();
   const pending: NodeId[] = [start];
   while (pending.length > 0) {
-    const id = pending.pop()!;
+    const id = pending.pop()!; // safe: guarded by the while (pending.length > 0) condition
     const node = graph.nodes.get(id);
     if (!node || visited.has(id)) continue;
     visited.add(id);
