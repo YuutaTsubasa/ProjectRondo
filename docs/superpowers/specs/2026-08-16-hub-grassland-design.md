@@ -29,7 +29,7 @@ units — it is verified in-browser.
 - **Sun + shadows** — a `DirectionalLight` + `ShadowGenerator`; the knight (and trees) cast soft
   shadows on the grass. The hemispheric light stays as ambient fill.
 - **Trees** — load a user-supplied `public/models/tree.glb`, texture-optimize it, and scatter ~8–12
-  copies via thin-instances (including the old pillar spots). **Gracefully no-op (console note) if the
+  copies via `.clone()` (including the old pillar spots). **Gracefully no-op (console note) if the
   GLB is absent** so the rest ships before the asset exists.
 - **Boundaries** — thin invisible Havok wall colliders at the field edges so the player can't walk off
   into the void.
@@ -49,7 +49,7 @@ Small, focused presentation modules under `src/presentation/babylon/`, each with
   box collider (`receiveShadows = true`), plus the four invisible edge-boundary colliders (§8).
   Returns the ground mesh.
 - **`trees.ts`** — `loadTrees(scene, shadowGenerator)`: async-loads `/models/tree.glb`, texture-
-  optimizes/scales it, scatters copies via thin-instances at a fixed position list, registers them as
+  optimizes/scales it, scatters copies via `.clone()` at a fixed position list, registers them as
   shadow casters. Resolves to a no-op (with a `console.info`) if the GLB is missing.
 - **`hubScene.ts`** (refactor) — stops building the ground/light inline; instead calls
   `createEnvironment`, `createGround`, and `loadTrees`. After `loadKnight`, it registers the knight
@@ -99,7 +99,9 @@ box collider and Havok setup are unchanged).
   2. Texture-optimize on the same principle as the knight (the GLB should be pre-optimized offline;
      at minimum resize oversized textures) — the plan documents the offline `gltf-transform` recipe
      (texture-only) mirroring the knight.
-  3. Scatter ~8–12 copies via **thin-instances** (one draw call) at a fixed position list — include the
+  3. Scatter ~8–12 copies at a fixed position list — implemented as plain **`.clone()` per tree**
+     (simpler and robust to an unknown multi-mesh GLB; ~10 static props is a negligible draw-call
+     cost). Thin-instances remain a valid optimization if tree counts grow large. Include the
      four old pillar spots (±8, ±8) plus a few more toward the field edges; vary yaw and scale slightly
      per instance (deterministic).
   4. Register the tree mesh as a shadow caster.
@@ -137,7 +139,7 @@ In-browser (no unit tests — pure visual/physics presentation):
 - With a `tree.glb` present: trees appear scattered and cast shadows; without it: scene still renders,
   a console note logged, no error.
 - Player can't walk past the field edges (boundary colliders).
-- Framerate stays healthy (thin-instanced trees = one draw call; single shadow map).
+- Framerate stays healthy (~10 cloned trees + single shadow map is cheap).
 
 ## 11. Parity notes (Godot `HubWorld.tscn`)
 

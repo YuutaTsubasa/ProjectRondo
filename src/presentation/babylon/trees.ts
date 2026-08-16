@@ -23,8 +23,10 @@ export async function loadTrees(scene: Scene, shadowGenerator?: ShadowGenerator)
   let result;
   try {
     result = await ImportMeshAsync('/models/tree.glb?v=1', scene);
-  } catch {
-    console.info('[trees] /models/tree.glb not found — skipping trees (add the GLB to enable them).');
+  } catch (err) {
+    // Absent asset OR a real load failure (bad GLB, network) both reject here — log the cause so a
+    // genuine error isn't mistaken for "just not added yet". Either way, skip trees and keep the scene.
+    console.info('[trees] tree.glb not loaded — skipping trees (add /public/models/tree.glb to enable):', err);
     return;
   }
   const root = result.meshes[0] as TransformNode;

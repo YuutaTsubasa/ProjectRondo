@@ -57,6 +57,7 @@ function createBoundaries(scene: Scene): void {
     const wall = CreateBox(`bound_${name}`, { width: w, height: h, depth: d }, scene);
     wall.position.set(x, h / 2, z);
     wall.isVisible = false;
+    wall.isPickable = false;
     new PhysicsAggregate(wall, PhysicsShapeType.BOX, { mass: 0 }, scene);
   }
 }
