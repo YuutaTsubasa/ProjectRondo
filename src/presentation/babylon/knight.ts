@@ -13,7 +13,7 @@ export interface KnightAnimations {
   readonly walk: AnimationGroup;
 }
 
-/** Target on-screen height of the knight, in world units (capsule total height is 2). */
+/** Target on-screen height of the knight, in world units (roughly the physics capsule height; see capsule.ts). */
 const TARGET_HEIGHT = 1.9;
 /**
  * Lift applied when seating so the shoe soles rest on the floor. The sole mesh extends well below
