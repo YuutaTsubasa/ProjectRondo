@@ -35,6 +35,8 @@ export function createDialogueSession(graph: DialogueGraph) {
     get choices(): readonly DialogueChoice[] { return state.kind === 'awaitingChoice' ? state.choices : []; },
     get isFinished(): boolean { return state.kind === 'ended'; },
     get backlog(): readonly BacklogEntry[] { return backlog; },
+    /** Total node count — an upper bound on how far a no-choice fast-forward can advance. */
+    get nodeCount(): number { return graph.nodes.size; },
     advance() { apply(step(graph, state, ADVANCE)); },
     select(index: number) { apply(step(graph, state, selectInput(index))); },
   };

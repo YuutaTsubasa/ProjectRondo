@@ -26,8 +26,13 @@
   function onBoxKeydown(e: KeyboardEvent) {
     if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onBoxClick(); }
   }
-  function skip() { while (!session.isFinished && session.choices.length === 0) session.advance();
-    if (session.isFinished) finish(); }
+  function skip() {
+    // Bail after nodeCount steps: a terminating fast-forward visits each node at most once, so
+    // exceeding that means a cyclic graph with no exit — stop rather than hang the tab.
+    let guard = session.nodeCount;
+    while (!session.isFinished && session.choices.length === 0 && guard-- > 0) session.advance();
+    if (session.isFinished) finish();
+  }
 
   // AUTO: once the current line finishes revealing, advance after a pause (only when not awaiting a choice).
   // Setting auto = false (e.g. via finish()) re-runs this effect and fires the cleanup, cancelling any pending timer.
