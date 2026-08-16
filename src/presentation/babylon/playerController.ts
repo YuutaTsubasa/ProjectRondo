@@ -11,13 +11,10 @@ import { DEFAULT_CONFIG } from '../../domain/hub/character/movementConfig';
 import { IDLE, type CharacterMotion } from '../../domain/hub/character/characterMotion';
 import { planarDirectionFromInput } from './cameraRelativeDirection';
 import { toBabylon, toVec3 } from './vectorConversions';
+import { CAPSULE_RADIUS, CAPSULE_HEIGHT } from './capsule';
 import type { FollowCamera } from './followCamera';
 import type { InputState } from './input';
 
-const RADIUS = 0.5;
-/** Half the height of the capsule's cylindrical section (excludes the two hemispherical caps). */
-const CYLINDER_HALF_HEIGHT = 0.5;
-const CAPSULE_HEIGHT = CYLINDER_HALF_HEIGHT * 2 + RADIUS * 2;
 const TURN_SPEED = 12;
 /**
  * Frame-time clamp. A backgrounded tab stalls the render loop; on return the first frame's
@@ -47,7 +44,7 @@ export function createPlayer(
   const start = new Vector3(0, CAPSULE_HEIGHT / 2, 0);
   const controller = new PhysicsCharacterController(
     start,
-    { capsuleRadius: RADIUS, capsuleHeight: CAPSULE_HEIGHT },
+    { capsuleRadius: CAPSULE_RADIUS, capsuleHeight: CAPSULE_HEIGHT },
     scene,
   );
   const player: Player = { root, motion: IDLE };

@@ -6,6 +6,7 @@ import { ImportMeshAsync } from '@babylonjs/core/Loading/sceneLoader';
 import { Quaternion } from '@babylonjs/core/Maths/math.vector';
 // Side-effect: registers the glTF loader plugin (with KHR_mesh_quantization / webp support).
 import '@babylonjs/loaders/glTF';
+import { CAPSULE_HALF } from './capsule';
 
 export interface KnightAnimations {
   readonly idle: AnimationGroup;
@@ -14,8 +15,6 @@ export interface KnightAnimations {
 
 /** Target on-screen height of the knight, in world units (capsule total height is 2). */
 const TARGET_HEIGHT = 1.9;
-/** Capsule centre sits this far above its feet (radius 0.5 + cylinder half-height 0.5). */
-const CAPSULE_HALF = 1.0;
 /**
  * Lift applied when seating so the shoe soles rest on the floor. The sole mesh extends well below
  * the foot bones we measure against, so without this the feet sink into the ground (and the ground
