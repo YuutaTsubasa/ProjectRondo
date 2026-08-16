@@ -29,6 +29,8 @@ export interface HubScene {
   readonly follow: FollowCamera;
   readonly player: Player;
   readonly knight: KnightAnimations;
+  /** Suspends (on=true) or resumes (on=false) gameplay input and camera look, e.g. during an AVG overlay. */
+  suspendInput(on: boolean): void;
   /** Tears the scene down: stops the render loop, removes DOM listeners, disposes the engine. */
   dispose(): void;
 }
@@ -81,5 +83,10 @@ export async function createHubScene(canvas: HTMLCanvasElement): Promise<HubScen
     engine.dispose();
   };
 
-  return { engine, scene, follow, player, knight, dispose };
+  const suspendInput = (on: boolean) => {
+    input.setEnabled(!on);
+    follow.setEnabled(!on);
+  };
+
+  return { engine, scene, follow, player, knight, suspendInput, dispose };
 }

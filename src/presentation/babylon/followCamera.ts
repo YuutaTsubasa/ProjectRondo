@@ -37,6 +37,8 @@ export interface FollowCamera {
   readonly camera: TargetCamera;
   /** Flattened, normalized camera right/forward on the X/Z plane, for camera-relative input. */
   planarBasis(): { right: { x: number; z: number }; forward: { x: number; z: number } };
+  /** Enables/disables pointer-look and pointer-lock capture (e.g. while an AVG overlay owns focus). */
+  setEnabled(value: boolean): void;
   /** Removes the canvas pointer listeners. */
   dispose(): void;
 }
@@ -52,9 +54,11 @@ export function createFollowCamera(scene: Scene, target: TransformNode, canvas: 
   camera.minZ = config.nearPlane;
   let yaw = 0;
   let pitch = config.initialPitch;
+  let enabled = true;
 
-  const onClick = () => canvas.requestPointerLock();
+  const onClick = () => { if (enabled) canvas.requestPointerLock(); };
   const onMouseMove = (e: MouseEvent) => {
+    if (!enabled) return;
     if (document.pointerLockElement !== canvas) return;
     yaw -= e.movementX * config.sensitivity;
     pitch = Math.min(config.maxPitch, Math.max(config.minPitch, pitch - e.movementY * config.sensitivity));
@@ -87,6 +91,11 @@ export function createFollowCamera(scene: Scene, target: TransformNode, canvas: 
       const f = new Vector3(fwd.x, 0, fwd.z).normalize();
       const r = new Vector3(rgt.x, 0, rgt.z).normalize();
       return { right: { x: r.x, z: r.z }, forward: { x: f.x, z: f.z } };
+    },
+    setEnabled: (value: boolean) => {
+      enabled = value;
+      // Suspending mid-drag shouldn't leave the pointer captured under an AVG overlay.
+      if (!value && document.pointerLockElement === canvas) document.exitPointerLock();
     },
     dispose: () => {
       canvas.removeEventListener('click', onClick);

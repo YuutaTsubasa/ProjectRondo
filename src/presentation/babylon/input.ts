@@ -4,6 +4,8 @@ export interface InputState {
   axis(): { x: number; y: number };
   /** Returns true once per jump key-press (edge-triggered, then consumed). */
   consumeJump(): boolean;
+  /** Enables/disables reading input (e.g. while an AVG overlay owns focus). Disabling drops held keys. */
+  setEnabled(value: boolean): void;
   /** Removes the window/document listeners. */
   dispose(): void;
 }
@@ -15,6 +17,7 @@ const GAME_KEYS = new Set(['w', 'a', 's', 'd', ' ', 'spacebar']);
 export function createInput(): InputState {
   const down = new Set<string>();
   let jumpQueued = false;
+  let enabled = true;
 
   const onKeyDown = (e: KeyboardEvent) => {
     const k = e.key.toLowerCase();
@@ -33,15 +36,19 @@ export function createInput(): InputState {
   document.addEventListener('visibilitychange', clear);
 
   return {
-    axis: () => ({
-      x: (down.has('d') ? 1 : 0) - (down.has('a') ? 1 : 0),
-      y: (down.has('w') ? 1 : 0) - (down.has('s') ? 1 : 0),
-    }),
+    axis: () => enabled
+      ? {
+          x: (down.has('d') ? 1 : 0) - (down.has('a') ? 1 : 0),
+          y: (down.has('w') ? 1 : 0) - (down.has('s') ? 1 : 0),
+        }
+      : { x: 0, y: 0 },
     consumeJump: () => {
+      if (!enabled) { jumpQueued = false; return false; }
       const j = jumpQueued;
       jumpQueued = false;
       return j;
     },
+    setEnabled: (value: boolean) => { enabled = value; if (!value) { down.clear(); jumpQueued = false; } },
     dispose: () => {
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);
