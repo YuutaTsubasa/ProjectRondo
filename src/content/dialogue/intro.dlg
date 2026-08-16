@@ -1,20 +1,14 @@
-# src/content/dialogue/intro.dlg — 第一章 雲上的哨站
-:: intro
-里昂: 雲層再往下沉三十公尺，哨站就看不見谷底了。
-旁白: 風從西面壓過來，銀色的護甲上滑過一層薄光。
-里昂: 你確定要在這種天氣裡下去？
-* 走向懸崖邊，確認雲層下的動靜 -> cliff
-* 先與同行的騎士確認裝備 -> gear
-* 什麼都不說，繼續等待 -> wait
+# Opening dialogue — original prototype content (ported from Godot DialogueDemo).
+:: greet
+Nina: 哈囉，旅人！
+Nina: 要走哪條路？
+* 左邊 -> left
+* 右邊 -> right
 
-:: cliff
-旁白: 你走向懸崖，雲在腳下翻湧。
+:: left
+Nina: 走左邊，一路小心。
 -> END
 
-:: gear
-里昂: 好，先檢查裝備。謹慎點沒錯。
--> END
-
-:: wait
-旁白: 你按住不動，讓風先過去。
+:: right
+Nina: 走右邊，祝你好運。
 -> END

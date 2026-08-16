@@ -34,44 +34,90 @@
     if (session.isFinished) finish();
   }
 
-  // AUTO: once the current line finishes revealing, advance after a pause (only when not awaiting a choice).
-  // Setting auto = false (e.g. via finish()) re-runs this effect and fires the cleanup, cancelling any pending timer.
+  // Reset the typewriter-done flag whenever the line changes ({#key session.line} remounts <Line>).
+  $effect(() => { session.line; lineDone = false; });
+
+  // AUTO: once the line finishes revealing, advance after a pause (only when not awaiting a choice).
+  // Setting auto = false (e.g. via finish()) re-runs this effect and fires the cleanup.
   $effect(() => {
     if (auto && lineDone && session.choices.length === 0 && !session.isFinished) {
       const t = setTimeout(advance, 1200);
       return () => clearTimeout(t);
     }
   });
-
-  // Reset the typewriter-done flag whenever the line changes ({#key session.line} remounts <Line>).
-  $effect(() => { session.line; lineDone = false; });
 </script>
 
+<!-- Transparent layer over the live 3D hub — only the panels are opaque, so the scene shows through. -->
 <div class="overlay">
-  <div class="backdrop"></div>
-  <div class="box-wrap">
-    <Controls {auto} onToggleAuto={() => (auto = !auto)} onSkip={skip} onToggleLog={() => (showLog = !showLog)} />
+  <Controls {auto} onToggleAuto={() => (auto = !auto)} onSkip={skip} onToggleLog={() => (showLog = !showLog)} />
+
+  <div class="dock">
+    <Choices choices={session.choices} onSelect={onSelect} />
+
+    <Nameplate speaker={session.speaker} />
     <div class="box">
-      <Nameplate speaker={session.speaker} />
-      <div class="hit" role="button" tabindex="0" onclick={onBoxClick} onkeydown={onBoxKeydown}
-           aria-label="advance dialogue">
+      <div
+        class="hit"
+        role="button"
+        tabindex="0"
+        onclick={onBoxClick}
+        onkeydown={onBoxKeydown}
+        aria-label="advance dialogue"
+      >
         {#key session.line}
           <Line bind:this={lineRef} text={session.line} onDone={() => (lineDone = true)} />
         {/key}
       </div>
-      <Choices choices={session.choices} onSelect={onSelect} />
+      <div class="footer">
+        <span class="mark" class:on={auto}></span>
+        {#if auto}<span class="hint">AUTO</span>{/if}
+      </div>
     </div>
   </div>
+
   {#if showLog}<Backlog entries={session.backlog} onClose={() => (showLog = false)} />{/if}
 </div>
 
 <style>
-  .overlay { position: fixed; inset: 0; display: flex; align-items: flex-end; z-index: 10; }
-  .backdrop { position: absolute; inset: 0;
-    background: url('/design/background260709.png') center/cover no-repeat, rgba(0,0,0,0.35); }
-  .box-wrap { position: relative; width: min(900px, 92vw); margin: 0 auto 6vh; }
-  .box { position: relative; width: 100%; text-align: left; background: rgba(12,14,18,0.72);
-    backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.12); border-radius: 8px;
-    padding: 1.4rem 1.6rem; display: flex; flex-direction: column; gap: 0.8rem; }
-  .hit { cursor: pointer; }
+  .overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 10;
+    pointer-events: none; /* let clicks fall through to the 3D canvas except on the panels below */
+    font-family: 'Noto Sans TC', system-ui, sans-serif;
+  }
+  /* Bottom-anchored dialogue dock, matching the design's inset panels. */
+  .dock {
+    position: absolute;
+    left: 28px;
+    right: 28px;
+    bottom: 28px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+    pointer-events: none;
+  }
+  .box {
+    align-self: stretch;
+    background: rgba(10, 10, 12, 0.55);
+    backdrop-filter: blur(28px) saturate(140%);
+    -webkit-backdrop-filter: blur(28px) saturate(140%);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.45);
+    padding: 18px 24px;
+    pointer-events: auto;
+  }
+  .hit { cursor: pointer; outline: none; }
+  .hit:focus-visible { outline: 1px solid rgba(216, 255, 0, 0.6); outline-offset: 4px; }
+  .footer { display: flex; align-items: center; gap: 12px; margin-top: 10px; min-height: 3px; }
+  .mark { width: 20px; height: 3px; background: rgba(255, 255, 255, 0.22); display: block; }
+  .mark.on { background: #d8ff00; }
+  .hint {
+    margin-left: auto;
+    font-family: 'Archivo', system-ui, sans-serif;
+    font-size: 12px;
+    letter-spacing: 0.16em;
+    color: #d8ff00;
+  }
 </style>

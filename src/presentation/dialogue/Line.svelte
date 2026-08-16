@@ -24,5 +24,11 @@
 <p class="line">{shown}</p>
 
 <style>
-  .line { color: #f4f6f8; font-size: 1.15rem; line-height: 1.7; margin: 0; }
+  .line {
+    margin: 0;
+    font-size: 20px;
+    line-height: 2;
+    color: #f2f3f5;
+    text-wrap: pretty;
+  }
 </style>
