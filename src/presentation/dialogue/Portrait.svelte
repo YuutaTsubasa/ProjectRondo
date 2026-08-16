@@ -7,12 +7,11 @@
 <img class="portrait" {src} alt="" draggable="false" />
 
 <style>
-  /* Full-body 立繪 standing from the floor, behind the dialogue box, over the live 3D scene. */
+  /* Full-body 立繪 standing from the floor at the left, behind the dialogue box, over the 3D scene. */
   .portrait {
     position: absolute;
     bottom: 0;
-    left: 50%;
-    transform: translateX(-50%);
+    left: 2vw;
     height: 92vh;
     width: auto;
     max-width: none;

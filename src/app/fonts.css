@@ -1,0 +1,53 @@
+/*
+ * Self-hosted design fonts (CSP-safe: served from the app origin, no external CDN).
+ * Chakra Petch = nameplate / panel headers, Archivo = uppercase labels & controls,
+ * Noto Sans TC = CJK body text. Files live in /public/fonts (from Fontsource, OFL).
+ */
+@font-face {
+  font-family: 'Chakra Petch';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('/fonts/chakra-petch-700.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Archivo';
+  font-style: normal;
+  font-weight: 800;
+  font-display: swap;
+  src: url('/fonts/archivo-800.woff2') format('woff2');
+}
+
+/* Noto Sans TC: the Traditional-Chinese subset (default range) plus a small Latin
+   subset. Latin faces are declared last so ASCII resolves to the tiny Latin file
+   while CJK codepoints fall to the ~1 MB Traditional-Chinese file only when needed. */
+@font-face {
+  font-family: 'Noto Sans TC';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/noto-sans-tc-tc-400.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Noto Sans TC';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('/fonts/noto-sans-tc-tc-700.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Noto Sans TC';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/noto-sans-tc-latin-400.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+2000-206F, U+2074, U+20AC, U+2122, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Noto Sans TC';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('/fonts/noto-sans-tc-latin-700.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+2000-206F, U+2074, U+20AC, U+2122, U+FEFF, U+FFFD;
+}
