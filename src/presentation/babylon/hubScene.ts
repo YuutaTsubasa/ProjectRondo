@@ -54,7 +54,7 @@ export async function createHubScene(canvas: HTMLCanvasElement): Promise<HubScen
 
   const input = createInput();
   const player = createPlayer(scene, playerRoot, follow, input);
-  const knight = await loadKnight(scene, playerRoot);
+  const knight = await loadKnight(scene, playerRoot, shadowGenerator);
   driveKnightAnimation(scene, knight, () => {
     const v = player.motion.velocity;
     return Math.hypot(v.x, v.z);

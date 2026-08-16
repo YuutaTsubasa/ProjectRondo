@@ -1,6 +1,7 @@
 import type { Scene } from '@babylonjs/core/scene';
 import type { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 import type { AnimationGroup } from '@babylonjs/core/Animations/animationGroup';
+import type { ShadowGenerator } from '@babylonjs/core/Lights/Shadows/shadowGenerator';
 import { ImportMeshAsync } from '@babylonjs/core/Loading/sceneLoader';
 import { Quaternion } from '@babylonjs/core/Maths/math.vector';
 // Side-effect: registers the glTF loader plugin (with KHR_mesh_quantization / webp support).
@@ -29,7 +30,7 @@ const IDLE_SWAY_KEEP = 0.2;
  * {@link TARGET_HEIGHT}, seats its feet at the capsule bottom, and returns the Idle/Walk
  * animation groups with Idle playing. The mesh inherits the parent's facing rotation.
  */
-export async function loadKnight(scene: Scene, parent: TransformNode): Promise<KnightAnimations> {
+export async function loadKnight(scene: Scene, parent: TransformNode, shadowGenerator?: ShadowGenerator): Promise<KnightAnimations> {
   // ?v bust: the browser aggressively caches the GLB, so a plain reload keeps serving an old copy.
   // Bump this whenever knight_web.glb is rebuilt so clients refetch it.
   const result = await ImportMeshAsync('/models/knight_web.glb?v=3', scene);
@@ -41,6 +42,9 @@ export async function loadKnight(scene: Scene, parent: TransformNode): Promise<K
   // limbs at some camera angles (a foot vanishes, then reappears when you rotate). Force the knight
   // meshes to always render — it's one character, the cull savings don't matter.
   for (const mesh of result.meshes) mesh.alwaysSelectAsActiveMesh = true;
+
+  // The knight casts the sun's shadow onto the grass.
+  if (shadowGenerator) for (const mesh of result.meshes) shadowGenerator.addShadowCaster(mesh);
 
   const raw = root.getHierarchyBoundingVectors(true);
   const rawHeight = raw.max.y - raw.min.y;
