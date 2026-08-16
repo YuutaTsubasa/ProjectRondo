@@ -11,9 +11,11 @@
     "test:watch": "vitest",
     "tauri": "tauri"
   },
-  "license": "ISC",
+  "license": "UNLICENSED",
   "type": "module",
   "devDependencies": {
+    "@gltf-transform/core": "^4.4.2",
+    "@gltf-transform/functions": "^4.4.2",
     "@sveltejs/vite-plugin-svelte": "^7.3.0",
     "@tauri-apps/cli": "^2.11.4",
     "@tsconfig/svelte": "^5.0.8",

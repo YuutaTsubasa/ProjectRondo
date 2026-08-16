@@ -1,17 +1,11 @@
 import { Engine } from '@babylonjs/core/Engines/engine';
 import { Scene } from '@babylonjs/core/scene';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
-import { Color3 } from '@babylonjs/core/Maths/math.color';
-import { HemisphericLight } from '@babylonjs/core/Lights/hemisphericLight';
-import { CreateGround } from '@babylonjs/core/Meshes/Builders/groundBuilder';
 import { TransformNode } from '@babylonjs/core/Meshes/transformNode';
-import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
 // Side-effect: registers the StandardMaterial shader. Required with tree-shaken deep
 // imports, otherwise meshes without an explicit material silently render nothing.
 import '@babylonjs/core/Materials/standardMaterial';
 import { HavokPlugin } from '@babylonjs/core/Physics/v2/Plugins/havokPlugin';
-import { PhysicsAggregate } from '@babylonjs/core/Physics/v2/physicsAggregate';
-import { PhysicsShapeType } from '@babylonjs/core/Physics/v2/IPhysicsEnginePlugin';
 // Side-effect: registers Scene.prototype.enablePhysics / getPhysicsEngine (patched by
 // RegisterJoinedPhysicsEngineComponent). Without this, enablePhysics is a no-op and
 // PhysicsAggregate throws "No Physics Engine available".
@@ -22,6 +16,9 @@ import { createFollowCamera, type FollowCamera } from './followCamera';
 import { createInput } from './input';
 import { createPlayer, type Player } from './playerController';
 import { loadKnight, driveKnightAnimation, type KnightAnimations } from './knight';
+import { createEnvironment } from './environment';
+import { createGround } from './ground';
+import { loadTrees } from './trees';
 
 export interface HubScene {
   readonly engine: Engine;
@@ -43,19 +40,14 @@ export async function createHubScene(canvas: HTMLCanvasElement): Promise<HubScen
   // skinned characters, which otherwise collapses them to the floor when the parent yaws.
   scene.useRightHandedSystem = true;
 
-  new HemisphericLight('light', new Vector3(0, 1, 0), scene);
-
-  const ground = CreateGround('ground', { width: 50, height: 50 }, scene);
-  const groundMaterial = new StandardMaterial('groundMat', scene);
-  groundMaterial.diffuseColor = new Color3(0.45, 0.5, 0.55);
-  ground.material = groundMaterial;
+  const { shadowGenerator } = createEnvironment(scene);
 
   // Physics: Havok. The domain owns all gravity and the character controller is passed zero
   // gravity, so the world gravity stays zero too — no second, contradictory source of gravity.
   // (Set a real value here if/when dynamic rigid bodies are introduced.)
   const havok = await HavokPhysics();
   scene.enablePhysics(Vector3.Zero(), new HavokPlugin(true, havok));
-  new PhysicsAggregate(ground, PhysicsShapeType.BOX, { mass: 0 }, scene); // static floor collider
+  createGround(scene);
 
   const playerRoot = new TransformNode('player', scene);
   const follow = createFollowCamera(scene, playerRoot, canvas);
@@ -63,11 +55,12 @@ export async function createHubScene(canvas: HTMLCanvasElement): Promise<HubScen
 
   const input = createInput();
   const player = createPlayer(scene, playerRoot, follow, input);
-  const knight = await loadKnight(scene, playerRoot);
+  const knight = await loadKnight(scene, playerRoot, shadowGenerator);
   driveKnightAnimation(scene, knight, () => {
     const v = player.motion.velocity;
     return Math.hypot(v.x, v.z);
   });
+  await loadTrees(scene, shadowGenerator);
 
   engine.runRenderLoop(() => scene.render());
   // Size the drawing buffer to the canvas now; the resize event only fires on later changes.
