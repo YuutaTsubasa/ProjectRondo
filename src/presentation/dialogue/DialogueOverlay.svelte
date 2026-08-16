@@ -51,9 +51,10 @@
 <div class="overlay">
   <Controls {auto} onToggleAuto={() => (auto = !auto)} onSkip={skip} onToggleLog={() => (showLog = !showLog)} />
 
-  <div class="dock">
-    <Choices choices={session.choices} onSelect={onSelect} />
+  <!-- Choices take over screen-centre with a full-screen frosted scrim (see Choices.svelte). -->
+  <Choices choices={session.choices} onSelect={onSelect} />
 
+  <div class="dock">
     <Nameplate speaker={session.speaker} />
     <div class="box">
       <div
@@ -100,17 +101,22 @@
   }
   .box {
     align-self: stretch;
+    /* Fixed, taller VN textbox: consistent height regardless of line length. */
+    height: clamp(180px, 24vh, 240px);
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
     background: rgba(10, 10, 12, 0.55);
     backdrop-filter: blur(28px) saturate(140%);
     -webkit-backdrop-filter: blur(28px) saturate(140%);
     border: 1px solid rgba(255, 255, 255, 0.14);
     box-shadow: 0 20px 50px rgba(0, 0, 0, 0.45);
-    padding: 18px 24px;
+    padding: 22px 26px;
     pointer-events: auto;
   }
-  .hit { cursor: pointer; outline: none; }
+  .hit { flex: 1; cursor: pointer; outline: none; }
   .hit:focus-visible { outline: 1px solid rgba(216, 255, 0, 0.6); outline-offset: 4px; }
-  .footer { display: flex; align-items: center; gap: 12px; margin-top: 10px; min-height: 3px; }
+  .footer { display: flex; align-items: center; gap: 12px; margin-top: auto; min-height: 3px; }
   .mark { width: 20px; height: 3px; background: rgba(255, 255, 255, 0.22); display: block; }
   .mark.on { background: #d8ff00; }
   .hint {
