@@ -1,0 +1,14 @@
+# Opening dialogue — original prototype content (ported from Godot DialogueDemo).
+:: greet
+Nina: 哈囉，旅人！
+Nina: 要走哪條路？
+* 左邊 -> left
+* 右邊 -> right
+
+:: left
+Nina: 走左邊，一路小心。
+-> END
+
+:: right
+Nina: 走右邊，祝你好運。
+-> END
