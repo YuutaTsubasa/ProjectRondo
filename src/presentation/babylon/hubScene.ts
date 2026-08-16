@@ -2,7 +2,6 @@ import { Engine } from '@babylonjs/core/Engines/engine';
 import { Scene } from '@babylonjs/core/scene';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { Color3 } from '@babylonjs/core/Maths/math.color';
-import { HemisphericLight } from '@babylonjs/core/Lights/hemisphericLight';
 import { CreateGround } from '@babylonjs/core/Meshes/Builders/groundBuilder';
 import { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
@@ -22,6 +21,7 @@ import { createFollowCamera, type FollowCamera } from './followCamera';
 import { createInput } from './input';
 import { createPlayer, type Player } from './playerController';
 import { loadKnight, driveKnightAnimation, type KnightAnimations } from './knight';
+import { createEnvironment } from './environment';
 
 export interface HubScene {
   readonly engine: Engine;
@@ -43,7 +43,7 @@ export async function createHubScene(canvas: HTMLCanvasElement): Promise<HubScen
   // skinned characters, which otherwise collapses them to the floor when the parent yaws.
   scene.useRightHandedSystem = true;
 
-  new HemisphericLight('light', new Vector3(0, 1, 0), scene);
+  const { shadowGenerator } = createEnvironment(scene);
 
   const ground = CreateGround('ground', { width: 50, height: 50 }, scene);
   const groundMaterial = new StandardMaterial('groundMat', scene);
