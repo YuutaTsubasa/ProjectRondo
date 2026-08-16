@@ -52,6 +52,11 @@ export function createPlayer(
   );
   const player: Player = { root, motion: IDLE };
 
+  // A mutable copy of the movement config, exposed on `window.moveConfig` in dev so speed/accel can be
+  // tuned live (e.g. `moveConfig.maxSpeed = 3.5`) to match the walk animation without a rebuild.
+  const config = { ...DEFAULT_CONFIG };
+  if (import.meta.env.DEV) (window as unknown as { moveConfig: typeof config }).moveConfig = config;
+
   scene.onBeforeRenderObservable.add(() => {
     const dt = Math.min(scene.getEngine().getDeltaTime() / 1000, MAX_DT);
     if (dt <= 0) return;
@@ -68,7 +73,7 @@ export function createPlayer(
     const next = step(
       { ...player.motion, isGrounded: grounded },
       { direction, jumpRequested: input.consumeJump() },
-      DEFAULT_CONFIG,
+      config,
       dt,
     );
 

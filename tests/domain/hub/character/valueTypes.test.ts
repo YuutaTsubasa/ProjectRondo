@@ -7,7 +7,7 @@ import { isZero } from '../../../../src/domain/kernel/normalizedPlanarDirection'
 describe('character value types', () => {
   it('DEFAULT_CONFIG matches MovementConstants', () => {
     expect(DEFAULT_CONFIG).toEqual({
-      maxSpeed: 12, acceleration: 40, deceleration: 50, gravity: 24, jumpSpeed: 9,
+      maxSpeed: 4, acceleration: 13, deceleration: 17, gravity: 24, jumpSpeed: 9,
     });
   });
   it('NONE_INPUT has no direction and no jump', () => {
