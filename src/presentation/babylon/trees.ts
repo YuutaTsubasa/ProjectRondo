@@ -33,7 +33,7 @@ const SPOTS: readonly [number, number, number, number][] = [
 export async function loadTrees(scene: Scene, shadowGenerator?: ShadowGenerator): Promise<void> {
   let container;
   try {
-    container = await LoadAssetContainerAsync('/models/tree.glb?v=3', scene);
+    container = await LoadAssetContainerAsync('/models/tree.glb?v=4', scene);
   } catch (err) {
     // Absent asset OR a real load failure (bad GLB, network) both reject here — log the cause so a
     // genuine error isn't mistaken for "just not added yet". Either way, skip trees and keep the scene.
