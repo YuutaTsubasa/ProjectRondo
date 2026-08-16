@@ -21,6 +21,7 @@ const targets = (exit: NodeExit): readonly NodeId[] => {
     case 'linear': return [exit.next];
     case 'branch': return exit.choices.map((c) => c.target);
     case 'end': return [];
+    default: { const _exhaustive: never = exit; return _exhaustive; }
   }
 };
 

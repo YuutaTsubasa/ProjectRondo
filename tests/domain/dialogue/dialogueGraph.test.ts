@@ -36,4 +36,11 @@ describe('DialogueGraph.validate', () => {
     ]);
     expect(validate(g)).toEqual([]);
   });
+  it('terminates (no infinite loop) and reports nothing for a graph with a cycle', () => {
+    const g = fromNodes(nodeId('a'), [
+      node('a', linearExit(nodeId('b'))),
+      node('b', linearExit(nodeId('a'))),
+    ]);
+    expect(validate(g)).toEqual([]);
+  });
 });

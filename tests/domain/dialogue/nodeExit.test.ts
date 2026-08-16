@@ -11,6 +11,9 @@ describe('NodeExit', () => {
     const c = [dialogueChoice('左', nodeId('l')), dialogueChoice('右', nodeId('r'))];
     expect(branchExit(c)).toEqual({ kind: 'branch', choices: c });
   });
+  it('branch throws on empty choices (a branch must offer at least one option)', () => {
+    expect(() => branchExit([])).toThrow(/at least one choice/);
+  });
   it('end is a singleton kind', () => {
     expect(END_EXIT).toEqual({ kind: 'end' });
   });

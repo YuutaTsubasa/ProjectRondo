@@ -40,5 +40,6 @@ export const step = (graph: DialogueGraph, state: DialogueState, input: Dialogue
     }
     case 'ended':
       return state;                                       // input after end: no-op
+    default: { const _exhaustive: never = state; return _exhaustive; }
   }
 };

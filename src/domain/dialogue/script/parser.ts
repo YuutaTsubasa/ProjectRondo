@@ -58,6 +58,9 @@ export const parse = (source: string): { graph: DialogueGraph | undefined; error
       case 'choice': {
         const previous = prev();
         if (!previous) { errors.push({ kind: 'choiceWithoutLine', line: t.line }); break; }
+        // A choice target is always a NodeId (choices carry no exit), so `* leave -> END` is treated
+        // as a jump to a node literally named "END" and surfaces as a danglingReference from validate().
+        // To end after a choice, point it at a labelled node whose own exit is `-> END`.
         const choice = dialogueChoice(t.text, nodeId(t.target));
         previous.exit =
           previous.exit && previous.exit.kind === 'branch'
@@ -73,7 +76,11 @@ export const parse = (source: string): { graph: DialogueGraph | undefined; error
   }
   if (pendingLabel !== undefined) errors.push({ kind: 'labelWithoutLine', id: pendingLabel, line: pendingLabelLine });
 
-  if (nodes.length === 0) return { graph: undefined, errors };
+  if (nodes.length === 0) {
+    // Empty or comments-only source: surface a diagnostic instead of a silent `undefined`.
+    if (errors.length === 0) errors.push({ kind: 'emptyScript' });
+    return { graph: undefined, errors };
+  }
 
   const built: DialogueNode[] = nodes.map((n) => ({
     id: nodeId(n.id),

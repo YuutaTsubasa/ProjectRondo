@@ -7,4 +7,5 @@ export type ParseError =
   | { readonly kind: 'duplicateLabel'; readonly id: string; readonly line: number }
   | { readonly kind: 'emptyLine'; readonly line: number }
   | { readonly kind: 'labelWithoutLine'; readonly id: string; readonly line: number }
+  | { readonly kind: 'emptyScript' }
   | GraphError;

@@ -8,6 +8,10 @@
   import Backlog from './Backlog.svelte';
 
   let { session, onFinished }: { session: DialogueSession; onFinished?: () => void } = $props();
+
+  /** How long AUTO waits after a line finishes revealing before advancing. */
+  const AUTO_ADVANCE_MS = 1200;
+
   let lineRef: Line | undefined = $state();
   let auto = $state(false);
   let showLog = $state(false);
@@ -42,7 +46,7 @@
   // Setting auto = false (e.g. via finish()) re-runs this effect and fires the cleanup.
   $effect(() => {
     if (auto && lineDone && session.choices.length === 0 && !session.isFinished) {
-      const t = setTimeout(advance, 1200);
+      const t = setTimeout(advance, AUTO_ADVANCE_MS);
       return () => clearTimeout(t);
     }
   });

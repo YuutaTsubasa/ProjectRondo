@@ -82,4 +82,9 @@ describe('DSL parser', () => {
     const error = errors.find((e) => e.kind === 'labelWithoutLine');
     expect(error).toEqual({ kind: 'labelWithoutLine', id: 'a', line: 1 });
   });
+
+  it('reports emptyScript for empty or comments-only source (no silent undefined)', () => {
+    expect(parse('')).toEqual({ graph: undefined, errors: [{ kind: 'emptyScript' }] });
+    expect(parse('# only a comment\n\n')).toEqual({ graph: undefined, errors: [{ kind: 'emptyScript' }] });
+  });
 });
