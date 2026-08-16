@@ -19,7 +19,11 @@
     createHubScene(canvas).then((h) => {
       if (disposed) { h.dispose(); return; } // unmounted before the async load finished
       hub = h;
-      hub.suspendInput(true);                    // start in intro mode: gameplay input off
+      // Gate rather than unconditionally suspending: SKIP (or a parse failure leaving no session)
+      // can finish the intro before this async scene load resolves, in which case gameMode is
+      // already 'playing' with no overlay left to ever call suspendInput(false) again — an
+      // unconditional suspend here would soft-lock input forever.
+      hub.suspendInput(session !== undefined && !gameMode.isPlaying);
       if (import.meta.env.DEV) (window as unknown as { hub: unknown }).hub = h;
     });
     return () => {

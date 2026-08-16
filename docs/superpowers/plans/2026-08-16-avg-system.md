@@ -1381,6 +1381,17 @@ Modify `src/presentation/babylon/input.ts` so the axis/jump read as neutral whil
 ```ts
 // in createInput(), add:
 let enabled = true;
+// gate the raw handlers too — while suspended they must be fully inert (no down-tracking, no
+// preventDefault), otherwise a key pressed during the overlay is already "down" the instant input
+// re-enables, and preventDefault on Enter/Space can fight the overlay's own advance handler:
+const onKeyDown = (e: KeyboardEvent) => {
+  if (!enabled) return;
+  const k = e.key.toLowerCase();
+  if (GAME_KEYS.has(k)) e.preventDefault();
+  if (!down.has(k) && isJumpKey(k)) jumpQueued = true;
+  down.add(k);
+};
+const onKeyUp = (e: KeyboardEvent) => { if (!enabled) return; down.delete(e.key.toLowerCase()); };
 // change axis() to:
 axis: () => enabled
   ? { x: (down.has('d') ? 1 : 0) - (down.has('a') ? 1 : 0), y: (down.has('w') ? 1 : 0) - (down.has('s') ? 1 : 0) }
@@ -1422,7 +1433,12 @@ pattern.
     createHubScene(canvas).then((h) => {
       if (disposed) { h.dispose(); return; }
       hub = h;
-      hub.suspendInput(true);                    // start in intro mode: gameplay input off
+      // Gate, don't unconditionally suspend: createHubScene() resolves asynchronously (Havok +
+      // glTF load), and SKIP — or a parse failure that leaves `session` undefined — can already
+      // have finished the intro (gameMode.isPlaying === true) before this .then() runs. An
+      // unconditional suspendInput(true) here would disable input with no overlay left to ever
+      // re-enable it (fail-open: only suspend if there's a session that can still release it).
+      hub.suspendInput(session !== undefined && !gameMode.isPlaying);
       if (import.meta.env.DEV) (window as unknown as { hub: unknown }).hub = h;
     });
     return () => { disposed = true; hub?.dispose(); };
