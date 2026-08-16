@@ -52,4 +52,8 @@ export async function loadTrees(scene: Scene, shadowGenerator?: ShadowGenerator)
     if (shadowGenerator)
       for (const mesh of root.getChildMeshes(false)) if (mesh.getTotalVertices() > 0) shadowGenerator.addShadowCaster(mesh);
   });
+
+  // NB: do NOT dispose `container` here. `instantiateModelsToScene(doNotInstantiate)` clones share
+  // the container's geometry, so `container.dispose()` strips the live trees' vertices (verified: the
+  // trees render empty). The template lingers until engine.dispose() — a negligible one-off leak.
 }
