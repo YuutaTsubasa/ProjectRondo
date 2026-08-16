@@ -1237,45 +1237,55 @@ Replace `src/presentation/dialogue/DialogueOverlay.svelte`'s `<script>` and mark
   import Backlog from './Backlog.svelte';
 
   let { session, onFinished }: { session: DialogueSession; onFinished?: () => void } = $props();
-  let lineRef: Line;
+  let lineRef: Line | undefined = $state();
   let auto = $state(false);
   let showLog = $state(false);
   let lineDone = $state(false);
-  let autoTimer: ReturnType<typeof setTimeout> | undefined;
 
   function advance() {
     session.advance();
     if (session.isFinished) { finish(); }
   }
-  function finish() { auto = false; clearTimeout(autoTimer); onFinished?.(); }
+  function finish() { auto = false; onFinished?.(); }
   function onSelect(i: number) { session.select(i); }
   function onBoxClick() {
     if (session.choices.length > 0) return;
     if (lineRef?.reveal()) return;
     advance();
   }
+  function onBoxKeydown(e: KeyboardEvent) {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onBoxClick(); }
+  }
   function skip() { while (!session.isFinished && session.choices.length === 0) session.advance();
     if (session.isFinished) finish(); }
 
   // AUTO: once the current line finishes revealing, advance after a pause (only when not awaiting a choice).
+  // Setting auto = false (e.g. via finish()) re-runs this effect and fires the cleanup, cancelling any pending timer.
   $effect(() => {
-    clearTimeout(autoTimer);
-    if (auto && lineDone && session.choices.length === 0 && !session.isFinished)
-      autoTimer = setTimeout(advance, 1200);
+    if (auto && lineDone && session.choices.length === 0 && !session.isFinished) {
+      const t = setTimeout(advance, 1200);
+      return () => clearTimeout(t);
+    }
   });
+
+  // Reset the typewriter-done flag whenever the line changes ({#key session.line} remounts <Line>).
+  $effect(() => { session.line; lineDone = false; });
 </script>
 
 <div class="overlay">
   <div class="backdrop"></div>
   <div class="box-wrap">
     <Controls {auto} onToggleAuto={() => (auto = !auto)} onSkip={skip} onToggleLog={() => (showLog = !showLog)} />
-    <button class="box" onclick={onBoxClick} aria-label="advance dialogue">
+    <div class="box">
       <Nameplate speaker={session.speaker} />
-      {#key session.line}
-        <Line bind:this={lineRef} text={session.line} onDone={() => (lineDone = true)} />
-      {/key}
+      <div class="hit" role="button" tabindex="0" onclick={onBoxClick} onkeydown={onBoxKeydown}
+           aria-label="advance dialogue">
+        {#key session.line}
+          <Line bind:this={lineRef} text={session.line} onDone={() => (lineDone = true)} />
+        {/key}
+      </div>
       <Choices choices={session.choices} onSelect={onSelect} />
-    </button>
+    </div>
   </div>
   {#if showLog}<Backlog entries={session.backlog} onClose={() => (showLog = false)} />{/if}
 </div>
@@ -1287,13 +1297,19 @@ Replace `src/presentation/dialogue/DialogueOverlay.svelte`'s `<script>` and mark
   .box-wrap { position: relative; width: min(900px, 92vw); margin: 0 auto 6vh; }
   .box { position: relative; width: 100%; text-align: left; background: rgba(12,14,18,0.72);
     backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.12); border-radius: 8px;
-    padding: 1.4rem 1.6rem; display: flex; flex-direction: column; gap: 0.8rem; cursor: pointer; }
+    padding: 1.4rem 1.6rem; display: flex; flex-direction: column; gap: 0.8rem; }
+  .hit { cursor: pointer; }
 </style>
 ```
 
-Reset `lineDone` when the line changes: the `{#key session.line}` remounts `Line`, and `lineDone`
-is set back to false by adding `$effect(() => { session.line; lineDone = false; });` at the end of
-the script.
+Note: `.box` is a plain `<div>`, not a `<button>` — it now contains `<Choices>`'s own `<button>`s as a
+sibling, and nesting an interactive element (a button) inside another interactive element is invalid
+HTML and an a11y defect. Only the advance region (nameplate + line) is the focusable control, via
+`.hit` (`role="button"` + `tabindex="0"` + click/keydown handlers), so `<Choices>` can sit beside it
+without being nested inside an interactive ancestor. `lineDone` resets when the line changes: the
+`{#key session.line}` remounts `Line`, and `lineDone` is set back to false by the second `$effect`
+above. The AUTO `$effect` returns a cleanup (`() => clearTimeout(t)`) rather than relying on a
+module-level timer var, so the pending timer is cancelled both on re-run and on unmount.
 
 - [ ] **Step 5: Commit**
 

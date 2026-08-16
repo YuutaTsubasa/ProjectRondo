@@ -4,7 +4,7 @@
 </script>
 
 <div class="controls">
-  <button class:active={auto} onclick={onToggleAuto}>AUTO</button>
+  <button class:active={auto} aria-pressed={auto} onclick={onToggleAuto}>AUTO</button>
   <button onclick={onSkip}>SKIP</button>
   <button onclick={onToggleLog}>LOG</button>
 </div>

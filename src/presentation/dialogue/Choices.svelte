@@ -4,7 +4,7 @@
 </script>
 
 {#if choices.length > 0}
-  <ul class="choices" role="listbox" aria-label="SELECT AN ACTION">
+  <ul class="choices">
     {#each choices as choice, i}
       <li><button class="choice" onclick={() => onSelect(i)}>{choice.label}</button></li>
     {/each}
