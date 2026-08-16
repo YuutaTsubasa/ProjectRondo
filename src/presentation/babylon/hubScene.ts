@@ -18,6 +18,7 @@ import { createPlayer, type Player } from './playerController';
 import { loadKnight, driveKnightAnimation, type KnightAnimations } from './knight';
 import { createEnvironment } from './environment';
 import { createGround } from './ground';
+import { loadTrees } from './trees';
 
 export interface HubScene {
   readonly engine: Engine;
@@ -59,6 +60,7 @@ export async function createHubScene(canvas: HTMLCanvasElement): Promise<HubScen
     const v = player.motion.velocity;
     return Math.hypot(v.x, v.z);
   });
+  await loadTrees(scene, shadowGenerator);
 
   engine.runRenderLoop(() => scene.render());
   // Size the drawing buffer to the canvas now; the resize event only fires on later changes.
