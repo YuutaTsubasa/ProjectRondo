@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { DialogueSession } from './dialogueSession.svelte';
+  import Portrait from './Portrait.svelte';
   import Nameplate from './Nameplate.svelte';
   import Line from './Line.svelte';
   import Choices from './Choices.svelte';
@@ -49,6 +50,9 @@
 
 <!-- Transparent layer over the live 3D hub — only the panels are opaque, so the scene shows through. -->
 <div class="overlay">
+  <!-- Standing character 立繪, behind the dialogue box and over the live 3D hub. -->
+  <Portrait portrait={session.portrait} />
+
   <Controls {auto} onToggleAuto={() => (auto = !auto)} onSkip={skip} onToggleLog={() => (showLog = !showLog)} />
 
   <!-- Choices take over screen-centre with a full-screen frosted scrim (see Choices.svelte). -->
