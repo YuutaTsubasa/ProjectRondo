@@ -1,15 +1,21 @@
-// Remove tiny disconnected geometry islands ("floaters") from a GLB — the stray specks Tripo/AI mesh
+// Remove disconnected geometry islands ("floaters") from a GLB — the stray specks Tripo/AI mesh
 // generators leave around a model. Welds coincident vertices, groups triangles into connected
-// components (union-find over shared vertices), and drops any component whose bounding-box diagonal
-// is below THRESHOLD × the whole model's diagonal (keeping the trunk + leaf clusters).
+// components (union-find over shared vertices), then drops a component when EITHER:
+//   • it is tiny            — bbox diagonal < TINY × model diagonal, or
+//   • it is small+isolated  — bbox diagonal < BODY × model diagonal AND its gap to every "body"
+//                             component (diagonal ≥ BODY) is ≥ GAP × model diagonal.
+// The isolation rule catches specks that float away from the mesh without thinning foliage that sits
+// nestled among the big leaf clusters. Keeps the trunk + leaf clusters.
 //
-// Usage: node tools/clean-mesh-islands.mjs <in.glb> <out.glb> [threshold=0.04]
+// Usage: node tools/clean-mesh-islands.mjs <in.glb> <out.glb> [tiny=0.008] [gap=0.05]
 import { NodeIO } from '@gltf-transform/core';
 import { weld, prune } from '@gltf-transform/functions';
 
-const [, , inPath, outPath, thrArg] = process.argv;
-if (!inPath || !outPath) { console.error('usage: clean-mesh-islands.mjs <in.glb> <out.glb> [threshold]'); process.exit(1); }
-const THRESHOLD = parseFloat(thrArg ?? '0.04');
+const [, , inPath, outPath, tinyArg, gapArg] = process.argv;
+if (!inPath || !outPath) { console.error('usage: clean-mesh-islands.mjs <in.glb> <out.glb> [tiny] [gap]'); process.exit(1); }
+const TINY = parseFloat(tinyArg ?? '0.008'); // always-remove size (fraction of model diagonal)
+const BODY = 0.08;                            // components this big are "tree body" — always kept
+const GAP = parseFloat(gapArg ?? '0.05');     // a small component this far from all body parts is a floater
 
 const io = new NodeIO();
 const doc = await io.read(inPath);
@@ -48,18 +54,37 @@ for (const mesh of doc.getRoot().listMeshes()) {
     for (const c of comp.values()) for (let k = 0; k < 3; k++) { g.min[k] = Math.min(g.min[k], c.min[k]); g.max[k] = Math.max(g.max[k], c.max[k]); }
     const modelDiag = diagOf(g);
 
-    const sizes = [...comp.values()].map((c) => +(diagOf(c) / modelDiag).toFixed(3)).sort((a, b) => b - a);
-    console.log(`  ${comp.size} components; relative sizes: [${sizes.slice(0, 16).join(', ')}${sizes.length > 16 ? ', …' : ''}]`);
+    // AABB-to-AABB gap (0 if overlapping/touching)
+    const aabbGap = (a, b) => {
+      let s = 0;
+      for (let k = 0; k < 3; k++) { const g = Math.max(0, a.min[k] - b.max[k], b.min[k] - a.max[k]); s += g * g; }
+      return Math.sqrt(s);
+    };
+    const bodies = [...comp.values()].filter((c) => diagOf(c) >= BODY * modelDiag);
+
+    const removeRoot = new Map();
+    for (const [r, c] of comp) {
+      const d = diagOf(c);
+      let remove;
+      if (d < TINY * modelDiag) remove = true;              // tiny noise
+      else if (d >= BODY * modelDiag) remove = false;       // tree body
+      else {                                                // small: remove only if isolated from the body
+        let gap = Infinity;
+        for (const b of bodies) { if (b !== c) gap = Math.min(gap, aabbGap(c, b)); if (gap === 0) break; }
+        remove = gap >= GAP * modelDiag;
+      }
+      removeRoot.set(r, remove);
+    }
 
     const kept = [];
     let removed = 0;
     for (let i = 0; i < idx.length; i += 3) {
-      const c = comp.get(find(idx[i]));
-      if (diagOf(c) >= THRESHOLD * modelDiag) kept.push(idx[i], idx[i + 1], idx[i + 2]);
-      else removed++;
+      if (removeRoot.get(find(idx[i]))) removed++;
+      else kept.push(idx[i], idx[i + 1], idx[i + 2]);
     }
     totalRemoved += removed;
-    console.log(`  removed ${removed} tris below ${THRESHOLD} × diag (kept ${kept.length / 3})`);
+    const removedIslands = [...removeRoot.values()].filter(Boolean).length;
+    console.log(`  ${comp.size} components (${bodies.length} body); removed ${removedIslands} islands / ${removed} tris (kept ${kept.length / 3})`);
     indices.setArray(new idx.constructor(kept));
   }
 }
