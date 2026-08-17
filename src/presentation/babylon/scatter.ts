@@ -50,11 +50,11 @@ function grassAlphaTexture(scene: Scene): DynamicTexture {
   const ctx = tex.getContext() as unknown as CanvasRenderingContext2D;
   ctx.clearRect(0, 0, size, size);
   const rand = rng(99);
-  const greens = ['#3f7a2e', '#4f8f38', '#5fa043', '#356b28'];
-  for (let i = 0; i < 14; i++) {
-    const x0 = 20 + rand() * (size - 40);
-    const w = 6 + rand() * 8;
-    const h = size * 0.5 + rand() * size * 0.42;
+  const greens = ['#5aa63f', '#6cbf4a', '#7fd35a', '#4f9a37', '#89d95f'];
+  for (let i = 0; i < 22; i++) {
+    const x0 = 12 + rand() * (size - 24);
+    const w = 8 + rand() * 10;
+    const h = size * 0.55 + rand() * size * 0.4;
     const lean = (rand() * 2 - 1) * 40;
     ctx.fillStyle = greens[(rand() * greens.length) | 0];
     ctx.beginPath();
@@ -100,7 +100,12 @@ function alphaCutoutMaterial(scene: Scene, name: string, tex: DynamicTexture): S
 }
 
 function grassMaterial(scene: Scene): StandardMaterial {
-  return alphaCutoutMaterial(scene, 'grassScatterMat', grassAlphaTexture(scene));
+  const mat = alphaCutoutMaterial(scene, 'grassScatterMat', grassAlphaTexture(scene));
+  // Billboard blades face every direction, so half of them turn away from the sun and go dark. A
+  // small green emissive floor keeps the tufts reading as lush grass rather than dark spikes.
+  mat.emissiveColor = new Color3(0.10, 0.17, 0.06);
+  mat.ambientColor = new Color3(1, 1, 1);
+  return mat;
 }
 
 /** Transparent texture with a few small blossoms (white/yellow/purple) for wildflower cards. */
@@ -146,32 +151,45 @@ function rockMesh(scene: Scene): Mesh {
     pos[i] *= f; pos[i + 1] *= f * 0.7; pos[i + 2] *= f; // squash vertically a touch
   }
   rock.updateVerticesData(VertexBuffer.PositionKind, pos);
-  rock.createNormals(false);
+  rock.convertToFlatShadedMesh(); // per-face normals → crisp low-poly facets
+  // babylon's normal computation orients this icosphere's normals *inward*, so every outward face
+  // faces away from the sun and the rock renders pure black. Flip them outward.
+  const nor = rock.getVerticesData(VertexBuffer.NormalKind)!;
+  const fpos = rock.getVerticesData(VertexBuffer.PositionKind)!;
+  let dot = 0;
+  for (let i = 0; i < fpos.length; i += 3) dot += fpos[i] * nor[i] + fpos[i + 1] * nor[i + 1] + fpos[i + 2] * nor[i + 2];
+  if (dot < 0) { for (let i = 0; i < nor.length; i++) nor[i] = -nor[i]; rock.updateVerticesData(VertexBuffer.NormalKind, nor); }
   const mat = new StandardMaterial('rockMat', scene);
-  mat.diffuseColor = new Color3(0.5, 0.5, 0.52);
+  mat.diffuseColor = new Color3(0.55, 0.54, 0.52);
   mat.specularColor = new Color3(0.05, 0.05, 0.05);
+  mat.ambientColor = new Color3(1, 1, 1); // pick up the hemispheric ambient so shaded faces aren't black
   rock.material = mat;
   rock.isPickable = false;
   rock.alwaysSelectAsActiveMesh = true;
   return rock;
 }
 
-/** A small bush: two or three overlapping green icosphere blobs merged, base at y=0. */
+/** A small leafy bush: several overlapping green icosphere blobs merged into a lumpy clump, base
+ *  at y=0. More, smaller, irregularly-placed blobs (vs a single sphere) give a bushy silhouette that
+ *  reads as foliage rather than a green boulder. */
 function bushMesh(scene: Scene): Mesh {
   const spec: [number, number, number, number][] = [
-    [0, 0.30, 0, 0.50], [0.24, 0.22, 0.10, 0.38], [-0.20, 0.24, -0.12, 0.36],
+    [0, 0.32, 0, 0.42], [0.28, 0.24, 0.08, 0.32], [-0.24, 0.26, -0.10, 0.30],
+    [0.10, 0.46, -0.14, 0.28], [-0.12, 0.42, 0.18, 0.26], [0.20, 0.16, -0.22, 0.24],
   ];
   const blobs: Mesh[] = [];
   for (const [x, y, z, r] of spec) {
-    const b = CreateIcoSphere(`bb`, { radius: r, subdivisions: 1 }, scene);
+    const b = CreateIcoSphere(`bb`, { radius: r, subdivisions: 2 }, scene); // rounder, less rock-like
     b.position.set(x, y, z);
     blobs.push(b);
   }
   const bush = Mesh.MergeMeshes(blobs, true, true)!;
   bush.name = 'bush';
   const mat = new StandardMaterial('bushMat', scene);
-  mat.diffuseColor = new Color3(0.28, 0.45, 0.22);
+  mat.diffuseColor = new Color3(0.33, 0.55, 0.24); // fresher, more saturated leaf green
   mat.specularColor = new Color3(0.03, 0.03, 0.03);
+  mat.emissiveColor = new Color3(0.05, 0.10, 0.03); // keep shaded sides green, not near-black
+  mat.ambientColor = new Color3(1, 1, 1);
   bush.material = mat;
   bush.isPickable = false;
   bush.alwaysSelectAsActiveMesh = true;
