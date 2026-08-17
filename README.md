@@ -28,11 +28,13 @@ step, and applies the result to a Havok `PhysicsCharacterController`. Svelte hos
 Stack: `@babylonjs/core` + `@babylonjs/havok` + `@babylonjs/loaders`, Svelte 5 (runes), Vite, Vitest,
 Tauri v2. Package manager: **pnpm**.
 
-## Milestone 1 (current — web parity)
+## What's playable now
 
-A 3D hub world with a third-person, mouse-look knight (`WASD` move, `Space` jump, click to capture the
-mouse). Movement is driven by the pure domain; the character is a Havok capsule; the knight is a glTF
-model with Idle/Walk animation blended by speed.
+A stylized 3D hub grassland — flat field with trees, a procedural skydome, sun/shadows, and ground
+scatter (grass, wildflowers, rocks, bushes). A third-person, mouse-look knight (`WASD` move, `Space`
+jump, click to capture the mouse) walks the field: movement is driven by the pure domain, the character
+is a Havok capsule, and the knight is a glTF model with Idle/Walk animation blended by speed. Entering
+the hub plays an AVG dialogue intro.
 
 ## Develop
 
@@ -70,7 +72,17 @@ pnpm dlx @gltf-transform/cli webp /tmp/k.glb public/models/knight_web.glb --qual
 Bump the `?v=N` query on the GLB URL in `src/presentation/babylon/knight.ts` after rebuilding so
 browsers refetch it.
 
-## Roadmap
+## Milestones
 
-- **M2** — AVG dialogue system (NPC interaction, dialogue-graph domain, reactive UI binding).
-- **M3** — Level entry & transitions: Sonic-style 3D / 2D stubs, and puzzles (2048 + Sudoku).
+- **M1 — Hub web parity** *(done)* — third-person mouse-look knight, pure-domain movement, Havok
+  capsule, Idle/Walk blending.
+- **M2 — AVG dialogue system** *(done)* — dialogue-graph domain + DSL, reactive AVG UI (portraits,
+  backlog, AUTO/SKIP, branching choices), played on hub entry.
+- **M3 — Hub environment** *(done)* — grassland ground, trees, skydome, sun/shadows, procedural ground
+  scatter (grass, wildflowers, rocks, bushes).
+- **M4 — Refined hub world** *(current)* — terrain & collision, lighting/atmosphere post-processing,
+  water & landmarks, life & motion. Roadmap:
+  [`docs/…/2026-08-18-refined-hub-world-roadmap.md`](docs/superpowers/specs/2026-08-18-refined-hub-world-roadmap.md).
+
+**Next (after M4): game modes.** Reached from NPC / landmark entry points in the hub — Sonic-style 3D
+and 2D levels, and puzzles (2048 + Sudoku).
