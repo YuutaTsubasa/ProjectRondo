@@ -97,8 +97,50 @@ function grassMaterial(scene: Scene): StandardMaterial {
   return mat;
 }
 
+/** Transparent texture with a few small blossoms (white/yellow/purple) for wildflower cards. */
+function flowerAlphaTexture(scene: Scene): DynamicTexture {
+  const size = 128;
+  const tex = new DynamicTexture('flowerTex', { width: size, height: size }, scene, false);
+  const ctx = tex.getContext() as unknown as CanvasRenderingContext2D;
+  ctx.clearRect(0, 0, size, size);
+  const rand = rng(51);
+  const colors = ['#f4f4f0', '#f2d24b', '#c58bd8'];
+  for (let f = 0; f < 5; f++) {
+    const cx = 20 + rand() * (size - 40);
+    const cy = 20 + rand() * (size * 0.55);
+    const col = colors[(rand() * colors.length) | 0];
+    // stem
+    ctx.strokeStyle = '#4f8f38'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(cx, size); ctx.lineTo(cx, cy); ctx.stroke();
+    // 5 petals + centre
+    ctx.fillStyle = col;
+    for (let p = 0; p < 5; p++) {
+      const a = (p / 5) * Math.PI * 2;
+      ctx.beginPath(); ctx.arc(cx + Math.cos(a) * 5, cy + Math.sin(a) * 5, 4, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.fillStyle = '#f2c33b';
+    ctx.beginPath(); ctx.arc(cx, cy, 3, 0, Math.PI * 2); ctx.fill();
+  }
+  tex.update(true);
+  tex.hasAlpha = true;
+  return tex;
+}
+
+function flowerMaterial(scene: Scene): StandardMaterial {
+  const mat = new StandardMaterial('flowerScatterMat', scene);
+  mat.diffuseTexture = flowerAlphaTexture(scene);
+  mat.useAlphaFromDiffuseTexture = true;
+  mat.transparencyMode = Material.MATERIAL_ALPHATEST;
+  mat.backFaceCulling = false;
+  mat.specularColor = new Color3(0, 0, 0);
+  return mat;
+}
+
 /** Scatters procedural ground detail (grass, and — added in later tasks — flowers/rocks/bushes). */
 export function createGroundScatter(scene: Scene): void {
   const grass = crossCard(scene, 'grassTuft', 0.5, 3, grassMaterial(scene));
   grass.thinInstanceSetBuffer('matrix', scatterMatrices({ count: 4000, seed: 1, y: 0, minScale: 0.7, maxScale: 1.3 }), 16);
+
+  const flowers = crossCard(scene, 'wildflower', 0.22, 2, flowerMaterial(scene));
+  flowers.thinInstanceSetBuffer('matrix', scatterMatrices({ count: 400, seed: 2, y: 0, minScale: 0.7, maxScale: 1.2 }), 16);
 }
