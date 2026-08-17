@@ -157,6 +157,28 @@ function rockMesh(scene: Scene): Mesh {
   return rock;
 }
 
+/** A small bush: two or three overlapping green icosphere blobs merged, base at y=0. */
+function bushMesh(scene: Scene): Mesh {
+  const spec: [number, number, number, number][] = [
+    [0, 0.30, 0, 0.50], [0.24, 0.22, 0.10, 0.38], [-0.20, 0.24, -0.12, 0.36],
+  ];
+  const blobs: Mesh[] = [];
+  for (const [x, y, z, r] of spec) {
+    const b = CreateIcoSphere(`bb`, { radius: r, subdivisions: 1 }, scene);
+    b.position.set(x, y, z);
+    blobs.push(b);
+  }
+  const bush = Mesh.MergeMeshes(blobs, true, true)!;
+  bush.name = 'bush';
+  const mat = new StandardMaterial('bushMat', scene);
+  mat.diffuseColor = new Color3(0.28, 0.45, 0.22);
+  mat.specularColor = new Color3(0.03, 0.03, 0.03);
+  bush.material = mat;
+  bush.isPickable = false;
+  bush.alwaysSelectAsActiveMesh = true;
+  return bush;
+}
+
 /** Scatters procedural ground detail (grass, and — added in later tasks — flowers/rocks/bushes). */
 export function createGroundScatter(scene: Scene): void {
   const grass = crossCard(scene, 'grassTuft', 0.5, 3, grassMaterial(scene));
@@ -167,4 +189,7 @@ export function createGroundScatter(scene: Scene): void {
 
   const rock = rockMesh(scene);
   rock.thinInstanceSetBuffer('matrix', scatterMatrices({ count: 50, seed: 3, y: -0.05, minScale: 0.3, maxScale: 0.9 }), 16);
+
+  const bush = bushMesh(scene);
+  bush.thinInstanceSetBuffer('matrix', scatterMatrices({ count: 40, seed: 4, y: 0, minScale: 0.7, maxScale: 1.3, extent: EXTENT - 2 }), 16);
 }
