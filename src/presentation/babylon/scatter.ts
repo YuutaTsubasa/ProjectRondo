@@ -3,6 +3,7 @@ import { Matrix, Quaternion, Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { Color3 } from '@babylonjs/core/Maths/math.color';
 import { Mesh } from '@babylonjs/core/Meshes/mesh';
 import { CreatePlane } from '@babylonjs/core/Meshes/Builders/planeBuilder';
+import { CreateIcoSphere } from '@babylonjs/core/Meshes/Builders/icoSphereBuilder';
 import { VertexBuffer } from '@babylonjs/core/Buffers/buffer';
 import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
 import '@babylonjs/core/Materials/standardMaterial'; // side-effect: StandardMaterial shader
@@ -136,6 +137,26 @@ function flowerMaterial(scene: Scene): StandardMaterial {
   return mat;
 }
 
+/** A chunky low-poly rock: an icosphere with vertices perturbed by a seeded random factor. */
+function rockMesh(scene: Scene): Mesh {
+  const rock = CreateIcoSphere('rock', { radius: 0.4, subdivisions: 1 }, scene);
+  const pos = rock.getVerticesData(VertexBuffer.PositionKind)!;
+  const rand = rng(7);
+  for (let i = 0; i < pos.length; i += 3) {
+    const f = 0.8 + rand() * 0.5;
+    pos[i] *= f; pos[i + 1] *= f * 0.7; pos[i + 2] *= f; // squash vertically a touch
+  }
+  rock.updateVerticesData(VertexBuffer.PositionKind, pos);
+  rock.createNormals(false);
+  const mat = new StandardMaterial('rockMat', scene);
+  mat.diffuseColor = new Color3(0.5, 0.5, 0.52);
+  mat.specularColor = new Color3(0.05, 0.05, 0.05);
+  rock.material = mat;
+  rock.isPickable = false;
+  rock.alwaysSelectAsActiveMesh = true;
+  return rock;
+}
+
 /** Scatters procedural ground detail (grass, and — added in later tasks — flowers/rocks/bushes). */
 export function createGroundScatter(scene: Scene): void {
   const grass = crossCard(scene, 'grassTuft', 0.5, 3, grassMaterial(scene));
@@ -143,4 +164,7 @@ export function createGroundScatter(scene: Scene): void {
 
   const flowers = crossCard(scene, 'wildflower', 0.22, 2, flowerMaterial(scene));
   flowers.thinInstanceSetBuffer('matrix', scatterMatrices({ count: 400, seed: 2, y: 0, minScale: 0.7, maxScale: 1.2 }), 16);
+
+  const rock = rockMesh(scene);
+  rock.thinInstanceSetBuffer('matrix', scatterMatrices({ count: 50, seed: 3, y: -0.05, minScale: 0.3, maxScale: 0.9 }), 16);
 }
