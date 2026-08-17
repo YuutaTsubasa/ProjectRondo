@@ -71,12 +71,11 @@ function grassAlphaTexture(scene: Scene): DynamicTexture {
 
 /** Builds a cross-card base mesh (n crossed upright quads merged, base at y=0) with `mat`. */
 function crossCard(scene: Scene, name: string, size: number, planes: number, mat: StandardMaterial): Mesh {
-  const parts: Mesh[] = [];
-  for (let i = 0; i < planes; i++) {
+  const parts = Array.from({ length: planes }, (_, i) => {
     const p = CreatePlane(`${name}_p${i}`, { size }, scene);
     p.rotation.y = (i * Math.PI) / planes;
-    parts.push(p);
-  }
+    return p;
+  });
   const card = Mesh.MergeMeshes(parts, true, true)!; // world rotations baked into geometry
   card.name = name;
   card.position.y = size / 2;            // lift so the card's base sits at y=0…
@@ -177,12 +176,11 @@ function bushMesh(scene: Scene): Mesh {
     [0, 0.32, 0, 0.42], [0.28, 0.24, 0.08, 0.32], [-0.24, 0.26, -0.10, 0.30],
     [0.10, 0.46, -0.14, 0.28], [-0.12, 0.42, 0.18, 0.26], [0.20, 0.16, -0.22, 0.24],
   ];
-  const blobs: Mesh[] = [];
-  for (const [x, y, z, r] of spec) {
+  const blobs = spec.map(([x, y, z, r]) => {
     const b = CreateIcoSphere(`bb`, { radius: r, subdivisions: 2 }, scene); // rounder, less rock-like
     b.position.set(x, y, z);
-    blobs.push(b);
-  }
+    return b;
+  });
   const bush = Mesh.MergeMeshes(blobs, true, true)!;
   bush.name = 'bush';
   const mat = new StandardMaterial('bushMat', scene);
@@ -196,7 +194,8 @@ function bushMesh(scene: Scene): Mesh {
   return bush;
 }
 
-/** Scatters procedural ground detail (grass, and — added in later tasks — flowers/rocks/bushes). */
+/** Scatters procedural ground detail — grass tufts, wildflowers, rocks, and bushes — as one
+ *  thin-instanced base mesh per element type (one draw call each). */
 export function createGroundScatter(scene: Scene): void {
   const grass = crossCard(scene, 'grassTuft', 0.5, 3, grassMaterial(scene));
   grass.thinInstanceSetBuffer('matrix', scatterMatrices({ count: 4000, seed: 1, y: 0, minScale: 0.7, maxScale: 1.3 }), 16);
