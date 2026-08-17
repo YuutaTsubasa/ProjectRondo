@@ -56,6 +56,14 @@ stop the player, so terrain and collision are one concern.
 
 *May split into 2 PRs: (a) terrain shape + re-seat + distant scenery, (b) collision.*
 
+**The P1 spec must explicitly resolve:**
+- **Domain movement on slopes.** The pure `characterMovement.step` owns gravity and `MoveToward` on
+  planar velocity, and today assumes flat ground; the P1 spec must define how it interacts with
+  slope / heightfield **collide-and-slide**, and how `grounded && !ascending` (the ground/jump probe)
+  behaves on non-flat terrain — so ramps don't launch, cancel jumps, or trap the capsule.
+- **Determinism.** If the terrain is procedurally generated, seed it (mulberry32, as scatter does) so
+  the layout is reproducible, and make the raycast-down re-seating of scatter/trees reproducible too.
+
 **Bounded DoD:** the player walks over visibly rolling ground and up/down a path; grass/trees/rocks sit
 correctly on the slopes; distant mountains are visible past the field; the knight **cannot walk through
 trees** (and other designated-solid props) and **rides the terrain** without falling through or
@@ -151,7 +159,13 @@ Reaching this checklist is the signal to stop polishing the world and start the 
 The stylized direction is partly a perf choice. Hold the scatter discipline: few draw calls
 (thin-instances), alpha-test (not alpha-blend), colliders only on genuinely-solid objects, cheap water
 (no heavy planar reflection unless free), distant scenery as painted/silhouette rather than dense
-geometry. Every phase's DoD includes "60fps holds."
+geometry.
+
+**Measure "60fps holds" on the cumulative scene, not the feature in isolation.** Scatter alone already
+sits at ~59fps (largely the vsync cap), and the real GPU costs land later — P2's post-processing
+(bloom / godrays / ACES) and P3's stylized water. So each phase's fps DoD is checked with **all prior
+phases stacked**, and P2/P3 in particular must budget against the already-loaded scene (dropping
+godrays or reflection quality if needed) rather than assuming headroom.
 
 ## 8. Out of scope (deferred beyond M4)
 
