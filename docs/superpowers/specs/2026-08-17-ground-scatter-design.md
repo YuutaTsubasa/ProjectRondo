@@ -23,7 +23,7 @@ round). Art direction stays *minimal, upgradeable* to match the grassland.
 - **Wildflowers** — small cross-cards with a procedural flower texture (white/yellow/purple blossoms),
   sprinkled among the grass. ~400 instances.
 - **Rocks** — low-poly icospheres with deterministically perturbed vertices, grey. ~50 instances.
-- **Bushes** — 2–3 overlapping green icospheres (mini canopies), near trees/edges. ~40 instances.
+- **Bushes** — 2–3 overlapping green icospheres (mini canopies), scattered across the field. ~40 instances.
 
 **Out (deferred upgrades):** wind sway (custom vertex shader), grass LOD / distance fade, per-element
 collision, richer sourced/generated assets, density painting.
@@ -76,8 +76,8 @@ matrix-buffer builder, and the two procedural `DynamicTexture` painters (grass, 
 
 - **Base mesh:** 2–3 overlapping `CreateIcoSphere` blobs merged, green `StandardMaterial` (reuse a
   foliage-ish green), ~0.6–1.0 tall, base at y = 0.
-- **Scatter:** ~40 thin-instances, biased toward the tree spots / field edges, random yaw + scale.
-  Not a shadow caster this round.
+- **Scatter:** ~40 thin-instances across the field (slightly inset from the edges), random yaw +
+  scale. Not a shadow caster this round. (Edge/tree-cluster biasing is a possible future tweak.)
 
 ## 8. Distribution & performance
 

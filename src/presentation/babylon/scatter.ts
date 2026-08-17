@@ -87,15 +87,20 @@ function crossCard(scene: Scene, name: string, size: number, planes: number, mat
   return card;
 }
 
-function grassMaterial(scene: Scene): StandardMaterial {
-  const mat = new StandardMaterial('grassScatterMat', scene);
-  const tex = grassAlphaTexture(scene);
+/** A double-sided alpha-test (cutout) material — shared by the grass/flower cards so there's no
+ *  transparency sorting. */
+function alphaCutoutMaterial(scene: Scene, name: string, tex: DynamicTexture): StandardMaterial {
+  const mat = new StandardMaterial(name, scene);
   mat.diffuseTexture = tex;
   mat.useAlphaFromDiffuseTexture = true;
-  mat.transparencyMode = Material.MATERIAL_ALPHATEST; // cutout — no transparency sorting
+  mat.transparencyMode = Material.MATERIAL_ALPHATEST;
   mat.backFaceCulling = false;
   mat.specularColor = new Color3(0, 0, 0);
   return mat;
+}
+
+function grassMaterial(scene: Scene): StandardMaterial {
+  return alphaCutoutMaterial(scene, 'grassScatterMat', grassAlphaTexture(scene));
 }
 
 /** Transparent texture with a few small blossoms (white/yellow/purple) for wildflower cards. */
@@ -128,13 +133,7 @@ function flowerAlphaTexture(scene: Scene): DynamicTexture {
 }
 
 function flowerMaterial(scene: Scene): StandardMaterial {
-  const mat = new StandardMaterial('flowerScatterMat', scene);
-  mat.diffuseTexture = flowerAlphaTexture(scene);
-  mat.useAlphaFromDiffuseTexture = true;
-  mat.transparencyMode = Material.MATERIAL_ALPHATEST;
-  mat.backFaceCulling = false;
-  mat.specularColor = new Color3(0, 0, 0);
-  return mat;
+  return alphaCutoutMaterial(scene, 'flowerScatterMat', flowerAlphaTexture(scene));
 }
 
 /** A chunky low-poly rock: an icosphere with vertices perturbed by a seeded random factor. */
