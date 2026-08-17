@@ -19,6 +19,7 @@ import { loadKnight, driveKnightAnimation, type KnightAnimations } from './knigh
 import { createEnvironment } from './environment';
 import { createGround } from './ground';
 import { loadTrees } from './trees';
+import { createGroundScatter } from './scatter';
 
 export interface HubScene {
   readonly engine: Engine;
@@ -48,6 +49,7 @@ export async function createHubScene(canvas: HTMLCanvasElement): Promise<HubScen
   const havok = await HavokPhysics();
   scene.enablePhysics(Vector3.Zero(), new HavokPlugin(true, havok));
   createGround(scene);
+  createGroundScatter(scene);
 
   const playerRoot = new TransformNode('player', scene);
   const follow = createFollowCamera(scene, playerRoot, canvas);
