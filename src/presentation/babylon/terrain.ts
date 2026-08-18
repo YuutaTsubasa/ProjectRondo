@@ -5,6 +5,7 @@ import { CreateGround } from '@babylonjs/core/Meshes/Builders/groundBuilder';
 import { CreateBox } from '@babylonjs/core/Meshes/Builders/boxBuilder';
 import { CreateCylinder } from '@babylonjs/core/Meshes/Builders/cylinderBuilder';
 import { VertexBuffer } from '@babylonjs/core/Buffers/buffer';
+import { VertexData } from '@babylonjs/core/Meshes/mesh.vertexData';
 import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
 import '@babylonjs/core/Materials/standardMaterial'; // side-effect: StandardMaterial shader
 import { Texture } from '@babylonjs/core/Materials/Textures/texture';
@@ -62,7 +63,18 @@ export function createTerrain(scene: Scene): AbstractMesh {
   const pos = terrain.getVerticesData(VertexBuffer.PositionKind)!;
   for (let i = 0; i < pos.length; i += 3) pos[i + 1] = terrainHeight(pos[i], pos[i + 2]);
   terrain.updateVerticesData(VertexBuffer.PositionKind, pos);
-  terrain.createNormals(false); // recompute lighting normals for the new relief
+  // Recompute lighting normals for the new relief. Two gotchas, both of which render the ground
+  // pure black if mishandled: (1) `createNormals(false)` builds a NON-updatable normals buffer, so a
+  // later updateVerticesData never reaches the GPU — build the normals ourselves and write them with
+  // setVerticesData (which replaces the GPU buffer). (2) ComputeNormals orients this ground's winding
+  // *downward*, so the surface faces away from the sun; flip them skyward.
+  const indices = terrain.getIndices()!;
+  const normals: number[] = [];
+  VertexData.ComputeNormals(pos, indices, normals);
+  let sumY = 0;
+  for (let i = 1; i < normals.length; i += 3) sumY += normals[i];
+  if (sumY < 0) for (let i = 0; i < normals.length; i++) normals[i] = -normals[i];
+  terrain.setVerticesData(VertexBuffer.NormalKind, normals, false);
 
   const mat = new StandardMaterial('groundMat', scene);
   const grass = new Texture('/textures/grass.jpg', scene);
