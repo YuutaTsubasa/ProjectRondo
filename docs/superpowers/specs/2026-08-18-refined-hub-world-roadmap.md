@@ -167,6 +167,36 @@ sits at ~59fps (largely the vsync cap), and the real GPU costs land later — P2
 phases stacked**, and P2/P3 in particular must budget against the already-loaded scene (dropping
 godrays or reflection quality if needed) rather than assuming headroom.
 
+## 7b. Scheduled additions (added 2026-08-18, after P1 shipped)
+
+Two items the user asked to fold in after P1 merged. Neither was in the original four phases; both are
+slotted into the sequence below.
+
+### A · Bigger / less boxed-in hub map — do BEFORE P2 (a foundation revision)
+
+The hub is a 50×50 field with hard invisible walls at ±25 and reads as too confined ("邊界很死").
+Expand the playable area, and/or replace the invisible box with natural barriers. This is a
+**foundation** change — `terrainHeight.ts` (`FIELD` / `EDGE_RADIUS`), `terrain.ts`'s boundary walls +
+distant-ridge radius, and `scatter.ts`'s `EXTENT` are all sized to 50 / ±24 and must scale together —
+so it lands **right after P1, before P2**: P2's atmosphere (fog reads terrain depth), P3's water/landmark
+placement, and P4's scatter density all tune to the final size, so doing it first avoids re-tuning. The
+*natural-barrier* aesthetic (cliffs, or the mountain ring as the visible edge) can be finished alongside
+P3's landmarks; the size change itself is the near-term task.
+
+### B · Run + jump movement — parallel track, gated on downloaded anims
+
+The character needs a **run** ability and a **jump** ability; the user will download + retarget **run and
+jump animations** separately (the Idle/Walk → `knight_web.glb` pipeline). This is an independent
+**movement pass** — it neither blocks nor depends on the world-polish phases — so it can slot in whenever
+the animations are ready; recommended after the map grows (running then has room to feel good). Note the
+domain already has a jump path (`jumpSpeed`) and sprint was tuned *out* earlier (maxSpeed 12→4), so the
+work is: add a run state + speed, wire the run/jump clips, and blend them.
+
+### Updated sequence
+
+P1 (done) → **map scale-up (A)** → **P2** → *(run/jump (B) slots in when anims arrive)* → **P3**
+(incl. natural edges) → **P4** → game modes.
+
 ## 8. Out of scope (deferred beyond M4)
 
 - **The game modes themselves** — Sonic-style 3D/2D levels, 2048, Sudoku — are the *next* milestone
@@ -177,6 +207,8 @@ godrays or reflection quality if needed) rather than assuming headroom.
 
 ## 9. Next step
 
-Begin **P1 (地形與碰撞基礎)** through its own cycle: brainstorm → `docs/superpowers/specs/…-terrain-
-collision-design.md` → plan → implementation. Each subsequent phase follows the same cycle when its
-turn comes.
+P1 (地形與碰撞基礎) is **done** — spec `2026-08-18-hub-terrain-collision-design.md`, plan
+`2026-08-18-hub-terrain-collision.md`, merged in PR #19. Next is the **map scale-up** (§7b·A) as a
+foundation revision, then **P2 (光影與氛圍後製)**; each runs through its own brainstorm → spec → plan →
+implementation cycle. The run/jump movement pass (§7b·B) runs in parallel once its animations are
+downloaded.
