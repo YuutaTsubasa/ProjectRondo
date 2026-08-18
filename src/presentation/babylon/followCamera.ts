@@ -19,6 +19,10 @@ export interface FollowCameraConfig {
   nearPlane: number;
   /** Pitch the camera starts at (slightly above, looking down at the character). */
   initialPitch: number;
+  /** Rate the camera's vertical follow eases toward the player's Y (per second; higher = snappier,
+   *  lower = smoother). Damps the capsule's small Y steps over the terrain collider so the camera
+   *  doesn't judder up/down on slopes. */
+  verticalSmoothing: number;
 }
 
 const DEFAULT_CONFIG: FollowCameraConfig = {
@@ -31,6 +35,7 @@ const DEFAULT_CONFIG: FollowCameraConfig = {
   minCameraHeight: 0.5,
   nearPlane: 0.05,
   initialPitch: -0.35,
+  verticalSmoothing: 9,
 };
 
 export interface FollowCamera {
@@ -66,19 +71,26 @@ export function createFollowCamera(scene: Scene, target: TransformNode, canvas: 
   canvas.addEventListener('click', onClick);
   canvas.addEventListener('mousemove', onMouseMove);
 
+  let smoothY: number | null = null;
   scene.onBeforeRenderObservable.add(() => {
     camera.minZ = config.nearPlane;
+    const dt = scene.getEngine().getDeltaTime() / 1000;
     const t = target.getAbsolutePosition();
+    // Follow X/Z tightly, but ease the vertical follow: the capsule's Y micro-steps as it crosses the
+    // terrain collider's triangles (worst on descent), and copying it rigidly juddered the camera.
+    if (smoothY === null || dt <= 0) smoothY ??= t.y;
+    else smoothY += (t.y - smoothY) * (1 - Math.exp(-config.verticalSmoothing * dt));
+    const anchor = new Vector3(t.x, smoothY, t.z);
     const offset = new Vector3(
       Math.sin(yaw) * Math.cos(pitch),
       Math.sin(-pitch),
       Math.cos(yaw) * Math.cos(pitch),
     ).scaleInPlace(config.distance);
-    const position = t.add(offset).add(new Vector3(0, config.height, 0));
+    const position = anchor.add(offset).add(new Vector3(0, config.height, 0));
     // Never let the camera dip into the floor, or the opaque ground plane hides the whole character.
     position.y = Math.max(position.y, config.minCameraHeight);
     camera.position.copyFrom(position);
-    camera.setTarget(t.add(new Vector3(0, config.aimHeight, 0)));
+    camera.setTarget(anchor.add(new Vector3(0, config.aimHeight, 0)));
   });
 
   return {
