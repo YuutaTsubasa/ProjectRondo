@@ -17,7 +17,7 @@ import { createInput } from './input';
 import { createPlayer, type Player } from './playerController';
 import { loadKnight, driveKnightAnimation, type KnightAnimations } from './knight';
 import { createEnvironment } from './environment';
-import { createGround } from './ground';
+import { createTerrain } from './terrain';
 import { loadTrees } from './trees';
 import { createGroundScatter } from './scatter';
 
@@ -48,7 +48,7 @@ export async function createHubScene(canvas: HTMLCanvasElement): Promise<HubScen
   // (Set a real value here if/when dynamic rigid bodies are introduced.)
   const havok = await HavokPhysics();
   scene.enablePhysics(Vector3.Zero(), new HavokPlugin(true, havok));
-  createGround(scene);
+  createTerrain(scene);
   createGroundScatter(scene);
 
   const playerRoot = new TransformNode('player', scene);
