@@ -60,14 +60,16 @@ function createDistantScenery(scene: Scene): void {
 export function createTerrain(scene: Scene): AbstractMesh {
   const terrain = CreateGround('terrain', { width: FIELD, height: FIELD, subdivisions: SUBDIVISIONS }, scene);
 
+  // Displace the ground into rolling terrain. CreateGround makes NON-updatable vertex buffers, and
+  // `updateVerticesData` on those updates the CPU-side copy (so the MESH collider and getVerticesData
+  // see the relief) but NEVER reaches the GPU — the mesh then *renders as a flat plane* while the
+  // player still rides the (displaced) collider. `setVerticesData` replaces the GPU buffer, so use it
+  // for both positions and normals.
   const pos = terrain.getVerticesData(VertexBuffer.PositionKind)!;
   for (let i = 0; i < pos.length; i += 3) pos[i + 1] = terrainHeight(pos[i], pos[i + 2]);
-  terrain.updateVerticesData(VertexBuffer.PositionKind, pos);
-  // Recompute lighting normals for the new relief. Two gotchas, both of which render the ground
-  // pure black if mishandled: (1) `createNormals(false)` builds a NON-updatable normals buffer, so a
-  // later updateVerticesData never reaches the GPU — build the normals ourselves and write them with
-  // setVerticesData (which replaces the GPU buffer). (2) ComputeNormals orients this ground's winding
-  // *downward*, so the surface faces away from the sun; flip them skyward.
+  terrain.setVerticesData(VertexBuffer.PositionKind, pos, false);
+  // Recompute lighting normals for the new relief. ComputeNormals orients this ground's winding
+  // *downward* (surface faces away from the sun → renders black), so flip them skyward.
   const indices = terrain.getIndices()!;
   const normals: number[] = [];
   VertexData.ComputeNormals(pos, indices, normals);
@@ -75,6 +77,7 @@ export function createTerrain(scene: Scene): AbstractMesh {
   for (let i = 1; i < normals.length; i += 3) sumY += normals[i];
   if (sumY < 0) for (let i = 0; i < normals.length; i++) normals[i] = -normals[i];
   terrain.setVerticesData(VertexBuffer.NormalKind, normals, false);
+  terrain.refreshBoundingInfo(); // bounds were built for the flat plane; refresh for cull/pick
 
   const mat = new StandardMaterial('groundMat', scene);
   const grass = new Texture('/textures/grass.jpg', scene);
