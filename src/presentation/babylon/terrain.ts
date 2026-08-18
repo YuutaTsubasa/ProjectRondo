@@ -3,7 +3,7 @@ import type { AbstractMesh } from '@babylonjs/core/Meshes/abstractMesh';
 import { Color3 } from '@babylonjs/core/Maths/math.color';
 import { CreateGround } from '@babylonjs/core/Meshes/Builders/groundBuilder';
 import { CreateBox } from '@babylonjs/core/Meshes/Builders/boxBuilder';
-import { CreateCylinder } from '@babylonjs/core/Meshes/Builders/cylinderBuilder';
+import { Mesh } from '@babylonjs/core/Meshes/mesh';
 import { VertexBuffer } from '@babylonjs/core/Buffers/buffer';
 import { VertexData } from '@babylonjs/core/Meshes/mesh.vertexData';
 import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
@@ -36,23 +36,58 @@ function createBoundaries(scene: Scene): void {
   }
 }
 
-/** A ring of low-poly silhouette mountains beyond the walls — static, no collider — so the world
- *  reads as bigger than the field and gives P2's fog something to fade into. */
+/** A continuous low-poly mountain ridge encircling the field — one static mesh, no collider — so the
+ *  world reads as bigger than the walls and P2's fog has something to fade into. The silhouette is a
+ *  ring of connected peaks (broad ranges + jagged sub-peaks) rather than separate cones. */
 function createDistantScenery(scene: Scene): void {
-  const mat = new StandardMaterial('mountainMat', scene);
-  mat.diffuseColor = new Color3(0.42, 0.5, 0.55); // hazy blue-grey
-  mat.specularColor = new Color3(0, 0, 0);
-  const RING_RADIUS = 70;
-  const COUNT = 28;
-  for (let i = 0; i < COUNT; i++) {
-    const a = (i / COUNT) * Math.PI * 2;
-    const height = 16 + (i % 5) * 4; // deterministic variety
-    const m = CreateCylinder(`mtn_${i}`, { diameterTop: 0, diameterBottom: height * 0.9, height, tessellation: 5 }, scene);
-    m.position.set(Math.cos(a) * RING_RADIUS, height / 2 - 4, Math.sin(a) * RING_RADIUS);
-    m.material = mat;
-    m.isPickable = false;
-    m.alwaysSelectAsActiveMesh = true;
+  const RING_RADIUS = 60; // far enough to read as a distant range, close enough not to float off
+  const SEGMENTS = 64; // silhouette resolution
+  const BASE_Y = -3; // bottom skirt sits just below the horizon
+  const MIN_H = 10;
+  const MAX_H = 24;
+
+  // Deterministic per-segment jaggedness (wraps seamlessly via i % SEGMENTS).
+  const jag = (i: number): number => {
+    let h = Math.imul((i % SEGMENTS) ^ 0x9e3779b9, 2654435761);
+    h ^= h >>> 15;
+    return ((h >>> 0) % 10000) / 10000;
+  };
+  const heightAt = (i: number, a: number): number => {
+    const broad = 0.5 + 0.5 * Math.sin(a * 3 + 1.3) * Math.sin(a * 1.7); // low-freq ranges
+    return MIN_H + (MAX_H - MIN_H) * (0.55 * broad + 0.45 * jag(i));
+  };
+
+  const positions: number[] = [];
+  const indices: number[] = [];
+  for (let i = 0; i <= SEGMENTS; i++) {
+    const a = (i / SEGMENTS) * Math.PI * 2;
+    const x = Math.cos(a) * RING_RADIUS;
+    const z = Math.sin(a) * RING_RADIUS;
+    positions.push(x, BASE_Y, z); // bottom vertex (index 2i)
+    positions.push(x, BASE_Y + heightAt(i, a), z); // top vertex (index 2i+1)
   }
+  for (let i = 0; i < SEGMENTS; i++) {
+    const b0 = 2 * i, t0 = 2 * i + 1, b1 = 2 * i + 2, t1 = 2 * i + 3;
+    indices.push(b0, t0, t1, b0, t1, b1);
+  }
+  const vd = new VertexData();
+  vd.positions = positions;
+  vd.indices = indices;
+  const mesh = new Mesh('mountains', scene);
+  vd.applyToMesh(mesh);
+
+  const mat = new StandardMaterial('mountainMat', scene);
+  // Distant mountains read as flat hazy silhouettes (atmospheric perspective), NOT sun-shaded solids —
+  // so disable lighting and use a desaturated blue-grey that sits between the green land and the sky.
+  // P2's fog will blend the base into the horizon.
+  mat.disableLighting = true;
+  mat.diffuseColor = new Color3(0.48, 0.55, 0.58);
+  mat.emissiveColor = new Color3(0.48, 0.55, 0.58);
+  mat.specularColor = new Color3(0, 0, 0);
+  mat.backFaceCulling = false; // the player views the ring from inside
+  mesh.material = mat;
+  mesh.isPickable = false;
+  mesh.alwaysSelectAsActiveMesh = true;
 }
 
 /** Builds the rolling grass terrain: a subdivided ground displaced by terrainHeight with a static
