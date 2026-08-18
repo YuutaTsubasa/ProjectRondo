@@ -28,9 +28,9 @@ describe('terrainHeight', () => {
     expect(terrainHeight(12.3, -7.1)).toBe(terrainHeight(12.3, -7.1));
     // …and the seeded heightfield itself is pinned, so a changed SEED / frequency / amplitude / hash
     // constant (which the equality check above cannot catch) fails the suite.
-    expect(terrainHeight(20, 20)).toBeCloseTo(3.1782806291859775, 10);
-    expect(terrainHeight(-18, 6)).toBeCloseTo(2.1878851450842003, 10);
-    expect(terrainHeight(3, 3)).toBeCloseTo(0.04081700809081701, 10);
+    expect(terrainHeight(20, 20)).toBeCloseTo(4.412902844301425, 10);
+    expect(terrainHeight(-18, 6)).toBeCloseTo(0.7017807812552859, 10);
+    expect(terrainHeight(3, 3)).toBeCloseTo(0.33698258724619307, 10);
   });
 
   it('stays within [-BASE_AMPLITUDE, AMPLITUDE + BASE_AMPLITUDE] across the whole field', () => {

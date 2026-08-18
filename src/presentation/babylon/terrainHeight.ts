@@ -10,10 +10,10 @@
 export const FIELD = 50; // terrain spans FIELD x FIELD, centred on the origin
 export const FLAT_RADIUS = 8; // big hills stay outside this central play radius…
 export const EDGE_RADIUS = 24; // …and reach full amplitude by here (inside the ±25 walls)
-export const AMPLITUDE = 6; // max additional hill height toward the rim, world units
-const HILL_FREQ = 0.09; // broad edge hills
-export const BASE_AMPLITUDE = 2.0; // rolling undulation everywhere (± this), so nowhere is dead-flat
-const BASE_FREQ = 0.13; // broad wavelength → visible rolling hills, not fine bumps
+export const AMPLITUDE = 5.5; // max additional hill height toward the rim, world units
+const HILL_FREQ = 0.05; // long wavelength → broad, walkable edge hills (not steep spikes)
+export const BASE_AMPLITUDE = 1.8; // rolling undulation everywhere (± this), so nowhere is dead-flat
+const BASE_FREQ = 0.075; // broad wavelength → gentle, visible rolls the player can actually climb
 const SEED = 1337;
 
 function smoothstep(t: number): number {
