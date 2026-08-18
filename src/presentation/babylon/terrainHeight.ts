@@ -15,6 +15,7 @@ const HILL_FREQ = 0.05; // long wavelength → broad, walkable edge hills (not s
 export const BASE_AMPLITUDE = 1.8; // rolling undulation everywhere (± this), so nowhere is dead-flat
 const BASE_FREQ = 0.075; // broad wavelength → gentle, visible rolls the player can actually climb
 const SEED = 1337;
+const LAYER_DECORRELATION = 100; // offsets the hill lattice so the two noise layers don't share peaks
 
 function smoothstep(t: number): number {
   return t * t * (3 - 2 * t);
@@ -57,7 +58,7 @@ function falloff(r: number): number {
  *  AMPLITUDE + BASE_AMPLITUDE]. */
 export function terrainHeight(x: number, z: number): number {
   const base = BASE_AMPLITUDE * (valueNoise(x, z, BASE_FREQ) - 0.5) * 2;
-  // Offset the hill lattice so the two layers don't share their peaks.
-  const hills = falloff(Math.hypot(x, z)) * AMPLITUDE * valueNoise(x + 100, z - 100, HILL_FREQ);
+  const hills =
+    falloff(Math.hypot(x, z)) * AMPLITUDE * valueNoise(x + LAYER_DECORRELATION, z - LAYER_DECORRELATION, HILL_FREQ);
   return base + hills;
 }

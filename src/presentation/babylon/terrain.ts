@@ -80,9 +80,10 @@ function createDistantScenery(scene: Scene): void {
   // Distant mountains read as flat hazy silhouettes (atmospheric perspective), NOT sun-shaded solids —
   // so disable lighting and use a desaturated blue-grey that sits between the green land and the sky.
   // P2's fog will blend the base into the horizon.
+  const haze = new Color3(0.48, 0.55, 0.58);
   mat.disableLighting = true;
-  mat.diffuseColor = new Color3(0.48, 0.55, 0.58);
-  mat.emissiveColor = new Color3(0.48, 0.55, 0.58);
+  mat.diffuseColor = haze;
+  mat.emissiveColor = haze;
   mat.specularColor = new Color3(0, 0, 0);
   mat.backFaceCulling = false; // the player views the ring from inside
   mesh.material = mat;

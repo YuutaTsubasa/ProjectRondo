@@ -83,10 +83,9 @@ export function createFollowCamera(scene: Scene, target: TransformNode, canvas: 
     const dt = scene.getEngine().getDeltaTime() / 1000;
     const t = target.getAbsolutePosition();
     // Follow X/Z tightly, but ease the vertical follow: the capsule's Y micro-steps as it crosses the
-    // terrain collider's triangles (worst on descent), and copying it rigidly juddered the camera.
-    // When grounded, follow the SMOOTH terrain height under the player instead of the physics capsule
-    // Y (which micro-steps over the collider triangles → judder); only follow the real Y when clearly
-    // airborne, so jumps still read. A light lerp smooths the grounded↔airborne transition.
+    // terrain collider's triangles (worst on descent), so copying it rigidly juddered the camera. When
+    // grounded, anchor to the SMOOTH terrain height under the player instead of the capsule Y; only
+    // follow the real Y when clearly airborne so jumps still read. A light lerp smooths the transition.
     const groundLevel = terrainHeight(t.x, t.z) + CAPSULE_HALF;
     const targetY = Math.abs(t.y - groundLevel) < GROUNDED_BAND ? groundLevel : t.y;
     if (smoothY === null || dt <= 0) smoothY ??= targetY;
