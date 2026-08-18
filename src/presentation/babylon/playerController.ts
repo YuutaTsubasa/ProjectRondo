@@ -12,6 +12,7 @@ import { IDLE, type CharacterMotion } from '../../domain/hub/character/character
 import { planarDirectionFromInput } from './cameraRelativeDirection';
 import { toBabylon, toVec3 } from './vectorConversions';
 import { CAPSULE_RADIUS, CAPSULE_HEIGHT } from './capsule';
+import { terrainHeight } from './terrainHeight';
 import type { FollowCamera } from './followCamera';
 import type { InputState } from './input';
 
@@ -41,7 +42,9 @@ export function createPlayer(
   follow: FollowCamera,
   input: InputState,
 ): Player {
-  const start = new Vector3(0, CAPSULE_HEIGHT / 2, 0);
+  // Spawn the capsule's base ON the terrain surface (+ a small lift so it settles down onto it rather
+  // than starting embedded — an embedded capsule pops through the one-sided MESH collider and falls).
+  const start = new Vector3(0, terrainHeight(0, 0) + CAPSULE_HEIGHT / 2 + 0.3, 0);
   const controller = new PhysicsCharacterController(
     start,
     { capsuleRadius: CAPSULE_RADIUS, capsuleHeight: CAPSULE_HEIGHT },
