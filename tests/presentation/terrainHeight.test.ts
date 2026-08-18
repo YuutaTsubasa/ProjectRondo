@@ -16,9 +16,14 @@ describe('terrainHeight', () => {
     }
   });
 
-  it('is deterministic — same input always yields the same height', () => {
+  it('is deterministic and reproducible across builds (pinned golden values)', () => {
+    // Same input → same output within a run…
     expect(terrainHeight(12.3, -7.1)).toBe(terrainHeight(12.3, -7.1));
-    expect(terrainHeight(20, 20)).toBe(terrainHeight(20, 20));
+    // …and the seeded heightfield itself is pinned, so a changed SEED / frequency / hash constant
+    // (which the equality check above cannot catch) fails the suite.
+    expect(terrainHeight(20, 20)).toBeCloseTo(2.9874470870240777, 10);
+    expect(terrainHeight(-18, 6)).toBeCloseTo(1.6367347472883578, 10);
+    expect(terrainHeight(24, 0)).toBeCloseTo(1.0730561049962042, 10);
   });
 
   it('stays within [0, AMPLITUDE] across the whole field', () => {

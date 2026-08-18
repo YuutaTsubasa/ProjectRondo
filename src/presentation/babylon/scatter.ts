@@ -15,6 +15,7 @@ import { PhysicsShapeType } from '@babylonjs/core/Physics/v2/IPhysicsEnginePlugi
 import { terrainHeight } from './terrainHeight';
 
 const EXTENT = 24; // scatter within ±EXTENT (inside the ±25 boundary walls)
+const ROCK_BASE_RADIUS = 0.4; // rock icosphere radius — shared by the mesh and its collider
 
 /** Deterministic 0..1 PRNG (mulberry32) so each scatter layout is identical every run. */
 function rng(seed: number): () => number {
@@ -154,7 +155,7 @@ function flowerMaterial(scene: Scene): StandardMaterial {
 
 /** A chunky low-poly rock: an icosphere with vertices perturbed by a seeded random factor. */
 function rockMesh(scene: Scene): Mesh {
-  const rock = CreateIcoSphere('rock', { radius: 0.4, subdivisions: 1 }, scene);
+  const rock = CreateIcoSphere('rock', { radius: ROCK_BASE_RADIUS, subdivisions: 1 }, scene);
   const pos = rock.getVerticesData(VertexBuffer.PositionKind)!;
   const rand = rng(7);
   for (let i = 0; i < pos.length; i += 3) {
@@ -207,7 +208,6 @@ function bushMesh(scene: Scene): Mesh {
 }
 
 const ROCK_COLLIDER_MIN_SCALE = 0.75; // only the biggest rocks (top ~quarter) block the player
-const ROCK_BASE_RADIUS = 0.4; // matches rockMesh's icosphere radius
 
 /** Invisible static sphere colliders for the large rocks only. Rendering stays a single thin-instance
  *  draw call; these decoupled bodies just stop the player at the big rocks. */
