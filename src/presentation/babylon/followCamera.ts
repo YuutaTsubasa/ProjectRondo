@@ -2,6 +2,12 @@ import type { Scene } from '@babylonjs/core/scene';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { TargetCamera } from '@babylonjs/core/Cameras/targetCamera';
 import type { TransformNode } from '@babylonjs/core/Meshes/transformNode';
+import { terrainHeight } from './terrainHeight';
+import { CAPSULE_HALF } from './capsule';
+
+/** While |playerY − groundLevel| is under this, treat the player as grounded and anchor the camera to
+ *  the smooth terrain (not the jittery capsule); a jump clears it at once. Covers float + slope rest. */
+const GROUNDED_BAND = 0.5;
 
 /** Live-tunable follow-camera settings. Exposed on `window.cameraConfig` in dev for instant tweaking. */
 export interface FollowCameraConfig {
@@ -78,8 +84,13 @@ export function createFollowCamera(scene: Scene, target: TransformNode, canvas: 
     const t = target.getAbsolutePosition();
     // Follow X/Z tightly, but ease the vertical follow: the capsule's Y micro-steps as it crosses the
     // terrain collider's triangles (worst on descent), and copying it rigidly juddered the camera.
-    if (smoothY === null || dt <= 0) smoothY ??= t.y;
-    else smoothY += (t.y - smoothY) * (1 - Math.exp(-config.verticalSmoothing * dt));
+    // When grounded, follow the SMOOTH terrain height under the player instead of the physics capsule
+    // Y (which micro-steps over the collider triangles → judder); only follow the real Y when clearly
+    // airborne, so jumps still read. A light lerp smooths the grounded↔airborne transition.
+    const groundLevel = terrainHeight(t.x, t.z) + CAPSULE_HALF;
+    const targetY = Math.abs(t.y - groundLevel) < GROUNDED_BAND ? groundLevel : t.y;
+    if (smoothY === null || dt <= 0) smoothY ??= targetY;
+    else smoothY += (targetY - smoothY) * (1 - Math.exp(-config.verticalSmoothing * dt));
     const anchor = new Vector3(t.x, smoothY, t.z);
     const offset = new Vector3(
       Math.sin(yaw) * Math.cos(pitch),
