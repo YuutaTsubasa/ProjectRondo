@@ -3,11 +3,19 @@ import type { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 import type { ShadowGenerator } from '@babylonjs/core/Lights/Shadows/shadowGenerator';
 import { LoadAssetContainerAsync } from '@babylonjs/core/Loading/sceneLoader';
 import { Quaternion } from '@babylonjs/core/Maths/math.vector';
+import { CreateCylinder } from '@babylonjs/core/Meshes/Builders/cylinderBuilder';
+import { PhysicsAggregate } from '@babylonjs/core/Physics/v2/physicsAggregate';
+import { PhysicsShapeType } from '@babylonjs/core/Physics/v2/IPhysicsEnginePlugin';
+import { terrainHeight } from './terrainHeight';
 import '@babylonjs/loaders/glTF'; // side-effect: registers the glTF loader
 
 /** The tree GLB is normalized to ~1 unit tall (Tripo output); scale it up to a real tree height.
  *  The per-spot scale below multiplies this, so trees land around 6 units (taller than the ~1.9 knight). */
 const BASE_SCALE = 6;
+
+/** Trunk collider: a thin invisible cylinder so the player stops at the trunk, not the canopy. */
+const TRUNK_RADIUS = 0.5;
+const TRUNK_HEIGHT = 4;
 
 /** Fixed scatter: [x, z, yawRadians, scale]. Includes the old Godot pillar corners (±8, ±8); the
  *  centre (~radius 5) is left clear so no tree spawns on the player's spawn point. */
@@ -45,7 +53,14 @@ export async function loadTrees(scene: Scene, shadowGenerator?: ShadowGenerator)
       doNotInstantiate: true,
     });
     const root = rootNodes[0] as TransformNode;
-    root.position.set(x, 0, z);
+    const y = terrainHeight(x, z);
+    root.position.set(x, y, z);
+
+    const trunk = CreateCylinder(`tree_${i}_trunk`, { diameter: TRUNK_RADIUS * 2, height: TRUNK_HEIGHT }, scene);
+    trunk.position.set(x, y + TRUNK_HEIGHT / 2, z);
+    trunk.isVisible = false;
+    trunk.isPickable = false;
+    new PhysicsAggregate(trunk, PhysicsShapeType.CYLINDER, { mass: 0 }, scene);
     root.rotationQuaternion = Quaternion.FromEulerAngles(0, yaw, 0);
     root.scaling.setAll(BASE_SCALE * scale);
     if (shadowGenerator)

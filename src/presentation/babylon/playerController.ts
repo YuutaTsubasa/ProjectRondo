@@ -12,6 +12,7 @@ import { IDLE, type CharacterMotion } from '../../domain/hub/character/character
 import { planarDirectionFromInput } from './cameraRelativeDirection';
 import { toBabylon, toVec3 } from './vectorConversions';
 import { CAPSULE_RADIUS, CAPSULE_HEIGHT } from './capsule';
+import { terrainHeight } from './terrainHeight';
 import type { FollowCamera } from './followCamera';
 import type { InputState } from './input';
 
@@ -24,6 +25,16 @@ const TURN_SPEED = 12;
 const MAX_DT = 1 / 30;
 const DOWN = new Vector3(0, -1, 0);
 const NO_GRAVITY = Vector3.Zero(); // gravity lives in the domain; Havok must not add its own
+/**
+ * Rate the *visual* root Y eases toward the physics capsule's Y. The Havok character controller
+ * micro-oscillates on slopes (never fully settles) and steps across the terrain collider's triangles,
+ * so its Y judders frame to frame; the camera and knight read the root, so they judder too. Easing the
+ * visual Y (physics still uses the controller's own position) smooths both without affecting movement.
+ * NB this is load-bearing, not redundant with the knight's terrain re-anchor: that re-anchor reads a
+ * one-frame-stale getAbsolutePosition, so it cancels the root Y only imperfectly — bypassing this
+ * smoothing brings the knight's descent judder back (~27 direction reversals vs 1, measured).
+ */
+const VISUAL_Y_SMOOTHING = 14;
 
 export interface Player {
   readonly root: TransformNode;
@@ -41,7 +52,10 @@ export function createPlayer(
   follow: FollowCamera,
   input: InputState,
 ): Player {
-  const start = new Vector3(0, CAPSULE_HEIGHT / 2, 0);
+  // Spawn the capsule's base ON the terrain surface (+ a small lift so it settles down onto it rather
+  // than starting embedded — an embedded capsule pops through the one-sided MESH collider and falls).
+  const start = new Vector3(0, terrainHeight(0, 0) + CAPSULE_HEIGHT / 2 + 0.3, 0);
+  let visualY = start.y; // smoothed visual Y (see VISUAL_Y_SMOOTHING)
   const controller = new PhysicsCharacterController(
     start,
     { capsuleRadius: CAPSULE_RADIUS, capsuleHeight: CAPSULE_HEIGHT },
@@ -76,7 +90,11 @@ export function createPlayer(
 
     controller.setVelocity(toBabylon(next.velocity));
     controller.integrate(dt, support, NO_GRAVITY);
-    root.position.copyFrom(controller.getPosition());
+    const solved = controller.getPosition();
+    root.position.x = solved.x;
+    root.position.z = solved.z;
+    visualY += (solved.y - visualY) * (1 - Math.exp(-VISUAL_Y_SMOOTHING * dt));
+    root.position.y = visualY;
     // Feed the controller's *post-solve* velocity back into the domain (mirrors Godot reading
     // Velocity after MoveAndSlide). Today the hub is a bare plane so this equals `next.velocity`,
     // but once there are walls, collide-and-slide reduces/redirects it — storing the pre-integrate

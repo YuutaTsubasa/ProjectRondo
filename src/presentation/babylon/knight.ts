@@ -7,6 +7,7 @@ import { Quaternion } from '@babylonjs/core/Maths/math.vector';
 // Side-effect: registers the glTF loader plugin (with KHR_mesh_quantization / webp support).
 import '@babylonjs/loaders/glTF';
 import { CAPSULE_HALF } from './capsule';
+import { terrainHeight } from './terrainHeight';
 
 export interface KnightAnimations {
   readonly idle: AnimationGroup;
@@ -83,7 +84,16 @@ export async function loadKnight(scene: Scene, parent: TransformNode, shadowGene
     const observer = scene.onAfterRenderObservable.add(() => {
       const lowest = Math.min(...footBones.map((b) => b.getAbsolutePosition(skinned).y));
       root.position.y += parent.getAbsolutePosition().y - CAPSULE_HALF + FOOT_CLEARANCE - lowest;
+      const seatedLocalY = root.position.y; // feet grounded when the capsule bottom sits on the surface
       scene.onAfterRenderObservable.remove(observer);
+      // On rolling terrain the physics capsule rests ABOVE the ground (its rounded bottom rides
+      // slopes/bumps, plus the controller's keepDistance), so a rigidly-parented knight floats. Each
+      // frame, drop the visual by however far the capsule bottom sits above the terrain under the
+      // player, so the feet stay planted.
+      scene.onBeforeRenderObservable.add(() => {
+        const p = parent.getAbsolutePosition();
+        root.position.y = seatedLocalY - (p.y - CAPSULE_HALF - terrainHeight(p.x, p.z));
+      });
     });
   }
 

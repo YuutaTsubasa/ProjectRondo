@@ -9,8 +9,13 @@ import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
 import '@babylonjs/core/Materials/standardMaterial'; // side-effect: StandardMaterial shader
 import { Material } from '@babylonjs/core/Materials/material';
 import { DynamicTexture } from '@babylonjs/core/Materials/Textures/dynamicTexture';
+import { CreateSphere } from '@babylonjs/core/Meshes/Builders/sphereBuilder';
+import { PhysicsAggregate } from '@babylonjs/core/Physics/v2/physicsAggregate';
+import { PhysicsShapeType } from '@babylonjs/core/Physics/v2/IPhysicsEnginePlugin';
+import { terrainHeight } from './terrainHeight';
 
 const EXTENT = 24; // scatter within ±EXTENT (inside the ±25 boundary walls)
+const ROCK_BASE_RADIUS = 0.4; // rock icosphere radius — shared by the mesh and its collider
 
 /** Deterministic 0..1 PRNG (mulberry32) so each scatter layout is identical every run. */
 function rng(seed: number): () => number {
@@ -24,23 +29,31 @@ function rng(seed: number): () => number {
 }
 
 interface ScatterOpts { count: number; seed: number; y: number; minScale: number; maxScale: number; extent?: number; }
+interface Placement { x: number; y: number; z: number; s: number; }
+interface ScatterResult { buffer: Float32Array; placements: Placement[]; }
 
-/** A 16×count matrix buffer of randomly placed/rotated/scaled instances on the field. */
-function scatterMatrices(o: ScatterOpts): Float32Array {
+/** A 16×count matrix buffer of randomly placed/rotated/scaled instances on the terrain, plus the
+ *  per-instance placements (so callers can attach colliders without decoding the matrix buffer). */
+function scatterMatrices(o: ScatterOpts): ScatterResult {
   const rand = rng(o.seed);
   const ext = o.extent ?? EXTENT;
-  const buf = new Float32Array(o.count * 16);
+  const buffer = new Float32Array(o.count * 16);
+  const placements: Placement[] = [];
   const m = Matrix.Identity();
   const scale = new Vector3();
   const pos = new Vector3();
   for (let i = 0; i < o.count; i++) {
     const s = o.minScale + rand() * (o.maxScale - o.minScale);
     scale.set(s, s, s);
-    pos.set((rand() * 2 - 1) * ext, o.y, (rand() * 2 - 1) * ext);
+    const px = (rand() * 2 - 1) * ext;
+    const pz = (rand() * 2 - 1) * ext;
+    const py = terrainHeight(px, pz) + o.y;
+    pos.set(px, py, pz);
     Matrix.ComposeToRef(scale, Quaternion.RotationAxis(Vector3.UpReadOnly, rand() * Math.PI * 2), pos, m);
-    m.copyToArray(buf, i * 16);
+    m.copyToArray(buffer, i * 16);
+    placements.push({ x: px, y: py, z: pz, s });
   }
-  return buf;
+  return { buffer, placements };
 }
 
 /** Transparent texture with a handful of tapered green blades rising from the bottom edge. */
@@ -142,7 +155,7 @@ function flowerMaterial(scene: Scene): StandardMaterial {
 
 /** A chunky low-poly rock: an icosphere with vertices perturbed by a seeded random factor. */
 function rockMesh(scene: Scene): Mesh {
-  const rock = CreateIcoSphere('rock', { radius: 0.4, subdivisions: 1 }, scene);
+  const rock = CreateIcoSphere('rock', { radius: ROCK_BASE_RADIUS, subdivisions: 1 }, scene);
   const pos = rock.getVerticesData(VertexBuffer.PositionKind)!;
   const rand = rng(7);
   for (let i = 0; i < pos.length; i += 3) {
@@ -194,18 +207,35 @@ function bushMesh(scene: Scene): Mesh {
   return bush;
 }
 
+const ROCK_COLLIDER_MIN_SCALE = 0.75; // only the biggest rocks (top ~quarter) block the player
+
+/** Invisible static sphere colliders for the large rocks only. Rendering stays a single thin-instance
+ *  draw call; these decoupled bodies just stop the player at the big rocks. */
+function addRockColliders(scene: Scene, placements: Placement[]): void {
+  for (const p of placements) {
+    if (p.s < ROCK_COLLIDER_MIN_SCALE) continue;
+    const proxy = CreateSphere('rockCollider', { diameter: 2 * ROCK_BASE_RADIUS * p.s, segments: 3 }, scene);
+    proxy.position.set(p.x, p.y, p.z);
+    proxy.isVisible = false;
+    proxy.isPickable = false;
+    new PhysicsAggregate(proxy, PhysicsShapeType.SPHERE, { mass: 0 }, scene);
+  }
+}
+
 /** Scatters procedural ground detail — grass tufts, wildflowers, rocks, and bushes — as one
  *  thin-instanced base mesh per element type (one draw call each). */
 export function createGroundScatter(scene: Scene): void {
   const grass = crossCard(scene, 'grassTuft', 0.5, 3, grassMaterial(scene));
-  grass.thinInstanceSetBuffer('matrix', scatterMatrices({ count: 4000, seed: 1, y: 0, minScale: 0.7, maxScale: 1.3 }), 16);
+  grass.thinInstanceSetBuffer('matrix', scatterMatrices({ count: 4000, seed: 1, y: 0, minScale: 0.7, maxScale: 1.3 }).buffer, 16);
 
   const flowers = crossCard(scene, 'wildflower', 0.22, 2, flowerMaterial(scene));
-  flowers.thinInstanceSetBuffer('matrix', scatterMatrices({ count: 400, seed: 2, y: 0, minScale: 0.7, maxScale: 1.2 }), 16);
+  flowers.thinInstanceSetBuffer('matrix', scatterMatrices({ count: 400, seed: 2, y: 0, minScale: 0.7, maxScale: 1.2 }).buffer, 16);
 
+  const rockScatter = scatterMatrices({ count: 50, seed: 3, y: -0.05, minScale: 0.3, maxScale: 0.9 });
   const rock = rockMesh(scene);
-  rock.thinInstanceSetBuffer('matrix', scatterMatrices({ count: 50, seed: 3, y: -0.05, minScale: 0.3, maxScale: 0.9 }), 16);
+  rock.thinInstanceSetBuffer('matrix', rockScatter.buffer, 16);
+  addRockColliders(scene, rockScatter.placements);
 
   const bush = bushMesh(scene);
-  bush.thinInstanceSetBuffer('matrix', scatterMatrices({ count: 40, seed: 4, y: 0, minScale: 0.7, maxScale: 1.3, extent: EXTENT - 2 }), 16);
+  bush.thinInstanceSetBuffer('matrix', scatterMatrices({ count: 40, seed: 4, y: 0, minScale: 0.7, maxScale: 1.3, extent: EXTENT - 2 }).buffer, 16);
 }

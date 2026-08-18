@@ -2,6 +2,12 @@ import type { Scene } from '@babylonjs/core/scene';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { TargetCamera } from '@babylonjs/core/Cameras/targetCamera';
 import type { TransformNode } from '@babylonjs/core/Meshes/transformNode';
+import { terrainHeight } from './terrainHeight';
+import { CAPSULE_HALF } from './capsule';
+
+/** While |playerY − groundLevel| is under this, treat the player as grounded and anchor the camera to
+ *  the smooth terrain (not the jittery capsule); a jump clears it at once. Covers float + slope rest. */
+const GROUNDED_BAND = 0.5;
 
 /** Live-tunable follow-camera settings. Exposed on `window.cameraConfig` in dev for instant tweaking. */
 export interface FollowCameraConfig {
@@ -19,6 +25,10 @@ export interface FollowCameraConfig {
   nearPlane: number;
   /** Pitch the camera starts at (slightly above, looking down at the character). */
   initialPitch: number;
+  /** Rate the camera's vertical follow eases toward the player's Y (per second; higher = snappier,
+   *  lower = smoother). Damps the capsule's small Y steps over the terrain collider so the camera
+   *  doesn't judder up/down on slopes. */
+  verticalSmoothing: number;
 }
 
 const DEFAULT_CONFIG: FollowCameraConfig = {
@@ -30,7 +40,8 @@ const DEFAULT_CONFIG: FollowCameraConfig = {
   aimHeight: 0.3,
   minCameraHeight: 0.5,
   nearPlane: 0.05,
-  initialPitch: -0.35,
+  initialPitch: 0.15,
+  verticalSmoothing: 9,
 };
 
 export interface FollowCamera {
@@ -66,19 +77,30 @@ export function createFollowCamera(scene: Scene, target: TransformNode, canvas: 
   canvas.addEventListener('click', onClick);
   canvas.addEventListener('mousemove', onMouseMove);
 
+  let smoothY: number | null = null;
   scene.onBeforeRenderObservable.add(() => {
     camera.minZ = config.nearPlane;
+    const dt = scene.getEngine().getDeltaTime() / 1000;
     const t = target.getAbsolutePosition();
+    // Follow X/Z tightly, but ease the vertical follow: the capsule's Y micro-steps as it crosses the
+    // terrain collider's triangles (worst on descent), so copying it rigidly juddered the camera. When
+    // grounded, anchor to the SMOOTH terrain height under the player instead of the capsule Y; only
+    // follow the real Y when clearly airborne so jumps still read. A light lerp smooths the transition.
+    const groundLevel = terrainHeight(t.x, t.z) + CAPSULE_HALF;
+    const targetY = Math.abs(t.y - groundLevel) < GROUNDED_BAND ? groundLevel : t.y;
+    if (smoothY === null || dt <= 0) smoothY ??= targetY;
+    else smoothY += (targetY - smoothY) * (1 - Math.exp(-config.verticalSmoothing * dt));
+    const anchor = new Vector3(t.x, smoothY, t.z);
     const offset = new Vector3(
       Math.sin(yaw) * Math.cos(pitch),
       Math.sin(-pitch),
       Math.cos(yaw) * Math.cos(pitch),
     ).scaleInPlace(config.distance);
-    const position = t.add(offset).add(new Vector3(0, config.height, 0));
+    const position = anchor.add(offset).add(new Vector3(0, config.height, 0));
     // Never let the camera dip into the floor, or the opaque ground plane hides the whole character.
     position.y = Math.max(position.y, config.minCameraHeight);
     camera.position.copyFrom(position);
-    camera.setTarget(t.add(new Vector3(0, config.aimHeight, 0)));
+    camera.setTarget(anchor.add(new Vector3(0, config.aimHeight, 0)));
   });
 
   return {
