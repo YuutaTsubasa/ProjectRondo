@@ -40,7 +40,7 @@ const DEFAULT_CONFIG: FollowCameraConfig = {
   aimHeight: 0.3,
   minCameraHeight: 0.5,
   nearPlane: 0.05,
-  initialPitch: -0.35,
+  initialPitch: -0.5,
   verticalSmoothing: 9,
 };
 
