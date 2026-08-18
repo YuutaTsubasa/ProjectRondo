@@ -30,6 +30,9 @@ const NO_GRAVITY = Vector3.Zero(); // gravity lives in the domain; Havok must no
  * micro-oscillates on slopes (never fully settles) and steps across the terrain collider's triangles,
  * so its Y judders frame to frame; the camera and knight read the root, so they judder too. Easing the
  * visual Y (physics still uses the controller's own position) smooths both without affecting movement.
+ * NB this is load-bearing, not redundant with the knight's terrain re-anchor: that re-anchor reads a
+ * one-frame-stale getAbsolutePosition, so it cancels the root Y only imperfectly — bypassing this
+ * smoothing brings the knight's descent judder back (~27 direction reversals vs 1, measured).
  */
 const VISUAL_Y_SMOOTHING = 14;
 
