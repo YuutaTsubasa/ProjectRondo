@@ -9,6 +9,7 @@ import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
 import '@babylonjs/core/Materials/standardMaterial'; // side-effect: StandardMaterial shader
 import { Material } from '@babylonjs/core/Materials/material';
 import { DynamicTexture } from '@babylonjs/core/Materials/Textures/dynamicTexture';
+import { terrainHeight } from './terrainHeight';
 
 const EXTENT = 24; // scatter within ±EXTENT (inside the ±25 boundary walls)
 
@@ -36,7 +37,9 @@ function scatterMatrices(o: ScatterOpts): Float32Array {
   for (let i = 0; i < o.count; i++) {
     const s = o.minScale + rand() * (o.maxScale - o.minScale);
     scale.set(s, s, s);
-    pos.set((rand() * 2 - 1) * ext, o.y, (rand() * 2 - 1) * ext);
+    const px = (rand() * 2 - 1) * ext;
+    const pz = (rand() * 2 - 1) * ext;
+    pos.set(px, terrainHeight(px, pz) + o.y, pz);
     Matrix.ComposeToRef(scale, Quaternion.RotationAxis(Vector3.UpReadOnly, rand() * Math.PI * 2), pos, m);
     m.copyToArray(buf, i * 16);
   }
