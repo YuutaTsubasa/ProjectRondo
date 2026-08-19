@@ -1,21 +1,23 @@
 // Pure procedural terrain height — NO babylon imports, so it unit-tests in the node env and
 // scatter/trees can sample it to sit on the surface. Deterministic (seeded), reproducible.
 //
-// Two layers, summed:
-//   • a gentle BASE roll applied EVERYWHERE (incl. the centre) so the ground never reads as a
-//     dead-flat plane, and
-//   • bigger HILLS that a radial falloff keeps out of the central play area and ramps up toward the
-//     rim — the "central-flatter, hills around the edges" shape.
+// Three layers, summed, by distance r from the centre:
+//   • a gentle BASE roll everywhere (never a dead-flat plane),
+//   • falloff-gated HILLS across the wide walkable belt (FLAT_RADIUS…EDGE_RADIUS, ≤ ~30°), and
+//   • a steep BARRIER rim (EDGE_RADIUS…BARRIER_TOP) that rises past the character controller's
+//     walkable slope — the natural boundary that encloses the field instead of an invisible wall.
 
-export const FIELD = 50; // terrain spans FIELD x FIELD, centred on the origin
-export const FLAT_RADIUS = 8; // big hills stay outside this central play radius…
-export const EDGE_RADIUS = 24; // …and reach full amplitude by here (inside the ±25 walls)
-export const AMPLITUDE = 5.5; // max additional hill height toward the rim, world units
-const HILL_FREQ = 0.05; // long wavelength → broad, walkable edge hills (not steep spikes)
-export const BASE_AMPLITUDE = 1.8; // rolling undulation everywhere (± this), so nowhere is dead-flat
-const BASE_FREQ = 0.075; // broad wavelength → gentle, visible rolls the player can actually climb
+export const FIELD = 100; // terrain spans FIELD x FIELD, centred on the origin
+export const FLAT_RADIUS = 14; // near-flat play area within this radius of the centre
+export const EDGE_RADIUS = 42; // walkable hills reach full amplitude here; the barrier begins here
+export const AMPLITUDE = 5.5; // max walkable hill height, world units
+const HILL_FREQ = 0.05; // long wavelength → broad, walkable hills (physical feature size, not scaled)
+export const BASE_AMPLITUDE = 1.8; // rolling undulation everywhere (± this)
+const BASE_FREQ = 0.075;
 const SEED = 1337;
 const LAYER_DECORRELATION = 100; // offsets the hill lattice so the two noise layers don't share peaks
+export const BARRIER_TOP = 48; // barrier reaches full height here, then plateaus to the rim
+export const BARRIER_HEIGHT = 12; // steep unwalkable rise (>60°) that walls the field with landscape
 
 function smoothstep(t: number): number {
   return t * t * (3 - 2 * t);
@@ -53,12 +55,19 @@ function falloff(r: number): number {
   return smoothstep((r - FLAT_RADIUS) / (EDGE_RADIUS - FLAT_RADIUS));
 }
 
-/** Ground height at world (x, z): gentle roll everywhere + bigger hills toward the edges. Pure &
- *  deterministic. Can dip slightly below 0 (shallow hollows) — roughly [-BASE_AMPLITUDE,
- *  AMPLITUDE + BASE_AMPLITUDE]. */
+/** 0 inside EDGE_RADIUS, rising STEEPLY to BARRIER_HEIGHT by BARRIER_TOP (then flat) — the unwalkable
+ *  rim that encloses the field. Its mid-slope exceeds the controller's 60° walkable limit. */
+function barrierRamp(r: number): number {
+  if (r <= EDGE_RADIUS) return 0;
+  if (r >= BARRIER_TOP) return BARRIER_HEIGHT;
+  return smoothstep((r - EDGE_RADIUS) / (BARRIER_TOP - EDGE_RADIUS)) * BARRIER_HEIGHT;
+}
+
+/** Ground height at world (x, z): gentle roll everywhere + walkable hills + a steep rim barrier.
+ *  Pure & deterministic. Range ≈ [-BASE_AMPLITUDE, AMPLITUDE + BASE_AMPLITUDE + BARRIER_HEIGHT]. */
 export function terrainHeight(x: number, z: number): number {
+  const r = Math.hypot(x, z);
   const base = BASE_AMPLITUDE * (valueNoise(x, z, BASE_FREQ) - 0.5) * 2;
-  const hills =
-    falloff(Math.hypot(x, z)) * AMPLITUDE * valueNoise(x + LAYER_DECORRELATION, z - LAYER_DECORRELATION, HILL_FREQ);
-  return base + hills;
+  const hills = falloff(r) * AMPLITUDE * valueNoise(x + LAYER_DECORRELATION, z - LAYER_DECORRELATION, HILL_FREQ);
+  return base + hills + barrierRamp(r);
 }

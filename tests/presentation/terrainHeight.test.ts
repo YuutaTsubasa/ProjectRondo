@@ -3,9 +3,24 @@ import {
   terrainHeight,
   AMPLITUDE,
   BASE_AMPLITUDE,
+  BARRIER_HEIGHT,
   FLAT_RADIUS,
   EDGE_RADIUS,
 } from '../../src/presentation/babylon/terrainHeight';
+
+/** Max terrain slope (degrees) sampled around the ring at radius r. */
+function maxSlopeOnRing(r: number): number {
+  const d = 0.5;
+  let max = 0;
+  for (let a = 0; a < Math.PI * 2; a += 0.04) {
+    const x = Math.cos(a) * r;
+    const z = Math.sin(a) * r;
+    const gx = (terrainHeight(x + d, z) - terrainHeight(x - d, z)) / (2 * d);
+    const gz = (terrainHeight(x, z + d) - terrainHeight(x, z - d)) / (2 * d);
+    max = Math.max(max, (Math.atan(Math.hypot(gx, gz)) * 180) / Math.PI);
+  }
+  return max;
+}
 
 describe('terrainHeight', () => {
   it('gently rolls in the central play area — never a dead-flat plane, never a big hill', () => {
@@ -19,37 +34,34 @@ describe('terrainHeight', () => {
         if (Math.abs(h) > 0.05) anyUndulation = true;
       }
     }
-    expect(anyUndulation).toBe(true); // the centre is NOT a flat plane
-    expect(maxAbs).toBeLessThanOrEqual(BASE_AMPLITUDE + 1e-9); // …but only the gentle base roll, no big hills
+    expect(anyUndulation).toBe(true);
+    expect(maxAbs).toBeLessThanOrEqual(BASE_AMPLITUDE + 1e-9);
+  });
+
+  it('keeps the walkable belt climbable (≤ 35°) but the rim barrier steep (> 60°)', () => {
+    for (let r = FLAT_RADIUS + 1; r < EDGE_RADIUS - 1; r += 1) {
+      expect(maxSlopeOnRing(r)).toBeLessThanOrEqual(35);
+    }
+    let barrierMax = 0;
+    for (let r = 43; r <= 47; r += 0.5) barrierMax = Math.max(barrierMax, maxSlopeOnRing(r));
+    expect(barrierMax).toBeGreaterThan(60);
   });
 
   it('is deterministic and reproducible across builds (pinned golden values)', () => {
-    // Same input → same output within a run…
     expect(terrainHeight(12.3, -7.1)).toBe(terrainHeight(12.3, -7.1));
-    // …and the seeded heightfield itself is pinned, so a changed SEED / frequency / amplitude / hash
-    // constant (which the equality check above cannot catch) fails the suite.
-    expect(terrainHeight(20, 20)).toBeCloseTo(4.412902844301425, 10);
-    expect(terrainHeight(-18, 6)).toBeCloseTo(0.7017807812552859, 10);
-    expect(terrainHeight(3, 3)).toBeCloseTo(0.33698258724619307, 10);
+    expect(terrainHeight(30, 10)).toBeCloseTo(3.146473615124727, 10);
+    expect(terrainHeight(-22, 14)).toBeCloseTo(1.738889023831396, 10);
+    expect(terrainHeight(5, 5)).toBeCloseTo(0.07281288298824791, 10);
+    expect(terrainHeight(45, 0)).toBeCloseTo(9.713762882765149, 10);
   });
 
-  it('stays within [-BASE_AMPLITUDE, AMPLITUDE + BASE_AMPLITUDE] across the whole field', () => {
-    for (let x = -EDGE_RADIUS; x <= EDGE_RADIUS; x += 1) {
-      for (let z = -EDGE_RADIUS; z <= EDGE_RADIUS; z += 1) {
+  it('stays within [-BASE_AMPLITUDE, AMPLITUDE + BASE_AMPLITUDE + BARRIER_HEIGHT]', () => {
+    for (let x = -49; x <= 49; x += 1) {
+      for (let z = -49; z <= 49; z += 1) {
         const h = terrainHeight(x, z);
         expect(h).toBeGreaterThanOrEqual(-BASE_AMPLITUDE - 1e-9);
-        expect(h).toBeLessThanOrEqual(AMPLITUDE + BASE_AMPLITUDE + 1e-9);
+        expect(h).toBeLessThanOrEqual(AMPLITUDE + BASE_AMPLITUDE + BARRIER_HEIGHT + 1e-9);
       }
     }
-  });
-
-  it('raises real hills toward the edges (global max clearly above the gentle centre)', () => {
-    let max = 0;
-    for (let x = -EDGE_RADIUS; x <= EDGE_RADIUS; x += 1) {
-      for (let z = -EDGE_RADIUS; z <= EDGE_RADIUS; z += 1) {
-        max = Math.max(max, terrainHeight(x, z));
-      }
-    }
-    expect(max).toBeGreaterThan(2);
   });
 });

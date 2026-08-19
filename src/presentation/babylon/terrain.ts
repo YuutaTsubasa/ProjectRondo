@@ -14,13 +14,13 @@ import { PhysicsShapeType } from '@babylonjs/core/Physics/v2/IPhysicsEnginePlugi
 import { FIELD, terrainHeight } from './terrainHeight';
 
 const HALF = FIELD / 2;
-const SUBDIVISIONS = 120; // enough segments to read the hills smoothly
+const SUBDIVISIONS = 200; // ≈0.5 world-units per segment at the 100-unit span (≈80k-tri MESH collider)
 const GRASS_TILING = 6;
 
 /** Four thin invisible static walls at the field rim (belt-and-suspenders past the edge hills). */
 function createBoundaries(scene: Scene): void {
   const t = 1;
-  const h = 6;
+  const h = 22; // clears the worst-case rim terrain (barrier 12 + hills + roll ≈ 19) as a backup
   const walls: [string, number, number, number, number][] = [
     ['n', FIELD + 2 * t, t, 0, -HALF - t / 2],
     ['s', FIELD + 2 * t, t, 0, HALF + t / 2],
@@ -40,11 +40,11 @@ function createBoundaries(scene: Scene): void {
  *  world reads as bigger than the walls and P2's fog has something to fade into. The silhouette is a
  *  ring of connected peaks (broad ranges + jagged sub-peaks) rather than separate cones. */
 function createDistantScenery(scene: Scene): void {
-  const RING_RADIUS = 60; // far enough to read as a distant range, close enough not to float off
-  const SEGMENTS = 64; // silhouette resolution
-  const BASE_Y = -3; // bottom skirt sits just below the horizon
-  const MIN_H = 10;
-  const MAX_H = 24;
+  const RING_RADIUS = 85; // beyond the enlarged field + barrier rim
+  const SEGMENTS = 80; // silhouette resolution (more segments for the bigger ring)
+  const BASE_Y = -4; // bottom skirt sits just below the horizon
+  const MIN_H = 22; // taller so the range still looms OVER the barrier from inside the field
+  const MAX_H = 48;
 
   // Deterministic per-segment jaggedness (wraps seamlessly via i % SEGMENTS).
   const jag = (i: number): number => {

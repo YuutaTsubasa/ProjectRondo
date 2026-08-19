@@ -17,12 +17,14 @@ const BASE_SCALE = 6;
 const TRUNK_RADIUS = 0.5;
 const TRUNK_HEIGHT = 4;
 
-/** Fixed scatter: [x, z, yawRadians, scale]. Includes the old Godot pillar corners (±8, ±8); the
- *  centre (~radius 5) is left clear so no tree spawns on the player's spawn point. */
+/** Fixed scatter: [x, z, yawRadians, scale]. Spread across the enlarged 100×100 field (out to ±36);
+ *  the centre (~radius 5) is left clear so no tree spawns on the player's spawn point. */
 const SPOTS: readonly [number, number, number, number][] = [
-  [8, -8, 0.3, 1.0], [-8, -8, 1.9, 1.15], [8, 8, 2.7, 0.9], [-8, 8, 0.8, 1.05],
-  [17, 3, 1.2, 1.2], [-16, -4, 2.2, 1.1], [3, -18, 0.5, 1.0], [-5, 18, 3.0, 1.15],
-  [19, -15, 1.7, 0.95], [-19, 14, 0.2, 1.0],
+  [12, -14, 0.3, 1.0], [-13, -12, 1.9, 1.15], [14, 13, 2.7, 0.9], [-15, 15, 0.8, 1.05],
+  [26, 5, 1.2, 1.2], [-25, -7, 2.2, 1.1], [6, -28, 0.5, 1.0], [-8, 27, 3.0, 1.15],
+  [30, -22, 1.7, 0.95], [-30, 22, 0.2, 1.0], [34, 12, 2.4, 1.05], [-34, -14, 1.1, 0.95],
+  [18, 30, 0.9, 1.1], [-20, -30, 2.6, 1.0], [2, 34, 1.5, 1.05], [-3, -34, 0.4, 0.95],
+  [36, -4, 2.0, 1.0], [-36, 6, 0.7, 1.1], [21, -33, 1.3, 0.9], [-24, 33, 2.9, 1.05],
 ];
 
 /**

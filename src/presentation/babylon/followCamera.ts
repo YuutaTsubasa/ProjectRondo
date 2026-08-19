@@ -9,6 +9,9 @@ import { CAPSULE_HALF } from './capsule';
  *  the smooth terrain (not the jittery capsule); a jump clears it at once. Covers float + slope rest. */
 const GROUNDED_BAND = 0.5;
 
+/** Minimum gap the camera keeps above the terrain beneath it, so it never dips through the ground. */
+const CAMERA_GROUND_CLEARANCE = 0.6;
+
 /** Live-tunable follow-camera settings. Exposed on `window.cameraConfig` in dev for instant tweaking. */
 export interface FollowCameraConfig {
   sensitivity: number;
@@ -97,8 +100,10 @@ export function createFollowCamera(scene: Scene, target: TransformNode, canvas: 
       Math.cos(yaw) * Math.cos(pitch),
     ).scaleInPlace(config.distance);
     const position = anchor.add(offset).add(new Vector3(0, config.height, 0));
-    // Never let the camera dip into the floor, or the opaque ground plane hides the whole character.
-    position.y = Math.max(position.y, config.minCameraHeight);
+    // Keep the camera above the terrain directly under it — otherwise a downward pitch or a slope
+    // rising behind the player pushes it below the one-sided ground and you see straight through it.
+    const groundUnderCamera = terrainHeight(position.x, position.z) + CAMERA_GROUND_CLEARANCE;
+    position.y = Math.max(position.y, config.minCameraHeight, groundUnderCamera);
     camera.position.copyFrom(position);
     camera.setTarget(anchor.add(new Vector3(0, config.aimHeight, 0)));
   });
