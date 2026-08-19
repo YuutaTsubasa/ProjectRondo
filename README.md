@@ -9,6 +9,9 @@ Engineering approach: **TDD + DDD + Functional + Reactive**.
 > Migrated from Godot 4 (C#) to the web. The original Godot project is preserved under
 > [`__prototype__/`](__prototype__/) as a behaviour reference.
 
+> **Picking this up on a new machine?** Start with [`docs/HANDOFF.md`](docs/HANDOFF.md) — prerequisites
+> (incl. **Git LFS**), current state, what's next, and the babylon gotchas.
+
 ## Layout
 
 | Path | Purpose |
