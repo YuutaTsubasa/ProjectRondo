@@ -14,13 +14,13 @@ import { PhysicsShapeType } from '@babylonjs/core/Physics/v2/IPhysicsEnginePlugi
 import { FIELD, terrainHeight } from './terrainHeight';
 
 const HALF = FIELD / 2;
-const SUBDIVISIONS = 200; // keeps ~the P1 segment size at the doubled span (≈80k-tri MESH collider)
+const SUBDIVISIONS = 200; // ≈0.5 world-units per segment at the 100-unit span (≈80k-tri MESH collider)
 const GRASS_TILING = 6;
 
 /** Four thin invisible static walls at the field rim (belt-and-suspenders past the edge hills). */
 function createBoundaries(scene: Scene): void {
   const t = 1;
-  const h = 18; // taller than the barrier lip (~17) so a runaway capsule can't clear it
+  const h = 22; // clears the worst-case rim terrain (barrier 12 + hills + roll ≈ 19) as a backup
   const walls: [string, number, number, number, number][] = [
     ['n', FIELD + 2 * t, t, 0, -HALF - t / 2],
     ['s', FIELD + 2 * t, t, 0, HALF + t / 2],

@@ -12,9 +12,9 @@ import { DynamicTexture } from '@babylonjs/core/Materials/Textures/dynamicTextur
 import { CreateSphere } from '@babylonjs/core/Meshes/Builders/sphereBuilder';
 import { PhysicsAggregate } from '@babylonjs/core/Physics/v2/physicsAggregate';
 import { PhysicsShapeType } from '@babylonjs/core/Physics/v2/IPhysicsEnginePlugin';
-import { terrainHeight } from './terrainHeight';
+import { terrainHeight, EDGE_RADIUS } from './terrainHeight';
 
-const EXTENT = 40; // scatter across the walkable interior (inside the ~r42 barrier)
+const EXTENT = EDGE_RADIUS - 2; // scatter radius — kept just inside the circular barrier at EDGE_RADIUS
 const ROCK_BASE_RADIUS = 0.4; // rock icosphere radius — shared by the mesh and its collider
 
 /** Deterministic 0..1 PRNG (mulberry32) so each scatter layout is identical every run. */
@@ -45,8 +45,13 @@ function scatterMatrices(o: ScatterOpts): ScatterResult {
   for (let i = 0; i < o.count; i++) {
     const s = o.minScale + rand() * (o.maxScale - o.minScale);
     scale.set(s, s, s);
-    const px = (rand() * 2 - 1) * ext;
-    const pz = (rand() * 2 - 1) * ext;
+    // The boundary is a circular barrier, so confine placement to a disc of radius `ext` (not a
+    // square) — otherwise ~1/6 of instances land on the steep unwalkable rim or beyond it.
+    let px: number, pz: number;
+    do {
+      px = (rand() * 2 - 1) * ext;
+      pz = (rand() * 2 - 1) * ext;
+    } while (px * px + pz * pz > ext * ext);
     const py = terrainHeight(px, pz) + o.y;
     pos.set(px, py, pz);
     Matrix.ComposeToRef(scale, Quaternion.RotationAxis(Vector3.UpReadOnly, rand() * Math.PI * 2), pos, m);
