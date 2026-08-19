@@ -16,7 +16,7 @@ export const BASE_AMPLITUDE = 1.8; // rolling undulation everywhere (± this)
 const BASE_FREQ = 0.075;
 const SEED = 1337;
 const LAYER_DECORRELATION = 100; // offsets the hill lattice so the two noise layers don't share peaks
-const BARRIER_TOP = 48; // barrier reaches full height here, then plateaus to the rim
+export const BARRIER_TOP = 48; // barrier reaches full height here, then plateaus to the rim
 export const BARRIER_HEIGHT = 12; // steep unwalkable rise (>60°) that walls the field with landscape
 
 function smoothstep(t: number): number {

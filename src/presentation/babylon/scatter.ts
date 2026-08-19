@@ -12,9 +12,11 @@ import { DynamicTexture } from '@babylonjs/core/Materials/Textures/dynamicTextur
 import { CreateSphere } from '@babylonjs/core/Meshes/Builders/sphereBuilder';
 import { PhysicsAggregate } from '@babylonjs/core/Physics/v2/physicsAggregate';
 import { PhysicsShapeType } from '@babylonjs/core/Physics/v2/IPhysicsEnginePlugin';
-import { terrainHeight, EDGE_RADIUS } from './terrainHeight';
+import { terrainHeight, EDGE_RADIUS, BARRIER_TOP } from './terrainHeight';
 
-const EXTENT = EDGE_RADIUS - 2; // scatter radius — kept just inside the circular barrier at EDGE_RADIUS
+// Cosmetic scatter covers the walkable interior AND the grassy barrier slope, up to the barrier top
+// (a bare barrier looks wrong); colliders, though, only go where the player can reach — see below.
+const EXTENT = BARRIER_TOP;
 const ROCK_BASE_RADIUS = 0.4; // rock icosphere radius — shared by the mesh and its collider
 
 /** Deterministic 0..1 PRNG (mulberry32) so each scatter layout is identical every run. */
@@ -214,11 +216,13 @@ function bushMesh(scene: Scene): Mesh {
 
 const ROCK_COLLIDER_MIN_SCALE = 0.75; // only the biggest rocks (top ~quarter) block the player
 
-/** Invisible static sphere colliders for the large rocks only. Rendering stays a single thin-instance
- *  draw call; these decoupled bodies just stop the player at the big rocks. */
+/** Invisible static sphere colliders for the large rocks only, and only where the player can reach
+ *  (inside EDGE_RADIUS — rocks on the unwalkable barrier slope render but need no collider). Rendering
+ *  stays a single thin-instance draw call; these decoupled bodies just stop the player at the big rocks. */
 function addRockColliders(scene: Scene, placements: Placement[]): void {
   for (const p of placements) {
     if (p.s < ROCK_COLLIDER_MIN_SCALE) continue;
+    if (Math.hypot(p.x, p.z) > EDGE_RADIUS) continue; // on the barrier — unreachable, skip the collider
     const proxy = CreateSphere('rockCollider', { diameter: 2 * ROCK_BASE_RADIUS * p.s, segments: 3 }, scene);
     proxy.position.set(p.x, p.y, p.z);
     proxy.isVisible = false;
@@ -231,16 +235,16 @@ function addRockColliders(scene: Scene, placements: Placement[]): void {
  *  thin-instanced base mesh per element type (one draw call each). */
 export function createGroundScatter(scene: Scene): void {
   const grass = crossCard(scene, 'grassTuft', 0.5, 3, grassMaterial(scene));
-  grass.thinInstanceSetBuffer('matrix', scatterMatrices({ count: 11000, seed: 1, y: 0, minScale: 0.7, maxScale: 1.3 }).buffer, 16);
+  grass.thinInstanceSetBuffer('matrix', scatterMatrices({ count: 16000, seed: 1, y: 0, minScale: 0.7, maxScale: 1.3 }).buffer, 16);
 
   const flowers = crossCard(scene, 'wildflower', 0.22, 2, flowerMaterial(scene));
-  flowers.thinInstanceSetBuffer('matrix', scatterMatrices({ count: 1100, seed: 2, y: 0, minScale: 0.7, maxScale: 1.2 }).buffer, 16);
+  flowers.thinInstanceSetBuffer('matrix', scatterMatrices({ count: 1600, seed: 2, y: 0, minScale: 0.7, maxScale: 1.2 }).buffer, 16);
 
-  const rockScatter = scatterMatrices({ count: 140, seed: 3, y: -0.05, minScale: 0.3, maxScale: 0.9 });
+  const rockScatter = scatterMatrices({ count: 200, seed: 3, y: -0.05, minScale: 0.3, maxScale: 0.9 });
   const rock = rockMesh(scene);
   rock.thinInstanceSetBuffer('matrix', rockScatter.buffer, 16);
   addRockColliders(scene, rockScatter.placements);
 
   const bush = bushMesh(scene);
-  bush.thinInstanceSetBuffer('matrix', scatterMatrices({ count: 110, seed: 4, y: 0, minScale: 0.7, maxScale: 1.3, extent: EXTENT - 2 }).buffer, 16);
+  bush.thinInstanceSetBuffer('matrix', scatterMatrices({ count: 160, seed: 4, y: 0, minScale: 0.7, maxScale: 1.3, extent: EXTENT - 2 }).buffer, 16);
 }
