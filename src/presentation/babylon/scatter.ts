@@ -14,7 +14,7 @@ import { PhysicsAggregate } from '@babylonjs/core/Physics/v2/physicsAggregate';
 import { PhysicsShapeType } from '@babylonjs/core/Physics/v2/IPhysicsEnginePlugin';
 import { terrainHeight } from './terrainHeight';
 
-const EXTENT = 24; // scatter within ±EXTENT (inside the ±25 boundary walls)
+const EXTENT = 40; // scatter across the walkable interior (inside the ~r42 barrier)
 const ROCK_BASE_RADIUS = 0.4; // rock icosphere radius — shared by the mesh and its collider
 
 /** Deterministic 0..1 PRNG (mulberry32) so each scatter layout is identical every run. */
@@ -226,16 +226,16 @@ function addRockColliders(scene: Scene, placements: Placement[]): void {
  *  thin-instanced base mesh per element type (one draw call each). */
 export function createGroundScatter(scene: Scene): void {
   const grass = crossCard(scene, 'grassTuft', 0.5, 3, grassMaterial(scene));
-  grass.thinInstanceSetBuffer('matrix', scatterMatrices({ count: 4000, seed: 1, y: 0, minScale: 0.7, maxScale: 1.3 }).buffer, 16);
+  grass.thinInstanceSetBuffer('matrix', scatterMatrices({ count: 11000, seed: 1, y: 0, minScale: 0.7, maxScale: 1.3 }).buffer, 16);
 
   const flowers = crossCard(scene, 'wildflower', 0.22, 2, flowerMaterial(scene));
-  flowers.thinInstanceSetBuffer('matrix', scatterMatrices({ count: 400, seed: 2, y: 0, minScale: 0.7, maxScale: 1.2 }).buffer, 16);
+  flowers.thinInstanceSetBuffer('matrix', scatterMatrices({ count: 1100, seed: 2, y: 0, minScale: 0.7, maxScale: 1.2 }).buffer, 16);
 
-  const rockScatter = scatterMatrices({ count: 50, seed: 3, y: -0.05, minScale: 0.3, maxScale: 0.9 });
+  const rockScatter = scatterMatrices({ count: 140, seed: 3, y: -0.05, minScale: 0.3, maxScale: 0.9 });
   const rock = rockMesh(scene);
   rock.thinInstanceSetBuffer('matrix', rockScatter.buffer, 16);
   addRockColliders(scene, rockScatter.placements);
 
   const bush = bushMesh(scene);
-  bush.thinInstanceSetBuffer('matrix', scatterMatrices({ count: 40, seed: 4, y: 0, minScale: 0.7, maxScale: 1.3, extent: EXTENT - 2 }).buffer, 16);
+  bush.thinInstanceSetBuffer('matrix', scatterMatrices({ count: 110, seed: 4, y: 0, minScale: 0.7, maxScale: 1.3, extent: EXTENT - 2 }).buffer, 16);
 }
