@@ -5,6 +5,7 @@ import {
   COYOTE_SECONDS,
   JUMP_BUFFER_SECONDS,
   FALL_GRACE_SECONDS,
+  MAX_RISING_SECONDS,
   type GroundContactState,
 } from '../../src/presentation/babylon/groundContact';
 
@@ -58,6 +59,17 @@ describe('stepGroundContact', () => {
       const r = frame(climbing(), { supported: true, verticalSpeed: 6 });
       expect(r.grounded).toBe(false);
       expect(r.airborne).toBe(true);
+    });
+
+    it('gives up after MAX_RISING_SECONDS even if it is somehow still being pushed upward', () => {
+      // The exit condition reads a solver-provided velocity, so a surface that kept shoving the
+      // capsule up would otherwise hold this state open — and never being grounded again is silent:
+      // no jumping, and the feet never re-plant.
+      let s = frame(INITIAL_GROUND_CONTACT, { jumpPressed: true }).state;
+      s = settle(s, frames(MAX_RISING_SECONDS), { supported: true, verticalSpeed: 6 });
+      const r = frame(s, { supported: true, verticalSpeed: 6 });
+      expect(r.grounded).toBe(true);
+      expect(r.airborne).toBe(false);
     });
 
     it('lets go the moment the climb is over, so a jump into a low ceiling cannot latch', () => {

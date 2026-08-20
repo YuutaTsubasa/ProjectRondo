@@ -467,7 +467,7 @@ jumpSpent }`. Finding 1 was a state that should never have been expressible.
 | 1 | Ground re-acquired mid-climb cancelled the jump — the old guard only covered an unbroken run of supported frames | The `rising` state ignores the probe entirely until the character stops going up, so re-contact on a rising slope cannot zero the climb |
 | 2 | `hasClearedGround` could latch `'air'` forever if the probe never released, floating the knight and killing all further jump animation | Gone with the duplicate machine. `rising` ends on "no longer rising", so a jump into a low ceiling escapes |
 | 3 | Pose snapped when the clip outlasted a long fall — `jumpInfluence` dropped 1 → 0 in one frame | The weight eases down whether or not the group is still playing; a stopped group holds its last pose, so locomotion fades in over it |
-| 4 | Heading snapped below `PIVOT_FREELY_BELOW`, and nothing downstream smooths it — a standing reverse tap spun 180° in one frame | `PIVOT_TURN_RATE` (30 rad/s): brisk but bounded. Measured worst case now **37°** per frame |
+| 4 | Heading snapped below `PIVOT_FREELY_BELOW`, and nothing downstream smooths it — a standing reverse tap spun 180° in one frame | `PIVOT_TURN_RATE` (30 rad/s): brisk but bounded. `playerController` clamps `delta` to `MAX_DT` = 1/30, so the true per-frame ceiling is **57.3°** (37° was what a healthy frame measured) |
 | 5 | Comments still described the removed landing segment | Rewritten; `playSegment`'s `stop()` now documents the reason that still applies (re-playing the *same* range) |
 | 6 | `rotateToward` test compared two identical calls — true of any implementation | Replaced with the step-size property and the exactly-opposite degenerate case |
 
@@ -479,3 +479,33 @@ comment (#17).
 apex, and the probe's short dropouts, none of which had coverage). In-browser: run 8.00 at 1.4°/7°/21.8°
 with the run clip at full weight, walk 4.00, jumps 1.71/1.74/1.81 with no tail, a 90° turn in 0.17 s
 with at most 4.06° between facing and velocity, and the barrier unchanged at radius 42.5–42.6.
+
+### Second review round
+
+Both remaining notes handled.
+
+**The per-frame turn ceiling is 57.3°, not 37°.** `playerController` clamps `delta` to `MAX_DT` = 1/30,
+so `PIVOT_TURN_RATE` × `MAX_DT` = 1 rad. 37° was one healthy frame's measurement, not a bound. The
+table above is corrected; the behaviour is unchanged, and the worst case only occurs on a frame that
+was already dropping.
+
+**`rising`'s exit depends on a solver-provided value.** The concern was that a surface which kept
+pushing the capsule up could hold the state open — no jumping, feet never re-planting — and that the
+40–60° band (past `WALKABLE_SLOPE_DEGREES`, so `alignToSurface` declines it, but still inside Havok's
+own 60° limit) is where that could happen.
+
+Measured, it does not: pressing into the hub's 44.6° and 51.7° barrier faces at run speed and jumping,
+the post-solve vertical velocity goes 7.3 → **−0.5 → −1.0 → −0.7** and stays there, the state ends
+normally, and the next jump reaches full height. Pressed against those faces the character is blocked
+rather than climbing, so the solver never sustains an upward component (before the jump, vertical
+velocity measured just +0.17). A scan also puts every 40–58° face at radius **42.4–47.5** — all on the
+barrier ramp, **none inside the playable radius**.
+
+A backstop went in anyway. The exit condition reads a value this module does not control, "unreachable"
+is a property of today's terrain rather than of the code, and the failure it would cause is silent.
+`MAX_RISING_SECONDS` = 1.5 s ends the state regardless — four times a default jump's 0.375 s rise, so it
+cannot clip a real one — and is documented as a safety valve rather than a tuning knob.
+
+The suggestion to unit-test the animation layer's edge detection was **not** taken, by agreement: after
+the merge `knight.ts` holds one `if (airborne && !wasAirborne)` and two `moveToward` calls, with every
+decision in `groundContact`'s 18 tests.

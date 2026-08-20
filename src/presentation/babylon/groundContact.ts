@@ -38,6 +38,18 @@ export const JUMP_BUFFER_SECONDS = 0.15;
  * two-frame hop looks far worse than ignoring it.
  */
 export const FALL_GRACE_SECONDS = 0.2;
+/**
+ * Backstop on how long a jump may be considered "still climbing". Generous — a default jump reaches
+ * its apex in `jumpSpeed / gravity` = 0.375s — because this is a safety valve, not a tuning knob.
+ *
+ * It exists because `rising` leaves on `verticalSpeed <= 0`, and that value comes from the physics
+ * solver rather than the domain: a surface that kept pushing the capsule up would hold the state open,
+ * and the result would be silent (never grounded again, so no jumping and the feet never re-plant).
+ * Nothing on the hub's terrain does that — pressing into its 44.6° and 51.7° barrier faces at run
+ * speed was measured ending the climb normally, and no 40-60° face exists inside the playable radius
+ * at all — but that is a property of today's terrain, not of this module.
+ */
+export const MAX_RISING_SECONDS = 1.5;
 
 /**
  * Where the character stands relative to the ground. A union rather than a bag of flags, so
@@ -50,9 +62,10 @@ export type GroundContact =
   /**
    * A jump is under way and still climbing. The support probe is deliberately ignored here: it
    * re-acquires as soon as ground comes back within reach, and grounding mid-climb would cancel the
-   * jump. Ends the moment the character stops rising, so a jump into a low ceiling cannot latch.
+   * jump. Ends when the character stops rising — so a jump into a low ceiling cannot latch — or at
+   * {@link MAX_RISING_SECONDS}, whichever comes first.
    */
-  | { readonly kind: 'rising' }
+  | { readonly kind: 'rising'; readonly seconds: number }
   /** Off the ground and not climbing. `seconds` feeds coyote time and the fall grace. */
   | { readonly kind: 'airborne'; readonly seconds: number; readonly jumpSpent: boolean };
 
@@ -98,7 +111,7 @@ export const stepGroundContact = (
   const settled = advance(state.contact, supported, verticalSpeed, delta);
 
   const jumpRequested = buffered > 0 && canJump(settled);
-  const contact: GroundContact = jumpRequested ? { kind: 'rising' } : settled;
+  const contact: GroundContact = jumpRequested ? { kind: 'rising', seconds: 0 } : settled;
 
   return {
     state: { contact, bufferedJumpFor: jumpRequested ? 0 : buffered },
@@ -116,9 +129,11 @@ const advance = (
   switch (contact.kind) {
     case 'grounded':
       return supported ? contact : { kind: 'airborne', seconds: delta, jumpSpent: false };
-    case 'rising':
-      if (verticalSpeed > 0) return contact;
+    case 'rising': {
+      const seconds = contact.seconds + delta;
+      if (verticalSpeed > 0 && seconds < MAX_RISING_SECONDS) return { kind: 'rising', seconds };
       return supported ? { kind: 'grounded' } : { kind: 'airborne', seconds: 0, jumpSpent: true };
+    }
     case 'airborne':
       return supported ? { kind: 'grounded' } : { ...contact, seconds: contact.seconds + delta };
     default:
