@@ -1,77 +1,63 @@
 import { describe, it, expect } from 'vitest';
-import { alignToSurface, flattenToGroundSpeed } from '../../src/presentation/babylon/slopeMotion';
+import { alignToSurface } from '../../src/presentation/babylon/slopeMotion';
 import { vec3 } from '../../src/domain/math/vec3';
 
-const P = 4;
-const length = (v: { x: number; y: number; z: number }) => Math.hypot(v.x, v.y, v.z);
-const planarLength = (v: { x: number; z: number }) => Math.hypot(v.x, v.z);
+const P = 6;
+const radians = (deg: number) => (deg * Math.PI) / 180;
 /** Unit normal of a surface that rises toward +X at `deg` degrees. */
-const slopeNormal = (deg: number) => {
-  const r = (deg * Math.PI) / 180;
-  return vec3(-Math.sin(r), Math.cos(r), 0);
-};
+const slopeNormal = (deg: number) => vec3(-Math.sin(radians(deg)), Math.cos(radians(deg)), 0);
+const planarLength = (v: { x: number; z: number }) => Math.hypot(v.x, v.z);
 
 describe('alignToSurface', () => {
   it('leaves a horizontal velocity alone on level ground', () => {
     const r = alignToSurface(vec3(8, 0, 0), vec3(0, 1, 0));
-    expect(r).toEqual(vec3(8, 0, 0));
-  });
-
-  it('tilts the velocity up the slope, keeping its speed', () => {
-    const r = alignToSurface(vec3(8, 0, 0), slopeNormal(30));
-    expect(length(r)).toBeCloseTo(8, P);
-    expect(r.y).toBeCloseTo(8 * Math.sin((30 * Math.PI) / 180), P);
-    expect(planarLength(r)).toBeCloseTo(8 * Math.cos((30 * Math.PI) / 180), P);
-  });
-
-  it('tilts the velocity down when heading downhill', () => {
-    const r = alignToSurface(vec3(-8, 0, 0), slopeNormal(30));
-    expect(length(r)).toBeCloseTo(8, P);
-    expect(r.y).toBeCloseTo(-8 * Math.sin((30 * Math.PI) / 180), P);
-  });
-
-  it('leaves a velocity running across the slope horizontal', () => {
-    const r = alignToSurface(vec3(0, 0, 8), slopeNormal(30));
+    expect(r.x).toBeCloseTo(8, P);
     expect(r.y).toBeCloseTo(0, P);
-    expect(length(r)).toBeCloseTo(8, P);
+    expect(r.z).toBeCloseTo(0, P);
   });
 
-  it('passes a resting velocity straight through', () => {
-    expect(alignToSurface(vec3(0, 0, 0), slopeNormal(20))).toEqual(vec3(0, 0, 0));
+  it('adds the climb rate the slope demands', () => {
+    const r = alignToSurface(vec3(8, 0, 0), slopeNormal(30));
+    expect(r.y).toBeCloseTo(8 * Math.tan(radians(30)), P);
   });
 
-  it('passes through a velocity parallel to the normal, which has no tangent to align to', () => {
-    const n = slopeNormal(20);
-    const v = vec3(n.x * 5, n.y * 5, n.z * 5);
-    expect(alignToSurface(v, n)).toEqual(v);
-  });
-});
-
-describe('flattenToGroundSpeed', () => {
-  it('leaves a horizontal velocity alone', () => {
-    expect(flattenToGroundSpeed(vec3(8, 0, 0))).toEqual(vec3(8, 0, 0));
+  it('descends when heading downhill', () => {
+    const r = alignToSurface(vec3(-8, 0, 0), slopeNormal(30));
+    expect(r.y).toBeCloseTo(-8 * Math.tan(radians(30)), P);
   });
 
-  it('reports the along-the-ground speed as the horizontal speed', () => {
-    // Climbing at 8 u/s up a 30 degree slope: horizontally that is only 6.93, but the character is
-    // travelling 8 along the ground and the domain must see 8, or it accelerates from the wrong value.
-    const climbing = alignToSurface(vec3(8, 0, 0), slopeNormal(30));
-    expect(planarLength(flattenToGroundSpeed(climbing))).toBeCloseTo(8, P);
-  });
-
-  it('is the inverse of alignToSurface for any slope the character can walk', () => {
-    for (const deg of [0, 5, 10, 20, 30, 45]) {
-      const flattened = flattenToGroundSpeed(alignToSurface(vec3(8, 0, 0), slopeNormal(deg)));
-      expect(planarLength(flattened)).toBeCloseTo(8, P);
+  it('never bends the heading — this is what stopped running straight at a hill sliding sideways', () => {
+    for (const deg of [5, 15, 25, 35]) {
+      const r = alignToSurface(vec3(6, 0, 6), slopeNormal(deg));
+      expect(r.x).toBeCloseTo(6, P);
+      expect(r.z).toBeCloseTo(6, P);
     }
   });
 
-  it('keeps the vertical component untouched', () => {
-    const r = flattenToGroundSpeed(vec3(3, -4, 0));
-    expect(r.y).toBeCloseTo(-4, P);
+  it('never shrinks the horizontal speed — this is what stopped the slope bleeding speed away', () => {
+    for (const deg of [5, 15, 25, 35]) {
+      expect(planarLength(alignToSurface(vec3(8, 0, 0), slopeNormal(deg)))).toBeCloseTo(8, P);
+    }
   });
 
-  it('passes a purely vertical velocity through rather than dividing by zero', () => {
-    expect(flattenToGroundSpeed(vec3(0, -9, 0))).toEqual(vec3(0, -9, 0));
+  it('leaves a velocity running across the slope level', () => {
+    const r = alignToSurface(vec3(0, 0, 8), slopeNormal(30));
+    expect(r.y).toBeCloseTo(0, P);
+  });
+
+  it('hands a too-steep face over untouched, so it still blocks like a wall', () => {
+    const steep = slopeNormal(55);
+    expect(alignToSurface(vec3(8, 0, 0), steep)).toEqual(vec3(8, 0, 0));
+  });
+
+  it('hands a vertical wall over untouched rather than dividing by a vanishing normal', () => {
+    expect(alignToSurface(vec3(8, 0, 0), vec3(-1, 0, 0))).toEqual(vec3(8, 0, 0));
+  });
+
+  it('leaves a resting character resting', () => {
+    const r = alignToSurface(vec3(0, 0, 0), slopeNormal(20));
+    expect(r.x).toBeCloseTo(0, P);
+    expect(r.y).toBeCloseTo(0, P);
+    expect(r.z).toBeCloseTo(0, P);
   });
 });

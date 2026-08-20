@@ -7,5 +7,10 @@ export const MovementConstants = {
   // runSpeed is 2x maxSpeed because the run clip covers 1.96x the ground per second that the walk
   // clip does (toe-vs-hips stride 0.680/0.633s against walk's 0.566/1.033s), so run inherits walk's
   // foot-slide ratio instead of worsening it. See the run/jump design spec, section 4.
-  maxSpeed: 4, runSpeed: 8, acceleration: 13, deceleration: 17, gravity: 24, jumpSpeed: 9,
+  //
+  // turnRate is angular (rad/s) rather than another linear acceleration, so a sprinting knight turns
+  // as sharply as a walking one. Steering the heading instead of lerping the velocity vector is what
+  // stops the model facing one way while the body still slides the other. 10 rad/s turns 90 degrees in
+  // ~0.16s, which matches the pace the model used to swing round at.
+  maxSpeed: 4, runSpeed: 8, turnRate: 10, acceleration: 13, deceleration: 17, gravity: 24, jumpSpeed: 9,
 } as const;

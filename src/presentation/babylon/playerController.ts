@@ -16,9 +16,8 @@ import { terrainHeight } from './terrainHeight';
 import type { FollowCamera } from './followCamera';
 import type { InputState } from './input';
 import { stepGroundContact, INITIAL_GROUND_CONTACT } from './groundContact';
-import { alignToSurface, flattenToGroundSpeed } from './slopeMotion';
+import { alignToSurface } from './slopeMotion';
 
-const TURN_SPEED = 12;
 /**
  * Frame-time clamp. A backgrounded tab stalls the render loop; on return the first frame's
  * getDeltaTime() can be many seconds, and one domain step with a huge dt (gravity*dt, a single
@@ -42,10 +41,9 @@ export interface Player {
   readonly root: TransformNode;
   motion: CharacterMotion;
   /**
-   * Raw ground support from the character controller, *without* the domain's ascending guard.
-   * `motion.isGrounded` deliberately reports false while the post-solve velocity points up — which
-   * on rolling terrain is most of the time you are walking uphill — because re-grounding there would
-   * cancel a fresh jump. Visuals need the honest answer instead, so they read this.
+   * The Havok support probe's raw verdict. `motion.isGrounded` is the **gameplay** answer and differs
+   * from it — it suppresses grounding while a fresh jump clears the floor, and grants coyote time over
+   * the probe's dropouts (see groundContact). Visuals want the raw one.
    */
   isSupported: boolean;
   /** True on the single frame the domain accepted a jump, so visuals can react on the takeoff frame. */
@@ -113,11 +111,9 @@ export function createPlayer(
       dt,
     );
 
-    // Following the ground means the domain's flat velocity has to be tilted onto the surface, and
-    // the result read back as the speed travelled along it — see slopeMotion. A jump is the one
-    // grounded frame that must keep its vertical velocity, so it skips both.
-    const ridingGround = grounded && !jumpRequested;
-    const solverVelocity = ridingGround
+    // Following the ground means adding the climb the surface demands — see slopeMotion. A jump is
+    // the one grounded frame that must keep its own vertical velocity, so it skips this.
+    const solverVelocity = grounded && !jumpRequested
       ? alignToSurface(next.velocity, toVec3(support.averageSurfaceNormal))
       : next.velocity;
     controller.setVelocity(toBabylon(solverVelocity));
@@ -131,22 +127,19 @@ export function createPlayer(
     // Velocity after MoveAndSlide) — collide-and-slide reduces and redirects it against walls, and
     // storing the pre-integrate target instead would keep full speed into a wall and ping the
     // character off on release.
-    const solvedVelocity = toVec3(controller.getVelocity());
-    player.motion = {
-      ...next,
-      velocity: ridingGround ? flattenToGroundSpeed(solvedVelocity) : solvedVelocity,
-    };
+    player.motion = { ...next, velocity: toVec3(controller.getVelocity()) };
 
-    faceMovement(root, next.facing.x, next.facing.y, dt);
+    faceRoot(root, next.facing.x, next.facing.y);
   });
 
   return player;
 }
 
-/** Rotates `root` toward the planar facing direction with a framerate-independent lerp. */
-function faceMovement(root: TransformNode, facingX: number, facingY: number, dt: number): void {
-  const targetYaw = Math.atan2(-facingX, -facingY);
-  const current = root.rotation.y;
-  const shortest = Math.atan2(Math.sin(targetYaw - current), Math.cos(targetYaw - current));
-  root.rotation.y = current + shortest * Math.min(1, TURN_SPEED * dt);
+/**
+ * Points `root` along the domain's facing. No smoothing here on purpose: the domain already swings the
+ * heading at `turnRate`, and easing it a second time would let the model and the body disagree — which
+ * is exactly the mismatch that made running turns look wrong (model round in 0.2s, velocity in 0.6s).
+ */
+function faceRoot(root: TransformNode, facingX: number, facingY: number): void {
+  root.rotation.y = Math.atan2(-facingX, -facingY);
 }

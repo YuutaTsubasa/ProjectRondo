@@ -335,3 +335,69 @@ climb limit still slow the character down (3.3 u/s at 27°, run animation correc
 walking on a slope is back to a full 4.00; jumps still reach 1.71 u on the flat; and — most
 importantly — the **natural barrier still holds**: running straight at it from three different
 bearings for six seconds each tops out at radius ~42.5 of a 50-unit half-field, exactly as designed.
+
+## 14. Follow-up — turning feel, and sliding off slopes (bug fixes)
+
+Two feel reports after §13 landed: "running turns feel odd", and "climbing is fine, but running
+straight at a slope slides me off along its edge".
+
+### Turning — the model and the body disagreed
+
+Logging a 90° turn taken at full run speed:
+
+| | before | after |
+| --- | --- | --- |
+| `facing` reaches the new heading | instantly (frame 1) | 0.17 s, steadily |
+| model yaw reaches it | 0.20 s | tracks `facing` exactly |
+| **velocity direction** reaches it | **0.60 s** | **0.17 s, equal to `facing` every frame** |
+| speed through the corner | dips 8.00 → **6.05** | holds **8.00** |
+
+So for roughly a third of a second the knight was fully facing the new direction while still
+travelling in the old one — running visibly sideways. The cause was that the domain eased the
+*velocity vector* toward its new target at a linear rate: a 90° turn at 8 u/s has to cover 11.3 u/s of
+vector change, which at `acceleration` 13 takes 0.6 s, and doubling the speed doubles the turn radius.
+Walking hid it; running did not.
+
+The domain now **steers a heading and carries speed along it**. `nextFacing` rotates `motion.facing`
+toward the input at a new angular `turnRate` (10 rad/s), and the planar velocity is simply that
+heading times a speed that eases toward the requested top speed. Direction and speed stop competing,
+turn radius no longer scales with speed, and — because the velocity *is* the facing — the model can
+never disagree with the body. `playerController` accordingly sets the yaw straight from
+`motion.facing` and its own `TURN_SPEED` lerp is gone: two smoothers meant two headings.
+
+Below `PIVOT_FREELY_BELOW` (0.5 u/s) the heading snaps instead of swinging, so setting off from rest
+does not pivot on the spot first. A part-pressed direction still asks for a proportionally lower top
+speed, so analog input keeps working.
+
+### Slopes — §13's fix was bending the heading
+
+§13 projected the velocity onto the contact plane and rescaled it back to full speed. That fixed the
+speed loss but introduced a worse problem: projection **rotates** the velocity toward the contour, and
+the rescale then drove the character along it at full speed. Measured drift from the commanded
+direction while running straight uphill: **62.6° on a 27° slope, 91° and 105° on 50° ones**.
+
+The replacement adds *only* the vertical component that puts the velocity in the surface plane, and
+leaves the horizontal pair exactly as the domain set it:
+
+```
+vy = -(vx * nx + vz * nz) / ny
+```
+
+The horizontal velocity is therefore untouched — it cannot shrink (so §13's feedback loop cannot form,
+and `flattenToGroundSpeed` is no longer needed at all) and it cannot turn (so there is nothing to
+slide along). Surfaces steeper than `WALKABLE_SLOPE_DEGREES` (40°, above the terrain's ~32° walkable
+design limit and below the controller's own 60° limit) are handed over untouched, so a too-steep face
+still blocks like a wall.
+
+| Slope | drift before | drift after | speed after |
+| --- | --- | --- | --- |
+| 27.3° | 62.6° | **24.6°** | 7.90 |
+| 49.7° | 91.2° | **14.7°** | 5.93 |
+| 50.4° | 104.7° | **0.0°** | 4.43 |
+
+### Regression checks
+
+Running holds 8.00 at 1.4°, 7°, 16° and 21.8° with the run clip at full weight; walking a slope is
+4.00 with the walk clip; jumps reach 1.71 standing, 1.72 walking, 1.82 running, all playing the jump
+clip; feet sit 4.8 mm off flat ground. The **natural barrier is unchanged** — charging it from three
+bearings tops out at radius 42.5–42.6, the same as before either slope change.

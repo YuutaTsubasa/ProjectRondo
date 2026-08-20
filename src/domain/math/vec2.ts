@@ -23,3 +23,17 @@ export const moveToward = (current: Vec2, target: Vec2, maxDelta: number): Vec2 
     ? target
     : add(current, scale(offset, maxDelta / distance));
 };
+
+/**
+ * Rotates the unit vector `from` toward the unit vector `to` by at most `maxRadians`, taking the
+ * shorter way round. Turning a heading this way keeps its speed out of the maths, so a fast character
+ * turns as sharply as a slow one instead of carving a wider and wider arc.
+ */
+export const rotateToward = (from: Vec2, to: Vec2, maxRadians: number): Vec2 => {
+  const angle = Math.atan2(from.x * to.y - from.y * to.x, from.x * to.x + from.y * to.y);
+  if (Math.abs(angle) <= maxRadians) return to;
+  const step = Math.sign(angle) * maxRadians;
+  const cos = Math.cos(step);
+  const sin = Math.sin(step);
+  return vec2(from.x * cos - from.y * sin, from.x * sin + from.y * cos);
+};

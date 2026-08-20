@@ -1,9 +1,15 @@
 import { type CharacterMotion } from './characterMotion';
 import { type MovementInput } from './movementInput';
 import { type MovementConfig } from './movementConfig';
-import { type Vec2, vec2, scale, normalize, moveToward } from '../../math/vec2';
+import { type Vec2, vec2, scale, normalize, length, moveToward, rotateToward, ZERO } from '../../math/vec2';
 import { vec3 } from '../../math/vec3';
 import { isZero } from '../../kernel/normalizedPlanarDirection';
+
+/**
+ * Below this speed there is no momentum to fight, so the heading snaps to the input instead of
+ * swinging round to it — otherwise starting from rest would pivot on the spot before setting off.
+ */
+const PIVOT_FREELY_BELOW = 0.5;
 
 /** Advances the character motion by a single frame of `delta` seconds. Pure. */
 export const step = (
@@ -12,10 +18,10 @@ export const step = (
   config: MovementConfig,
   delta: number,
 ): CharacterMotion => {
-  const planar = nextPlanarVelocity(motion, input, config, delta);
+  const facing = nextFacing(motion, input, config, delta);
+  const planar = nextPlanarVelocity(motion, input, config, delta, facing);
   const justJumped = motion.isGrounded && input.jumpRequested;
   const verticalSpeed = nextVerticalSpeed(motion, justJumped, config, delta);
-  const facing = isZero(input.direction) ? motion.facing : normalize(input.direction.value);
 
   return {
     velocity: vec3(planar.x, verticalSpeed, planar.y),
@@ -24,16 +30,39 @@ export const step = (
   };
 };
 
-const nextPlanarVelocity = (
+/**
+ * Swings the heading toward the input direction at a fixed angular rate. Capping the *turn* rather
+ * than the change in velocity is what keeps a sprint from carving a wide arc: easing the velocity
+ * vector straight toward its new target made a 90° turn at 8 u/s cover 11.3 u/s of vector change and
+ * take 0.6s, while the model swung round in 0.2s — so the knight faced one way and slid the other for
+ * a third of a second.
+ */
+const nextFacing = (
   motion: CharacterMotion, input: MovementInput, config: MovementConfig, delta: number,
 ): Vec2 => {
+  if (isZero(input.direction)) return motion.facing;
+
+  const wanted = normalize(input.direction.value);
+  const speed = length(vec2(motion.velocity.x, motion.velocity.z));
+  if (speed < PIVOT_FREELY_BELOW) return wanted;
+
+  return rotateToward(motion.facing, wanted, config.turnRate * delta);
+};
+
+/**
+ * The character travels where it faces, so {@link nextFacing} is the only thing that steers here.
+ * Speed is separate: it eases toward the requested top speed, or toward rest when nothing is held.
+ * A part-pressed direction (an analog stick) asks for a proportionally lower top speed.
+ */
+const nextPlanarVelocity = (
+  motion: CharacterMotion, input: MovementInput, config: MovementConfig, delta: number, facing: Vec2,
+): Vec2 => {
   const current = vec2(motion.velocity.x, motion.velocity.z);
-  // Sprint only scales an existing direction; holding run while standing still is a no-op, since
-  // `direction` is zero and the target stays at rest either way.
+  if (isZero(input.direction)) return moveToward(current, ZERO, config.deceleration * delta);
+
   const topSpeed = input.runRequested ? config.runSpeed : config.maxSpeed;
-  const target = scale(input.direction.value, topSpeed);
-  const rate = isZero(input.direction) ? config.deceleration : config.acceleration;
-  return moveToward(current, target, rate * delta);
+  const requested = topSpeed * Math.min(1, length(input.direction.value));
+  return scale(facing, approach(length(current), requested, config.acceleration * delta));
 };
 
 const nextVerticalSpeed = (
@@ -41,4 +70,9 @@ const nextVerticalSpeed = (
 ): number => {
   if (motion.isGrounded) return justJumped ? config.jumpSpeed : 0;
   return motion.velocity.y - config.gravity * delta;
+};
+
+const approach = (current: number, target: number, maxStep: number): number => {
+  const offset = target - current;
+  return Math.abs(offset) <= maxStep ? target : current + Math.sign(offset) * maxStep;
 };

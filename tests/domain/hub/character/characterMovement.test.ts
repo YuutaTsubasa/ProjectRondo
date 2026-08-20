@@ -98,4 +98,38 @@ describe('CharacterMovement.step', () => {
     expect(r.velocity.y).toBeCloseTo(C.jumpSpeed, P);
     expect(r.isGrounded).toBe(false);
   });
+
+  describe('turning', () => {
+    const heading = (m: CharacterMotion) => Math.atan2(m.velocity.z, m.velocity.x);
+    const runningAlongX: CharacterMotion = {
+      ...IDLE, velocity: vec3(C.runSpeed, 0, 0), facing: vec2(1, 0),
+    };
+
+    it('turns the heading at the configured rate, not at the mercy of speed', () => {
+      const r = step(runningAlongX, inputToward(0, 1, false, true), C, 0.1);
+      expect(heading(r)).toBeCloseTo(C.turnRate * 0.1, P);
+    });
+
+    it('turns a sprint and a walk through the same angle in the same time', () => {
+      const walkingAlongX: CharacterMotion = { ...IDLE, velocity: vec3(C.maxSpeed, 0, 0), facing: vec2(1, 0) };
+      const sprint = step(runningAlongX, inputToward(0, 1, false, true), C, 0.05);
+      const walk = step(walkingAlongX, inputToward(0, 1), C, 0.05);
+      expect(heading(sprint)).toBeCloseTo(heading(walk), P);
+    });
+
+    it('keeps the velocity pointing where the character faces', () => {
+      const r = step(runningAlongX, inputToward(0, 1, false, true), C, 0.05);
+      expect(Math.atan2(r.facing.y, r.facing.x)).toBeCloseTo(heading(r), P);
+    });
+
+    it('holds speed through a turn instead of stalling mid-corner', () => {
+      const r = step(runningAlongX, inputToward(0, 1, false, true), C, 0.05);
+      expect(planarSpeed(r)).toBeCloseTo(C.runSpeed, P);
+    });
+
+    it('snaps the heading when starting from rest, so setting off does not pivot on the spot', () => {
+      const r = step(IDLE, inputToward(1, 0), C, 1 / 60);
+      expect(r.facing.x).toBeCloseTo(1, P);
+    });
+  });
 });

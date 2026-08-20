@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { vec2, add, sub, scale, length, normalize, moveToward, ZERO } from '../../../src/domain/math/vec2';
+import { vec2, add, sub, scale, length, normalize, moveToward, rotateToward, ZERO } from '../../../src/domain/math/vec2';
 
 describe('vec2', () => {
   it('length of (3,4) is 5', () => {
@@ -25,5 +25,30 @@ describe('vec2', () => {
   it('moveToward steps by maxDelta toward target when far', () => {
     const r = moveToward(vec2(0, 0), vec2(10, 0), 4);
     expect(r).toEqual(vec2(4, 0));
+  });
+  describe('rotateToward', () => {
+    const HALF_PI = Math.PI / 2;
+    const RIGHT = vec2(1, 0);
+    const UP = vec2(0, 1);
+    it('snaps to the target when it is within reach', () => {
+      expect(rotateToward(RIGHT, UP, HALF_PI)).toEqual(UP);
+    });
+    it('turns only as far as allowed, staying unit length', () => {
+      const r = rotateToward(RIGHT, UP, HALF_PI / 3);
+      expect(length(r)).toBeCloseTo(1, 6);
+      expect(Math.atan2(r.y, r.x)).toBeCloseTo(HALF_PI / 3, 6);
+    });
+    it('takes the shorter way round', () => {
+      const r = rotateToward(RIGHT, vec2(0, -1), HALF_PI / 3);
+      expect(Math.atan2(r.y, r.x)).toBeCloseTo(-HALF_PI / 3, 6);
+    });
+    it('turns at the same rate whatever the speed it will be applied to', () => {
+      const slowStep = rotateToward(RIGHT, UP, 0.1);
+      const fastStep = rotateToward(RIGHT, UP, 0.1);
+      expect(slowStep).toEqual(fastStep);
+    });
+    it('holds still when already pointing at the target', () => {
+      expect(rotateToward(RIGHT, RIGHT, 0.1)).toEqual(RIGHT);
+    });
   });
 });
