@@ -8,6 +8,7 @@ import { Quaternion } from '@babylonjs/core/Maths/math.vector';
 import '@babylonjs/loaders/glTF';
 import { CAPSULE_HALF } from './capsule';
 import { terrainHeight } from './terrainHeight';
+import { moveToward } from '../../domain/math/scalar';
 
 export interface KnightAnimations {
   readonly idle: AnimationGroup;
@@ -20,10 +21,13 @@ export interface KnightAnimations {
 export interface KnightMotionSample {
   /** Horizontal speed, world units/s. */
   readonly planarSpeed: number;
-  /** Whether the character controller currently has ground support (the raw probe, no ascending guard). */
-  readonly isGrounded: boolean;
-  /** True only on the frame a jump was accepted, so the takeoff pose starts immediately. */
-  readonly justJumped: boolean;
+  /**
+   * Off the ground, as decided by `groundContact` — the one machine that owns that call. Deciding it
+   * a second time here is what let the pose and the physics disagree: an earlier copy of the rule
+   * could latch on `air` forever if the probe never released, leaving the knight floating and no jump
+   * ever animating again.
+   */
+  readonly airborne: boolean;
 }
 
 /** Movement numbers the animation layer has to match, read live so `window.moveConfig` tuning applies. */
@@ -41,10 +45,9 @@ export interface Knight {
   readonly animations: KnightAnimations;
   /**
    * How much the visual is pulled down onto the terrain: 1 = feet planted, 0 = riding the capsule.
-   * Owned by {@link driveKnightAnimation}, which is the single place that decides whether the
-   * character is airborne — reading the raw support probe here too would double the decision and let
-   * the two disagree (the probe drops out for ~10% of frames while running, which as a direct input
-   * would bob the knight several centimetres).
+   * Driven by {@link driveKnightAnimation} from the same `airborne` flag as the jump clip, so the feet
+   * and the pose can never disagree. Reading the raw support probe here instead would bob the knight
+   * several centimetres, since it drops out for ~10% of frames while running.
    */
   planted: number;
 }
@@ -231,15 +234,6 @@ const DIVISOR_FLOOR = 1e-3;
  */
 const JUMP_LAUNCH_START = 0.72;
 const JUMP_FALL_END = 1.3;
-/**
- * Airborne this long counts as a fall worth animating. A commanded jump bypasses it entirely and
- * animates on the takeoff frame, so this only filters *uncommanded* air. At run speed the capsule
- * genuinely skips off the terrain's crests — measured stretches of 2, 3, 6, 9 and 27 frames over
- * three seconds of running (walking never leaves the ground) — and throwing a full crouch-and-launch
- * clip at a two-frame hop looks far worse than ignoring it. 0.2s keeps the short skips absorbed (the
- * feet stay planted through them) while a real fall still animates.
- */
-const FALL_GRACE_SECONDS = 0.2;
 
 /** Frame number `seconds` into a clip, in whatever frame units the glTF loader gave this group. */
 const frameAtSeconds = (group: AnimationGroup, seconds: number): number =>
@@ -249,10 +243,10 @@ const frameAtSeconds = (group: AnimationGroup, seconds: number): number =>
  * Plays `[fromSeconds, toSeconds]` of a clip, from the start of that range.
  *
  * The `stop()` is load-bearing. Babylon's `AnimationGroup.start()` returns early when the group is
- * already started, so asking a playing group for a different range is *silently ignored* and the old
- * range simply runs to its end. That is what made a landing sometimes show the jump clip's tail and
- * sometimes not: whether the switch took effect depended on whether the airborne segment happened to
- * finish before touchdown.
+ * already started, so asking a playing group to play anything — even the same range again — is
+ * *silently ignored*. Hopping again before the previous segment has finished would otherwise leave
+ * the new jump with no animation at all. (The same trap once made a landing show the jump clip's
+ * tail only when the airborne segment happened to finish first; that landing segment is gone now.)
  */
 const playSegment = (group: AnimationGroup, fromSeconds: number, toSeconds: number, speedRatio: number): void => {
   group.stop();
@@ -268,9 +262,9 @@ const playSegment = (group: AnimationGroup, fromSeconds: number, toSeconds: numb
  * standing knight drift and look unsteady), so a clip that isn't contributing is fully stopped, not
  * just zero-weighted.
  *
- * **Jump** rides over the top as a one-shot: the launch→fall segment on takeoff, retimed to fill the
- * real airtime, then the landing segment on touchdown, cross-fading the whole locomotion blend out
- * and back by `jumpWeight`.
+ * **Jump** rides over the top as a one-shot: the launch→fall segment, started the moment `airborne`
+ * turns on and retimed to fill the real airtime, fading the locomotion blend out and back by
+ * `jumpWeight`. Touchdown just ends it — no landing clip is played (see {@link JUMP_FALL_END}).
  */
 export function driveKnightAnimation(
   scene: Scene,
@@ -284,50 +278,38 @@ export function driveKnightAnimation(
 
   let level = 0; // the locomotion scalar L
   let jumpWeight = 0;
-  let phase: 'grounded' | 'air' = 'grounded';
-  let hasClearedGround = false;
-  let airborneFor = 0;
-
-  const approach = (current: number, target: number, perSecond: number, dt: number): number =>
-    current + Math.max(-perSecond * dt, Math.min(perSecond * dt, target - current));
+  let wasAirborne = false;
 
   scene.onBeforeRenderObservable.add(() => {
     const dt = scene.getEngine().getDeltaTime() / 1000;
-    const { planarSpeed, isGrounded, justJumped } = motion();
+    const { planarSpeed, airborne } = motion();
     const { walk: walkSpeed, run: runSpeed, airtime } = tuning();
 
-    // --- jump phase ---------------------------------------------------------------------------
-    airborneFor = isGrounded ? 0 : airborneFor + dt;
-    const airborneEnough = justJumped || (!isGrounded && airborneFor > FALL_GRACE_SECONDS);
-    if (phase !== 'air' && airborneEnough) {
-      phase = 'air';
-      hasClearedGround = false;
+    // --- jump -----------------------------------------------------------------------------------
+    // Nothing is re-decided here: `airborne` already carries the debounce and the takeoff guard, so
+    // the clip only needs the moment it turns on.
+    if (airborne && !wasAirborne) {
       // Stretch (or compress) the segment onto the actual airtime so the pose lands with the capsule.
       const ratio = (JUMP_FALL_END - JUMP_LAUNCH_START) / Math.max(airtime, DIVISOR_FLOOR);
       playSegment(jump, JUMP_LAUNCH_START, JUMP_FALL_END, ratio);
-    } else if (phase === 'air') {
-      // The support probe keeps reporting SUPPORTED for the first few frames of a jump — the capsule
-      // has not physically cleared the ground yet. Taking that as a landing would end the jump
-      // immediately (and re-plant the feet, pinning the knight down for the whole ascent), so wait
-      // until the probe has actually let go once. This mirrors playerController's ascending guard.
-      if (!isGrounded) hasClearedGround = true;
-      else if (hasClearedGround) phase = 'grounded';
     }
+    wasAirborne = airborne;
 
-    // The segment is a one-shot, so the group stops itself if it runs out — a fall longer than the
-    // clip, for instance. Only reserve weight for the jump while it is actually contributing: holding
-    // weight for a stopped group would leave nothing driving the pose and freeze the knight. On
-    // touchdown the weight falls away over JUMP_BLEND_PER_SECOND and locomotion takes the pose back.
-    const jumpContributing = jump.isPlaying;
-    jumpWeight = approach(jumpWeight, phase === 'air' && jumpContributing ? 1 : 0, JUMP_BLEND_PER_SECOND, dt);
-    if (jumpContributing) jump.setWeightForAllAnimatables(jumpWeight);
-    if (jump.isPlaying && phase === 'grounded' && jumpWeight <= WEIGHT_EPSILON) jump.stop();
-    const jumpInfluence = jumpContributing ? jumpWeight : 0;
+    // The segment is a one-shot, so a fall outlasting the clip stops the group mid-air. Let the weight
+    // ease down either way rather than dropping the jump's influence to zero on the frame it stops:
+    // locomotion would otherwise snap in at full weight in one frame, the very discontinuity this
+    // whole weight blend exists to avoid. A stopped group holds its last pose, so easing off it looks
+    // like settling out of the jump.
+    jumpWeight = moveToward(jumpWeight, airborne && jump.isPlaying ? 1 : 0, JUMP_BLEND_PER_SECOND * dt);
+    if (jump.isPlaying) {
+      jump.setWeightForAllAnimatables(jumpWeight);
+      if (!airborne && jumpWeight <= WEIGHT_EPSILON) jump.stop();
+    }
+    const jumpInfluence = jumpWeight;
 
-    // The feet ride the capsule while airborne and re-plant on the terrain once the launch/fall
-    // segment is over. Sharing `phase` keeps the plant on exactly the same debounced decision as the
-    // clip, so they can never disagree.
-    knight.planted = approach(knight.planted, phase === 'air' ? 0 : 1, PLANT_PER_SECOND, dt);
+    // The feet ride the capsule while airborne and re-plant on touchdown, off the same flag as the
+    // clip, so the two can never disagree.
+    knight.planted = moveToward(knight.planted, airborne ? 0 : 1, PLANT_PER_SECOND * dt);
 
     // --- locomotion ---------------------------------------------------------------------------
     // Below the threshold the knight is idle; any real movement reads as at least a walk, and the
@@ -335,7 +317,7 @@ export function driveKnightAnimation(
     const targetLevel = planarSpeed <= WALK_THRESHOLD
       ? 0
       : 1 + Math.max(0, Math.min(1, (planarSpeed - walkSpeed) / Math.max(runSpeed - walkSpeed, DIVISOR_FLOOR)));
-    level = approach(level, targetLevel, BLEND_PER_SECOND, dt);
+    level = moveToward(level, targetLevel, BLEND_PER_SECOND * dt);
 
     // Triangular weights around L: idle at 0, walk at 1, run at 2. They sum to 1.
     const weights = [

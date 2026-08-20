@@ -41,13 +41,11 @@ export interface Player {
   readonly root: TransformNode;
   motion: CharacterMotion;
   /**
-   * The Havok support probe's raw verdict. `motion.isGrounded` is the **gameplay** answer and differs
-   * from it — it suppresses grounding while a fresh jump clears the floor, and grants coyote time over
-   * the probe's dropouts (see groundContact). Visuals want the raw one.
+   * Off the ground, debounced, as decided by `groundContact`. Visuals read this rather than the raw
+   * support probe (which chatters) or `motion.isGrounded` (which also encodes the takeoff guard), so
+   * that the pose and the physics are answering the same question.
    */
-  isSupported: boolean;
-  /** True on the single frame the domain accepted a jump, so visuals can react on the takeoff frame. */
-  justJumped: boolean;
+  airborne: boolean;
   /** The live movement config — the same object `window.moveConfig` mutates, so readers track dev tuning. */
   readonly config: MovementConfig;
 }
@@ -79,7 +77,7 @@ export function createPlayer(
   // The Havok controller itself, for probing its solver settings live in dev.
   if (import.meta.env.DEV) (window as unknown as { charController: unknown }).charController = controller;
 
-  const player: Player = { root, motion: IDLE, isSupported: true, justJumped: false, config };
+  const player: Player = { root, motion: IDLE, airborne: false, config };
   // Coyote time, jump buffering and the takeoff guard all live in this pure state — see groundContact.
   let contact = INITIAL_GROUND_CONTACT;
 
@@ -88,19 +86,15 @@ export function createPlayer(
     if (dt <= 0) return;
 
     const support = controller.checkSupport(dt, DOWN);
-    const supported = support.supportedState === CharacterSupportedState.SUPPORTED;
-    player.isSupported = supported;
-
     const contactResult = stepGroundContact(contact, {
-      supported,
+      supported: support.supportedState === CharacterSupportedState.SUPPORTED,
       jumpPressed: input.consumeJump(),
       verticalSpeed: player.motion.velocity.y,
       delta: dt,
     });
     contact = contactResult.state;
     const { grounded, jumpRequested } = contactResult;
-    // The takeoff frame is known here rather than inferred later, so visuals react immediately.
-    player.justJumped = jumpRequested;
+    player.airborne = contactResult.airborne;
 
     const { right, forward } = follow.planarBasis();
     const direction = planarDirectionFromInput(input.axis(), right, forward);

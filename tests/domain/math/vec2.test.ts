@@ -42,10 +42,16 @@ describe('vec2', () => {
       const r = rotateToward(RIGHT, vec2(0, -1), HALF_PI / 3);
       expect(Math.atan2(r.y, r.x)).toBeCloseTo(-HALF_PI / 3, 6);
     });
-    it('turns at the same rate whatever the speed it will be applied to', () => {
-      const slowStep = rotateToward(RIGHT, UP, 0.1);
-      const fastStep = rotateToward(RIGHT, UP, 0.1);
-      expect(slowStep).toEqual(fastStep);
+    it('steps by exactly maxRadians whatever the size of the turn left to make', () => {
+      const heading = (v: { x: number; y: number }) => Math.atan2(v.y, v.x);
+      expect(heading(rotateToward(RIGHT, UP, 0.1))).toBeCloseTo(0.1, 6);
+      expect(heading(rotateToward(RIGHT, vec2(-1, 0.001), 0.1))).toBeCloseTo(0.1, 6);
+    });
+    it('still makes progress toward a target exactly opposite it', () => {
+      // The degenerate case: cross product zero, dot -1. Returning `from` here would wedge a
+      // character that asked for a straight about-turn.
+      const r = rotateToward(RIGHT, vec2(-1, 0), 0.1);
+      expect(Math.abs(Math.atan2(r.y, r.x))).toBeCloseTo(0.1, 6);
     });
     it('holds still when already pointing at the target', () => {
       expect(rotateToward(RIGHT, RIGHT, 0.1)).toEqual(RIGHT);

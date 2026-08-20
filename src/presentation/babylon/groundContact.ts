@@ -1,43 +1,69 @@
 /**
- * Turns the character controller's noisy ground probe plus a jump keypress into the two values the
- * domain actually needs: is the character grounded, and does it jump this frame. Pure, so the whole
- * thing is unit-tested rather than debugged in the browser.
+ * The single source of truth for whether the character is on the ground.
  *
- * Three problems it solves, all measured on the hub terrain:
+ * It turns the character controller's noisy support probe plus a jump keypress into everything the
+ * rest of the game needs: what the domain gets as `isGrounded` / `jumpRequested`, and what the
+ * animation layer gets as "off the ground". Pure, so the whole thing is unit-tested rather than
+ * debugged in the browser — and having exactly one machine decide this means the physics and the
+ * visuals cannot drift into disagreeing about it.
  *
- * 1. **Any upward velocity used to mean "airborne".** `playerController` previously refused to ground
- *    the character whenever the post-solve velocity pointed up. But walking across rolling terrain
- *    pushes the capsule up the entire time (+0.33..+0.42 u/s), so the character read as airborne for
- *    *every* frame of a plain walk — and since the domain only accepts a jump from a grounded motion,
- *    **jumping while walking was impossible**. That rule is gone; only a jump that has yet to clear
- *    the floor suppresses grounding now.
+ * Four problems it solves, all measured on the hub terrain:
+ *
+ * 1. **Any upward velocity used to mean "airborne".** `playerController` once refused to ground the
+ *    character whenever the post-solve velocity pointed up. Walking across rolling terrain pushes the
+ *    capsule up the entire time (+0.33..+0.42 u/s), so the character read as airborne for *every*
+ *    frame of a plain walk — and since the domain only accepts a jump from a grounded motion,
+ *    **jumping while walking was impossible**. Only a jump that is still climbing suppresses
+ *    grounding now.
  * 2. **The probe chatters.** Walking sideways loses support on 84 of 150 frames, in bursts of 1-8
- *    frames, as the capsule crosses the terrain collider's triangles. {@link COYOTE_SECONDS} keeps the
- *    character jumpable across those bursts.
+ *    frames, as the capsule crosses the terrain collider's triangles. {@link COYOTE_SECONDS} keeps
+ *    the character jumpable across those bursts, and {@link FALL_GRACE_SECONDS} keeps the animation
+ *    from flickering through them.
  * 3. **Presses land in the gaps.** A keypress inside one of those bursts used to be consumed and
  *    thrown away. {@link JUMP_BUFFER_SECONDS} remembers it and spends it the moment a jump is legal.
+ * 4. **Ground re-acquired mid-climb cancelled the jump.** Jumping while running uphill lifts the
+ *    capsule clear, then the rising ground ahead comes back within probe reach while the character is
+ *    still going up. Grounding there makes the domain zero the climb and the character sticks to the
+ *    slope. The `rising` state below ignores the probe entirely until the climb is over.
  */
 
 /** How long after losing ground support a jump is still allowed. Covers the probe's 1-8 frame gaps. */
 export const COYOTE_SECONDS = 0.15;
 /** How long a jump press is remembered while waiting for the character to become jumpable. */
 export const JUMP_BUFFER_SECONDS = 0.15;
+/**
+ * How long an *uncommanded* loss of support has to last before it counts as being off the ground.
+ * A jump is airborne immediately; this only filters the probe's chatter. At run speed the capsule
+ * genuinely skips off the terrain's crests in bursts of 2-27 frames, and throwing a jump pose at a
+ * two-frame hop looks far worse than ignoring it.
+ */
+export const FALL_GRACE_SECONDS = 0.2;
+
+/**
+ * Where the character stands relative to the ground. A union rather than a bag of flags, so
+ * combinations that mean nothing — "clearing the floor" while also two seconds into a fall — cannot
+ * be constructed in the first place.
+ */
+export type GroundContact =
+  /** Standing on something. The only state a jump can start from without coyote time. */
+  | { readonly kind: 'grounded' }
+  /**
+   * A jump is under way and still climbing. The support probe is deliberately ignored here: it
+   * re-acquires as soon as ground comes back within reach, and grounding mid-climb would cancel the
+   * jump. Ends the moment the character stops rising, so a jump into a low ceiling cannot latch.
+   */
+  | { readonly kind: 'rising' }
+  /** Off the ground and not climbing. `seconds` feeds coyote time and the fall grace. */
+  | { readonly kind: 'airborne'; readonly seconds: number; readonly jumpSpent: boolean };
 
 export interface GroundContactState {
-  /** Seconds since the probe last reported support; 0 while supported. */
-  readonly airborneFor: number;
-  /** A jump has been taken and the character has not been back on the ground since. */
-  readonly jumpSpent: boolean;
-  /** The jump is under way but the capsule has not physically left the floor yet. */
-  readonly clearingFloor: boolean;
-  /** Seconds of life left on a remembered jump press. */
+  readonly contact: GroundContact;
+  /** Seconds of life left on a remembered jump press. Orthogonal to where the character is. */
   readonly bufferedJumpFor: number;
 }
 
 export const INITIAL_GROUND_CONTACT: GroundContactState = {
-  airborneFor: 0,
-  jumpSpent: false,
-  clearingFloor: false,
+  contact: { kind: 'grounded' },
   bufferedJumpFor: 0,
 };
 
@@ -57,32 +83,77 @@ export interface GroundContactResult {
   readonly grounded: boolean;
   /** What to hand the domain as `jumpRequested`. */
   readonly jumpRequested: boolean;
+  /**
+   * What the animation layer should treat as "off the ground": true for a whole jump, and for a fall
+   * that has outlasted {@link FALL_GRACE_SECONDS}, but never for the probe's brief dropouts.
+   */
+  readonly airborne: boolean;
 }
 
 export const stepGroundContact = (
   state: GroundContactState,
   { supported, jumpPressed, verticalSpeed, delta }: GroundContactInput,
 ): GroundContactResult => {
-  const airborneFor = supported ? 0 : state.airborneFor + delta;
-  // The takeoff guard holds until the capsule has actually left the floor, or until it is falling
-  // again — a jump straight into a low ceiling never lets the probe go and must not latch forever.
-  const clearingFloor = state.clearingFloor && supported && verticalSpeed > 0;
-  const onGround = supported && !clearingFloor;
-
   const buffered = jumpPressed ? JUMP_BUFFER_SECONDS : Math.max(0, state.bufferedJumpFor - delta);
-  const jumpSpent = onGround ? false : state.jumpSpent;
-  const jumpRequested = buffered > 0 && !clearingFloor && !jumpSpent && airborneFor <= COYOTE_SECONDS;
+  const settled = advance(state.contact, supported, verticalSpeed, delta);
+
+  const jumpRequested = buffered > 0 && canJump(settled);
+  const contact: GroundContact = jumpRequested ? { kind: 'rising' } : settled;
 
   return {
-    state: {
-      airborneFor,
-      jumpSpent: jumpSpent || jumpRequested,
-      clearingFloor: clearingFloor || jumpRequested,
-      bufferedJumpFor: jumpRequested ? 0 : buffered,
-    },
+    state: { contact, bufferedJumpFor: jumpRequested ? 0 : buffered },
     // A coyote-time jump has to report grounded, because the domain only accepts a jump from a
     // grounded motion — that one frame of leniency is exactly what coyote time is.
-    grounded: jumpRequested || onGround,
+    grounded: jumpRequested || contact.kind === 'grounded',
     jumpRequested,
+    airborne: isAirborne(contact),
   };
+};
+
+const advance = (
+  contact: GroundContact, supported: boolean, verticalSpeed: number, delta: number,
+): GroundContact => {
+  switch (contact.kind) {
+    case 'grounded':
+      return supported ? contact : { kind: 'airborne', seconds: delta, jumpSpent: false };
+    case 'rising':
+      if (verticalSpeed > 0) return contact;
+      return supported ? { kind: 'grounded' } : { kind: 'airborne', seconds: 0, jumpSpent: true };
+    case 'airborne':
+      return supported ? { kind: 'grounded' } : { ...contact, seconds: contact.seconds + delta };
+    default:
+      return assertNever(contact);
+  }
+};
+
+const canJump = (contact: GroundContact): boolean => {
+  switch (contact.kind) {
+    case 'grounded':
+      return true;
+    case 'rising':
+      return false;
+    case 'airborne':
+      return !contact.jumpSpent && contact.seconds <= COYOTE_SECONDS;
+    default:
+      return assertNever(contact);
+  }
+};
+
+const isAirborne = (contact: GroundContact): boolean => {
+  switch (contact.kind) {
+    case 'grounded':
+      return false;
+    case 'rising':
+      return true;
+    // `jumpSpent` means this fall began as a jump, so it needs no confirming — only an uncommanded
+    // loss of support has to outlast the grace before it counts.
+    case 'airborne':
+      return contact.jumpSpent || contact.seconds > FALL_GRACE_SECONDS;
+    default:
+      return assertNever(contact);
+  }
+};
+
+const assertNever = (value: never): never => {
+  throw new Error(`unhandled ground contact: ${JSON.stringify(value)}`);
 };

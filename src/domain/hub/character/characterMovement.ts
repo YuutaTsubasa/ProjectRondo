@@ -3,13 +3,18 @@ import { type MovementInput } from './movementInput';
 import { type MovementConfig } from './movementConfig';
 import { type Vec2, vec2, scale, normalize, length, moveToward, rotateToward, ZERO } from '../../math/vec2';
 import { vec3 } from '../../math/vec3';
+import { moveToward as moveTowardScalar } from '../../math/scalar';
 import { isZero } from '../../kernel/normalizedPlanarDirection';
 
-/**
- * Below this speed there is no momentum to fight, so the heading snaps to the input instead of
- * swinging round to it — otherwise starting from rest would pivot on the spot before setting off.
- */
+/** Below this speed there is no momentum to fight, so the heading may swing round much faster. */
 const PIVOT_FREELY_BELOW = 0.5;
+/**
+ * Turn rate used below {@link PIVOT_FREELY_BELOW}, in radians per second — brisk enough that setting
+ * off from rest does not pivot on the spot first, but still *bounded*. Snapping straight to the input
+ * instead put a whole 180° into a single frame whenever the player tapped a reverse direction while
+ * standing, and nothing downstream smooths that: the model reads the heading directly.
+ */
+const PIVOT_TURN_RATE = 30;
 
 /** Advances the character motion by a single frame of `delta` seconds. Pure. */
 export const step = (
@@ -44,9 +49,9 @@ const nextFacing = (
 
   const wanted = normalize(input.direction.value);
   const speed = length(vec2(motion.velocity.x, motion.velocity.z));
-  if (speed < PIVOT_FREELY_BELOW) return wanted;
+  const rate = speed < PIVOT_FREELY_BELOW ? PIVOT_TURN_RATE : config.turnRate;
 
-  return rotateToward(motion.facing, wanted, config.turnRate * delta);
+  return rotateToward(motion.facing, wanted, rate * delta);
 };
 
 /**
@@ -62,7 +67,7 @@ const nextPlanarVelocity = (
 
   const topSpeed = input.runRequested ? config.runSpeed : config.maxSpeed;
   const requested = topSpeed * Math.min(1, length(input.direction.value));
-  return scale(facing, approach(length(current), requested, config.acceleration * delta));
+  return scale(facing, moveTowardScalar(length(current), requested, config.acceleration * delta));
 };
 
 const nextVerticalSpeed = (
@@ -72,7 +77,3 @@ const nextVerticalSpeed = (
   return motion.velocity.y - config.gravity * delta;
 };
 
-const approach = (current: number, target: number, maxStep: number): number => {
-  const offset = target - current;
-  return Math.abs(offset) <= maxStep ? target : current + Math.sign(offset) * maxStep;
-};

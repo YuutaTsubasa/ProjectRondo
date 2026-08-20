@@ -127,9 +127,25 @@ describe('CharacterMovement.step', () => {
       expect(planarSpeed(r)).toBeCloseTo(C.runSpeed, P);
     });
 
-    it('snaps the heading when starting from rest, so setting off does not pivot on the spot', () => {
-      const r = step(IDLE, inputToward(1, 0), C, 1 / 60);
+    /** Holds `input` for `seconds` at 60fps and returns where the character ends up. */
+    const hold = (from: CharacterMotion, input: MovementInput, seconds: number): CharacterMotion => {
+      let m = from;
+      for (let i = 0; i < Math.round(seconds * 60); i += 1) m = step(m, input, C, 1 / 60);
+      return m;
+    };
+
+    it('comes round quickly when setting off from rest, rather than pivoting on the spot', () => {
+      // IDLE faces -Y, so pressing +X asks for a 90 degree change with no momentum behind it.
+      const r = hold(IDLE, inputToward(1, 0), 0.15);
       expect(r.facing.x).toBeCloseTo(1, P);
+    });
+
+    it('never turns a whole half-circle in one frame, however slowly it is moving', () => {
+      // Tapping a reverse direction while standing used to snap the heading, and the model reads the
+      // heading directly — so the knight spun 180 degrees between two rendered frames.
+      const facingForward = { ...IDLE, facing: vec2(1, 0) };
+      const r = step(facingForward, inputToward(-1, 0), C, 1 / 60);
+      expect(r.facing.x).toBeGreaterThan(-1 + 1e-6);
     });
   });
 });

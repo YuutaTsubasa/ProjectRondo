@@ -59,9 +59,7 @@ export async function createHubScene(canvas: HTMLCanvasElement): Promise<HubScen
   const player = createPlayer(scene, playerRoot, follow, input);
   const readMotion = (): KnightMotionSample => {
     const v = player.motion.velocity;
-    // isSupported, not motion.isGrounded — see the Player interface for why the domain's flag reads
-    // false for most of an uphill walk and would flicker the jump clip on and off.
-    return { planarSpeed: Math.hypot(v.x, v.z), isGrounded: player.isSupported, justJumped: player.justJumped };
+    return { planarSpeed: Math.hypot(v.x, v.z), airborne: player.airborne };
   };
   const knight = await loadKnight(scene, playerRoot, shadowGenerator);
   driveKnightAnimation(scene, knight, readMotion, () => ({

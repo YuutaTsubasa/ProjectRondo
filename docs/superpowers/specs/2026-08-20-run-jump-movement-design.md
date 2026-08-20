@@ -446,3 +446,36 @@ on the rolling terrain at run speed and the physics genuinely loses momentum, th
 ~0.4 s. The locomotion blend faithfully follows it down into walk and back. This is the same run-speed
 terrain skipping measured in §12 (47 of 180 frames unsupported while running), not an animation fault,
 and it is left for a separate pass.
+
+## 16. Review response
+
+All six findings from the branch review held up against the code; each is fixed below. The two
+architectural notes drove the shape of the fix rather than being deferred, because findings 2 and 3
+were direct consequences of the duplication they named.
+
+**One machine owns ground contact (#13).** `knight.ts` had grown a second copy of the airborne
+decision — `phase`, `hasClearedGround`, `airborneFor`, its own `FALL_GRACE_SECONDS` — beside the one in
+`groundContact.ts`. `GroundContactResult` now carries a debounced **`airborne`** flag, `Player` exposes
+it, and the animation layer only detects its rising edge. `Knight.planted`'s own doc warned that
+deciding this twice would let the two disagree; that is exactly what had happened.
+
+**`GroundContact` is a union, not four flags (#16).** `{ grounded } | { rising } | { airborne, seconds,
+jumpSpent }`. Finding 1 was a state that should never have been expressible.
+
+| # | Finding | Fix |
+| --- | --- | --- |
+| 1 | Ground re-acquired mid-climb cancelled the jump — the old guard only covered an unbroken run of supported frames | The `rising` state ignores the probe entirely until the character stops going up, so re-contact on a rising slope cannot zero the climb |
+| 2 | `hasClearedGround` could latch `'air'` forever if the probe never released, floating the knight and killing all further jump animation | Gone with the duplicate machine. `rising` ends on "no longer rising", so a jump into a low ceiling escapes |
+| 3 | Pose snapped when the clip outlasted a long fall — `jumpInfluence` dropped 1 → 0 in one frame | The weight eases down whether or not the group is still playing; a stopped group holds its last pose, so locomotion fades in over it |
+| 4 | Heading snapped below `PIVOT_FREELY_BELOW`, and nothing downstream smooths it — a standing reverse tap spun 180° in one frame | `PIVOT_TURN_RATE` (30 rad/s): brisk but bounded. Measured worst case now **37°** per frame |
+| 5 | Comments still described the removed landing segment | Rewritten; `playSegment`'s `stop()` now documents the reason that still applies (re-playing the *same* range) |
+| 6 | `rotateToward` test compared two identical calls — true of any implementation | Replaced with the step-size property and the exactly-opposite degenerate case |
+
+Also: `approach` was duplicated in `characterMovement.ts` and `knight.ts`; it is now
+`src/domain/math/scalar.ts`'s `moveToward` (#6). `MovementConstants`' ten-line `//` block became a doc
+comment (#17).
+
+**Verified.** 123 tests (up from 112 — the new ones cover mid-climb re-contact, the ceiling escape, the
+apex, and the probe's short dropouts, none of which had coverage). In-browser: run 8.00 at 1.4°/7°/21.8°
+with the run clip at full weight, walk 4.00, jumps 1.71/1.74/1.81 with no tail, a 90° turn in 0.17 s
+with at most 4.06° between facing and velocity, and the barrier unchanged at radius 42.5–42.6.
