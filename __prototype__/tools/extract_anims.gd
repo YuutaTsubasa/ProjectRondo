@@ -3,7 +3,12 @@ extends SceneTree
 const SRC := {
 	"Idle": "res://Assets/Animations/Idle.fbx",
 	"Walk": "res://Assets/Animations/Walking.fbx",
+	"Run": "res://Assets/Animations/Running.fbx",
+	"Jump": "res://Assets/Animations/Jump.fbx",
 }
+# Jump is a one-shot arc (crouch, launch, land); looping it would snap the knight
+# back to the crouch mid-air. Every other clip is a cycle.
+const NON_LOOPING := ["Jump"]
 const FROM := "Skeleton3D:"
 const TO := "Armature/Skeleton3D:"
 # Inward thigh correction to counter the model's wide A-stance rest pose.
@@ -32,7 +37,7 @@ func _initialize():
 			var p := String(anim.track_get_path(i))
 			if p.begins_with(FROM):
 				anim.track_set_path(i, NodePath(TO + p.substr(FROM.length())))
-		anim.loop_mode = Animation.LOOP_LINEAR
+		anim.loop_mode = Animation.LOOP_NONE if name in NON_LOOPING else Animation.LOOP_LINEAR
 		_adduct(anim, L_THIGH, 1.0)
 		_adduct(anim, R_THIGH, -1.0)
 		lib.add_animation(name, anim)

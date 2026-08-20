@@ -129,6 +129,37 @@ These are hard-won; several cost a debugging session each.
   then **texture-only** gltf-transform (resize + webp). **Do NOT `simplify`/`quantize`/`resample`
   skinned meshes** — it corrupts the animation (feet slide). Bump `?v=N` on the GLB URL in `knight.ts`
   after rebuilding so browsers refetch.
+- **Rebuilding the GLB has three sharp edges** (full recipe in the README): Godot serves a **stale
+  asset import** after you edit a `.import` file unless you delete `.godot/imported/<Name>.fbx-*`
+  first — the bone renaming just silently does not apply; the mono build **needs the .NET 8 SDK**
+  installed or it crashes before importing anything; and `pnpm dlx @gltf-transform/cli` **does not
+  work on Windows** — install it with npm into a scratch dir and pin `sharp` to `0.34.5`. Godot
+  **4.7.2 reproduces 4.7.1's output bit-for-bit**, verified by diffing the re-exported Idle/Walk
+  against the shipped ones, so the version bump is safe.
+- **Ground contact is deliberately not "what the probe said".** `groundContact.ts` is a small pure
+  reducer that turns the Havok support probe plus a jump keypress into the `isGrounded` /
+  `jumpRequested` the domain consumes, and it is unit-tested rather than debugged in the browser.
+  Three measured reasons it exists: the probe **chatters** (walking sideways loses support on 84 of
+  150 frames, in 1-8 frame bursts, as the capsule crosses collider triangles) so it carries coyote
+  time and a jump buffer; a jump **has not cleared the floor** for its first few frames, so the probe
+  still says SUPPORTED and re-grounding there would cancel the jump; and an earlier "any upward
+  post-solve velocity means airborne" rule made **jumping while walking impossible** (uphill walking
+  pushes the capsule up the whole time). Don't reintroduce that rule.
+- Visuals read `player.isSupported` (the raw probe) and `player.justJumped` (the takeoff frame), not
+  `motion.isGrounded`, which carries the jump-clearing guard.
+- **The domain thinks in flat ground; `slopeMotion.ts` bridges that to sloped terrain**, by adding
+  *only* the vertical climb that puts the velocity in the surface plane. Do not "fix" this by
+  projecting the velocity onto that plane instead — projection shrinks the horizontal component, which
+  the domain then reads back as its current speed, so running settles at
+  `acceleration * delta / (1 - cos(slope))` (measured: **8 u/s down to 2.9 on a 4° rise**), and it
+  swings the heading toward the contour, so running at a hill slides you sideways along it (measured:
+  **62° of drift on a 27° slope**). The collider is also locally steeper than the height field — a 7°
+  hillside gives ~19° contact normals — so both bite far sooner than the visible gradient suggests.
+- **The character moves where it faces, and only the heading steers.** `turnRate` (rad/s) caps how fast
+  the heading swings; speed is a separate scalar. Easing the *velocity vector* toward its new target
+  instead makes turn radius scale with speed — a sprint took 0.6s to come round while the model turned
+  in 0.2s, so the knight faced one way and slid the other. For the same reason `playerController` sets
+  the model yaw straight from `motion.facing` with no second lerp: two smoothers means two headings.
 
 ## 8. Claude's local memory (optional, but valuable for continuity)
 

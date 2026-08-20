@@ -63,17 +63,35 @@ Open the printed URL (default http://localhost:5173). `pnpm build` produces a st
 The knight model + retargeted animations live in the Godot prototype. Re-export and optimize with:
 
 ```bash
-# 1. Export a GLB (mesh + Idle/Walk) from Godot headless
-/Applications/Godot_mono.app/Contents/MacOS/Godot --headless \
-  --path __prototype__ --script res://tools/export_web_glb.gd
+# 0. Only when a clip's source or .import changed: rebuild the AnimationLibrary.
+#    Godot can serve a stale import — delete .godot/imported/<Name>.fbx-* first or the bone
+#    renaming silently does not apply.
+Godot --headless --path __prototype__ --import
+Godot --headless --path __prototype__ --script res://tools/extract_anims.gd
+
+# 1. Export a GLB (mesh + Idle/Walk/Run/Jump) from Godot headless
+Godot --headless --path __prototype__ --script res://tools/export_web_glb.gd
 
 # 2. Texture-only optimization (do NOT simplify/quantize/resample — it corrupts the skeletal animation)
-pnpm dlx @gltf-transform/cli resize __prototype__/knight_web.glb /tmp/k.glb --width 1024 --height 1024
-pnpm dlx @gltf-transform/cli webp /tmp/k.glb public/models/knight_web.glb --quality 80
+gltf-transform resize __prototype__/knight_web.glb /tmp/k.glb --width 1024 --height 1024
+gltf-transform webp /tmp/k.glb public/models/knight_web.glb --quality 80
 ```
 
 Bump the `?v=N` query on the GLB URL in `src/presentation/babylon/knight.ts` after rebuilding so
-browsers refetch it.
+browsers refetch it. Then delete the ~90 MB `__prototype__/knight_web.glb` intermediate and the
+`knight_web*.png` / `.import` side files Godot's next scan drops next to it.
+
+**Adding an animation:** drop the FBX in `__prototype__/Assets/Animations/` (LFS-tracked), run step 0
+once so Godot writes a default `.import`, copy the `_subresources` bone_map block out of
+`Walking.fbx.import` into it, add the clip to `SRC` in `tools/extract_anims.gd` (and to `NON_LOOPING`
+if it is a one-shot), then run the whole recipe.
+
+**Toolchain notes.** Godot 4.7.2 reproduces 4.7.1's export bit-for-bit (verified against the shipped
+Idle/Walk data), and the mono build needs the .NET 8 SDK present or it crashes on startup.
+`pnpm dlx @gltf-transform/cli` **fails on Windows** — pnpm's hard-linked store breaks the CLI's peer
+resolution; `npm install @gltf-transform/cli@4.4.2` into a scratch dir instead, with an
+`overrides: { "sharp": "0.34.5" }` pin (its transitive `sharp@0.35.x` throws
+`colourspace: parameter space not set` on the 8192² source textures).
 
 ## Milestones
 
