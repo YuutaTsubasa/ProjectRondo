@@ -222,10 +222,15 @@ const DIVISOR_FLOOR = 1e-3;
  * reads as the knight hanging in mid-air still winding up (measured 0.2s of it). Starting here leaves
  * only ~0.08 of hip dip. The segment is then retimed to fill the real airtime, so it neither runs out
  * early (which would pop the pose back to idle before touchdown) nor cut off mid-rise.
+ *
+ * Touchdown ends the clip's involvement. The land-and-recover tail is *not* played: it is a
+ * half-second of crouching and straightening back up to a stand, which a character still running at
+ * 8 u/s plainly is not doing — it read as the knight stalling on landing. Blending straight back to
+ * locomotion lets whatever the player is actually doing take over, and a stop still looks settled
+ * because idle blends in the same way.
  */
 const JUMP_LAUNCH_START = 0.72;
 const JUMP_FALL_END = 1.3;
-const JUMP_LAND_END = 1.78;
 /**
  * Airborne this long counts as a fall worth animating. A commanded jump bypasses it entirely and
  * animates on the takeoff frame, so this only filters *uncommanded* air. At run speed the capsule
@@ -239,6 +244,20 @@ const FALL_GRACE_SECONDS = 0.2;
 /** Frame number `seconds` into a clip, in whatever frame units the glTF loader gave this group. */
 const frameAtSeconds = (group: AnimationGroup, seconds: number): number =>
   group.from + seconds * (group.targetedAnimations[0]?.animation.framePerSecond ?? 60);
+
+/**
+ * Plays `[fromSeconds, toSeconds]` of a clip, from the start of that range.
+ *
+ * The `stop()` is load-bearing. Babylon's `AnimationGroup.start()` returns early when the group is
+ * already started, so asking a playing group for a different range is *silently ignored* and the old
+ * range simply runs to its end. That is what made a landing sometimes show the jump clip's tail and
+ * sometimes not: whether the switch took effect depended on whether the airborne segment happened to
+ * finish before touchdown.
+ */
+const playSegment = (group: AnimationGroup, fromSeconds: number, toSeconds: number, speedRatio: number): void => {
+  group.stop();
+  group.start(false, speedRatio, frameAtSeconds(group, fromSeconds), frameAtSeconds(group, toSeconds));
+};
 
 /**
  * Drives the knight's pose from the player's motion each frame.
@@ -265,10 +284,9 @@ export function driveKnightAnimation(
 
   let level = 0; // the locomotion scalar L
   let jumpWeight = 0;
-  let phase: 'grounded' | 'air' | 'land' = 'grounded';
+  let phase: 'grounded' | 'air' = 'grounded';
   let hasClearedGround = false;
   let airborneFor = 0;
-  let landRemaining = 0;
 
   const approach = (current: number, target: number, perSecond: number, dt: number): number =>
     current + Math.max(-perSecond * dt, Math.min(perSecond * dt, target - current));
@@ -286,28 +304,22 @@ export function driveKnightAnimation(
       hasClearedGround = false;
       // Stretch (or compress) the segment onto the actual airtime so the pose lands with the capsule.
       const ratio = (JUMP_FALL_END - JUMP_LAUNCH_START) / Math.max(airtime, DIVISOR_FLOOR);
-      jump.start(false, ratio, frameAtSeconds(jump, JUMP_LAUNCH_START), frameAtSeconds(jump, JUMP_FALL_END));
+      playSegment(jump, JUMP_LAUNCH_START, JUMP_FALL_END, ratio);
     } else if (phase === 'air') {
       // The support probe keeps reporting SUPPORTED for the first few frames of a jump — the capsule
       // has not physically cleared the ground yet. Taking that as a landing would end the jump
       // immediately (and re-plant the feet, pinning the knight down for the whole ascent), so wait
       // until the probe has actually let go once. This mirrors playerController's ascending guard.
       if (!isGrounded) hasClearedGround = true;
-      else if (hasClearedGround) {
-        phase = 'land';
-        landRemaining = JUMP_LAND_END - JUMP_FALL_END;
-        jump.start(false, 1, frameAtSeconds(jump, JUMP_FALL_END), frameAtSeconds(jump, JUMP_LAND_END));
-      }
-    } else if (phase === 'land') {
-      landRemaining -= dt;
-      if (landRemaining <= 0) phase = 'grounded';
+      else if (hasClearedGround) phase = 'grounded';
     }
 
-    // The segments are one-shots, so the group stops itself when one runs out — a fall longer than
-    // the clip, for instance. Only reserve weight for the jump while it is actually contributing:
-    // holding weight for a stopped group would leave nothing driving the pose and freeze the knight.
+    // The segment is a one-shot, so the group stops itself if it runs out — a fall longer than the
+    // clip, for instance. Only reserve weight for the jump while it is actually contributing: holding
+    // weight for a stopped group would leave nothing driving the pose and freeze the knight. On
+    // touchdown the weight falls away over JUMP_BLEND_PER_SECOND and locomotion takes the pose back.
     const jumpContributing = jump.isPlaying;
-    jumpWeight = approach(jumpWeight, phase !== 'grounded' && jumpContributing ? 1 : 0, JUMP_BLEND_PER_SECOND, dt);
+    jumpWeight = approach(jumpWeight, phase === 'air' && jumpContributing ? 1 : 0, JUMP_BLEND_PER_SECOND, dt);
     if (jumpContributing) jump.setWeightForAllAnimatables(jumpWeight);
     if (jump.isPlaying && phase === 'grounded' && jumpWeight <= WEIGHT_EPSILON) jump.stop();
     const jumpInfluence = jumpContributing ? jumpWeight : 0;

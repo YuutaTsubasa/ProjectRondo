@@ -401,3 +401,48 @@ Running holds 8.00 at 1.4°, 7°, 16° and 21.8° with the run clip at full weig
 4.00 with the walk clip; jumps reach 1.71 standing, 1.72 walking, 1.82 running, all playing the jump
 clip; feet sit 4.8 mm off flat ground. The **natural barrier is unchanged** — charging it from three
 bearings tops out at radius 42.5–42.6, the same as before either slope change.
+
+## 15. Follow-up — the landing tail (bug fix)
+
+Reported as "sometimes a running jump lands into the tail of the jump clip instead of going straight
+back to the run, and sometimes it doesn't".
+
+**Root cause.** Babylon's `AnimationGroup.start()` returns early when the group is already started
+(`animationGroup.pure.js:485`). §6's design switched the jump clip from its airborne segment to its
+landing segment by calling `start()` again — which, while the airborne segment was still playing, was
+**silently ignored**. Instrumenting `jump.start` through a real running jump caught it directly:
+
+| call | segment | `isStarted` at call | effect |
+| --- | --- | --- | --- |
+| 1 | 43.2 → 78 (launch → fall) | `false` | plays |
+| 2 | 78 → 106.8 (land) | **`true`** | **no-op** |
+
+So the state machine believed it had switched to `land` while the clip just ran the fall segment to
+its end. Whether the landing tail appeared depended purely on whether the airborne segment happened to
+finish before touchdown — long airtime meant `isStarted` was already `false`, the call took, and the
+tail played. Hence "sometimes".
+
+**Fix.** Not to make the switch work — the landing clip is *not* wanted. It is half a second of
+crouching and straightening back up to a stand, which a character still running at 8 u/s plainly is
+not doing, and it read as the knight stalling on landing. Touchdown now simply ends the jump: the
+`land` phase is gone, the jump weight falls away over `JUMP_BLEND_PER_SECOND` and locomotion takes the
+pose straight back. A player who *has* stopped still looks settled, because idle blends in the same
+way — the recovery adapts to what the player is actually doing instead of being baked into the clip.
+
+`playSegment` keeps its `stop()` before `start()` regardless: the takeoff call hits the same trap when
+hopping again before the previous segment has finished.
+
+**Verified.** Standing, walking and running jumps each make exactly **one** `start()` call, and the
+clip frame never passes the segment end (78) after touchdown — the tail is unreachable. The handoff
+measured on a running jump: touchdown at 0.57 s, jump weight 1 → 0.82 → 0.45 → 0.07 → 0 while run
+weight goes 0.15 → 0.49 → 0.93 → **1.00 by 0.67 s**. Three back-to-back hops each restart the segment
+cleanly (`isStarted` false on every call) and reach full height.
+
+### Known issue, separate from this one
+
+The same traces show planar speed collapsing from 8.00 to **3.24** roughly 0.1 s *after* the jump
+handoff has completed (jump weight already 0), with the support probe flickering — the capsule bounces
+on the rolling terrain at run speed and the physics genuinely loses momentum, then re-accelerates over
+~0.4 s. The locomotion blend faithfully follows it down into walk and back. This is the same run-speed
+terrain skipping measured in §12 (47 of 180 frames unsupported while running), not an animation fault,
+and it is left for a separate pass.
