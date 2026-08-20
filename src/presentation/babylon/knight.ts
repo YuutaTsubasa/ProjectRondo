@@ -12,28 +12,62 @@ import { terrainHeight } from './terrainHeight';
 export interface KnightAnimations {
   readonly idle: AnimationGroup;
   readonly walk: AnimationGroup;
+  readonly run: AnimationGroup;
+  readonly jump: AnimationGroup;
+}
+
+/** What the animation layer needs to know about the player each frame. */
+export interface KnightMotionSample {
+  /** Horizontal speed, world units/s. */
+  readonly planarSpeed: number;
+  /** Whether the character controller currently has ground support (the raw probe, no ascending guard). */
+  readonly isGrounded: boolean;
+  /** True only on the frame a jump was accepted, so the takeoff pose starts immediately. */
+  readonly justJumped: boolean;
+}
+
+/** Movement numbers the animation layer has to match, read live so `window.moveConfig` tuning applies. */
+export interface KnightTuning {
+  /** Top walking speed, world units/s — the locomotion blend's "fully walking" point. */
+  readonly walk: number;
+  /** Top running speed, world units/s — the blend's "fully running" point. */
+  readonly run: number;
+  /** How long a flat-ground jump stays airborne, in seconds; the jump clip is retimed to fill it. */
+  readonly airtime: number;
+}
+
+/** The loaded knight: its clips, plus the foot-planting seam {@link driveKnightAnimation} drives. */
+export interface Knight {
+  readonly animations: KnightAnimations;
+  /**
+   * How much the visual is pulled down onto the terrain: 1 = feet planted, 0 = riding the capsule.
+   * Owned by {@link driveKnightAnimation}, which is the single place that decides whether the
+   * character is airborne — reading the raw support probe here too would double the decision and let
+   * the two disagree (the probe drops out for ~10% of frames while running, which as a direct input
+   * would bob the knight several centimetres).
+   */
+  planted: number;
 }
 
 /** Target on-screen height of the knight, in world units (roughly the physics capsule height; see capsule.ts). */
 const TARGET_HEIGHT = 1.9;
-/**
- * Lift applied when seating so the shoe soles rest on the floor. The sole mesh extends well below
- * the foot bones we measure against, so without this the feet sink into the ground (and the ground
- * plane then occludes them from side angles). Tuned visually.
- */
-const FOOT_CLEARANCE = 0.14;
 /** Fraction of the idle animation's motion to keep (0 = frozen, 1 = full sway). Kills the side rock. */
 const IDLE_SWAY_KEEP = 0.2;
 
 /**
  * Loads the knight GLB, parents it to `parent` (the physics-driven player root), scales it to
- * {@link TARGET_HEIGHT}, seats its feet at the capsule bottom, and returns the Idle/Walk
- * animation groups with Idle playing. The mesh inherits the parent's facing rotation.
+ * {@link TARGET_HEIGHT}, seats its feet at the capsule bottom, and returns the four animation
+ * groups with Idle playing. The mesh inherits the parent's facing rotation. `motion` is polled each
+ * frame to keep the feet planted only while the character is actually on the ground.
  */
-export async function loadKnight(scene: Scene, parent: TransformNode, shadowGenerator?: ShadowGenerator): Promise<KnightAnimations> {
+export async function loadKnight(
+  scene: Scene,
+  parent: TransformNode,
+  shadowGenerator?: ShadowGenerator,
+): Promise<Knight> {
   // ?v bust: the browser aggressively caches the GLB, so a plain reload keeps serving an old copy.
   // Bump this whenever knight_web.glb is rebuilt so clients refetch it.
-  const result = await ImportMeshAsync('/models/knight_web.glb?v=3', scene);
+  const result = await ImportMeshAsync('/models/knight_web.glb?v=4', scene);
   const root = result.meshes[0] as TransformNode;
   root.parent = parent;
   root.position.setAll(0);
@@ -60,44 +94,57 @@ export async function loadKnight(scene: Scene, parent: TransformNode, shadowGene
   root.position.y += parent.getAbsolutePosition().y - CAPSULE_HALF - bindBounds.min.y;
 
   const groups = result.animationGroups;
-  const idle = groups.find((g) => /idle/i.test(g.name)) ?? groups[0];
-  const walk = groups.find((g) => /walk/i.test(g.name)) ?? groups[1];
-  if (!idle || !walk) {
-    throw new Error(`knight_web.glb must contain Idle and Walk animations; found: ${groups.map((g) => g.name).join(', ') || '(none)'}`);
+  const byName = (pattern: RegExp): AnimationGroup | undefined => groups.find((g) => pattern.test(g.name));
+  const idle = byName(/idle/i);
+  const walk = byName(/walk/i);
+  const run = byName(/run/i);
+  const jump = byName(/jump/i);
+  if (!idle || !walk || !run || !jump) {
+    throw new Error(`knight_web.glb must contain Idle, Walk, Run and Jump animations; found: ${groups.map((g) => g.name).join(', ') || '(none)'}`);
   }
-  // Both clips carry a root-bone reorientation from the retarget (a big ~96° pitch on Walk, a small
-  // forward lean on Idle); neutralise both so the knight stands straight rather than tipping over.
-  neutralizeRootBoneRotation(idle);
-  neutralizeRootBoneRotation(walk);
+  // Every clip carries a root-bone reorientation from the retarget (a big ~96° pitch on Walk, a small
+  // forward lean on Idle); neutralise them all so the knight stands straight rather than tipping over.
+  for (const g of groups) neutralizeRootBoneRotation(g);
   // The mocap idle rocks the torso ~2cm side to side ("leans left then right"). Damp the whole idle
-  // toward its average pose so the knight stands steady, keeping a little life.
+  // toward its average pose so the knight stands steady, keeping a little life. Idle only — damping a
+  // run or a jump would flatten exactly the motion those clips exist for.
   dampenSwayTowardMean(idle, IDLE_SWAY_KEEP);
   for (const g of groups) g.stop();
   idle.play(true);
 
+  const knight: Knight = { animations: { idle, walk, run, jump }, planted: 1 };
+
   // Bind-pose bounds don't match the animated idle pose (the knight floated ~0.8u above the floor),
-  // so re-seat once on the actual posed foot bones after the first rendered frame.
-  const skeleton = result.skeletons[0];
-  const skinned = result.meshes.find((m) => m.skeleton === skeleton);
-  const footBones = skeleton?.bones.filter((b) => /toe|foot/i.test(b.name)) ?? [];
-  if (skeleton && skinned && footBones.length > 0) {
+  // so re-seat once on the actual posed mesh after the first rendered frame.
+  const skinnedMeshes = result.meshes.filter((m) => m.skeleton && m.getTotalVertices() > 0);
+  if (skinnedMeshes.length > 0) {
     const observer = scene.onAfterRenderObservable.add(() => {
-      const lowest = Math.min(...footBones.map((b) => b.getAbsolutePosition(skinned).y));
-      root.position.y += parent.getAbsolutePosition().y - CAPSULE_HALF + FOOT_CLEARANCE - lowest;
+      // Seat on the lowest *skinned vertex*, not the foot bones: the shoe sole extends well below the
+      // bones, and the old fixed clearance that compensated for it was hand-tuned, which is what left
+      // the knight slightly floating on flat ground. refreshBoundingInfo(applySkeleton) is expensive,
+      // but this runs exactly once.
+      for (const m of skinnedMeshes) m.refreshBoundingInfo({ applySkeleton: true, applyMorph: false });
+      const sole = Math.min(...skinnedMeshes.map((m) => m.getBoundingInfo().boundingBox.minimumWorld.y));
+      root.position.y += parent.getAbsolutePosition().y - CAPSULE_HALF - sole;
       const seatedLocalY = root.position.y; // feet grounded when the capsule bottom sits on the surface
       scene.onAfterRenderObservable.remove(observer);
+
       // On rolling terrain the physics capsule rests ABOVE the ground (its rounded bottom rides
       // slopes/bumps, plus the controller's keepDistance), so a rigidly-parented knight floats. Each
       // frame, drop the visual by however far the capsule bottom sits above the terrain under the
       // player, so the feet stay planted.
+      //
+      // Airborne that correction is exactly wrong — the gap to the terrain IS the jump height, so
+      // applying it would pin the knight to the ground while the capsule flies. `knight.planted`
+      // fades it out, which also keeps takeoff and landing from popping.
       scene.onBeforeRenderObservable.add(() => {
         const p = parent.getAbsolutePosition();
-        root.position.y = seatedLocalY - (p.y - CAPSULE_HALF - terrainHeight(p.x, p.z));
+        root.position.y = seatedLocalY - knight.planted * (p.y - CAPSULE_HALF - terrainHeight(p.x, p.z));
       });
     });
   }
 
-  return { idle, walk };
+  return knight;
 }
 
 /**
@@ -151,42 +198,143 @@ function dampenSwayTowardMean(group: AnimationGroup, keep: number): void {
   }
 }
 
-/** Planar speed above which the knight is fully walking (mirrors Godot's WalkAnimationThreshold). */
+/** Planar speed above which the knight is at least walking (mirrors Godot's WalkAnimationThreshold). */
 const WALK_THRESHOLD = 0.6;
-/** Idle↔Walk cross-fade rate; reaches full weight in ~0.2s (mirrors Godot's AnimationBlend). */
+/** Locomotion cross-fade rate; one clip's worth of blend takes ~0.2s (mirrors Godot's AnimationBlend). */
 const BLEND_PER_SECOND = 1 / 0.2;
-/** Weight below/above which a clip is treated as fully idle/fully walking and the other is stopped. */
+/** Jump blends over the locomotion faster than clips blend into each other — a jump must read as immediate. */
+const JUMP_BLEND_PER_SECOND = 1 / 0.1;
+/** Rate at which the feet re-plant on landing / release on takeoff (see the seating pass). */
+const PLANT_PER_SECOND = 1 / 0.1;
+/** Weight below which a clip is treated as not contributing and is stopped outright. */
 const WEIGHT_EPSILON = 0.001;
 
 /**
- * Cross-fades Idle↔Walk by weight each frame based on `planarSpeed()`: the walk weight eases toward
- * 1 above {@link WALK_THRESHOLD} and toward 0 below it, idle taking the remainder. Crucially, a clip
- * left playing at weight 0 still bleeds its motion into the pose (that made a standing knight drift
- * and look unsteady), so the clip that isn't contributing is fully stopped, not just zero-weighted;
- * both play only during the brief blend.
+ * Jump clip segments, in seconds into the 2.167s clip. The clip opens on a stand and an anticipation
+ * crouch, and closes on a recovery that locomotion takes over, so only the middle is played. Measured
+ * from the hip-height curve: standing 0.99 → crouch bottom 0.723 at 0.54s → back through standing at
+ * 0.76s → apex 1.240 at 1.05s → touchdown ~1.30s → absorbed ~1.78s.
+ *
+ * The airborne segment deliberately starts at 0.72s, *past* most of the anticipation crouch: the
+ * game's jump is instantaneous, so a crouch played after the capsule has already left the ground
+ * reads as the knight hanging in mid-air still winding up (measured 0.2s of it). Starting here leaves
+ * only ~0.08 of hip dip. The segment is then retimed to fill the real airtime, so it neither runs out
+ * early (which would pop the pose back to idle before touchdown) nor cut off mid-rise.
+ */
+const JUMP_LAUNCH_START = 0.72;
+const JUMP_FALL_END = 1.3;
+const JUMP_LAND_END = 1.78;
+/**
+ * Airborne this long counts as a fall worth animating. A commanded jump bypasses it entirely and
+ * animates on the takeoff frame, so this only filters *uncommanded* air. At run speed the capsule
+ * genuinely skips off the terrain's crests — measured stretches of 2, 3, 6, 9 and 27 frames over
+ * three seconds of running (walking never leaves the ground) — and throwing a full crouch-and-launch
+ * clip at a two-frame hop looks far worse than ignoring it. 0.2s keeps the short skips absorbed (the
+ * feet stay planted through them) while a real fall still animates.
+ */
+const FALL_GRACE_SECONDS = 0.2;
+
+/** Frame number `seconds` into a clip, in whatever frame units the glTF loader gave this group. */
+const frameAtSeconds = (group: AnimationGroup, seconds: number): number =>
+  group.from + seconds * (group.targetedAnimations[0]?.animation.framePerSecond ?? 60);
+
+/**
+ * Drives the knight's pose from the player's motion each frame.
+ *
+ * **Locomotion** is one scalar `L`: 0 = idle, 1 = walk, 2 = run. It eases toward a target derived
+ * from planar speed at {@link BLEND_PER_SECOND}, and the two clips bracketing `L` split the weight.
+ * Crucially, a clip left playing at weight 0 still bleeds its motion into the pose (that made a
+ * standing knight drift and look unsteady), so a clip that isn't contributing is fully stopped, not
+ * just zero-weighted.
+ *
+ * **Jump** rides over the top as a one-shot: the launch→fall segment on takeoff, retimed to fill the
+ * real airtime, then the landing segment on touchdown, cross-fading the whole locomotion blend out
+ * and back by `jumpWeight`.
  */
 export function driveKnightAnimation(
   scene: Scene,
-  knight: KnightAnimations,
-  planarSpeed: () => number,
+  knight: Knight,
+  motion: () => KnightMotionSample,
+  tuning: () => KnightTuning,
 ): void {
-  let walkWeight = 0;
-  let idlePlaying = knight.idle.isPlaying;
-  let walkPlaying = knight.walk.isPlaying;
+  const { idle, walk, run, jump } = knight.animations;
+  const locomotion = [idle, walk, run];
+  const playing = new Map<AnimationGroup, boolean>(locomotion.map((g) => [g, g.isPlaying]));
+
+  let level = 0; // the locomotion scalar L
+  let jumpWeight = 0;
+  let phase: 'grounded' | 'air' | 'land' = 'grounded';
+  let hasClearedGround = false;
+  let airborneFor = 0;
+  let landRemaining = 0;
+
+  const approach = (current: number, target: number, perSecond: number, dt: number): number =>
+    current + Math.max(-perSecond * dt, Math.min(perSecond * dt, target - current));
+
   scene.onBeforeRenderObservable.add(() => {
     const dt = scene.getEngine().getDeltaTime() / 1000;
-    const target = planarSpeed() > WALK_THRESHOLD ? 1 : 0;
-    const maxStep = BLEND_PER_SECOND * dt;
-    walkWeight += Math.max(-maxStep, Math.min(maxStep, target - walkWeight));
+    const { planarSpeed, isGrounded, justJumped } = motion();
+    const { walk: walkSpeed, run: runSpeed, airtime } = tuning();
 
-    const wantWalk = walkWeight > WEIGHT_EPSILON;
-    const wantIdle = walkWeight < 1 - WEIGHT_EPSILON;
-    if (wantWalk && !walkPlaying) { knight.walk.play(true); walkPlaying = true; }
-    else if (!wantWalk && walkPlaying) { knight.walk.stop(); walkPlaying = false; }
-    if (wantIdle && !idlePlaying) { knight.idle.play(true); idlePlaying = true; }
-    else if (!wantIdle && idlePlaying) { knight.idle.stop(); idlePlaying = false; }
+    // --- jump phase ---------------------------------------------------------------------------
+    airborneFor = isGrounded ? 0 : airborneFor + dt;
+    const airborneEnough = justJumped || (!isGrounded && airborneFor > FALL_GRACE_SECONDS);
+    if (phase !== 'air' && airborneEnough) {
+      phase = 'air';
+      hasClearedGround = false;
+      // Stretch (or compress) the segment onto the actual airtime so the pose lands with the capsule.
+      const ratio = (JUMP_FALL_END - JUMP_LAUNCH_START) / Math.max(airtime, 1e-3);
+      jump.start(false, ratio, frameAtSeconds(jump, JUMP_LAUNCH_START), frameAtSeconds(jump, JUMP_FALL_END));
+    } else if (phase === 'air') {
+      // The support probe keeps reporting SUPPORTED for the first few frames of a jump — the capsule
+      // has not physically cleared the ground yet. Taking that as a landing would end the jump
+      // immediately (and re-plant the feet, pinning the knight down for the whole ascent), so wait
+      // until the probe has actually let go once. This mirrors playerController's ascending guard.
+      if (!isGrounded) hasClearedGround = true;
+      else if (hasClearedGround) {
+        phase = 'land';
+        landRemaining = JUMP_LAND_END - JUMP_FALL_END;
+        jump.start(false, 1, frameAtSeconds(jump, JUMP_FALL_END), frameAtSeconds(jump, JUMP_LAND_END));
+      }
+    } else if (phase === 'land') {
+      landRemaining -= dt;
+      if (landRemaining <= 0) phase = 'grounded';
+    }
 
-    if (walkPlaying) knight.walk.setWeightForAllAnimatables(walkWeight);
-    if (idlePlaying) knight.idle.setWeightForAllAnimatables(1 - walkWeight);
+    // The segments are one-shots, so the group stops itself when one runs out — a fall longer than
+    // the clip, for instance. Only reserve weight for the jump while it is actually contributing:
+    // holding weight for a stopped group would leave nothing driving the pose and freeze the knight.
+    const jumpContributing = jump.isPlaying;
+    jumpWeight = approach(jumpWeight, phase !== 'grounded' && jumpContributing ? 1 : 0, JUMP_BLEND_PER_SECOND, dt);
+    if (jumpContributing) jump.setWeightForAllAnimatables(jumpWeight);
+    if (jump.isPlaying && phase === 'grounded' && jumpWeight <= WEIGHT_EPSILON) jump.stop();
+    const jumpInfluence = jumpContributing ? jumpWeight : 0;
+
+    // The feet ride the capsule while airborne and re-plant on the terrain once the launch/fall
+    // segment is over. Sharing `phase` keeps the plant on exactly the same debounced decision as the
+    // clip, so they can never disagree.
+    knight.planted = approach(knight.planted, phase === 'air' ? 0 : 1, PLANT_PER_SECOND, dt);
+
+    // --- locomotion ---------------------------------------------------------------------------
+    // Below the threshold the knight is idle; any real movement reads as at least a walk, and the
+    // walk→run half of the range tracks how far past walking speed the player actually is.
+    const targetLevel = planarSpeed <= WALK_THRESHOLD
+      ? 0
+      : 1 + Math.max(0, Math.min(1, (planarSpeed - walkSpeed) / Math.max(runSpeed - walkSpeed, 1e-6)));
+    level = approach(level, targetLevel, BLEND_PER_SECOND, dt);
+
+    // Triangular weights around L: idle at 0, walk at 1, run at 2. They sum to 1.
+    const weights = [
+      Math.max(0, 1 - level),
+      Math.max(0, 1 - Math.abs(level - 1)),
+      Math.max(0, level - 1),
+    ].map((w) => w * (1 - jumpInfluence));
+
+    for (const [i, group] of locomotion.entries()) {
+      const want = weights[i] > WEIGHT_EPSILON;
+      if (want && !playing.get(group)) { group.play(true); playing.set(group, true); }
+      else if (!want && playing.get(group)) { group.stop(); playing.set(group, false); }
+      if (want) group.setWeightForAllAnimatables(weights[i]);
+    }
   });
 }

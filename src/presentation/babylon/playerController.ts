@@ -7,7 +7,7 @@ import {
 } from '@babylonjs/core/Physics/v2/characterController';
 
 import { step } from '../../domain/hub/character/characterMovement';
-import { DEFAULT_CONFIG } from '../../domain/hub/character/movementConfig';
+import { DEFAULT_CONFIG, type MovementConfig } from '../../domain/hub/character/movementConfig';
 import { IDLE, type CharacterMotion } from '../../domain/hub/character/characterMotion';
 import { planarDirectionFromInput } from './cameraRelativeDirection';
 import { toBabylon, toVec3 } from './vectorConversions';
@@ -39,6 +39,17 @@ const VISUAL_Y_SMOOTHING = 14;
 export interface Player {
   readonly root: TransformNode;
   motion: CharacterMotion;
+  /**
+   * Raw ground support from the character controller, *without* the domain's ascending guard.
+   * `motion.isGrounded` deliberately reports false while the post-solve velocity points up — which
+   * on rolling terrain is most of the time you are walking uphill — because re-grounding there would
+   * cancel a fresh jump. Visuals need the honest answer instead, so they read this.
+   */
+  isSupported: boolean;
+  /** True on the single frame the domain accepted a jump, so visuals can react on the takeoff frame. */
+  justJumped: boolean;
+  /** The live movement config — the same object `window.moveConfig` mutates, so readers track dev tuning. */
+  readonly config: MovementConfig;
 }
 
 /**
@@ -61,12 +72,12 @@ export function createPlayer(
     { capsuleRadius: CAPSULE_RADIUS, capsuleHeight: CAPSULE_HEIGHT },
     scene,
   );
-  const player: Player = { root, motion: IDLE };
-
   // A mutable copy of the movement config, exposed on `window.moveConfig` in dev so speed/accel can be
   // tuned live (e.g. `moveConfig.maxSpeed = 3.5`) to match the walk animation without a rebuild.
   const config = { ...DEFAULT_CONFIG };
   if (import.meta.env.DEV) (window as unknown as { moveConfig: typeof config }).moveConfig = config;
+
+  const player: Player = { root, motion: IDLE, isSupported: true, justJumped: false, config };
 
   scene.onBeforeRenderObservable.add(() => {
     const dt = Math.min(scene.getEngine().getDeltaTime() / 1000, MAX_DT);
@@ -77,13 +88,19 @@ export function createPlayer(
     // hasn't cleared the ground yet, so the support probe still reports SUPPORTED; without
     // the ascending guard the domain would re-ground and cancel the jump's upward velocity.
     const ascending = player.motion.velocity.y > 0;
-    const grounded = support.supportedState === CharacterSupportedState.SUPPORTED && !ascending;
+    const supported = support.supportedState === CharacterSupportedState.SUPPORTED;
+    const grounded = supported && !ascending;
+    player.isSupported = supported;
 
     const { right, forward } = follow.planarBasis();
     const direction = planarDirectionFromInput(input.axis(), right, forward);
+    const jumpRequested = input.consumeJump();
+    // Mirrors the domain's own jump condition, so visuals see the takeoff on the exact frame it happens
+    // rather than waiting for the support probe to notice the capsule has cleared the ground.
+    player.justJumped = grounded && jumpRequested;
     const next = step(
       { ...player.motion, isGrounded: grounded },
-      { direction, jumpRequested: input.consumeJump() },
+      { direction, jumpRequested, runRequested: input.isRunHeld() },
       config,
       dt,
     );

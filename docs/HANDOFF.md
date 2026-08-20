@@ -129,6 +129,19 @@ These are hard-won; several cost a debugging session each.
   then **texture-only** gltf-transform (resize + webp). **Do NOT `simplify`/`quantize`/`resample`
   skinned meshes** — it corrupts the animation (feet slide). Bump `?v=N` on the GLB URL in `knight.ts`
   after rebuilding so browsers refetch.
+- **Rebuilding the GLB has three sharp edges** (full recipe in the README): Godot serves a **stale
+  asset import** after you edit a `.import` file unless you delete `.godot/imported/<Name>.fbx-*`
+  first — the bone renaming just silently does not apply; the mono build **needs the .NET 8 SDK**
+  installed or it crashes before importing anything; and `pnpm dlx @gltf-transform/cli` **does not
+  work on Windows** — install it with npm into a scratch dir and pin `sharp` to `0.34.5`. Godot
+  **4.7.2 reproduces 4.7.1's output bit-for-bit**, verified by diffing the re-exported Idle/Walk
+  against the shipped ones, so the version bump is safe.
+- **`motion.isGrounded` is not a "feet on the ground" signal.** It is `supported && !ascending`, and
+  the post-solve velocity points up for most of an uphill walk, so it reads false while the character
+  is plainly walking. Visuals read `player.isSupported` / `player.justJumped` instead (see
+  `playerController.ts`). Note also that right after a jump the support probe keeps reporting
+  SUPPORTED for a few frames until the capsule clears the ground — anything watching for a landing
+  has to wait for the probe to let go once first.
 
 ## 8. Claude's local memory (optional, but valuable for continuity)
 

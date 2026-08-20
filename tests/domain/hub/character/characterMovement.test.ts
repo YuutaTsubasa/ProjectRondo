@@ -8,8 +8,8 @@ import { vec2, length } from '../../../../src/domain/math/vec2';
 import { vec3 } from '../../../../src/domain/math/vec3';
 
 const P = 3;
-const inputToward = (rawX: number, rawY: number, jump = false): MovementInput =>
-  ({ direction: fromRaw(vec2(rawX, rawY)), jumpRequested: jump });
+const inputToward = (rawX: number, rawY: number, jump = false, run = false): MovementInput =>
+  ({ direction: fromRaw(vec2(rawX, rawY)), jumpRequested: jump, runRequested: run });
 const planarSpeed = (m: CharacterMotion) => length(vec2(m.velocity.x, m.velocity.z));
 
 describe('CharacterMovement.step', () => {
@@ -72,5 +72,30 @@ describe('CharacterMovement.step', () => {
     const moving: CharacterMotion = { ...IDLE, velocity: vec3(C.maxSpeed, 0, 0) };
     const r = step(moving, NONE_INPUT, C, 0.1);
     expect(r.velocity.x).toBeCloseTo(C.maxSpeed - C.deceleration * 0.1, P);
+  });
+  it('run input accelerates to run speed, not walk speed', () => {
+    const r = step(IDLE, inputToward(1, 0, false, true), C, 1);
+    expect(r.velocity.x).toBeCloseTo(C.runSpeed, P);
+  });
+  it('run speed is faster than walk speed', () => {
+    expect(C.runSpeed).toBeGreaterThan(C.maxSpeed);
+  });
+  it('diagonal run never exceeds run speed', () => {
+    const r = step(IDLE, inputToward(1, 1, false, true), C, 1);
+    expect(planarSpeed(r)).toBeCloseTo(C.runSpeed, P);
+  });
+  it('run with no direction stays at rest — there is no in-place sprint', () => {
+    const r = step(IDLE, inputToward(0, 0, false, true), C, 1);
+    expect(planarSpeed(r)).toBeCloseTo(0, P);
+  });
+  it('releasing run while at run speed eases back toward walk speed', () => {
+    const sprinting: CharacterMotion = { ...IDLE, velocity: vec3(C.runSpeed, 0, 0) };
+    const r = step(sprinting, inputToward(1, 0), C, 1);
+    expect(r.velocity.x).toBeCloseTo(C.maxSpeed, P);
+  });
+  it('run leaves the jump path untouched', () => {
+    const r = step(IDLE, inputToward(1, 0, true, true), C, 1 / 60);
+    expect(r.velocity.y).toBeCloseTo(C.jumpSpeed, P);
+    expect(r.isGrounded).toBe(false);
   });
 });

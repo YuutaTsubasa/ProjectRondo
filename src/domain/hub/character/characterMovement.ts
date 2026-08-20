@@ -28,7 +28,10 @@ const nextPlanarVelocity = (
   motion: CharacterMotion, input: MovementInput, config: MovementConfig, delta: number,
 ): Vec2 => {
   const current = vec2(motion.velocity.x, motion.velocity.z);
-  const target = scale(input.direction.value, config.maxSpeed);
+  // Sprint only scales an existing direction; holding run while standing still is a no-op, since
+  // `direction` is zero and the target stays at rest either way.
+  const topSpeed = input.runRequested ? config.runSpeed : config.maxSpeed;
+  const target = scale(input.direction.value, topSpeed);
   const rate = isZero(input.direction) ? config.deceleration : config.acceleration;
   return moveToward(current, target, rate * delta);
 };

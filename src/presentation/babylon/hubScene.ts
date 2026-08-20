@@ -15,7 +15,7 @@ import HavokPhysics from '@babylonjs/havok';
 import { createFollowCamera, type FollowCamera } from './followCamera';
 import { createInput } from './input';
 import { createPlayer, type Player } from './playerController';
-import { loadKnight, driveKnightAnimation, type KnightAnimations } from './knight';
+import { loadKnight, driveKnightAnimation, type Knight, type KnightMotionSample } from './knight';
 import { createEnvironment } from './environment';
 import { createTerrain } from './terrain';
 import { loadTrees } from './trees';
@@ -26,7 +26,7 @@ export interface HubScene {
   readonly scene: Scene;
   readonly follow: FollowCamera;
   readonly player: Player;
-  readonly knight: KnightAnimations;
+  readonly knight: Knight;
   /** Suspends (on=true) or resumes (on=false) gameplay input and camera look, e.g. during an AVG overlay. */
   suspendInput(on: boolean): void;
   /** Tears the scene down: stops the render loop, removes DOM listeners, disposes the engine. */
@@ -57,11 +57,19 @@ export async function createHubScene(canvas: HTMLCanvasElement): Promise<HubScen
 
   const input = createInput();
   const player = createPlayer(scene, playerRoot, follow, input);
-  const knight = await loadKnight(scene, playerRoot, shadowGenerator);
-  driveKnightAnimation(scene, knight, () => {
+  const readMotion = (): KnightMotionSample => {
     const v = player.motion.velocity;
-    return Math.hypot(v.x, v.z);
-  });
+    // isSupported, not motion.isGrounded — see the Player interface for why the domain's flag reads
+    // false for most of an uphill walk and would flicker the jump clip on and off.
+    return { planarSpeed: Math.hypot(v.x, v.z), isGrounded: player.isSupported, justJumped: player.justJumped };
+  };
+  const knight = await loadKnight(scene, playerRoot, shadowGenerator);
+  driveKnightAnimation(scene, knight, readMotion, () => ({
+    walk: player.config.maxSpeed,
+    run: player.config.runSpeed,
+    // Up and back down under the domain's own gravity — the flat-ground airtime the jump clip fills.
+    airtime: (2 * player.config.jumpSpeed) / player.config.gravity,
+  }));
   await loadTrees(scene, shadowGenerator);
 
   engine.runRenderLoop(() => scene.render());

@@ -1,9 +1,11 @@
-/** Keyboard input for the hub: a WASD planar axis and an edge-triggered jump. */
+/** Keyboard input for the hub: a WASD planar axis, a held sprint modifier and an edge-triggered jump. */
 export interface InputState {
   /** Raw WASD axis: x = right(+)/left(-), y = forward(+)/back(-). */
   axis(): { x: number; y: number };
   /** Returns true once per jump key-press (edge-triggered, then consumed). */
   consumeJump(): boolean;
+  /** True while a Shift key is held. Sprint is a state, so it is polled rather than consumed. */
+  isRunHeld(): boolean;
   /** Enables/disables reading input (e.g. while an AVG overlay owns focus). While disabled, the raw
    * key handlers are inert (no tracking, no preventDefault, so the overlay's own Enter/Space still
    * work), and any already-held keys/queued jump are dropped. */
@@ -13,8 +15,10 @@ export interface InputState {
 }
 
 const isJumpKey = (k: string): boolean => k === ' ' || k === 'spacebar';
+// Both Shift keys report the same `key` value, so one entry covers left and right.
+const RUN_KEY = 'shift';
 /** Keys the game consumes; their browser defaults (Space scrolls/activates focus) are suppressed. */
-const GAME_KEYS = new Set(['w', 'a', 's', 'd', ' ', 'spacebar']);
+const GAME_KEYS = new Set(['w', 'a', 's', 'd', ' ', 'spacebar', RUN_KEY]);
 
 export function createInput(): InputState {
   const down = new Set<string>();
@@ -45,6 +49,7 @@ export function createInput(): InputState {
           y: (down.has('w') ? 1 : 0) - (down.has('s') ? 1 : 0),
         }
       : { x: 0, y: 0 },
+    isRunHeld: () => enabled && down.has(RUN_KEY),
     consumeJump: () => {
       if (!enabled) { jumpQueued = false; return false; }
       const j = jumpQueued;
