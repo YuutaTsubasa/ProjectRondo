@@ -16,6 +16,7 @@ import { terrainHeight } from './terrainHeight';
 import type { FollowCamera } from './followCamera';
 import type { InputState } from './input';
 import { stepGroundContact, INITIAL_GROUND_CONTACT } from './groundContact';
+import { alignToSurface, flattenToGroundSpeed } from './slopeMotion';
 
 const TURN_SPEED = 12;
 /**
@@ -77,6 +78,8 @@ export function createPlayer(
   // tuned live (e.g. `moveConfig.maxSpeed = 3.5`) to match the walk animation without a rebuild.
   const config = { ...DEFAULT_CONFIG };
   if (import.meta.env.DEV) (window as unknown as { moveConfig: typeof config }).moveConfig = config;
+  // The Havok controller itself, for probing its solver settings live in dev.
+  if (import.meta.env.DEV) (window as unknown as { charController: unknown }).charController = controller;
 
   const player: Player = { root, motion: IDLE, isSupported: true, justJumped: false, config };
   // Coyote time, jump buffering and the takeoff guard all live in this pure state — see groundContact.
@@ -110,7 +113,14 @@ export function createPlayer(
       dt,
     );
 
-    controller.setVelocity(toBabylon(next.velocity));
+    // Following the ground means the domain's flat velocity has to be tilted onto the surface, and
+    // the result read back as the speed travelled along it — see slopeMotion. A jump is the one
+    // grounded frame that must keep its vertical velocity, so it skips both.
+    const ridingGround = grounded && !jumpRequested;
+    const solverVelocity = ridingGround
+      ? alignToSurface(next.velocity, toVec3(support.averageSurfaceNormal))
+      : next.velocity;
+    controller.setVelocity(toBabylon(solverVelocity));
     controller.integrate(dt, support, NO_GRAVITY);
     const solved = controller.getPosition();
     root.position.x = solved.x;
@@ -118,10 +128,14 @@ export function createPlayer(
     visualY += (solved.y - visualY) * (1 - Math.exp(-VISUAL_Y_SMOOTHING * dt));
     root.position.y = visualY;
     // Feed the controller's *post-solve* velocity back into the domain (mirrors Godot reading
-    // Velocity after MoveAndSlide). Today the hub is a bare plane so this equals `next.velocity`,
-    // but once there are walls, collide-and-slide reduces/redirects it — storing the pre-integrate
-    // target instead would keep full speed into a wall and ping the character off on release.
-    player.motion = { ...next, velocity: toVec3(controller.getVelocity()) };
+    // Velocity after MoveAndSlide) — collide-and-slide reduces and redirects it against walls, and
+    // storing the pre-integrate target instead would keep full speed into a wall and ping the
+    // character off on release.
+    const solvedVelocity = toVec3(controller.getVelocity());
+    player.motion = {
+      ...next,
+      velocity: ridingGround ? flattenToGroundSpeed(solvedVelocity) : solvedVelocity,
+    };
 
     faceMovement(root, next.facing.x, next.facing.y, dt);
   });

@@ -67,7 +67,6 @@ export const stepGroundContact = (
   // The takeoff guard holds until the capsule has actually left the floor, or until it is falling
   // again — a jump straight into a low ceiling never lets the probe go and must not latch forever.
   const clearingFloor = state.clearingFloor && supported && verticalSpeed > 0;
-  // Genuinely back on the ground: support, and no jump still on its way up.
   const onGround = supported && !clearingFloor;
 
   const buffered = jumpPressed ? JUMP_BUFFER_SECONDS : Math.max(0, state.bufferedJumpFor - delta);

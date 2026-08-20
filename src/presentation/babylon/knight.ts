@@ -208,6 +208,8 @@ const JUMP_BLEND_PER_SECOND = 1 / 0.1;
 const PLANT_PER_SECOND = 1 / 0.1;
 /** Weight below which a clip is treated as not contributing and is stopped outright. */
 const WEIGHT_EPSILON = 0.001;
+/** Floor for divisors taken from live-tunable config, so a degenerate tuning cannot divide by zero. */
+const DIVISOR_FLOOR = 1e-3;
 
 /**
  * Jump clip segments, in seconds into the 2.167s clip. The clip opens on a stand and an anticipation
@@ -283,7 +285,7 @@ export function driveKnightAnimation(
       phase = 'air';
       hasClearedGround = false;
       // Stretch (or compress) the segment onto the actual airtime so the pose lands with the capsule.
-      const ratio = (JUMP_FALL_END - JUMP_LAUNCH_START) / Math.max(airtime, 1e-3);
+      const ratio = (JUMP_FALL_END - JUMP_LAUNCH_START) / Math.max(airtime, DIVISOR_FLOOR);
       jump.start(false, ratio, frameAtSeconds(jump, JUMP_LAUNCH_START), frameAtSeconds(jump, JUMP_FALL_END));
     } else if (phase === 'air') {
       // The support probe keeps reporting SUPPORTED for the first few frames of a jump — the capsule
@@ -320,7 +322,7 @@ export function driveKnightAnimation(
     // walk→run half of the range tracks how far past walking speed the player actually is.
     const targetLevel = planarSpeed <= WALK_THRESHOLD
       ? 0
-      : 1 + Math.max(0, Math.min(1, (planarSpeed - walkSpeed) / Math.max(runSpeed - walkSpeed, 1e-6)));
+      : 1 + Math.max(0, Math.min(1, (planarSpeed - walkSpeed) / Math.max(runSpeed - walkSpeed, DIVISOR_FLOOR)));
     level = approach(level, targetLevel, BLEND_PER_SECOND, dt);
 
     // Triangular weights around L: idle at 0, walk at 1, run at 2. They sum to 1.

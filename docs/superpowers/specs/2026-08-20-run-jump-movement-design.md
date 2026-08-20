@@ -290,3 +290,48 @@ verified by hand, matching how `terrainHeight` and `cameraRelativeDirection` are
 **Result:** 15 of 15 jumps accepted across standing, forward, sideways, backward, diagonal and
 running, peak height consistently ~1.70 u; mashing the key through a full jump still produces exactly
 one arc.
+
+## 13. Follow-up — running collapses on gentle slopes (bug fix)
+
+Reported as "some slopes drop me back to walking, and they don't even look steep". Measured by
+teleporting to spots of known gradient and running straight uphill:
+
+| Slope | Speed before | Speed after |
+| --- | --- | --- |
+| 1.4° | 7.95 | 8.00 |
+| 4.3° | **2.87** | 8.00 |
+| 7.0° | **3.04** | 8.00 |
+| 13.4° | **2.09** | 8.00 |
+| 16.1° | **2.47** | 8.00 |
+| 21.8° | **1.38** | 8.00 |
+
+So the animation was not at fault — it faithfully reported a character that really was crawling. A
+**4° rise** cut running from 8 u/s to under 3.
+
+**Cause: the domain and the physics disagreed about what "speed" means, and fed each other downward.**
+Instrumenting the commanded velocity against the post-solve velocity showed them **identical** every
+frame — the solver was not eating anything. The commanded value was itself decaying, 6.73 → 4.99 over
+half a second. The loop:
+
+1. The domain accelerates a **horizontal** velocity toward `runSpeed`.
+2. Riding a slope tilts that velocity, so its **horizontal component** shrinks by `cos(slope)`.
+3. `playerController` feeds the post-solve velocity back, and the domain reads the shrunken horizontal
+   value as "current speed", adding only `acceleration * delta` on top.
+
+Equilibrium is `acceleration * delta / (1 - cos(slope))` — for the measured contact angle that is
+**3.95 u/s**, matching what was observed. The contact angle is also worse than the terrain's average
+gradient: the collider's half-unit triangles are locally steeper than the smooth height field, so a 7°
+hillside presents **~19°** contact normals.
+
+**`src/presentation/babylon/slopeMotion.ts`** fixes it with two symmetric pure functions bracketing the
+physics step — `alignToSurface` tilts the domain's flat velocity onto the contact plane (preserving
+speed, so the character climbs instead of grinding into the hill), and `flattenToGroundSpeed` reports
+the distance actually covered along the ground back as a flat speed, so the domain's bookkeeping stays
+honest. A jump is the one grounded frame that skips both, since it must keep its vertical velocity.
+11 unit tests, including that the two are inverses across every walkable angle.
+
+**Regression checks:** downhill does not overspeed (8.00 at 7° and 21.8°); slopes near the ~32°
+climb limit still slow the character down (3.3 u/s at 27°, run animation correctly giving way to walk);
+walking on a slope is back to a full 4.00; jumps still reach 1.71 u on the flat; and — most
+importantly — the **natural barrier still holds**: running straight at it from three different
+bearings for six seconds each tops out at radius ~42.5 of a 50-unit half-field, exactly as designed.

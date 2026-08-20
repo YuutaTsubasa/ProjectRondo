@@ -147,6 +147,14 @@ These are hard-won; several cost a debugging session each.
   pushes the capsule up the whole time). Don't reintroduce that rule.
 - Visuals read `player.isSupported` (the raw probe) and `player.justJumped` (the takeoff frame), not
   `motion.isGrounded`, which carries the jump-clearing guard.
+- **The domain thinks in flat ground; `slopeMotion.ts` bridges that to sloped terrain.** Its two
+  functions must stay a matched pair — tilt the domain's horizontal velocity onto the contact plane on
+  the way into the solver, un-tilt the result on the way back. Drop either half and the two ends feed
+  each other downward: the horizontal component shrinks by `cos(slope)` each frame, the domain reads
+  that back as its current speed, and running settles at `acceleration * delta / (1 - cos(slope))`.
+  Measured before the fix: **8 u/s down to 2.9 on a 4° rise**. Note the collider is locally steeper
+  than the height field — a 7° hillside gives ~19° contact normals — so this bites far sooner than the
+  visible gradient suggests.
 
 ## 8. Claude's local memory (optional, but valuable for continuity)
 
