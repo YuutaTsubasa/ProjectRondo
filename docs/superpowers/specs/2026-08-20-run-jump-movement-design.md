@@ -205,12 +205,14 @@ it is a rig-level change with its own risk, and neither defect above needs it.
 Three things only measurement could have told us. All are in the shipped code; the design above is
 otherwise unchanged.
 
-**The grounded signal had to change.** §6 assumed `motion.isGrounded` was usable. It is not: it is
+**The grounded signal had to change.** §6 assumed `motion.isGrounded` was usable. It is not: it was
 `supported && !ascending`, and because the domain is fed the *post-solve* velocity, that velocity
 points up for most of an uphill walk — measured **0 grounded frames out of 12** while simply walking
 forward. Driving the jump clip and the foot plant from it froze the knight mid-stride. `Player` now
-also exposes **`isSupported`** (the raw probe) and **`justJumped`** (true on the frame the domain
-accepted a jump), and the animation layer reads those.
+also exposes **`isSupported`** (the raw probe) and **`justJumped`** (true on the frame a jump is
+accepted), and the animation layer reads those.
+
+That same rule turned out to break the **gameplay**, not just the visuals — see §12.
 
 **Landing needs a cleared-ground guard.** For the first few frames of a jump the support probe still
 reports SUPPORTED — the capsule has not physically risen clear yet. Without a guard the jump ended one
@@ -245,3 +247,46 @@ stopped group left nothing driving the pose and froze the knight.
 The remaining −4 to −7 cm of foot sink *while running* is the mocap's own stride dipping below the
 seated reference plus the visual-Y smoothing lag. Correcting it properly is foot IK, which §9 keeps
 out of scope.
+
+## 12. Follow-up — jumping while walking (bug fix)
+
+Reported straight after the first pass: **the knight could not jump while walking.** Reproduced and
+measured — 40 jump presses across 40 consecutive walking frames, **0 accepted**, with the support
+probe reporting SUPPORTED on all 40. The cause is the same `ascending` rule §11 already flagged for
+the animation layer, except here it reaches the gameplay: `motion.isGrounded` was
+`supported && !ascending`, the post-solve velocity sits at +0.33..+0.42 u/s for the whole of a walk
+across rolling terrain, and the domain only accepts a jump from a grounded motion. So the jump input
+was silently discarded. (It had always been broken; nothing triggered a jump before this milestone,
+so nobody noticed.)
+
+Removing the rule fixed walking and running jumps but left a second, subtler failure: the probe
+**chatters**. Measured over 150 frames of walking, per direction:
+
+| Direction | frames without support | longest gap |
+| --- | --- | --- |
+| Forward | 0 / 150 | — |
+| Diagonal | 15 / 150 | 3 frames |
+| Backward | 59 / 150 | 4 frames |
+| Sideways | 84 / 150 | 8 frames |
+
+The capsule skips across the terrain collider's triangles, so a press landing inside one of those
+bursts was consumed and thrown away — jumping worked, but only most of the time, which is exactly the
+"sometimes it doesn't jump" the report describes.
+
+**`src/presentation/babylon/groundContact.ts`** now owns this: a pure reducer over
+`(supported, jumpPressed, verticalSpeed, delta)` returning the `isGrounded` / `jumpRequested` the
+domain consumes, carrying
+
+- a **takeoff guard** — grounding is suppressed only while a jump has yet to clear the floor, released
+  when the probe lets go *or* the character starts falling (a jump into a low ceiling must not latch),
+- **coyote time** (0.15 s) so the chatter bursts stay jumpable,
+- a **jump buffer** (0.15 s) so a press made just before landing still fires,
+- and a **spent-jump flag**, without which the reopening coyote window after takeoff would let a
+  mashed key double-jump.
+
+Being pure, it is unit-tested (12 cases in `tests/presentation/groundContact.test.ts`) rather than
+verified by hand, matching how `terrainHeight` and `cameraRelativeDirection` are treated.
+
+**Result:** 15 of 15 jumps accepted across standing, forward, sideways, backward, diagonal and
+running, peak height consistently ~1.70 u; mashing the key through a full jump still produces exactly
+one arc.

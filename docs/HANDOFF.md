@@ -136,12 +136,17 @@ These are hard-won; several cost a debugging session each.
   work on Windows** — install it with npm into a scratch dir and pin `sharp` to `0.34.5`. Godot
   **4.7.2 reproduces 4.7.1's output bit-for-bit**, verified by diffing the re-exported Idle/Walk
   against the shipped ones, so the version bump is safe.
-- **`motion.isGrounded` is not a "feet on the ground" signal.** It is `supported && !ascending`, and
-  the post-solve velocity points up for most of an uphill walk, so it reads false while the character
-  is plainly walking. Visuals read `player.isSupported` / `player.justJumped` instead (see
-  `playerController.ts`). Note also that right after a jump the support probe keeps reporting
-  SUPPORTED for a few frames until the capsule clears the ground — anything watching for a landing
-  has to wait for the probe to let go once first.
+- **Ground contact is deliberately not "what the probe said".** `groundContact.ts` is a small pure
+  reducer that turns the Havok support probe plus a jump keypress into the `isGrounded` /
+  `jumpRequested` the domain consumes, and it is unit-tested rather than debugged in the browser.
+  Three measured reasons it exists: the probe **chatters** (walking sideways loses support on 84 of
+  150 frames, in 1-8 frame bursts, as the capsule crosses collider triangles) so it carries coyote
+  time and a jump buffer; a jump **has not cleared the floor** for its first few frames, so the probe
+  still says SUPPORTED and re-grounding there would cancel the jump; and an earlier "any upward
+  post-solve velocity means airborne" rule made **jumping while walking impossible** (uphill walking
+  pushes the capsule up the whole time). Don't reintroduce that rule.
+- Visuals read `player.isSupported` (the raw probe) and `player.justJumped` (the takeoff frame), not
+  `motion.isGrounded`, which carries the jump-clearing guard.
 
 ## 8. Claude's local memory (optional, but valuable for continuity)
 

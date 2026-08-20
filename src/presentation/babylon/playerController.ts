@@ -15,6 +15,7 @@ import { CAPSULE_RADIUS, CAPSULE_HEIGHT } from './capsule';
 import { terrainHeight } from './terrainHeight';
 import type { FollowCamera } from './followCamera';
 import type { InputState } from './input';
+import { stepGroundContact, INITIAL_GROUND_CONTACT } from './groundContact';
 
 const TURN_SPEED = 12;
 /**
@@ -78,26 +79,30 @@ export function createPlayer(
   if (import.meta.env.DEV) (window as unknown as { moveConfig: typeof config }).moveConfig = config;
 
   const player: Player = { root, motion: IDLE, isSupported: true, justJumped: false, config };
+  // Coyote time, jump buffering and the takeoff guard all live in this pure state — see groundContact.
+  let contact = INITIAL_GROUND_CONTACT;
 
   scene.onBeforeRenderObservable.add(() => {
     const dt = Math.min(scene.getEngine().getDeltaTime() / 1000, MAX_DT);
     if (dt <= 0) return;
 
     const support = controller.checkSupport(dt, DOWN);
-    // Grounded only when supported AND not ascending. Right after a jump the capsule
-    // hasn't cleared the ground yet, so the support probe still reports SUPPORTED; without
-    // the ascending guard the domain would re-ground and cancel the jump's upward velocity.
-    const ascending = player.motion.velocity.y > 0;
     const supported = support.supportedState === CharacterSupportedState.SUPPORTED;
-    const grounded = supported && !ascending;
     player.isSupported = supported;
+
+    const contactResult = stepGroundContact(contact, {
+      supported,
+      jumpPressed: input.consumeJump(),
+      verticalSpeed: player.motion.velocity.y,
+      delta: dt,
+    });
+    contact = contactResult.state;
+    const { grounded, jumpRequested } = contactResult;
+    // The takeoff frame is known here rather than inferred later, so visuals react immediately.
+    player.justJumped = jumpRequested;
 
     const { right, forward } = follow.planarBasis();
     const direction = planarDirectionFromInput(input.axis(), right, forward);
-    const jumpRequested = input.consumeJump();
-    // Mirrors the domain's own jump condition, so visuals see the takeoff on the exact frame it happens
-    // rather than waiting for the support probe to notice the capsule has cleared the ground.
-    player.justJumped = grounded && jumpRequested;
     const next = step(
       { ...player.motion, isGrounded: grounded },
       { direction, jumpRequested, runRequested: input.isRunHeld() },
