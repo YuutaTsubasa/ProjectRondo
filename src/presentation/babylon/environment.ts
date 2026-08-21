@@ -42,6 +42,9 @@ export function createEnvironment(scene: Scene): Environment {
   skyMat.backFaceCulling = false;
   skyMat.disableLighting = true;
   skyMat.emissiveTexture = skyGradientTexture(scene);
+  // The skydome is 500 units out, so scene fog would render it as a flat sheet of fog colour and
+  // throw the gradient away. It is the thing fog fades *into*, not something to fade.
+  skyMat.fogEnabled = false;
   sky.material = skyMat;
 
   // Ambient fill — dim so the sun's shadow stays visible (was intensity 1 as the only light).
