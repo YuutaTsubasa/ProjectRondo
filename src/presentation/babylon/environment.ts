@@ -23,9 +23,13 @@ function skyGradientTexture(scene: Scene): DynamicTexture {
   const tex = new DynamicTexture('skyGradient', { width: 16, height: 512 }, scene, false);
   const ctx = tex.getContext();
   const g = ctx.createLinearGradient(0, 0, 0, 512);
-  g.addColorStop(0.0, '#2b6cb0'); // zenith: deep sky blue
-  g.addColorStop(0.5, '#7fb2e5'); // mid sky
-  g.addColorStop(1.0, '#dcecf7'); // horizon: pale
+  // The pale band reaches higher than a physical sky would, so the mountain ring (which stands from
+  // y -4 to y ~44) sits against near-fog-coloured sky over its whole height instead of only at its
+  // base. A single fog colour can match a gradient at exactly one height; this is how the other
+  // heights are brought to it. The zenith stays deep blue — nothing needs to blend up there.
+  g.addColorStop(0.0, '#2b6cb0'); // zenith: deep sky blue, untouched
+  g.addColorStop(0.62, '#9cc6ea'); // mid sky, lifted toward the horizon's pale
+  g.addColorStop(1.0, '#dcecf7'); // horizon: pale, and the fog colour
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, 16, 512);
   tex.update();
