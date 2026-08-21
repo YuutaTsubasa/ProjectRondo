@@ -18,18 +18,29 @@ export interface Environment {
   readonly sun: DirectionalLight;
 }
 
-/** A vertical zenith→horizon gradient painted on a DynamicTexture, for the unlit skydome. */
+/** A vertical gradient painted on a DynamicTexture for the unlit skydome; stop 1.0 renders at the
+ *  dome's zenith and stop 0.0 at its lowest, unseen point (see the comment inside for the measured
+ *  evidence — this is the opposite of what the stop-position names would suggest). */
 function skyGradientTexture(scene: Scene): DynamicTexture {
   const tex = new DynamicTexture('skyGradient', { width: 16, height: 512 }, scene, false);
   const ctx = tex.getContext();
   const g = ctx.createLinearGradient(0, 0, 0, 512);
-  // The pale band reaches higher than a physical sky would, so the mountain ring (which stands from
-  // y -4 to y ~44) sits against near-fog-coloured sky over its whole height instead of only at its
-  // base. A single fog colour can match a gradient at exactly one height; this is how the other
-  // heights are brought to it. The zenith stays deep blue — nothing needs to blend up there.
-  g.addColorStop(0.0, '#2b6cb0'); // zenith: deep sky blue, untouched
-  g.addColorStop(0.62, '#9cc6ea'); // mid sky, lifted toward the horizon's pale
-  g.addColorStop(1.0, '#dcecf7'); // horizon: pale, and the fog colour
+  // Stop 1.0 renders at the ZENITH, not the horizon, despite how the direction of travel reads on
+  // the page. Measured with a camera at y=30, sampling the centre pixel for a few fixed look
+  // directions, on the previous version of this gradient (whose pale colour '#dcecf7' sat at 1.0):
+  //   straight up   -> (220,236,247), i.e. exactly the '#dcecf7' stop
+  //   45 deg up     -> (178,211,239)
+  //   horizontal    -> (134,181,223), far short of the pale stop
+  // So the ramp direction on the dome is inverted from what the stop-position names suggest; treat
+  // "1.0" as "up" and "0.0" as "down" here, not "1.0 = far/horizon" as elsewhere in this file's fog.
+  // The visible sky is only the upper hemisphere (the ground blocks the rest), so the whole visible
+  // range lives in stops 0.5-1.0; below 0.5 is unseen and is just held flat so nothing ramps back
+  // toward blue where a seam could show through a gap. The horizon stop is deliberately identical to
+  // FOG_COLOR in postProcessing.ts, so the mountains have a matching colour to dissolve into.
+  g.addColorStop(0.0, '#dcecf7'); // below horizon: unseen, held flat at the horizon colour
+  g.addColorStop(0.5, '#dcecf7'); // horizon: pale, and the fog colour
+  g.addColorStop(0.72, '#7fb2e5'); // mid sky: the original mid colour, restored
+  g.addColorStop(1.0, '#2b6cb0'); // zenith: deep sky blue
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, 16, 512);
   tex.update();
