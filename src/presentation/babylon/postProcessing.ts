@@ -72,8 +72,6 @@ export function createAtmosphere(scene: Scene, camera: Camera): void {
   pipeline.imageProcessing.exposure = EXPOSURE;
   pipeline.imageProcessing.contrast = CONTRAST;
 
-  // Everything the pipeline can do that this scene did not ask for. Each one left enabled would cost
-  // a render target for an effect nobody wants.
   // Restrained on purpose: a high threshold with a low weight lets only the brightest sky and the
   // sunlit tips of grass bleed. A cohesion pass does not want a glowing field.
   pipeline.bloomEnabled = true;
@@ -81,6 +79,8 @@ export function createAtmosphere(scene: Scene, camera: Camera): void {
   pipeline.bloomWeight = BLOOM_WEIGHT;
   pipeline.bloomKernel = BLOOM_KERNEL;
   pipeline.bloomScale = BLOOM_SCALE;
+  // Everything the pipeline can do that this scene did not ask for. Each one left enabled would cost
+  // a render target for an effect nobody wants.
   pipeline.depthOfFieldEnabled = false;
   pipeline.chromaticAberrationEnabled = false;
   pipeline.grainEnabled = false;

@@ -38,7 +38,7 @@ function skyGradientTexture(scene: Scene): DynamicTexture {
   // toward blue where a seam could show through a gap. The horizon stop is deliberately identical to
   // FOG_COLOR in postProcessing.ts, so the mountains have a matching colour to dissolve into.
   //
-  // The pale band stops at 0.5 -- it is NOT widened up through the mountain ring's elevation
+  // The pale band stops at 0.5 — it is NOT widened up through the mountain ring's elevation
   // (measured at texture v ~0.62-0.66 for the ridge at the `mountains` viewpoint), even though that
   // was tried. Holding '#dcecf7' through v=0.68 was measured to make the ridge MORE visible, not
   // less: contrast between the ridge band and the sky immediately above it went from 109 to 169.
