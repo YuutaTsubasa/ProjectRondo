@@ -34,11 +34,20 @@ const BASE_SCALE = 6;
  *  metallic-roughness map, i.e. diffuse-only already. */
 
 /** Gamma-space shading lands the canopy far darker than PBR did, so scale up the texture's
- *  contribution. Note the emissive floor `scatter.ts` uses on grass and bushes does NOT transfer
- *  here: StandardMaterial folds `emissiveColor` in before multiplying by the diffuse texture, so on a
- *  dark canopy texel it scales to nothing — measured, a 4x emissive sweep moved the canopy by 3/255.
- *  2.5 was picked against the pre-conversion render at the spawn viewpoint. */
+ *  contribution. 2.5 was picked against the pre-conversion render at the spawn viewpoint. */
 const TREE_TEXTURE_LEVEL = 2.5;
+
+/** Emissive floor, the same trick `scatter.ts` uses on grass and bushes: without one the canopy's
+ *  shaded undersides go pure black under ACES. The two levers barely interact — `level` lifts what the
+ *  sun reaches, this lifts what it does not.
+ *
+ *  Measured from under a tree, as the fraction of the frame at pure black: 0 -> 10.5 %, 0.16 -> 1.4 %,
+ *  0.24 -> 0.20 %, which matches the 0.24 % the spawn viewpoint already sits at, for +5 % mean luma.
+ *  Tinted to the canopy's own hue so the lift does not desaturate it.
+ *
+ *  Measure this against a whole frame, not sampled points: on lit canopy the floor looks like it does
+ *  nothing (a 4x sweep moved a lit sample by 3/255), because the shaded side is the entire point. */
+const TREE_EMISSIVE = new Color3(0.141, 0.24, 0.085);
 
 /** Trunk collider: a thin invisible cylinder so the player stops at the trunk, not the canopy. */
 const TRUNK_RADIUS = 0.5;
@@ -134,7 +143,8 @@ function retargetMaterials(scene: Scene, container: AssetContainer): void {
  * light and fog identically to the rest of the hub — see the block comment on the constants above.
  *
  * `specularColor` is zeroed because StandardMaterial defaults to a white specular that PBR roughness
- * 0.5 never produced — left in, it makes the canopy look wet.
+ * 0.5 never produced — left in, it makes the canopy look wet. Brightness is then restored with
+ * `TREE_TEXTURE_LEVEL` and `TREE_EMISSIVE`; see those for why both are needed.
  */
 function toStandard(scene: Scene, source: Material): Material {
   const albedo = (source as { albedoTexture?: BaseTexture | null }).albedoTexture;
@@ -144,6 +154,7 @@ function toStandard(scene: Scene, source: Material): Material {
   mat.diffuseTexture = albedo;
   albedo.level = TREE_TEXTURE_LEVEL;
   mat.specularColor = new Color3(0, 0, 0);
+  mat.emissiveColor = TREE_EMISSIVE;
   mat.backFaceCulling = source.backFaceCulling;
   if (albedo.hasAlpha) {
     mat.useAlphaFromDiffuseTexture = true;

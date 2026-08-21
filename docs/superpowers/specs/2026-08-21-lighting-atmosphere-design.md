@@ -184,3 +184,42 @@ Two traps worth recording, both of which produced confident wrong answers before
 
 Note the knight is also a glTF PBR material and so shares behaviour (1), but it stays close to the
 camera where fog is under 1 %, so it is left alone.
+
+## 12. Definition of done — measured
+
+All figures from a 1280x720 render, three fixed viewpoints, same session. "Before" disables tone
+mapping, bloom and fog only; the sky-gradient and tree-material fixes are code changes and are present
+in both columns.
+
+| Viewpoint | Pure black, before → after | Blown, after | Mean luma, before → after |
+| --- | --- | --- | --- |
+| A · spawn point | 0.001 % → **0 %** | 0 % | 97.9 → 117.1 |
+| B · across the field to the mountains | 0.001 % → **0 %** | 0 % | 125.4 → 147.3 |
+| C · under a tree | 0 % → **0.197 %** | 0 % | 95.6 → 99.4 |
+
+No blown highlights anywhere and no crushed regions; the worst case is 0.2 % of the frame under a
+canopy. §8's first four criteria hold.
+
+### Performance, and why bloom stays
+
+Measured as **render cost, not presented fps** — with the preview pane hidden `requestAnimationFrame`
+does not run, so frames were driven manually with `gl.finish()` between samples. Round-robin, 9 rounds
+of 60 frames per config, medians, all shader variants pre-compiled:
+
+| Config | Median ms/frame | vs pre-P2 |
+| --- | --- | --- |
+| pre-P2 baseline | 1.837 | — |
+| tone mapping only | 1.927 | +4.9 % |
+| bloom at quarter scale | 2.047 | +11.4 % |
+| **shipped — bloom at 0.5** | **2.137** | **+16.3 %** |
+
+A first attempt measured each config in its own block and produced garbage — the same config timed
+2.96 ms and 2.06 ms, and "bloom off" came out *faster* than "pipeline off". Interleaving the configs
+and taking medians fixed it; run-to-run spread is still ~30 %, but the ordering is monotonic across
+all four configs, which random noise would not produce.
+
+**Bloom stays at 0.5.** §7's rule is "cut it if it costs more than 10 % fps", and +16 % of *render
+time* is not 16 % of fps: the whole frame costs 2.1 ms against a 16.7 ms vsync budget, so P2 spends
+0.3 ms of an 8x headroom and presented fps is unchanged at the cap. The rule should be re-applied if a
+future phase actually approaches the budget — the quarter-scale option measured at +11.4 % and is the
+first thing to reach for.
