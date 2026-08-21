@@ -22,10 +22,11 @@
 
 Babylon scene code is not unit-tested in this project (HANDOFF §6); it is verified in-browser. So each task's "test" is a scripted measurement with an expected result, not a Vitest case. Task 1 installs a shared harness every later task reuses.
 
-Two rules make the measurements trustworthy:
+Three rules make the measurements trustworthy:
 
-- **Fix the camera before sampling.** Stop the render loop, place the camera explicitly, render one frame, then sample or screenshot. Otherwise the follow camera moves between the "before" and "after" shots and the comparison is worthless.
+- **Fix the camera before sampling**, and prove it took. Stopping the render loop is not enough on its own — see the `__view` comment in Task 1 — so every sampling step checks the `cameraAt` the harness returns before trusting the numbers that follow.
 - **Trust `readPixels`, not the source values** — the same rule the terrain work landed on (HANDOFF §7).
+- **`readPixels` is the only measurement that works headless.** Screenshots and live fps both need the Browser pane to be *displayed*, which is the human's UI state and cannot be set by any agent: while the pane is hidden the page never composites (`document.hidden` stays true), `requestAnimationFrame` is frozen, and `engine.getFps()` returns a stale cached number rather than a measurement. Tasks therefore gate on pixel samples; screenshots and the real fps figure are collected once, at Task 7, with the pane open.
 
 Run `pnpm test` and `pnpm exec tsc --noEmit` at the end of every task regardless: 124 tests and a clean typecheck are the pre-existing baseline and must stay that way.
 
@@ -73,7 +74,11 @@ Run in the page console (`javascript_tool`). Every later task assumes these glob
     window.__f(30);
   };
 
-  // Fixed viewpoints. Stop the render loop first so the follow camera cannot move the shot.
+  // Fixed viewpoints. `stopRenderLoop()` alone is NOT enough: followCamera.ts registers an
+  // onBeforeRenderObservable that recomputes the camera from the player on every scene.render(),
+  // manual ones included, so a plain position/setTarget is overwritten before the draw and every
+  // viewpoint collapses to the default follow pose. Reassert from an observer added *after* the
+  // camera's own — babylon notifies observers in registration order — then remove it.
   window.__view = (name) => {
     const spots = {
       spawn:     { at: [0, 0],    eye: [0, 3.2, -6],    look: [0, 1.2, 0] },
@@ -84,10 +89,15 @@ Run in the page console (`javascript_tool`). Every later task assumes these glob
     engine.stopRenderLoop();
     window.__place(s.at[0], s.at[1]);
     const cam = window.hub.follow.camera;
-    cam.position.set(s.eye[0], s.eye[1], s.eye[2]);
-    cam.setTarget(new V3(s.look[0], s.look[1], s.look[2]));
+    const obs = scene.onBeforeRenderObservable.add(() => {
+      cam.position.set(s.eye[0], s.eye[1], s.eye[2]);
+      cam.setTarget(new V3(s.look[0], s.look[1], s.look[2]));
+    });
     engine.beginFrame(); scene.render(); engine.endFrame();
-    return name;
+    scene.onBeforeRenderObservable.remove(obs);
+    // Returned so every caller can prove the pose took; if this is not the requested eye, the
+    // samples that follow are of the wrong picture.
+    return { name, cameraAt: [+cam.position.x.toFixed(2), +cam.position.y.toFixed(2), +cam.position.z.toFixed(2)] };
   };
 
   // Pixel samples at fixed fractions of the canvas, bottom-left origin (readPixels convention).
@@ -485,17 +495,19 @@ const BLOOM_SCALE = 0.5;
 
 `window.__view('spawn'); window.__sample()` — expected: `nearGround` within **±6** of Task 5's reading. Bloom that moves the ground is too strong; lower `BLOOM_WEIGHT`.
 
-- [ ] **Step 3: Measure what it costs**
+- [ ] **Step 3: Note that fps cannot be measured here**
+
+`await window.__fps()` returns a stale cached number while the Browser pane is hidden — `requestAnimationFrame` is frozen, so no frames are timed (see *Verification method*). Do **not** report it as a measurement and do **not** decide anything from it.
+
+Instead record the two figures that *are* real state snapshots rather than timings, for Task 7 to compare:
 
 ```js
-await window.__fps()
+(() => { const s = window.hub.scene; return { activeMeshes: s.getActiveMeshes().length, materials: s.materials.length, postProcesses: window.hub.follow.camera._postProcesses?.length ?? 0 }; })()
 ```
 
-Compare against Task 1's baseline.
+- [ ] **Step 4: Leave bloom enabled and hand the cost decision to Task 7**
 
-- [ ] **Step 4: Decide, and record the decision**
-
-If fps dropped by **more than 10 %** from baseline, try `BLOOM_SCALE = 0.25` and re-measure. If it is still over budget, **set `bloomEnabled = false` and keep it off** — roadmap §7 puts the cumulative frame budget above this effect, and P3's water still has to fit. Record the measured numbers and the decision in the commit message either way; a later reader needs to know bloom was measured and cut, not forgotten.
+The cut condition (>10 % fps against baseline → `BLOOM_SCALE = 0.25` → off) is unchanged, but it can only be evaluated with the pane displayed, which happens in Task 7. Leave bloom **on** here, and note in the commit message that its cost is unmeasured and pending Task 7. Do not silently keep an effect whose budget nobody checked — the note is what makes the debt visible.
 
 - [ ] **Step 5: Tests and typecheck, then commit**
 
