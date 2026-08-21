@@ -143,7 +143,7 @@ Fog first and alone: it is where the depth actually comes from, and landing it b
 - Modify: `src/presentation/babylon/environment.ts`
 
 **Interfaces:**
-- Produces: `createAtmosphere(scene: Scene, camera: Camera): void` — called once, owns fog now and the pipeline from Task 4 on.
+- Produces: `createAtmosphere(scene: Scene): void` — fog only for now. Task 4 widens it to take the camera as well; do **not** add the camera parameter here, or `hubScene` will not compile against this task's call site.
 
 - [ ] **Step 1: Create the module with fog only**
 
