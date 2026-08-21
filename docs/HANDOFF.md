@@ -69,24 +69,33 @@ pnpm tauri dev          # native desktop app (needs Rust)
   - **Map scale-up** (PR #21): field 50×50 → **100×100**; hard invisible walls replaced by a **natural
     terrain barrier** (edge ramps past the controller's walkable slope); grassy barrier slope; camera
     clamped above the terrain (no see-through on down-pitch/slopes).
+  - **Run + jump** (PR #23): Run/Jump clips retargeted through the Godot BoneMap pipeline; heading-steered
+    movement (`characterMovement.ts`), `groundContact.ts` as the single owner of grounded/coyote/buffer
+    state, `slopeMotion.ts` for sloped terrain. See §7 — four gameplay bugs it exposed are recorded there.
+  - **P2 lighting & atmosphere:** ACES tone mapping + exposure/contrast, restrained bloom, EXP2 distance
+    fog, MSAA restored on the pipeline. Trees rebuilt off PBR (they were the only PBR surface, and fogged
+    in linear space, which bleached them). Skydome gradient orientation fixed — it was inverted, rendering
+    pale overhead. Design + all findings:
+    `docs/superpowers/specs/2026-08-21-lighting-atmosphere-design.md` (§11–§12 are the measured record).
+    **Deferred:** the mountain ridge still keeps a visible edge against the sky; the only remaining lever
+    is `terrain.ts`'s `haze` colour, which is a human art-direction call (§11a).
 
 ## 5. What's next (the plan)
 
 Read the roadmap: `docs/superpowers/specs/2026-08-18-refined-hub-world-roadmap.md` (M4 phases + §7b
 scheduled additions). Sequence from here:
 
-1. **P2 — 光影與氛圍後製 (lighting & atmosphere post-processing):** `DefaultRenderingPipeline` (ACES tone
-   mapping, bloom, colour grading), distance **fog** tuned to the terrain depth, optional godrays. This
-   is the next scheduled phase — biggest visual lift, and the fog finally blends the distant mountains'
-   bases into the horizon.
-2. **Run + jump movement** — a parallel pass, **GATED on the user downloading run/jump animations**
-   (retarget → `knight_web.glb`, same pipeline as Idle/Walk). Also fold in the slight foot-float on flat
-   ground (proper fix is foot IK — touches the anim rig, so do it here). Domain already has a jump path
-   (`jumpSpeed`); sprint was tuned out earlier (maxSpeed 12→4).
-3. **P3 — water & landmarks** (landmarks double as NPC / future mode-entry sites; the natural-barrier
+1. **Toon shading on the knight** — the face is already isolated: the character is 34 skinned meshes
+   sharing one material `Material_001`, of which `Mesh_0` (242,391 verts) is the head (face + hair +
+   neck) and `Mesh_32`/`Mesh_33` are the eyeballs. So a face-only material needs no Blender split.
+   Babylon has no built-in toon shader; `mesh.renderOutline` is built in and is the cheap first step.
+   Any custom material must wire the fog block and the 101-bone skinning explicitly, or it becomes the
+   next odd-one-out (see §7 and P2's §11). Note `Mesh_0`'s 242k verts is most of the character's
+   geometry budget — the GLB was texture-optimised but never decimated.
+2. **P3 — water & landmarks** (landmarks double as NPC / future mode-entry sites; the natural-barrier
    cliff aesthetic can finish here).
-4. **P4 — life & motion** (wind sway, drifting clouds, ambient creatures).
-5. **Then: game modes** — Sonic-style 3D/2D levels, 2048, Sudoku (a new milestone, SP2+).
+3. **P4 — life & motion** (wind sway, drifting clouds, ambient creatures).
+4. **Then: game modes** — Sonic-style 3D/2D levels, 2048, Sudoku (a new milestone, SP2+).
 
 ## 6. How work is done here (the workflow)
 
@@ -160,6 +169,36 @@ These are hard-won; several cost a debugging session each.
   instead makes turn radius scale with speed — a sprint took 0.6s to come round while the model turned
   in 0.2s, so the knight faced one way and slid the other. For the same reason `playerController` sets
   the model yaw straight from `motion.facing` with no second lerp: two smoothers means two headings.
+
+- **Mixing PBR and StandardMaterial in one scene breaks fog.** PBR shades and blends fog in *linear*
+  space; StandardMaterial blends in gamma space. Toward a near-white fog colour, a linear-space blend
+  multiplies a dark pixel several-fold while the gamma-space one barely moves it — so with identical fog
+  settings, PBR surfaces bleach to grey while everything around them looks untouched. Measured: a tree
+  27 units out took a **0.32** fog blend where EXP2 asks for 0.04 and the grass beside it took 0.07. The
+  hub is all StandardMaterial for this reason; glTF imports arrive as PBR and are converted in
+  `trees.ts`. **The knight is still PBR** — it survives only because it stays close to the camera where
+  fog is under 1 %. Give it a custom material and this bites.
+- **Attaching a `DefaultRenderingPipeline` silently turns off MSAA.** `antialias: true` on the engine
+  only anti-aliases the *default framebuffer*; a pipeline redirects the scene into an offscreen target
+  where it does not apply, and Babylon defaults `pipeline.samples` to 1. Nothing errors — the image just
+  gets more aliased. Set `pipeline.samples` explicitly (we use 4; 8 measured no better for double the
+  cost).
+- **`readPixels` after `endFrame()` may read a post-process render target, not the canvas.** It comes
+  back a flat uniform colour and looks exactly like a broken scene. Call
+  `engine.restoreDefaultFramebuffer()` first. Two related measurement traps: changing a material flag
+  triggers **async shader recompilation**, so a reading taken immediately after can reflect the *old*
+  shader (this produced a non-monotonic sweep and a confident wrong conclusion); and with the preview
+  pane hidden `requestAnimationFrame` never fires, so frames must be driven manually with
+  `beginFrame`/`render`/`endFrame` and awaiting a render observable will simply hang.
+- **Measure image quality on whole frames, not sampled points.** An emissive floor exists for the
+  *shaded* side of a surface; sampling lit pixels showed a 4x sweep moving them by 3/255, which read as
+  "this lever does nothing". It was removed on that basis and sent 10.5 % of the frame to pure black.
+  Whole-frame statistics (fraction at pure black, blown pixels, mean luma) would have caught it
+  immediately — and did, once used.
+- **Benchmark configs interleaved, never one block each.** A block-per-config run had the *same* config
+  at 2.96 ms and 2.06 ms, and reported "bloom off" as slower than "whole pipeline off". Round-robin
+  across configs with medians fixed it. Run-to-run spread here is ~30 %, so trust the *ordering* across
+  several configs rather than any single number.
 
 ## 8. Claude's local memory (optional, but valuable for continuity)
 

@@ -7,8 +7,8 @@ import type { ShadowGenerator } from '@babylonjs/core/Lights/Shadows/shadowGener
 import { LoadAssetContainerAsync } from '@babylonjs/core/Loading/sceneLoader';
 import { Quaternion } from '@babylonjs/core/Maths/math.vector';
 import { Color3 } from '@babylonjs/core/Maths/math.color';
+// Importing the binding also runs the module, so this doubles as the shader's side-effect import.
 import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
-import '@babylonjs/core/Materials/standardMaterial'; // side-effect: StandardMaterial shader
 import { CreateCylinder } from '@babylonjs/core/Meshes/Builders/cylinderBuilder';
 import { PhysicsAggregate } from '@babylonjs/core/Physics/v2/physicsAggregate';
 import { PhysicsShapeType } from '@babylonjs/core/Physics/v2/IPhysicsEnginePlugin';
@@ -28,25 +28,33 @@ const BASE_SCALE = 6;
  *  is only on the trees", but the fog is uniform; the trees were the only surface reacting in linear
  *  space, and the only one dark enough for it to show.
  *
- *  Rebuilding over the same albedo texture as a StandardMaterial puts them back in line: near
- *  0.32 -> 0.09, mid 0.47 -> 0.18, against 0.19 for the terrain behind them, with the grass beside
- *  them unchanged at 0.07 as a control. Nothing is lost — the source is metallic 0 with no
- *  metallic-roughness map, i.e. diffuse-only already. */
+ *  Rebuilding over the same albedo texture as a StandardMaterial puts them back in line. Measured on
+ *  the final shipped material, with the grass beside them held as an untouched control at 0.069:
+ *  near trunk 0.32 -> 0.05, near canopy 0.19 -> 0.09, mid canopy 0.47 -> 0.13. Inverting EXP2 on the
+ *  near trunk's 0.05 implies 30 units against the ~27 measured geometrically; the PBR version implied
+ *  118. Nothing is lost — the source is metallic 0 with no metallic-roughness map, i.e. diffuse-only
+ *  already. */
 
 /** Gamma-space shading lands the canopy far darker than PBR did, so scale up the texture's
  *  contribution. 2.5 was picked against the pre-conversion render at the spawn viewpoint. */
 const TREE_TEXTURE_LEVEL = 2.5;
 
 /** Emissive floor, the same trick `scatter.ts` uses on grass and bushes: without one the canopy's
- *  shaded undersides go pure black under ACES. The two levers barely interact — `level` lifts what the
- *  sun reaches, this lifts what it does not.
+ *  shaded undersides go pure black under ACES.
  *
- *  Measured from under a tree, as the fraction of the frame at pure black: 0 -> 10.5 %, 0.16 -> 1.4 %,
- *  0.24 -> 0.20 %, which matches the 0.24 % the spawn viewpoint already sits at, for +5 % mean luma.
- *  Tinted to the canopy's own hue so the lift does not desaturate it.
+ *  "Floor" is loose wording. StandardMaterial computes
+ *  `clamp(diffuseBase * diffuseColor + emissiveColor + ambient) * baseColor`, and `baseColor` has
+ *  already been scaled by `texture.level` — so this is multiplied by TREE_TEXTURE_LEVEL and by the
+ *  texel, and changing the level rescales this too. The switch that would make it genuinely
+ *  texture-independent is `useEmissiveAsIllumination`, which moves emissive outside that multiply.
  *
- *  Measure this against a whole frame, not sampled points: on lit canopy the floor looks like it does
- *  nothing (a 4x sweep moved a lit sample by 3/255), because the shaded side is the entire point. */
+ *  Measured from under a tree as the fraction of the frame at pure black, sweeping the multiplier:
+ *  0 -> 10.5 %, 0.16 -> 1.4 %, 0.24 -> 0.20 %, for +5 % mean luma. 0.24 is what shipped.
+ *
+ *  Measure this against a whole frame, never against sampled points: on lit canopy the floor looks
+ *  like it does nothing (a 4x sweep moved a lit sample by 3/255), because the shaded side is the
+ *  entire point — that mistake shipped once already. The tint is `scatter.ts`'s grass floor
+ *  (0.10, 0.17, 0.06) scaled by 1.41: the same hue, not one measured off the canopy. */
 const TREE_EMISSIVE = new Color3(0.141, 0.24, 0.085);
 
 /** Trunk collider: a thin invisible cylinder so the player stops at the trunk, not the canopy. */
@@ -114,10 +122,7 @@ export async function loadTrees(scene: Scene, shadowGenerator?: ShadowGenerator)
   // trees render empty). The template lingers until engine.dispose() — a negligible one-off leak.
 }
 
-/**
- * Replaces the container's glTF materials in place, before any tree is instantiated — the clones copy
- * whatever `mesh.material` points at, so doing this per tree would rebuild the same material 12 times.
- */
+/** Replaces the container's glTF materials in place, before any tree is instantiated. */
 function retargetMaterials(scene: Scene, container: AssetContainer): void {
   const replacements = new Map<Material, Material>();
   for (const source of container.materials) {
@@ -134,8 +139,17 @@ function retargetMaterials(scene: Scene, container: AssetContainer): void {
     if (swap) mesh.material = swap;
   }
   container.materials = container.materials.map((m) => replacements.get(m) ?? m);
+  // The bug being fixed was "one material slipped through as PBR". Say so rather than shipping a
+  // converted-looking scene with a silent odd one out.
+  for (const m of container.materials)
+    if (!(m instanceof StandardMaterial))
+      console.warn(`[trees] '${m.name}' (${m.getClassName()}) left unconverted — it will fog differently from the rest of the hub.`);
   // false, false: keep the textures (the replacements own them now) and leave the meshes alone.
   for (const source of replacements.keys()) source.dispose(false, false);
+
+  // Scales the texture, not the material, so it belongs here where the container owns the texture
+  // rather than inside a per-material builder. Note this rescales TREE_EMISSIVE too — see there.
+  for (const tex of container.textures) tex.level = TREE_TEXTURE_LEVEL;
 }
 
 /**
@@ -152,9 +166,9 @@ function toStandard(scene: Scene, source: Material): Material {
 
   const mat = new StandardMaterial(`${source.name}_std`, scene);
   mat.diffuseTexture = albedo;
-  albedo.level = TREE_TEXTURE_LEVEL;
   mat.specularColor = new Color3(0, 0, 0);
-  mat.emissiveColor = TREE_EMISSIVE;
+  // clone: handing out the module constant by reference lets a later mutation travel back into it
+  mat.emissiveColor = TREE_EMISSIVE.clone();
   mat.backFaceCulling = source.backFaceCulling;
   if (albedo.hasAlpha) {
     mat.useAlphaFromDiffuseTexture = true;

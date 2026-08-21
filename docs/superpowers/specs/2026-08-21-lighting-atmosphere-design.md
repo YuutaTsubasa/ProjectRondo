@@ -26,7 +26,7 @@ depth actually comes from.
 
 | Thing | Current state | Why it matters here |
 | --- | --- | --- |
-| Sky | Unlit skydome, diameter 1000, `disableLighting`, `emissiveTexture` — a zenith→horizon gradient `#2b6cb0` → `#7fb2e5` → `#dcecf7` | Pure emissive, so tone mapping remaps it; at 500 units out, any fog would swallow it |
+| Sky | Unlit skydome, diameter 1000, `disableLighting`, `emissiveTexture` — gradient stops `#2b6cb0` → `#7fb2e5` → `#dcecf7`. **Note: the stop *names* were inverted relative to what the dome renders, so pre-P2 this rendered pale overhead and deep blue at the horizon — see §11b** | Pure emissive, so tone mapping remaps it; at 500 units out, any fog would swallow it |
 | Sun | `DirectionalLight`, intensity 1.1, warm white, 1024 PCF shadow map | Unchanged by P2 |
 | Ambient | `HemisphericLight`, intensity 0.45 | May need a nudge once tone mapping lands |
 | Scatter / bushes / trees | `StandardMaterial` with deliberate **emissive floors** (grass `(0.10, 0.17, 0.06)`, bush `(0.05, 0.10, 0.03)`) so backlit billboards do not go black | Tuned *without* tone mapping — these are what ACES will shift most |
@@ -78,10 +78,14 @@ Three ways to reconcile them were considered:
 | | Approach | Verdict |
 | --- | --- | --- |
 | A | Fog colour = horizon pale, sky exempt from fog | Cheapest, but the mountain tops keep a visible edge |
-| **B** | **A, plus widen the sky gradient's pale band so the mountains sit against near-fog-coloured sky over their whole height** | **Chosen** |
+| **B** | **A, plus widen the sky gradient's pale band so the mountains sit against near-fog-coloured sky over their whole height** | **Chosen at design time — but measured to make the ridge worse, so A is what shipped. See §11a.** |
 | C | Fog the sky too, at low density | Rejected: the skydome is 500 units out, so any useful density flattens the gradient into grey — it throws away the sky to save the mountains |
 
-**Chosen: B.** The sky is one procedurally generated material, so re-weighting three gradient stops is
+**Chosen: B** — *at design time.* Implementation measured B and found it makes the problem worse; the
+shipped sky is approach **A**. See §11a before re-deriving this. The reasoning below is kept as the
+original rationale, not as a description of the code.
+
+The sky is one procedurally generated material, so re-weighting three gradient stops is
 a small, contained change, and it is exactly what "cohesion first" is meant to buy. The pale band moves
 up (roughly, the mid stop shifts from 0.5 toward ~0.62 and moves closer to the fog colour), leaving the
 zenith blue intact overhead where nothing needs to blend.
@@ -142,10 +146,12 @@ babylon scene code is not unit-tested. Concretely:
 
 | Module | Change |
 | --- | --- |
-| `src/presentation/babylon/postProcessing.ts` | **New** — pipeline + fog |
+| `src/presentation/babylon/postProcessing.ts` | **New** — pipeline + fog, plus `samples = 4` (§11c) |
+| `src/presentation/babylon/atmosphereColors.ts` | **New** — the horizon/fog colour, shared so the sky and the fog cannot drift apart |
 | `src/presentation/babylon/hubScene.ts` | Call `createAtmosphere` after the camera is built |
-| `src/presentation/babylon/environment.ts` | Sky gradient stops re-weighted (§5); `skyMat.fogEnabled = false`; possible ambient nudge |
-| `src/presentation/babylon/scatter.ts` · `trees.ts` · `terrain.ts` | Emissive/colour corrections only if measurement shows drift (§6) |
+| `src/presentation/babylon/environment.ts` | Skydome orientation fixed (§11b); horizon stop reads `HORIZON_HEX`; `skyMat.fogEnabled = false`. The §5 pale-band widening was tried and reverted (§11a) |
+| `src/presentation/babylon/trees.ts` | PBR → StandardMaterial, texture level, emissive floor (§11) |
+| `src/presentation/babylon/scatter.ts` · `terrain.ts` | **Untouched.** Measurement showed no drift needing correction in `scatter.ts`; `terrain.ts`'s `haze` is the deferred art-direction call in §11a |
 | `docs/HANDOFF.md` | P2 recorded once it lands |
 
 ## 11. Finding — the trees were not over-fogged, they were the only PBR surface
@@ -168,14 +174,25 @@ The trees were the anomaly, for two compounding reasons:
 
 Fix: rebuild the GLB material as a `StandardMaterial` over the same albedo texture (`trees.ts`). This
 is not a downgrade — the source is metallic 0 with no metallic-roughness map, i.e. diffuse already.
-Result, with the grass held as an untouched control at 0.069: near trunk 0.32 → **0.04** (EXP2 says
-0.041), near canopy 0.19 → 0.08, mid canopy 0.47 → 0.11.
+Result, measured on the **final** shipped material (StandardMaterial + texture level + emissive floor)
+with the grass beside the trees held as an untouched control at 0.069: near trunk 0.32 → **0.05**,
+near canopy 0.19 → 0.09, mid canopy 0.47 → 0.13. Inverting EXP2 on the near trunk's 0.05 implies 30
+units against the ~27 measured geometrically; the PBR version implied 118.
+
+(An earlier draft of this section quoted 0.04 / 0.08 / 0.11. Those were taken before the emissive floor
+was restored and are superseded — brightening the surface changes the blend fraction.)
 
 Two traps worth recording, both of which produced confident wrong answers before being caught:
 
-- **`emissiveColor` does not transfer from `scatter.ts`.** StandardMaterial folds emissive in *before*
-  multiplying by the diffuse texture, so on a dark canopy texel it scales to nothing — a 4x sweep moved
-  the canopy by 3/255. Gamma-space shading is instead compensated with `diffuseTexture.level` (2.5).
+- **A lever can look dead because you measured the wrong pixels.** StandardMaterial folds emissive in
+  *before* multiplying by the diffuse texture (`clamp(diffuseBase*diffuseColor + emissiveColor +
+  ambient) * baseColor`, with `baseColor` already scaled by `texture.level`), so on *lit* canopy a 4x
+  emissive sweep moves the pixel by 3/255. That was read as "the `scatter.ts` floor does not transfer
+  here" and the floor was removed — which sent the canopy's shaded undersides to pure black, 10.5 % of
+  the frame from under a tree. The floor's entire purpose is the shaded side, so sampling lit points
+  could not see it. Both levers ship: `diffuseTexture.level` (2.5) for what the sun reaches, the
+  emissive floor (0.24 multiplier) for what it does not. They **multiply** — changing the level
+  rescales the floor.
 - **`readPixels` after `endFrame()` can return a post-process RTT, not the canvas** — it reads back a
   uniform colour and looks like a broken scene. Call `engine.restoreDefaultFramebuffer()` first.
   Likewise, toggling a material flag triggers async shader recompilation, so a measurement taken
@@ -184,6 +201,62 @@ Two traps worth recording, both of which produced confident wrong answers before
 
 Note the knight is also a glTF PBR material and so shares behaviour (1), but it stays close to the
 camera where fog is under 1 %, so it is left alone.
+
+## 11a. Finding — approach B was measured and rejected; A shipped
+
+§5 chose approach B: widen the sky's pale band up through the mountain ring's elevation so the ridge
+sits against near-fog-coloured sky over its whole height. Implemented and measured, it made the ridge
+**more** visible, not less: contrast between the ridge band and the sky immediately above it went from
+109 to **169**.
+
+The ridge's colour is simply unreachable by this gradient. Its blue channel is ~190 (`terrain.ts`'s
+`haze`, partially blended with fog), which sits *below* every stop in the file — mid `#7fb2e5` is 229,
+pale `#dcecf7` is 247 — so no stop position can meet it. The deeper cause is fog strength, not sky
+colour: at the ring's ~95-unit distance and density 0.0076 the EXP2 factor is only ~41 %, nowhere near
+enough to pull the ridge toward `FOG_COLOR`. Reaching ~80 % there needs roughly double the density,
+which would fog the near field that §8 requires stay clear.
+
+So the shipped sky is **approach A**, and DoD criterion 2 is deferred. The one remaining lever is the
+mountain ring's own material colour (`terrain.ts`'s `haze`), moved toward the fog colour — a hand-picked
+art-direction call, not a tuning constant. Whoever changes the ring's height, distance or colour should
+re-measure this coupling.
+
+## 11b. Finding — the skydome gradient's orientation was inverted (pre-existing)
+
+Not introduced by P2, but fixed in it, and worth flagging because it is the single largest visual change
+in the branch. `addColorStop(1.0, …)` renders at the **zenith** on this dome, not the horizon, so the
+pre-P2 gradient — written as if 1.0 were the horizon — rendered **pale overhead and deep blue at the
+horizon**, the inverse of a sky.
+
+Measured with a camera at y=30, sampling the centre pixel on the pre-fix gradient (whose pale
+`#dcecf7` sat at 1.0): straight up → (220,236,247), exactly the pale stop; 45° up → (178,211,239);
+horizontal → (134,181,223), far short of pale.
+
+This is an inversion of the largest surface in the frame, made under a "the palette does not change"
+constraint (§1). It is almost certainly the right fix — but it is invisible in §12's table, because both
+columns contain it, and it deserves its own before/after when this branch is reviewed. §6's instruction
+to stop and report rather than decide unilaterally applies: it was reported, and accepted.
+
+## 11c. Finding — attaching the pipeline silently disabled MSAA
+
+`hubScene.ts` creates the engine with `antialias: true`, which anti-aliases the **default framebuffer**.
+Attaching a `DefaultRenderingPipeline` redirects the scene into an offscreen render target, where that
+setting no longer applies, and Babylon defaults the pipeline's own `samples` to 1. So P2 as first
+written would have shipped an image *more* aliased than pre-P2 — worst exactly where this scene has its
+highest-frequency edges: tree canopies, grass billboards, the mountain ridge.
+
+Pixel sampling cannot see this, which is why it survived to code review. Measured at viewpoint B as
+adjacent-pixel luma steps (a hard step is a stair-step edge; anti-aliasing converts them to gradients):
+
+| Config | Hard edges | Soft edges | Cost |
+| --- | --- | --- | --- |
+| samples 1 (as first written) | 109,999 | 117,065 | — |
+| **samples 4 (shipped)** | **106,740 (−3.0 %)** | **135,049 (+15.4 %)** | ≤0.4 ms; medians could not separate it from samples 1 |
+| samples 8 | 106,230 | 135,453 | roughly double, for no measurable gain |
+
+FXAA was also tried and returned figures byte-identical to samples 1, i.e. the toggle did not take
+effect in that harness; it was not pursued because this scene's aliasing is geometric, which is what
+MSAA addresses.
 
 ## 12. Definition of done — measured
 
@@ -198,7 +271,19 @@ in both columns.
 | C · under a tree | 0 % → **0.197 %** | 0 % | 95.6 → 99.4 |
 
 No blown highlights anywhere and no crushed regions; the worst case is 0.2 % of the frame under a
-canopy. §8's first four criteria hold.
+canopy. Screenshots were captured with `canvas.toDataURL` off manually-driven frames, because the
+preview pane never composited (see the baseline doc) — that is also why the buffer had to be resized to
+1280x720 explicitly rather than by the pane.
+
+Against §8's five criteria, honestly:
+
+| # | Criterion | Status |
+| --- | --- | --- |
+| 1 | Side-by-side screenshots show depth, no blown or crushed regions | **Met** — the table above, plus the three before/after pairs |
+| 2 | Mountains hazed across their height, not just at the base | **Not met — deferred.** §11a: the ridge keeps a visible edge (contrast 109) and no sky-gradient change closes it. The remaining lever is `terrain.ts`'s `haze`, a human art-direction call |
+| 3 | Near field essentially fog-free | **Met** — 0.07 blend at ~35 units, 0.05 on a tree at ~27 |
+| 4 | Palette recognisably the same | **Not evidenced by this table.** The sky-gradient and tree-material changes sit in *both* columns, and they are the two largest palette-affecting edits in the branch. Judged by eye and accepted by the human reviewer; the table cannot speak to it |
+| 5 | fps holds | **Met** — see below |
 
 ### Performance, and why bloom stays
 

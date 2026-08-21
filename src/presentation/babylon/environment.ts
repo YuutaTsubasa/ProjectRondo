@@ -1,6 +1,7 @@
 import type { Scene } from '@babylonjs/core/scene';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { Color3 } from '@babylonjs/core/Maths/math.color';
+import { HORIZON_HEX } from './atmosphereColors';
 import { HemisphericLight } from '@babylonjs/core/Lights/hemisphericLight';
 import { DirectionalLight } from '@babylonjs/core/Lights/directionalLight';
 import { ShadowGenerator } from '@babylonjs/core/Lights/Shadows/shadowGenerator';
@@ -35,8 +36,8 @@ function skyGradientTexture(scene: Scene): DynamicTexture {
   // "1.0" as "up" and "0.0" as "down" here, not "1.0 = far/horizon" as elsewhere in this file's fog.
   // The visible sky is only the upper hemisphere (the ground blocks the rest), so the whole visible
   // range lives in stops 0.5-1.0; below 0.5 is unseen and is just held flat so nothing ramps back
-  // toward blue where a seam could show through a gap. The horizon stop is deliberately identical to
-  // FOG_COLOR in postProcessing.ts, so the mountains have a matching colour to dissolve into.
+  // toward blue where a seam could show through a gap. The horizon stop IS the fog colour -- both read
+  // HORIZON_HEX from atmosphereColors.ts, so the two cannot drift apart.
   //
   // The pale band stops at 0.5 — it is NOT widened up through the mountain ring's elevation
   // (measured at texture v ~0.62-0.66 for the ridge at the `mountains` viewpoint), even though that
@@ -53,8 +54,8 @@ function skyGradientTexture(scene: Scene): DynamicTexture {
   // terrain.ts (`haze`), moved toward the fog colour, which is a hand-picked art-direction call for a
   // human, not something to change here. Whoever touches the mountain ring's height, distance, or
   // colour next should re-measure this coupling; it is easy to silently break either side of it.
-  g.addColorStop(0.0, '#dcecf7'); // below horizon: unseen, held flat at the horizon colour
-  g.addColorStop(0.5, '#dcecf7'); // horizon: pale, and the fog colour
+  g.addColorStop(0.0, HORIZON_HEX); // below horizon: unseen, held flat at the horizon colour
+  g.addColorStop(0.5, HORIZON_HEX); // horizon: pale, and the fog colour
   g.addColorStop(0.72, '#7fb2e5'); // mid sky: the original mid colour, restored
   g.addColorStop(1.0, '#2b6cb0'); // zenith: deep sky blue
   ctx.fillStyle = g;
