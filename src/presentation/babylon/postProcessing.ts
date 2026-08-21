@@ -49,6 +49,15 @@ const FOG_DENSITY = 0.0076;
 const EXPOSURE = 1.7;
 const CONTRAST = 1.1;
 
+/** Only pixels above this luminance bloom, so the effect finds highlights rather than the whole image. */
+const BLOOM_THRESHOLD = 0.85;
+/** How much of the blurred highlight is added back. Low: this is a sheen, not a glow. */
+const BLOOM_WEIGHT = 0.15;
+/** Blur radius in pixels. */
+const BLOOM_KERNEL = 32;
+/** Resolution the bloom is computed at, as a fraction of the frame. Half-res is the usual trade. */
+const BLOOM_SCALE = 0.5;
+
 /** Applies the scene's atmosphere. Call once, after the camera exists. */
 export function createAtmosphere(scene: Scene, camera: Camera): void {
   scene.fogMode = Scene.FOGMODE_EXP2;
@@ -65,7 +74,13 @@ export function createAtmosphere(scene: Scene, camera: Camera): void {
 
   // Everything the pipeline can do that this scene did not ask for. Each one left enabled would cost
   // a render target for an effect nobody wants.
-  pipeline.bloomEnabled = false;
+  // Restrained on purpose: a high threshold with a low weight lets only the brightest sky and the
+  // sunlit tips of grass bleed. A cohesion pass does not want a glowing field.
+  pipeline.bloomEnabled = true;
+  pipeline.bloomThreshold = BLOOM_THRESHOLD;
+  pipeline.bloomWeight = BLOOM_WEIGHT;
+  pipeline.bloomKernel = BLOOM_KERNEL;
+  pipeline.bloomScale = BLOOM_SCALE;
   pipeline.depthOfFieldEnabled = false;
   pipeline.chromaticAberrationEnabled = false;
   pipeline.grainEnabled = false;
