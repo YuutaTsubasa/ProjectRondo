@@ -1,5 +1,11 @@
 import { Scene } from '@babylonjs/core/scene';
 import { Color3 } from '@babylonjs/core/Maths/math.color';
+import type { Camera } from '@babylonjs/core/Cameras/camera';
+import { DefaultRenderingPipeline } from '@babylonjs/core/PostProcesses/RenderPipeline/Pipelines/defaultRenderingPipeline';
+import { ImageProcessingConfiguration } from '@babylonjs/core/Materials/imageProcessingConfiguration';
+// Side-effect: registers the render-pipeline manager on the scene. Without it the pipeline is
+// constructed, attaches to nothing, and renders exactly as before — no error, no effect.
+import '@babylonjs/core/PostProcesses/RenderPipeline/postProcessRenderPipelineManagerSceneComponent';
 
 /**
  * Distance fog and (from Task 4) the camera's rendering pipeline — the frame-level half of the
@@ -24,9 +30,33 @@ const FOG_COLOR = Color3.FromHexString('#dcecf7');
  */
 const FOG_DENSITY = 0.0076;
 
+/**
+ * Exposure and contrast are nudges, not a grade: the palette is deliberately unchanged (spec §1), so
+ * these exist to stop ACES flattening the image, not to restyle it. Settle them against screenshots.
+ */
+const EXPOSURE = 1.1;
+const CONTRAST = 1.1;
+
 /** Applies the scene's atmosphere. Call once, after the camera exists. */
-export function createAtmosphere(scene: Scene): void {
+export function createAtmosphere(scene: Scene, camera: Camera): void {
   scene.fogMode = Scene.FOGMODE_EXP2;
   scene.fogColor = FOG_COLOR;
   scene.fogDensity = FOG_DENSITY;
+
+  const pipeline = new DefaultRenderingPipeline('atmosphere', true, scene, [camera]);
+
+  pipeline.imageProcessingEnabled = true;
+  pipeline.imageProcessing.toneMappingEnabled = true;
+  pipeline.imageProcessing.toneMappingType = ImageProcessingConfiguration.TONEMAPPING_ACES;
+  pipeline.imageProcessing.exposure = EXPOSURE;
+  pipeline.imageProcessing.contrast = CONTRAST;
+
+  // Everything the pipeline can do that this scene did not ask for. Each one left enabled would cost
+  // a render target for an effect nobody wants.
+  pipeline.bloomEnabled = false;
+  pipeline.depthOfFieldEnabled = false;
+  pipeline.chromaticAberrationEnabled = false;
+  pipeline.grainEnabled = false;
+  pipeline.sharpenEnabled = false;
+  pipeline.fxaaEnabled = false;
 }

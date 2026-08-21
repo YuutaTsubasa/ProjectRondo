@@ -55,7 +55,7 @@ export async function createHubScene(canvas: HTMLCanvasElement): Promise<HubScen
   const playerRoot = new TransformNode('player', scene);
   const follow = createFollowCamera(scene, playerRoot, canvas);
   scene.activeCamera = follow.camera;
-  createAtmosphere(scene);
+  createAtmosphere(scene, follow.camera);
 
   const input = createInput();
   const player = createPlayer(scene, playerRoot, follow, input);
