@@ -35,11 +35,29 @@ function skyGradientTexture(scene: Scene): DynamicTexture {
   // "1.0" as "up" and "0.0" as "down" here, not "1.0 = far/horizon" as elsewhere in this file's fog.
   // The visible sky is only the upper hemisphere (the ground blocks the rest), so the whole visible
   // range lives in stops 0.5-1.0; below 0.5 is unseen and is just held flat so nothing ramps back
-  // toward blue where a seam could show through a gap. The horizon stop is deliberately identical to
-  // FOG_COLOR in postProcessing.ts, so the mountains have a matching colour to dissolve into.
+  // toward blue where a seam could show through a gap.
+  //
+  // The pale band is held through 0.5-0.68, not just at the single point 0.5, because the mountain
+  // ring sits well above the horizon in screen terms: at the `mountains` viewpoint its ridge samples
+  // to texture v ~0.62-0.66 (measured via the harness's vertical-stripe sampler). A single fog colour
+  // (FOG_COLOR in postProcessing.ts, '#dcecf7') can only match the gradient at one height; ramping
+  // away from pale immediately above the literal horizon (old stop layout: pale only at 0.5, mid by
+  // 0.72) left the sky at the mountains' actual elevation measurably bluer than the fog they fade
+  // into, so the ridge stayed a visible hard edge. Holding pale through v=0.68 brings the sky at the
+  // mountains' height close to FOG_COLOR too. If the mountain ring's height changes, re-measure its
+  // v-range at this viewpoint and adjust 0.68 to match — this coupling is easy to silently break.
+  //
+  // Measured effect at the `mountains` viewpoint (vertical stripe, fy 0.50-0.86): the sky immediately
+  // above the ridge (fy ~0.70) now reads flat '#dcecf7' (220,236,247), same as the mountain band
+  // (163,181,190) is far from -- contrast sum 169, worse than the 109 this was meant to fix. The ridge
+  // itself is only partially fogged at this distance, so its own colour sits between the pale and mid
+  // stops rather than at pure FOG_COLOR; making the sky purely pale here doesn't make it purely match
+  // the ridge. 0.64 was also tried (per the fallback plan) and produced byte-identical results in this
+  // frame, because the visible sky here never reaches past v~0.64 regardless -- the two values are
+  // indistinguishable at this viewpoint. Neither closes the gap; that is reported, not hidden here.
   g.addColorStop(0.0, '#dcecf7'); // below horizon: unseen, held flat at the horizon colour
-  g.addColorStop(0.5, '#dcecf7'); // horizon: pale, and the fog colour
-  g.addColorStop(0.72, '#7fb2e5'); // mid sky: the original mid colour, restored
+  g.addColorStop(0.68, '#dcecf7'); // pale held up through the mountain ring's elevation (v ~0.62-0.66)
+  g.addColorStop(0.84, '#7fb2e5'); // mid sky: the original mid colour, restored
   g.addColorStop(1.0, '#2b6cb0'); // zenith: deep sky blue
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, 16, 512);
