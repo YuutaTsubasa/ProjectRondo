@@ -85,13 +85,20 @@ pnpm tauri dev          # native desktop app (needs Rust)
 Read the roadmap: `docs/superpowers/specs/2026-08-18-refined-hub-world-roadmap.md` (M4 phases + §7b
 scheduled additions). Sequence from here:
 
-1. **Toon shading on the knight** — the face is already isolated: the character is 34 skinned meshes
-   sharing one material `Material_001`, of which `Mesh_0` (242,391 verts) is the head (face + hair +
-   neck) and `Mesh_32`/`Mesh_33` are the eyeballs. So a face-only material needs no Blender split.
-   Babylon has no built-in toon shader; `mesh.renderOutline` is built in and is the cheap first step.
-   Any custom material must wire the fog block and the 101-bone skinning explicitly, or it becomes the
-   next odd-one-out (see §7 and P2's §11). Note `Mesh_0`'s 242k verts is most of the character's
-   geometry budget — the GLB was texture-optimised but never decimated.
+1. **Toon shading on the knight — face lighting done, cel banding not.** `knight.ts` now gives the head
+   (`Mesh_0` = face + hair + neck, plus eyeballs `Mesh_32`/`Mesh_33`) its own material cloned off
+   `Material_001`, with the albedo added back as emissive so the face stays bright and flat instead of
+   tracking the sun. Face mean luma 70 → 146 with the armour measuring *identical* as a control. Two
+   things worth knowing before extending this:
+   - The complaint it solved was "the face is too dark and the shading on it looks bad" — **not** cel
+     banding or outlines. If hard light/shade bands are wanted, that is still unbuilt, and it means a
+     NodeMaterial that wires the fog block and 101-bone skinning explicitly or it becomes the next
+     odd-one-out (§7). `mesh.renderOutline` is built in and is the cheap way to add an outline.
+   - **Do not convert the knight to StandardMaterial.** It was tried, on the theory that the trees'
+     PBR-vs-gamma problem applied here too. It does not — the knight sits close to the camera where fog
+     is under 1 %, and the conversion made it markedly worse (near-black hair, grey face, dull armour).
+   Note `Mesh_0`'s 242k verts is most of the character's geometry budget — the GLB was texture-optimised
+   but never decimated.
 2. **P3 — water & landmarks** (landmarks double as NPC / future mode-entry sites; the natural-barrier
    cliff aesthetic can finish here).
 3. **P4 — life & motion** (wind sway, drifting clouds, ambient creatures).
@@ -190,6 +197,16 @@ These are hard-won; several cost a debugging session each.
   shader (this produced a non-monotonic sweep and a confident wrong conclusion); and with the preview
   pane hidden `requestAnimationFrame` never fires, so frames must be driven manually with
   `beginFrame`/`render`/`endFrame` and awaiting a render observable will simply hang.
+- **Swapping the material on a skinned mesh makes it vanish, silently.** A 101-bone skinned mesh needs
+  a new shader variant compiled, and it renders as *nothing at all* until that finishes — long enough
+  to look like the model is broken, and long enough to poison any measurement taken meanwhile.
+  `await material.forceCompilationAsync(mesh)` before rendering or reading pixels. Waiting N frames
+  does not work and neither does `mesh.isReady()`; both reported ready while the knight was invisible.
+- **`material.dispose(false, true)` destroys textures the material only borrowed.** The second argument
+  is `disposeTextures`. A throwaway probe material built from another material's textures shares them
+  by *reference*, so disposing them takes out the real material too — the knight lost its albedo and no
+  amount of restoring the material brought it back. Use `dispose(false, false)` whenever the textures
+  came from somewhere else.
 - **Measure image quality on whole frames, not sampled points.** An emissive floor exists for the
   *shaded* side of a surface; sampling lit pixels showed a 4x sweep moving them by 3/255, which read as
   "this lever does nothing". It was removed on that basis and sent 10.5 % of the frame to pure black.

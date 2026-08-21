@@ -4,6 +4,8 @@ import type { AnimationGroup } from '@babylonjs/core/Animations/animationGroup';
 import type { ShadowGenerator } from '@babylonjs/core/Lights/Shadows/shadowGenerator';
 import { ImportMeshAsync } from '@babylonjs/core/Loading/sceneLoader';
 import { Quaternion } from '@babylonjs/core/Maths/math.vector';
+import { Color3 } from '@babylonjs/core/Maths/math.color';
+import type { AbstractMesh } from '@babylonjs/core/Meshes/abstractMesh';
 // Side-effect: registers the glTF loader plugin (with KHR_mesh_quantization / webp support).
 import '@babylonjs/loaders/glTF';
 import { CAPSULE_HALF } from './capsule';
@@ -57,6 +59,60 @@ const TARGET_HEIGHT = 1.9;
 /** Fraction of the idle animation's motion to keep (0 = frozen, 1 = full sway). Kills the side rock. */
 const IDLE_SWAY_KEEP = 0.2;
 
+/** The head group, by mesh name. `Mesh_0` is the whole head — face, hair and neck collar, 242k of the
+ *  character's ~320k vertices — and `Mesh_32`/`Mesh_33` are the two eyeballs. Identified from bind-pose
+ *  bounding boxes against the `Head` and `CC_Base_*_Eye` bones, then confirmed by rendering `Mesh_0`
+ *  alone. The other 31 meshes (`tripo_part_*`) are body and armour and are deliberately untouched. */
+const HEAD_MESHES = ['Mesh_0', 'Mesh_32', 'Mesh_33'];
+
+/**
+ * How much of the albedo to add back as unlit light on the face.
+ *
+ * An anime face is not supposed to track scene lighting the way a surface does — it stays bright and
+ * flat, and the light/shade terminator across it reads as dirt rather than form. Adding the albedo as
+ * emissive decouples the face from the sun without touching the armour, which is meant to catch light.
+ *
+ * This works because **PBR adds emissive**; StandardMaterial folds it in before multiplying by the
+ * diffuse texture, so the same trick there scales to nothing on a dark texel (see `trees.ts`).
+ *
+ * 0.45 measured over the face region at a fixed head-on camera: mean luma 99 -> 175, and the lit/unlit
+ * spread compresses (min 0 -> 8, max 195 -> 225), which is the part that fixes the terminator. 0.25 is
+ * the more conservative option at 152 if this reads too hot in motion.
+ *
+ * Known and accepted: `Mesh_0` carries the hair too, so the hair lifts from near-black to a warm brown.
+ * Isolating the skin would need a mask texture or a Blender split, and the lift reads as an improvement.
+ */
+const FACE_EMISSIVE = 0.45;
+
+/**
+ * Gives the head its own material so the face can be lit differently from the armour.
+ *
+ * Every one of the knight's 34 meshes ships sharing a single glTF material, so the head needs a clone
+ * before anything can be changed about it in isolation.
+ *
+ * `forceCompilationAsync` is not optional: swapping the material on a 101-bone skinned mesh triggers an
+ * async shader rebuild, and the mesh renders as *nothing at all* until it finishes — long enough to
+ * look like a bug and to poison any measurement taken in the meantime.
+ */
+async function applyFaceMaterial(meshes: AbstractMesh[]): Promise<void> {
+  const head = meshes.filter((m) => HEAD_MESHES.includes(m.name));
+  const source = head[0]?.material;
+  if (!source || head.length !== HEAD_MESHES.length) {
+    // Mesh names come from the GLB, so a re-export can rename them out from under this.
+    console.warn(`[knight] head meshes not found (${head.length}/${HEAD_MESHES.length}) — face lighting skipped.`);
+    return;
+  }
+
+  const face = source.clone('knightFace');
+  if (!face) return;
+  // Reuses the source's textures by reference — never dispose textures off this material.
+  (face as { emissiveTexture?: unknown }).emissiveTexture =
+    (source as { albedoTexture?: unknown }).albedoTexture;
+  (face as { emissiveColor?: Color3 }).emissiveColor = new Color3(FACE_EMISSIVE, FACE_EMISSIVE, FACE_EMISSIVE);
+  for (const mesh of head) mesh.material = face;
+  await Promise.all(head.map((mesh) => face.forceCompilationAsync(mesh)));
+}
+
 /**
  * Loads the knight GLB, parents it to `parent` (the physics-driven player root), scales it to
  * {@link TARGET_HEIGHT}, seats its feet at the capsule bottom, and returns the four animation
@@ -82,6 +138,8 @@ export async function loadKnight(
 
   // The knight casts the sun's shadow onto the grass.
   if (shadowGenerator) for (const mesh of result.meshes) shadowGenerator.addShadowCaster(mesh);
+
+  await applyFaceMaterial(result.meshes);
 
   const raw = root.getHierarchyBoundingVectors(true);
   const rawHeight = raw.max.y - raw.min.y;
