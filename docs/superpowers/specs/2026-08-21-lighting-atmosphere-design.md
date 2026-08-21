@@ -147,3 +147,40 @@ babylon scene code is not unit-tested. Concretely:
 | `src/presentation/babylon/environment.ts` | Sky gradient stops re-weighted (§5); `skyMat.fogEnabled = false`; possible ambient nudge |
 | `src/presentation/babylon/scatter.ts` · `trees.ts` · `terrain.ts` | Emissive/colour corrections only if measurement shows drift (§6) |
 | `docs/HANDOFF.md` | P2 recorded once it lands |
+
+## 11. Finding — the trees were not over-fogged, they were the only PBR surface
+
+Reported during implementation: *"霧感覺只有樹有套用,遠處的地形、草和草叢都沒有"*.
+
+Fog was in fact uniform and distance-correct. Measured across the frame at the spawn viewpoint, the
+blend fraction rose monotonically with distance exactly as `FOGMODE_EXP2` predicts — mountains 0.50,
+far terrain 0.19, mid-field 0.12, near grass 0.07. Nothing was under-fogged.
+
+The trees were the anomaly, for two compounding reasons:
+
+1. **They are the hub's only `PBRMaterial`** (from the Tripo GLB); everything else is
+   `StandardMaterial`. PBR shades and mixes fog in *linear* space, where a small blend toward a
+   near-white fog colour multiplies a dark pixel several-fold. StandardMaterial mixes in gamma space,
+   where the same blend barely moves it. A tree ~27 units out took a **0.32** fog blend where EXP2
+   asks for 0.04 and the grass beside it took 0.07 — a 4.6x discrepancy at the same depth.
+2. **Fog lightens dark surfaces far more visibly than bright ones.** At 19 % haze the canopy's luma
+   went 24 → 66 (2.75x); at 7 % the grass went 148 → 156 (1.05x). Same fog, 50x the visual impact.
+
+Fix: rebuild the GLB material as a `StandardMaterial` over the same albedo texture (`trees.ts`). This
+is not a downgrade — the source is metallic 0 with no metallic-roughness map, i.e. diffuse already.
+Result, with the grass held as an untouched control at 0.069: near trunk 0.32 → **0.04** (EXP2 says
+0.041), near canopy 0.19 → 0.08, mid canopy 0.47 → 0.11.
+
+Two traps worth recording, both of which produced confident wrong answers before being caught:
+
+- **`emissiveColor` does not transfer from `scatter.ts`.** StandardMaterial folds emissive in *before*
+  multiplying by the diffuse texture, so on a dark canopy texel it scales to nothing — a 4x sweep moved
+  the canopy by 3/255. Gamma-space shading is instead compensated with `diffuseTexture.level` (2.5).
+- **`readPixels` after `endFrame()` can return a post-process RTT, not the canvas** — it reads back a
+  uniform colour and looks like a broken scene. Call `engine.restoreDefaultFramebuffer()` first.
+  Likewise, toggling a material flag triggers async shader recompilation, so a measurement taken
+  immediately after can reflect the *old* shader; this produced a non-monotonic sweep before it was
+  spotted.
+
+Note the knight is also a glTF PBR material and so shares behaviour (1), but it stays close to the
+camera where fog is under 1 %, so it is left alone.
