@@ -1,6 +1,6 @@
 # ProjectRondo — Developer Handoff
 
-Last updated: 2026-08-20. Purpose: everything the next machine / developer / Claude session needs to
+Last updated: 2026-08-21. Purpose: everything the next machine / developer / Claude session needs to
 pick this up cold. The repo is the source of truth; this file is the map.
 
 ## 1. What this is
@@ -55,7 +55,7 @@ pnpm build              # static bundle → dist/
 pnpm tauri dev          # native desktop app (needs Rust)
 ```
 
-## 4. Current state (all merged to `main`, latest `9c0395a`, no open PRs)
+## 4. Current state (all merged to `main`, latest `34ede96`, no open PRs)
 
 - **M1 — hub web parity:** third-person mouse-look knight (WASD/Space), pure-domain movement, Havok
   capsule, Idle/Walk animation blend.
@@ -69,6 +69,14 @@ pnpm tauri dev          # native desktop app (needs Rust)
   - **Map scale-up** (PR #21): field 50×50 → **100×100**; hard invisible walls replaced by a **natural
     terrain barrier** (edge ramps past the controller's walkable slope); grassy barrier slope; camera
     clamped above the terrain (no see-through on down-pitch/slopes).
+  - **Run + jump** (PR #23): Mixamo Run/Jump retargeted onto the knight through the existing Godot
+    pipeline; **Shift to sprint** (`runSpeed` 8, derived from the clips' measured stride); jump wired
+    end to end; feet planted to **2.5 mm** on flat ground (was ~10 cm of float). Movement gained a
+    single pure owner for ground contact (`groundContact.ts` — coyote time, jump buffering, takeoff
+    guard) and slope-following (`slopeMotion.ts`), plus heading-based steering. Four gameplay bugs
+    fell out of it: **jumping while walking was impossible**, gentle slopes cut running from 8 u/s to
+    2.9, running turns had the model and the body pointing different ways, and landing sometimes
+    played the jump clip's tail. See the design spec §11-16 for the measurements behind each.
 
 ## 5. What's next (the plan)
 
@@ -78,15 +86,12 @@ scheduled additions). Sequence from here:
 1. **P2 — 光影與氛圍後製 (lighting & atmosphere post-processing):** `DefaultRenderingPipeline` (ACES tone
    mapping, bloom, colour grading), distance **fog** tuned to the terrain depth, optional godrays. This
    is the next scheduled phase — biggest visual lift, and the fog finally blends the distant mountains'
-   bases into the horizon.
-2. **Run + jump movement** — a parallel pass, **GATED on the user downloading run/jump animations**
-   (retarget → `knight_web.glb`, same pipeline as Idle/Walk). Also fold in the slight foot-float on flat
-   ground (proper fix is foot IK — touches the anim rig, so do it here). Domain already has a jump path
-   (`jumpSpeed`); sprint was tuned out earlier (maxSpeed 12→4).
-3. **P3 — water & landmarks** (landmarks double as NPC / future mode-entry sites; the natural-barrier
+   bases into the horizon. Budget against the already-loaded scene (roadmap §7): the fps headroom the
+   earlier phases left is what P2 and P3 spend.
+2. **P3 — water & landmarks** (landmarks double as NPC / future mode-entry sites; the natural-barrier
    cliff aesthetic can finish here).
-4. **P4 — life & motion** (wind sway, drifting clouds, ambient creatures).
-5. **Then: game modes** — Sonic-style 3D/2D levels, 2048, Sudoku (a new milestone, SP2+).
+3. **P4 — life & motion** (wind sway, drifting clouds, ambient creatures).
+4. **Then: game modes** — Sonic-style 3D/2D levels, 2048, Sudoku (a new milestone, SP2+).
 
 ## 6. How work is done here (the workflow)
 
@@ -129,6 +134,9 @@ These are hard-won; several cost a debugging session each.
   then **texture-only** gltf-transform (resize + webp). **Do NOT `simplify`/`quantize`/`resample`
   skinned meshes** — it corrupts the animation (feet slide). Bump `?v=N` on the GLB URL in `knight.ts`
   after rebuilding so browsers refetch.
+- **Known, deferred:** landing from a run drops planar speed from 8 u/s to ~3.2 for ~0.4s (the capsule
+  bounces on the rolling terrain at speed; the locomotion blend faithfully follows it down into walk and
+  back). Physics, not animation — see the run/jump spec §15.
 - **Rebuilding the GLB has three sharp edges** (full recipe in the README): Godot serves a **stale
   asset import** after you edit a `.import` file unless you delete `.godot/imported/<Name>.fbx-*`
   first — the bone renaming just silently does not apply; the mono build **needs the .NET 8 SDK**
