@@ -32,9 +32,21 @@ const FOG_DENSITY = 0.0076;
 
 /**
  * Exposure and contrast are nudges, not a grade: the palette is deliberately unchanged (spec §1), so
- * these exist to stop ACES flattening the image, not to restyle it. Settle them against screenshots.
+ * these exist to stop ACES flattening the image, not to restyle it.
+ *
+ * ACES darkens this scene globally — full-frame mean luminance runs ~20-22% below a fixed
+ * reference (no tone mapping, exposure 1.0, contrast 1.0) captured at the `spawn` and `shade`
+ * viewpoints. That reference must be captured once and held fixed while exposure is swept; if it's
+ * re-captured at each exposure step it moves with the sweep and the comparison is meaningless
+ * (measures "what ACES costs at this exposure", not "does it match the pre-ACES scene"). Exposure
+ * is the global control that puts the lost brightness back without touching any material colour, so
+ * it's the fix, not the material floors. EXPOSURE = 1.7 was chosen this way: it brings mean
+ * luminance within about 3% of that fixed reference at both viewpoints (spawn +2.9%, shade +0.7%)
+ * with zero blown pixels. Re-measure the same way (full-frame luminance against the fixed
+ * reference, camera locked, several settle frames before sampling so the shadow map has converged)
+ * before changing either constant.
  */
-const EXPOSURE = 1.1;
+const EXPOSURE = 1.7;
 const CONTRAST = 1.1;
 
 /** Applies the scene's atmosphere. Call once, after the camera exists. */
