@@ -1,7 +1,6 @@
 import type { Scene } from '@babylonjs/core/scene';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { Color3 } from '@babylonjs/core/Maths/math.color';
-import { HORIZON_HEX } from './atmosphereColors';
 import { HemisphericLight } from '@babylonjs/core/Lights/hemisphericLight';
 import { DirectionalLight } from '@babylonjs/core/Lights/directionalLight';
 import { ShadowGenerator } from '@babylonjs/core/Lights/Shadows/shadowGenerator';
@@ -13,6 +12,7 @@ import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
 // Side-effect: registers the StandardMaterial shader (tree-shaken deep imports need this).
 import '@babylonjs/core/Materials/standardMaterial';
 import { DynamicTexture } from '@babylonjs/core/Materials/Textures/dynamicTexture';
+import { HORIZON_HEX } from './atmosphereColors';
 
 export interface Environment {
   readonly shadowGenerator: ShadowGenerator;

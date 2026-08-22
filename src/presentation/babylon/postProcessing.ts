@@ -2,12 +2,13 @@ import { Scene } from '@babylonjs/core/scene';
 import { Color3 } from '@babylonjs/core/Maths/math.color';
 import type { Camera } from '@babylonjs/core/Cameras/camera';
 import { DefaultRenderingPipeline } from '@babylonjs/core/PostProcesses/RenderPipeline/Pipelines/defaultRenderingPipeline';
-import { HORIZON_HEX } from './atmosphereColors';
 import { ImageProcessingConfiguration } from '@babylonjs/core/Materials/imageProcessingConfiguration';
 // Belt-and-braces: in Babylon 9.21 PostProcessRenderPipeline's own constructor registers this scene
 // component, so the import is redundant today. It is kept because that is an implementation detail
 // we do not control, and because every other deep-import side effect in this codebase is explicit.
 import '@babylonjs/core/PostProcesses/RenderPipeline/postProcessRenderPipelineManagerSceneComponent';
+
+import { HORIZON_HEX } from './atmosphereColors';
 
 /**
  * Fog colour — shared with the sky's horizon stop; see `atmosphereColors.ts` for why.

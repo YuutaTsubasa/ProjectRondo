@@ -25,8 +25,8 @@ const BASE_SCALE = 6;
  *
  * **Why the trees are not PBR.** The GLB ships a `PBRMaterial`, and every other surface fog actually
  * reaches is a `StandardMaterial`. (The knight is glTF and therefore PBR too, but it stays within a
- * unit or two of the camera where fog is under 1 %, so the mismatch never shows on it — see HANDOFF
- * §7.) That mismatch only becomes visible once fog is on. PBR shades and mixes fog
+ * 5 units of the camera (`followCamera.ts`'s `distance`), where EXP2 puts fog at 0.14 %, so the
+ * mismatch never shows on it — see HANDOFF §7.) That mismatch only becomes visible once fog is on. PBR shades and mixes fog
  * in linear space, where a small blend toward a near-white fog colour multiplies a dark pixel
  * several-fold; StandardMaterial mixes in gamma space, where the same blend barely moves it. Measured
  * at the spawn viewpoint, a tree ~27 units out took a 0.32 fog blend where EXP2 asks for 0.04 and the
@@ -130,10 +130,10 @@ export async function loadTrees(scene: Scene, shadowGenerator?: ShadowGenerator)
 
 /** Replaces the container's glTF materials in place, before any tree is instantiated. */
 function retargetMaterials(scene: Scene, container: AssetContainer): void {
-  const replacements = new Map<Material, Material>();
+  const replacements = new Map<Material, StandardMaterial>();
   for (const source of container.materials) {
     const replacement = toStandard(scene, source);
-    if (replacement !== source) replacements.set(source, replacement);
+    if (replacement) replacements.set(source, replacement);
   }
   // Rebinding the meshes is the part that actually matters: `container.materials` is only a
   // bookkeeping list, and the clones take their material from `mesh.material`. Rebind before
@@ -162,8 +162,7 @@ function retargetMaterials(scene: Scene, container: AssetContainer): void {
   // is diffuse-only, but that is the assumption the rest of this function exists to stop relying on.
   // Note this rescales TREE_EMISSIVE too — see there.
   for (const mat of replacements.values()) {
-    const tex = (mat as { diffuseTexture?: BaseTexture | null }).diffuseTexture;
-    if (tex) tex.level = TREE_TEXTURE_LEVEL;
+    if (mat.diffuseTexture) mat.diffuseTexture.level = TREE_TEXTURE_LEVEL;
   }
 
   // dispose(forceDisposeEffect, forceDisposeTextures): the second `false` is what keeps the textures,
@@ -180,9 +179,9 @@ function retargetMaterials(scene: Scene, container: AssetContainer): void {
  * 0.5 never produced — left in, it makes the canopy look wet. Brightness is then restored with
  * `TREE_TEXTURE_LEVEL` and `TREE_EMISSIVE`; see those for why both are needed.
  */
-function toStandard(scene: Scene, source: Material): Material {
+function toStandard(scene: Scene, source: Material): StandardMaterial | null {
   const albedo = (source as { albedoTexture?: BaseTexture | null }).albedoTexture;
-  if (!albedo) return source; // no texture to carry over — leave whatever the GLB shipped
+  if (!albedo) return null; // no texture to carry over — leave whatever the GLB shipped
 
   const mat = new StandardMaterial(`${source.name}_std`, scene);
   mat.diffuseTexture = albedo;
@@ -202,7 +201,10 @@ function toStandard(scene: Scene, source: Material): Material {
     albedoColor: Color3;
     alphaCutOff: number;
     bumpTexture: BaseTexture;
+    invertNormalMapX: boolean;
+    invertNormalMapY: boolean;
     ambientTexture: BaseTexture;
+    ambientTextureStrength: number;
   }>;
   mat.backFaceCulling = source.backFaceCulling;
   if (pbr.twoSidedLighting !== undefined) mat.twoSidedLighting = pbr.twoSidedLighting;
@@ -212,10 +214,28 @@ function toStandard(scene: Scene, source: Material): Material {
   if (pbr.albedoColor) mat.diffuseColor = pbr.albedoColor.clone();
   mat.alpha = source.alpha;
   if (pbr.alphaCutOff !== undefined) mat.alphaCutOff = pbr.alphaCutOff;
-  // glTF normalTexture / occlusionTexture. Each changes how the surface shades, and a swapped GLB
-  // carrying one would otherwise convert cleanly, warn about nothing, and render flat.
-  if (pbr.bumpTexture) mat.bumpTexture = pbr.bumpTexture;
-  if (pbr.ambientTexture) mat.ambientTexture = pbr.ambientTexture;
+  // glTF normalTexture, with the inversion flags that decide what its green channel means. The scene
+  // is right-handed, so the loader hands us `invertNormalMapY = true`; StandardMaterial defaults both
+  // to false and feeds them into `vTangentSpaceParams` exactly as PBR does, so carrying the texture
+  // without the flags would light the surface from the wrong side.
+  if (pbr.bumpTexture) {
+    mat.bumpTexture = pbr.bumpTexture;
+    if (pbr.invertNormalMapX !== undefined) mat.invertNormalMapX = pbr.invertNormalMapX;
+    if (pbr.invertNormalMapY !== undefined) mat.invertNormalMapY = pbr.invertNormalMapY;
+  }
+  // glTF occlusionTexture. This one cannot be carried faithfully: PBR pairs it with
+  // `ambientTextureStrength` and `useAmbientInGrayScale`, and StandardMaterial has neither — its
+  // shader is a flat per-channel multiply. At the glTF default strength of 1 with the conventional
+  // greyscale map that is the same result, which is why it is still carried; anything else is not,
+  // so say so rather than quietly darkening the asset.
+  if (pbr.ambientTexture) {
+    mat.ambientTexture = pbr.ambientTexture;
+    if (pbr.ambientTextureStrength !== undefined && pbr.ambientTextureStrength !== 1) {
+      console.warn(
+        `[trees] '${source.name}' has occlusionTexture strength ${pbr.ambientTextureStrength}; StandardMaterial cannot express it and will apply the map at full strength.`,
+      );
+    }
+  }
   // `emissiveTexture` is deliberately NOT carried: `emissiveColor` above is this scene's shading fix,
   // not the asset's intent, and StandardMaterial multiplies the two. A GLB that ships a real emissive
   // map needs that conflict resolved on purpose rather than silently compounded.
