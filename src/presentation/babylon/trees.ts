@@ -19,24 +19,28 @@ import '@babylonjs/loaders/glTF'; // side-effect: registers the glTF loader
  *  The per-spot scale below multiplies this, so trees land around 6 units (taller than the ~1.9 knight). */
 const BASE_SCALE = 6;
 
-/** The GLB ships a `PBRMaterial`; every other surface in the hub is a `StandardMaterial`, and that
- *  mismatch only becomes visible once fog is on. PBR shades and mixes fog in linear space, where a
- *  small blend toward a near-white fog colour multiplies a dark pixel several-fold; StandardMaterial
- *  mixes in gamma space, where the same blend barely moves it. Measured at the spawn viewpoint, a tree
- *  ~27 units out took a 0.32 fog blend where EXP2 asks for 0.04 and the grass beside it took 0.07 — so
- *  the trees bleached to grey while the terrain behind them looked untouched. That reads as "the fog
- *  is only on the trees", but the fog is uniform; the trees were the only surface reacting in linear
- *  space, and the only one dark enough for it to show.
+/**
+ * Multiplier on the albedo texture's contribution, and — with {@link TREE_EMISSIVE} — half of what
+ * puts the trees back where they were before they stopped being PBR.
  *
- *  Rebuilding over the same albedo texture as a StandardMaterial puts them back in line. Measured on
- *  the final shipped material, with the grass beside them held as an untouched control at 0.069:
- *  near trunk 0.32 -> 0.05, near canopy 0.19 -> 0.09, mid canopy 0.47 -> 0.13. Inverting EXP2 on the
- *  near trunk's 0.05 implies 30 units against the ~27 measured geometrically; the PBR version implied
- *  118. Nothing is lost — the source is metallic 0 with no metallic-roughness map, i.e. diffuse-only
- *  already. */
-
-/** Gamma-space shading lands the canopy far darker than PBR did, so scale up the texture's
- *  contribution. 2.5 was picked against the pre-conversion render at the spawn viewpoint. */
+ * **Why the trees are not PBR.** The GLB ships a `PBRMaterial`; every other surface in the hub is a
+ * `StandardMaterial`, and that mismatch only becomes visible once fog is on. PBR shades and mixes fog
+ * in linear space, where a small blend toward a near-white fog colour multiplies a dark pixel
+ * several-fold; StandardMaterial mixes in gamma space, where the same blend barely moves it. Measured
+ * at the spawn viewpoint, a tree ~27 units out took a 0.32 fog blend where EXP2 asks for 0.04 and the
+ * grass beside it took 0.07 — so the trees bleached to grey while the terrain behind them looked
+ * untouched. That reads as "the fog is only on the trees", but the fog is uniform; the trees were the
+ * only surface reacting in linear space, and the only one dark enough for it to show.
+ *
+ * Rebuilding over the same albedo texture as a StandardMaterial puts them back in line. Measured on
+ * the final shipped material, with the grass beside them held as an untouched control at 0.069: near
+ * trunk 0.32 -> 0.05, near canopy 0.19 -> 0.09, mid canopy 0.47 -> 0.13. Inverting EXP2 on the near
+ * trunk's 0.05 implies 30 units against the ~27 measured geometrically; its PBR blend of 0.32 implied
+ * 82. Nothing is lost — the source is metallic 0 with no metallic-roughness map, i.e. diffuse-only.
+ *
+ * Gamma-space shading then lands the canopy far darker than PBR did, which is what this constant is
+ * for. 2.5 was picked against the pre-conversion render at the spawn viewpoint.
+ */
 const TREE_TEXTURE_LEVEL = 2.5;
 
 /** Emissive floor, the same trick `scatter.ts` uses on grass and bushes: without one the canopy's
@@ -129,8 +133,6 @@ function retargetMaterials(scene: Scene, container: AssetContainer): void {
     const replacement = toStandard(scene, source);
     if (replacement !== source) replacements.set(source, replacement);
   }
-  if (replacements.size === 0) return;
-
   // Rebinding the meshes is the part that actually matters: `container.materials` is only a
   // bookkeeping list, and the clones take their material from `mesh.material`. Rebind before
   // disposing, or the meshes are left with a null material and render untextured.
@@ -139,17 +141,34 @@ function retargetMaterials(scene: Scene, container: AssetContainer): void {
     if (swap) mesh.material = swap;
   }
   container.materials = container.materials.map((m) => replacements.get(m) ?? m);
-  // The bug being fixed was "one material slipped through as PBR". Say so rather than shipping a
-  // converted-looking scene with a silent odd one out.
-  for (const m of container.materials)
-    if (!(m instanceof StandardMaterial))
-      console.warn(`[trees] '${m.name}' (${m.getClassName()}) left unconverted — it will fog differently from the rest of the hub.`);
-  // false, false: keep the textures (the replacements own them now) and leave the meshes alone.
-  for (const source of replacements.keys()) source.dispose(false, false);
 
-  // Scales the texture, not the material, so it belongs here where the container owns the texture
-  // rather than inside a per-material builder. Note this rescales TREE_EMISSIVE too — see there.
-  for (const tex of container.textures) tex.level = TREE_TEXTURE_LEVEL;
+  // Warn BEFORE the empty-map guard would have returned: the case where *nothing* converted is the
+  // worst one, not a benign no-op. It means every tree ships as PBR — the bleaching bug at full
+  // strength — and it is reachable, because the GLB is versioned (`tree.glb?v=4`) and an asset swap
+  // can drop the albedo texture this conversion keys off.
+  for (const m of container.materials) {
+    if (!(m instanceof StandardMaterial)) {
+      console.warn(
+        `[trees] '${m.name}' (${m.getClassName()}) left unconverted — it will fog differently from the rest of the hub.`,
+      );
+    }
+  }
+  if (replacements.size === 0) return;
+
+  // Scale only the textures the new materials actually sample. Applying this to every texture the
+  // container holds would also hit any normal/emissive/occlusion map the GLB ships — channels
+  // TREE_TEXTURE_LEVEL's rationale says nothing about, and where 2.5x would blow out. Today's asset
+  // is diffuse-only, but that is the assumption the rest of this function exists to stop relying on.
+  // Note this rescales TREE_EMISSIVE too — see there.
+  for (const mat of replacements.values()) {
+    const tex = (mat as { diffuseTexture?: BaseTexture | null }).diffuseTexture;
+    if (tex) tex.level = TREE_TEXTURE_LEVEL;
+  }
+
+  // dispose(forceDisposeEffect, forceDisposeTextures): the second `false` is what keeps the textures,
+  // which the replacements now sample. The meshes are already safe — rebinding above cleared each old
+  // material's `meshMap`.
+  for (const source of replacements.keys()) source.dispose(false, false);
 }
 
 /**

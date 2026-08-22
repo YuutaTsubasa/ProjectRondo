@@ -177,7 +177,7 @@ is not a downgrade — the source is metallic 0 with no metallic-roughness map, 
 Result, measured on the **final** shipped material (StandardMaterial + texture level + emissive floor)
 with the grass beside the trees held as an untouched control at 0.069: near trunk 0.32 → **0.05**,
 near canopy 0.19 → 0.09, mid canopy 0.47 → 0.13. Inverting EXP2 on the near trunk's 0.05 implies 30
-units against the ~27 measured geometrically; the PBR version implied 118.
+units against the ~27 measured geometrically; its PBR blend of 0.32 implied 82.
 
 (An earlier draft of this section quoted 0.04 / 0.08 / 0.11. Those were taken before the emissive floor
 was restored and are superseded — brightening the surface changes the blend fraction.)
