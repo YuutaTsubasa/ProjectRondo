@@ -223,10 +223,20 @@ async function swapHeadMaterial(meshes: readonly AbstractMesh[]): Promise<void> 
   // `coordinatesIndex`, `wrapU`). `trees.ts` sets `.level` on exactly such a carried-over wrapper, so
   // that is a live pattern in this codebase, not a hypothetical.
   //
-  // Disposal below still passes `false` for textures: the wrappers are cheap, but the upload beneath
-  // them is shared and NOT reference-counted here (`_texture.references` is undefined), so freeing it
-  // would take the armour's pixels with it — the failure this session already hit once. The cost is
-  // that a failed compile leaves the clone's orphaned wrappers in `scene.textures` until teardown.
+  // The shared upload IS reference-counted, and the clone already took a reference: `Texture.clone()`
+  // resolves through `BaseTexture._getFromCache`, which calls `incrementReferences()` on a hit — which
+  // is the only way the identical `_texture.uniqueId` above can arise. Measured live: `_references` is
+  // 2, cloning a wrapper takes it to 3 and disposing that wrapper returns it to 2 with the upload
+  // intact. (The counter is `_references`; there is no public `references`, so reading that proves
+  // nothing.) Disposing the clone's own wrappers would therefore be safe.
+  //
+  // It is still not done on the failure path, for an unrelated reason — Babylon's compile poll can
+  // outlive the material; see the catch below. The cost is that a failed compile leaves the clone's
+  // wrappers in `scene.textures` until teardown.
+  //
+  // This is NOT the HANDOFF §7 trap, which is the opposite shape: there a probe was handed the same
+  // wrapper *object* by assignment, so nothing ever incremented, and `dispose(_, true)` took the count
+  // from 1 to 0 and freed pixels the real material was still sampling.
   const facePbr = face as GltfPbrMaterial;
   if (!facePbr.albedoTexture) {
     // Falling back to the source's wrapper here would silently give up the decoupling argued for

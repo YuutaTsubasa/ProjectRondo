@@ -232,10 +232,18 @@ These are hard-won; several cost a debugging session each.
   `await material.forceCompilationAsync(mesh)` before rendering or reading pixels. Waiting N frames
   does not work and neither does `mesh.isReady()`; both reported ready while the knight was invisible.
 - **`material.dispose(false, true)` destroys textures the material only borrowed.** The second argument
-  is `disposeTextures`. A throwaway probe material built from another material's textures shares them
-  by *reference*, so disposing them takes out the real material too — the knight lost its albedo and no
-  amount of restoring the material brought it back. Use `dispose(false, false)` whenever the textures
-  came from somewhere else.
+  is `disposeTextures`. A throwaway probe built by *assigning* another material's `Texture` objects
+  shares those very objects, so disposing them takes out the real material too — the knight lost its
+  albedo and no amount of restoring the material brought it back. Use `dispose(false, false)` whenever
+  the textures came from somewhere else.
+
+  The distinction that matters: Babylon **does** reference-count the GPU upload, on
+  `InternalTexture._references` (there is no public `references`, so reading that proves nothing).
+  `Texture.clone()` resolves through `BaseTexture._getFromCache` and calls `incrementReferences()`, so
+  a *cloned* wrapper holds its own reference and disposing it is safe — measured: 2 → 3 on clone,
+  back to 2 on dispose, upload intact. An *assigned* wrapper never increments anything, which is why
+  the probe above took the count straight to zero. Clone-then-dispose is safe; assign-then-dispose is
+  the one that bites.
 - **Measure image quality on whole frames, not sampled points.** An emissive floor exists for the
   *shaded* side of a surface; sampling lit pixels showed a 4x sweep moving them by 3/255, which read as
   "this lever does nothing". It was removed on that basis and sent 10.5 % of the frame to pure black.
