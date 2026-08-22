@@ -6,7 +6,7 @@ import { ImportMeshAsync } from '@babylonjs/core/Loading/sceneLoader';
 import { Quaternion } from '@babylonjs/core/Maths/math.vector';
 import { Color3 } from '@babylonjs/core/Maths/math.color';
 import type { AbstractMesh } from '@babylonjs/core/Meshes/abstractMesh';
-import type { GltfPbrMaterial } from './gltfMaterial';
+import { hasEmissiveFactor, type GltfPbrMaterial } from './gltfMaterial';
 // Side-effect: registers the glTF loader plugin (with KHR_mesh_quantization / webp support).
 import '@babylonjs/loaders/glTF';
 import { CAPSULE_HALF } from './capsule';
@@ -103,7 +103,11 @@ const FACE_EMISSIVE = 0.45;
  *  every 16 ms and only exits on ready-or-compile-error, so a blocking albedo texture that never
  *  becomes ready — a stalled fetch, a lost context — leaves the promise pending forever. That would
  *  hang `loadKnight`, and with it `createHubScene`: no render loop, no trees, no input, nothing
- *  logged. Ten seconds is far past a real compile and still bounded. */
+ *  logged. Ten seconds is far past a real compile and still bounded.
+ *
+ *  This is the budget for the whole head, not per mesh — bounding each call separately would make the
+ *  real worst case `HEAD_MESHES.length` times this number, which is not what a reader budgeting hub
+ *  load time off this constant would assume. */
 const FACE_COMPILE_TIMEOUT_MS = 10_000;
 
 /**
@@ -158,10 +162,9 @@ async function applyFaceMaterial(meshes: readonly AbstractMesh[]): Promise<void>
 
   // The loader puts glTF's emissiveFactor straight into emissiveColor, which FACE_EMISSIVE overwrites.
   // Today's GLB ships none; say so if one appears, as `trees.ts` does for the same drop.
-  const sourceEmissive = pbr.emissiveColor;
-  if (sourceEmissive && (sourceEmissive.r > 0 || sourceEmissive.g > 0 || sourceEmissive.b > 0)) {
+  if (hasEmissiveFactor(pbr)) {
     console.warn(
-      `[knight] '${source.name}' has a non-zero emissiveFactor (${sourceEmissive.toHexString()}). It is discarded: face lighting owns emissiveColor.`,
+      `[knight] '${source.name}' has a non-zero emissiveFactor (${pbr.emissiveColor?.toHexString()}). It is discarded: face lighting owns emissiveColor.`,
     );
   }
 
@@ -203,13 +206,13 @@ async function applyFaceMaterial(meshes: readonly AbstractMesh[]): Promise<void>
     // ones capture the false an earlier one wrote, and the last restore leaves it permanently off.
     // Hot-swapping off is what makes a mesh vanish while a new variant compiles (HANDOFF §7), so the
     // race would arm that trap for every later define change on the head.
-    for (const mesh of head) {
-      await withTimeout(
-        face.forceCompilationAsync(mesh),
-        FACE_COMPILE_TIMEOUT_MS,
-        `'${mesh.name}' face shader compile`,
-      );
-    }
+    await withTimeout(
+      (async () => {
+        for (const mesh of head) await face.forceCompilationAsync(mesh);
+      })(),
+      FACE_COMPILE_TIMEOUT_MS,
+      'face shader compile',
+    );
   } catch (err) {
     // The clone adds an EMISSIVE define on top of a 101-bone skinned variant already near the
     // vertex-uniform ceiling, so this can fail where its parent succeeded. Put the head back on the

@@ -1,7 +1,7 @@
 import type { Scene } from '@babylonjs/core/scene';
 import type { AssetContainer } from '@babylonjs/core/assetContainer';
 import type { Material } from '@babylonjs/core/Materials/material';
-import type { GltfPbrMaterial } from './gltfMaterial';
+import { hasEmissiveFactor, type GltfPbrMaterial } from './gltfMaterial';
 import type { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 import type { ShadowGenerator } from '@babylonjs/core/Lights/Shadows/shadowGenerator';
 import { LoadAssetContainerAsync } from '@babylonjs/core/Loading/sceneLoader';
@@ -195,10 +195,9 @@ function toStandard(scene: Scene, source: Material): StandardMaterial | null {
   // TREE_EMISSIVE takes the emissive channel over, so glTF's emissiveFactor — which the loader puts
   // straight into emissiveColor — is discarded. Today's asset ships none; warn if one ever appears,
   // at parity with the emissiveTexture and occlusionTexture drops below.
-  const sourceEmissive = pbr.emissiveColor;
-  if (sourceEmissive && (sourceEmissive.r > 0 || sourceEmissive.g > 0 || sourceEmissive.b > 0)) {
+  if (hasEmissiveFactor(pbr)) {
     console.warn(
-      `[trees] '${source.name}' has a non-zero emissiveFactor (${sourceEmissive.toHexString()}). It is discarded: TREE_EMISSIVE owns emissiveColor.`,
+      `[trees] '${source.name}' has a non-zero emissiveFactor (${pbr.emissiveColor?.toHexString()}). It is discarded: TREE_EMISSIVE owns emissiveColor.`,
     );
   }
   // clone: handing out the module constant by reference lets a later mutation travel back into it
