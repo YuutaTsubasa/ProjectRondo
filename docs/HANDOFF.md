@@ -85,19 +85,50 @@ pnpm tauri dev          # native desktop app (needs Rust)
     `docs/superpowers/specs/2026-08-21-lighting-atmosphere-design.md` (§11–§12 are the measured record).
     **Deferred:** the mountain ridge still keeps a visible edge against the sky; the only remaining lever
     is `terrain.ts`'s `haze` colour, which is a human art-direction call (§11a).
+  - **Knight face lighting:** the head — `Mesh_0` (face + hair + neck) plus the eyeballs `Mesh_32` /
+    `Mesh_33` — gets its own material cloned off the single shared `Material_001`, with the albedo added
+    back as emissive so the face stays bright and flat instead of tracking the sun. Head region mean
+    luma 35.6 → 68.8 at the shipped 0.45 (0.25 gives 57.1), with the rest of the frame flat at 114.3 as
+    a control — which is what says the 31 `tripo_part_*` armour meshes are untouched. Measure it with
+    the idle animation paused and the head region located by which pixels the change touches, not by a
+    hand-placed box; see `FACE_EMISSIVE` for why.
+
+    Three things not to re-derive. The complaint was "the face is too dark, too affected by scene
+    lighting, and the shadow on it looks bad" — **not** cel banding or outlines, neither of which was
+    asked for. **That "shadow" is not a shadow:** `receiveShadows` is already `false` on all 34 skinned
+    meshes, so nothing is cast onto the face; the dark band is the **N·L terminator**, the diffuse
+    falloff on the side turned away from the sun, which is why the fix is an emissive floor rather than
+    anything to do with the shadow generator. And **do not convert the knight to
+    StandardMaterial** — that was tried on the theory that the trees' PBR-vs-gamma problem applied here
+    too, and it does not (the knight sits ~5 units from the camera where fog is 0.14 %). The conversion
+    made it markedly worse: near-black hair, grey face, dull armour.
 
 ## 5. What's next (the plan)
 
 Read the roadmap: `docs/superpowers/specs/2026-08-18-refined-hub-world-roadmap.md` (M4 phases + §7b
 scheduled additions). Sequence from here:
 
-1. **P3 — water & landmarks** (landmarks double as NPC / future mode-entry sites; the natural-barrier
+1. **Toon shading on the knight — the face is lit, the cel banding is not.** `knight.ts` gives the head
+   its own material (§4); what is *not* built is hard light/shade banding or an outline.
+
+   If those are wanted, check `@babylonjs/materials` first: it ships `CellMaterial`, a cel shader with
+   `computeHighLevel` banding that inherits the standard bone/fog/instance define handling, so it
+   needs neither a manual fog block nor explicit 101-bone skinning, and being gamma-space it lands on
+   the *same* side of the §7 fog-space split as the trees rather than making the knight the next
+   odd-one-out. It is **not installed** (only `core`, `havok`, `loaders` are), so it is a dependency
+   decision rather than a free win. Failing that, banding means a NodeMaterial that wires the fog
+   block and the 101-bone skinning explicitly. Either way `mesh.renderOutline` is built into `core`
+   and is the cheap way to get the outline.
+
+   Note `Mesh_0` is 242k of the character's ~320k verts — the GLB was texture-optimised but never
+   decimated, which is a separate job.
+2. **P3 — water & landmarks** (landmarks double as NPC / future mode-entry sites; the natural-barrier
    cliff aesthetic can finish here). Budget against the already-loaded scene (roadmap §7): the fps
    headroom the earlier phases left is what P3 spends. P2 measured its own cost at **0.3 ms** (1.837 ms
    pre-P2 → 2.137 ms shipped), so the whole frame is ~2.1 ms against a 16.7 ms vsync budget and the
    headroom is still roughly 8x (design spec §12).
-2. **P4 — life & motion** (wind sway, drifting clouds, ambient creatures).
-3. **Then: game modes** — Sonic-style 3D/2D levels, 2048, Sudoku (a new milestone, SP2+).
+3. **P4 — life & motion** (wind sway, drifting clouds, ambient creatures).
+4. **Then: game modes** — Sonic-style 3D/2D levels, 2048, Sudoku (a new milestone, SP2+).
 
 ## 6. How work is done here (the workflow)
 
@@ -195,6 +226,24 @@ These are hard-won; several cost a debugging session each.
   shader (this produced a non-monotonic sweep and a confident wrong conclusion); and with the preview
   pane hidden `requestAnimationFrame` never fires, so frames must be driven manually with
   `beginFrame`/`render`/`endFrame` and awaiting a render observable will simply hang.
+- **Swapping the material on a skinned mesh makes it vanish, silently.** A 101-bone skinned mesh needs
+  a new shader variant compiled, and it renders as *nothing at all* until that finishes — long enough
+  to look like the model is broken, and long enough to poison any measurement taken meanwhile.
+  `await material.forceCompilationAsync(mesh)` before rendering or reading pixels. Waiting N frames
+  does not work and neither does `mesh.isReady()`; both reported ready while the knight was invisible.
+- **`material.dispose(false, true)` destroys textures the material only borrowed.** The second argument
+  is `disposeTextures`. A throwaway probe built by *assigning* another material's `Texture` objects
+  shares those very objects, so disposing them takes out the real material too — the knight lost its
+  albedo and no amount of restoring the material brought it back. Use `dispose(false, false)` whenever
+  the textures came from somewhere else.
+
+  The distinction that matters: Babylon **does** reference-count the GPU upload, on
+  `InternalTexture._references` (there is no public `references`, so reading that proves nothing).
+  `Texture.clone()` resolves through `BaseTexture._getFromCache` and calls `incrementReferences()`, so
+  a *cloned* wrapper holds its own reference and disposing it is safe — measured: 2 → 3 on clone,
+  back to 2 on dispose, upload intact. An *assigned* wrapper never increments anything, which is why
+  the probe above took the count straight to zero. Clone-then-dispose is safe; assign-then-dispose is
+  the one that bites.
 - **Measure image quality on whole frames, not sampled points.** An emissive floor exists for the
   *shaded* side of a surface; sampling lit pixels showed a 4x sweep moving them by 3/255, which read as
   "this lever does nothing". It was removed on that basis and sent 10.5 % of the frame to pure black.

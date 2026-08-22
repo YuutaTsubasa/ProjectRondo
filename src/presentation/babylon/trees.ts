@@ -1,7 +1,6 @@
 import type { Scene } from '@babylonjs/core/scene';
 import type { AssetContainer } from '@babylonjs/core/assetContainer';
 import type { Material } from '@babylonjs/core/Materials/material';
-import type { BaseTexture } from '@babylonjs/core/Materials/Textures/baseTexture';
 import type { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 import type { ShadowGenerator } from '@babylonjs/core/Lights/Shadows/shadowGenerator';
 import { LoadAssetContainerAsync } from '@babylonjs/core/Loading/sceneLoader';
@@ -13,6 +12,7 @@ import { CreateCylinder } from '@babylonjs/core/Meshes/Builders/cylinderBuilder'
 import { PhysicsAggregate } from '@babylonjs/core/Physics/v2/physicsAggregate';
 import { PhysicsShapeType } from '@babylonjs/core/Physics/v2/IPhysicsEnginePlugin';
 import { terrainHeight } from './terrainHeight';
+import { emissiveFactorOf, type GltfPbrMaterial } from './gltfMaterial';
 import '@babylonjs/loaders/glTF'; // side-effect: registers the glTF loader
 
 /** The tree GLB is normalized to ~1 unit tall (Tripo output); scale it up to a real tree height.
@@ -185,7 +185,8 @@ function retargetMaterials(scene: Scene, container: AssetContainer): void {
  * `TREE_TEXTURE_LEVEL` and `TREE_EMISSIVE`; see those for why both are needed.
  */
 function toStandard(scene: Scene, source: Material): StandardMaterial | null {
-  const albedo = (source as { albedoTexture?: BaseTexture | null }).albedoTexture;
+  const pbr = source as GltfPbrMaterial;
+  const albedo = pbr.albedoTexture;
   if (!albedo) return null; // no texture to carry over — leave whatever the GLB shipped
 
   const mat = new StandardMaterial(`${source.name}_std`, scene);
@@ -194,10 +195,10 @@ function toStandard(scene: Scene, source: Material): StandardMaterial | null {
   // TREE_EMISSIVE takes the emissive channel over, so glTF's emissiveFactor — which the loader puts
   // straight into emissiveColor — is discarded. Today's asset ships none; warn if one ever appears,
   // at parity with the emissiveTexture and occlusionTexture drops below.
-  const sourceEmissive = (source as { emissiveColor?: Color3 }).emissiveColor;
-  if (sourceEmissive && (sourceEmissive.r > 0 || sourceEmissive.g > 0 || sourceEmissive.b > 0)) {
+  const discardedEmissive = emissiveFactorOf(pbr);
+  if (discardedEmissive) {
     console.warn(
-      `[trees] '${source.name}' has a non-zero emissiveFactor (${sourceEmissive.toHexString()}). It is discarded: TREE_EMISSIVE owns emissiveColor.`,
+      `[trees] '${source.name}' has a non-zero emissiveFactor (${discardedEmissive.toHexString()}). It is discarded: TREE_EMISSIVE owns emissiveColor.`,
     );
   }
   // clone: handing out the module constant by reference lets a later mutation travel back into it
@@ -210,16 +211,6 @@ function toStandard(scene: Scene, source: Material): StandardMaterial | null {
   // `!backFaceCulling && twoSidedLighting`. Carrying only the first flipped every back-facing canopy
   // polygon to its front-facing normal, so leaves seen from behind were lit as though they faced away
   // from the sun. That shipped, and TREE_TEXTURE_LEVEL was fitted against the darkening it caused.
-  const pbr = source as Partial<{
-    twoSidedLighting: boolean;
-    albedoColor: Color3;
-    alphaCutOff: number;
-    bumpTexture: BaseTexture;
-    invertNormalMapX: boolean;
-    invertNormalMapY: boolean;
-    ambientTexture: BaseTexture;
-    emissiveTexture: BaseTexture;
-  }>;
   mat.backFaceCulling = source.backFaceCulling;
   if (pbr.twoSidedLighting !== undefined) mat.twoSidedLighting = pbr.twoSidedLighting;
   // glTF's baseColorFactor: RGB lands on albedoColor, A on the material's alpha. Both default to

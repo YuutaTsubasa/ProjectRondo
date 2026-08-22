@@ -4,11 +4,14 @@ import type { AnimationGroup } from '@babylonjs/core/Animations/animationGroup';
 import type { ShadowGenerator } from '@babylonjs/core/Lights/Shadows/shadowGenerator';
 import { ImportMeshAsync } from '@babylonjs/core/Loading/sceneLoader';
 import { Quaternion } from '@babylonjs/core/Maths/math.vector';
+import { Color3 } from '@babylonjs/core/Maths/math.color';
+import type { AbstractMesh } from '@babylonjs/core/Meshes/abstractMesh';
 // Side-effect: registers the glTF loader plugin (with KHR_mesh_quantization / webp support).
 import '@babylonjs/loaders/glTF';
 import { CAPSULE_HALF } from './capsule';
 import { terrainHeight } from './terrainHeight';
 import { moveToward } from '../../domain/math/scalar';
+import { emissiveFactorOf, type GltfPbrMaterial } from './gltfMaterial';
 
 export interface KnightAnimations {
   readonly idle: AnimationGroup;
@@ -57,11 +60,262 @@ const TARGET_HEIGHT = 1.9;
 /** Fraction of the idle animation's motion to keep (0 = frozen, 1 = full sway). Kills the side rock. */
 const IDLE_SWAY_KEEP = 0.2;
 
+/** The head group, by mesh name. `Mesh_0` is the whole head — face, hair and neck collar, 242k of the
+ *  character's ~320k vertices — and `Mesh_32`/`Mesh_33` are the two eyeballs. Identified from bind-pose
+ *  bounding boxes against the `Head` and `CC_Base_*_Eye` bones, then confirmed by rendering `Mesh_0`
+ *  alone. The other 31 meshes (`tripo_part_*`) are body and armour and are deliberately untouched. */
+const HEAD_MESHES: readonly string[] = ['Mesh_0', 'Mesh_32', 'Mesh_33'];
+
+/**
+ * How much of the albedo to add back as unlit light on the face.
+ *
+ * An anime face is not supposed to track scene lighting the way a surface does — it stays bright and
+ * flat, and the light/shade terminator across it reads as dirt rather than form. Adding the albedo as
+ * emissive decouples the face from the sun without touching the armour, which is meant to catch light.
+ *
+ * This works because **PBR adds emissive**; StandardMaterial folds it in before multiplying by the
+ * diffuse texture, so the same trick there scales to nothing on a dark texel (see `trees.ts`).
+ *
+ * Measured head-on with the idle animation **paused at frame 0** and the camera tracking the `Head`
+ * bone live, over the head region located by which pixels the change itself touches (158k px, ~20 % of
+ * the frame) rather than by a hand-placed box — so it covers face, hair and neck, and the rest of the
+ * frame serves as a control:
+ *
+ * | emissive | head region mean luma | control (rest of frame) |
+ * | --- | --- | --- |
+ * | 0    | 35.6 | 114.3 |
+ * | 0.25 | 57.1 | 114.3 |
+ * | 0.45 | 68.8 | 114.3 |
+ *
+ * The control is flat to one decimal, which is what says the armour is untouched. 0.25 is the more
+ * conservative option if 0.45 reads too hot in motion.
+ *
+ * Reproduce it exactly that way. Two earlier figures for this constant (99 -> 175 and 70 -> 146)
+ * disagreed because each used a differently hand-placed box with the idle animation *running*, so the
+ * head sat at a different angle in each; both are superseded by the table above.
+ *
+ * Known and accepted: `Mesh_0` carries the hair too, so the hair lifts from near-black to a warm brown.
+ * Isolating the skin would need a mask texture or a Blender split, and the lift reads as an improvement.
+ */
+const FACE_EMISSIVE = 0.45;
+
+/** Ceiling on waiting for the face shader. `Material.forceCompilation`'s `checkReady` re-arms itself
+ *  every 16 ms and only exits on ready-or-compile-error, so a blocking albedo texture that never
+ *  becomes ready — a stalled fetch, a lost context — leaves the promise pending forever. That would
+ *  hang `loadKnight`, and with it `createHubScene`: no render loop, no trees, no input, nothing
+ *  logged. Ten seconds is far past a real compile and still bounded.
+ *
+ *  This is the budget for the whole head, not per mesh — bounding each call separately would make the
+ *  real worst case `HEAD_MESHES.length` times this number, which is not what a reader budgeting hub
+ *  load time off this constant would assume. */
+const FACE_COMPILE_TIMEOUT_MS = 10_000;
+
+/**
+ * Gives the head its own material so the face can be lit differently from the armour.
+ *
+ * Every one of the knight's 34 meshes ships sharing a single glTF material, so the head needs a clone
+ * before anything can be changed about it in isolation.
+ *
+ * `forceCompilationAsync` is not optional: swapping the material on a 101-bone skinned mesh triggers an
+ * async shader rebuild, and the mesh renders as *nothing at all* until it finishes — long enough to
+ * look like a bug and to poison any measurement taken in the meantime.
+ *
+ * Every failure here is warn-and-skip rather than throw. This runs inside `loadKnight`, which
+ * `hubScene` awaits *before* `loadTrees` and `runRenderLoop` — so anything thrown takes down the whole
+ * hub over a face tweak. The armour keeps the original material either way, so skipping costs one
+ * cosmetic effect and nothing else.
+ */
+async function applyFaceMaterial(meshes: readonly AbstractMesh[]): Promise<void> {
+  // The warn-and-skip guarantee has to cover the whole body, not just the compile await:
+  // `SerializationHelper.Clone` walks each serialized texture slot calling `.clone()` and
+  // `_clonePlugins` re-parses the plugin set, either of which can throw on a material exotic enough to
+  // have got this far. `createHubScene` does not guard `loadKnight`, and `App.svelte` calls it with
+  // `.then()` and no `.catch`, so anything escaping here is an unhandled rejection and a blank canvas.
+  try {
+    await swapHeadMaterial(meshes);
+  } catch (err) {
+    console.warn('[knight] face lighting failed; the head keeps the shared material:', err);
+  }
+}
+
+/**
+ * Guards, clones, puts the clone on the three head meshes, awaits its compile, and rolls the meshes
+ * back if that fails. Split out from {@link applyFaceMaterial} so the try/catch there covers all of it.
+ */
+async function swapHeadMaterial(meshes: readonly AbstractMesh[]): Promise<void> {
+  const head = meshes.filter((m) => HEAD_MESHES.includes(m.name));
+  // Each expected name must appear exactly once. Counting `head.length` would not establish that:
+  // glTF does not require unique node names and the loader does not dedupe them, so a GLB with two
+  // `Mesh_0`s and no `Mesh_33` still totals three — and the face would be applied to part of the head
+  // with an eyeball left on the dark shared material.
+  const wrongCount = HEAD_MESHES.map((name) => ({ name, n: meshes.filter((m) => m.name === name).length })).filter(
+    (x) => x.n !== 1,
+  );
+  if (wrongCount.length) {
+    // Mesh names come from the GLB, so a re-export can rename or duplicate them out from under this.
+    const detail = wrongCount.map((x) => `${x.name} x${x.n}`).join(', ');
+    console.warn(
+      `[knight] expected each of ${HEAD_MESHES.join(', ')} exactly once; got ${detail} — face lighting skipped.`,
+    );
+    return;
+  }
+
+  const source = head[0].material;
+  if (!source) {
+    console.warn(`[knight] '${head[0].name}' has no material — face lighting skipped.`);
+    return;
+  }
+  // "Clone the head's material" only means anything while the head actually shares one. Splitting the
+  // eyes onto their own material is an ordinary thing for a re-export to do, and would otherwise paint
+  // the eye material across the face, the hair and the neck with every name check still passing.
+  if (head.some((m) => m.material !== source)) {
+    const names = [...new Set(head.map((m) => m.material?.name ?? 'none'))].join(', ');
+    console.warn(
+      `[knight] head meshes no longer share one material (${names}) — face lighting skipped rather than painting one of them across the rest.`,
+    );
+    return;
+  }
+
+  const pbr = source as GltfPbrMaterial;
+  const albedo = pbr.albedoTexture;
+  if (!albedo) {
+    // With no texture to modulate it, FACE_EMISSIVE would be added as a flat grey wash over the head.
+    console.warn(`[knight] '${source.name}' has no albedoTexture — face lighting skipped.`);
+    return;
+  }
+
+  // The loader puts glTF's emissiveFactor straight into emissiveColor, which FACE_EMISSIVE overwrites.
+  // Today's GLB ships none; say so if one appears, as `trees.ts` does for the same drop.
+  const discardedEmissive = emissiveFactorOf(pbr);
+  if (discardedEmissive) {
+    console.warn(
+      `[knight] '${source.name}' has a non-zero emissiveFactor (${discardedEmissive.toHexString()}). It is discarded: face lighting owns emissiveColor.`,
+    );
+  }
+
+  // glTF permits an emissiveTexture with emissiveFactor left at [0,0,0], so the check above does not
+  // cover this one. The clone inherits it and the assignment below replaces it.
+  if (pbr.emissiveTexture) {
+    console.warn(
+      `[knight] '${source.name}' ships an emissiveTexture. It is discarded: face lighting puts the albedo there instead.`,
+    );
+  }
+
+  const face = source.clone('knightFace');
+  if (!face) {
+    // `Material.clone()` returns null on the base class (`material.pure.js:1189`); only subclasses
+    // that override it return anything. NOT a NodeMaterial, despite HANDOFF §5 proposing one for cel
+    // banding: it overrides `clone(name, shareEffect)`, and it exposes no `albedoTexture`, so a
+    // NodeMaterial head is already turned away by the guard above with a different message.
+    console.warn(
+      `[knight] '${source.name}' (${source.getClassName()}) did not clone — face lighting skipped.`,
+    );
+    return;
+  }
+  // `Material.clone()` runs every texture slot through `SerializationHelper.Clone`, which calls
+  // `sourceProperty.clone()`, so `face` owns its own `Texture` *wrappers* (verified: new uniqueIds).
+  // What it does not own is its own pixels — those wrappers share the source's `InternalTexture`,
+  // i.e. one GPU upload for both materials (verified: identical `_texture.uniqueId`).
+  //
+  // So the emissive slot takes the clone's OWN albedo wrapper, not the source's. Both point at the
+  // same upload, so nothing is saved by aliasing the source's — but aliasing it would couple the two
+  // materials at the wrapper level, where the mutable per-wrapper state lives (`level`, `uScale`,
+  // `coordinatesIndex`, `wrapU`). `trees.ts` sets `.level` on exactly such a carried-over wrapper, so
+  // that is a live pattern in this codebase, not a hypothetical.
+  //
+  // The shared upload IS reference-counted, and the clone already took a reference: `Texture.clone()`
+  // resolves through `BaseTexture._getFromCache`, which calls `incrementReferences()` on a hit — which
+  // is the only way the identical `_texture.uniqueId` above can arise. Measured live: `_references` is
+  // 2, cloning a wrapper takes it to 3 and disposing that wrapper returns it to 2 with the upload
+  // intact. (The counter is `_references`; there is no public `references`, so reading that proves
+  // nothing.) Disposing the clone's own wrappers would therefore be safe.
+  //
+  // It is still not done on the failure path, for an unrelated reason — Babylon's compile poll can
+  // outlive the material; see the catch below. The cost is that a failed compile leaves the clone's
+  // wrappers in `scene.textures` until teardown.
+  //
+  // This is NOT the HANDOFF §7 trap, which is the opposite shape: there a probe was handed the same
+  // wrapper *object* by assignment, so nothing ever incremented, and `dispose(_, true)` took the count
+  // from 1 to 0 and freed pixels the real material was still sampling.
+  const facePbr = face as GltfPbrMaterial;
+  if (!facePbr.albedoTexture) {
+    // Falling back to the source's wrapper here would silently give up the decoupling argued for
+    // above, and would leave the face with no albedo at all — flat albedoColor with the source's
+    // image in the emissive slot. That is worse than skipping, so skip and say so.
+    face.dispose(false, false);
+    console.warn(
+      `[knight] the clone of '${source.name}' came back without an albedoTexture — face lighting skipped.`,
+    );
+    return;
+  }
+  facePbr.emissiveTexture = facePbr.albedoTexture;
+  facePbr.emissiveColor = new Color3(FACE_EMISSIVE, FACE_EMISSIVE, FACE_EMISSIVE);
+  // The clone also inherits `emissiveIntensity`, which the shader folds into the emissive term as
+  // `vLightingIntensity.y` — so an asset shipping KHR_materials_emissive_strength would multiply
+  // FACE_EMISSIVE by it and the measured table above would stop describing what renders. Pin it to 1
+  // so the constant means what it says, and report the discard like the other two channels.
+  if (pbr.emissiveIntensity !== undefined && pbr.emissiveIntensity !== 1) {
+    console.warn(
+      `[knight] '${source.name}' has emissiveIntensity ${pbr.emissiveIntensity}. It is reset to 1: FACE_EMISSIVE is calibrated against unscaled emissive.`,
+    );
+  }
+  facePbr.emissiveIntensity = 1;
+  for (const mesh of head) mesh.material = face;
+
+  let abandoned = false;
+  try {
+    // Sequentially, NOT Promise.all: `forceCompilation` saves `allowShaderHotSwapping` into a per-call
+    // local and writes false for the duration, so concurrent calls on one material race — the later
+    // ones capture the false an earlier one wrote, and the last restore leaves it permanently off.
+    // Hot-swapping off is what makes a mesh vanish while a new variant compiles (HANDOFF §7), so the
+    // race would arm that trap for every later define change on the head.
+    await withTimeout(
+      (async () => {
+        for (const mesh of head) {
+          // Once the wait has been abandoned, stop feeding the loop: each call arms its own poll.
+          if (abandoned) return;
+          await face.forceCompilationAsync(mesh);
+        }
+      })(),
+      FACE_COMPILE_TIMEOUT_MS,
+      'face shader compile',
+    );
+  } catch (err) {
+    // The clone adds an EMISSIVE define on top of a 101-bone skinned variant already near the
+    // vertex-uniform ceiling, so this can fail where its parent succeeded. Put the head back on the
+    // material that already compiles rather than letting the rejection escape into hubScene.
+    abandoned = true;
+    for (const mesh of head) mesh.material = source;
+    // `face` is deliberately NOT disposed. On the timeout branch Babylon's compile poll may still be
+    // live against it — `checkReady` re-arms every 16 ms and its only bail-out is a missing scene
+    // (`material.pure.js:1243`), which `Material.dispose` never clears — so disposing here would
+    // leave that poll calling `isReadyForSubMesh` on a destroyed material, with a disposed uniform
+    // buffer, for the life of the page. One orphaned material is the cheaper failure.
+    console.warn('[knight] face material failed to compile; head reverted to the shared material:', err);
+  }
+}
+
+/** Rejects if `promise` has not settled within `ms`. The underlying work is not cancellable — Babylon's
+ *  compile poll keeps running — so this bounds the *wait*, not the work. */
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout>;
+  const expiry = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`${label} did not settle within ${ms} ms`)), ms);
+  });
+  return Promise.race([promise, expiry]).finally(() => clearTimeout(timer));
+}
+
 /**
  * Loads the knight GLB, parents it to `parent` (the physics-driven player root), scales it to
  * {@link TARGET_HEIGHT}, seats its feet at the capsule bottom, and returns the four animation
  * groups with Idle playing. The mesh inherits the parent's facing rotation. `motion` is polled each
  * frame to keep the feet planted only while the character is actually on the ground.
+ *
+ * Also gives the head its own material and **awaits its shader compile** — see
+ * {@link applyFaceMaterial}. That await is what callers feel: `hubScene` awaits this before
+ * `loadTrees` and `runRenderLoop`, so hub startup is gated on it for up to
+ * {@link FACE_COMPILE_TIMEOUT_MS}. Face lighting never throws; every failure warns and leaves the
+ * head on the material the rest of the character uses.
  */
 export async function loadKnight(
   scene: Scene,
@@ -82,6 +336,8 @@ export async function loadKnight(
 
   // The knight casts the sun's shadow onto the grass.
   if (shadowGenerator) for (const mesh of result.meshes) shadowGenerator.addShadowCaster(mesh);
+
+  await applyFaceMaterial(result.meshes);
 
   const raw = root.getHierarchyBoundingVectors(true);
   const rawHeight = raw.max.y - raw.min.y;
