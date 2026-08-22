@@ -40,8 +40,9 @@ function skyGradientTexture(scene: Scene): DynamicTexture {
   // HORIZON_HEX from atmosphereColors.ts, so the two cannot drift apart.
   //
   // The pale band stops at 0.5 — it is NOT widened up through the mountain ring's elevation
-  // (measured at texture v ~0.62-0.66 for the ridge at the `mountains` viewpoint), even though that
-  // was tried. Holding '#dcecf7' through v=0.68 was measured to make the ridge MORE visible, not
+  // (the ridge sits at gradient STOP ~0.62-0.66 at the `mountains` viewpoint — stop positions, not
+  // texture v; the two run opposite ways, and in texture v the ridge is at ~0.34-0.38), even though
+  // that was tried. Holding '#dcecf7' through stop 0.68 was measured to make the ridge MORE visible, not
   // less: contrast between the ridge band and the sky immediately above it went from 109 to 169.
   // The reason is that the ridge's own colour is unreachable by this gradient near its elevation --
   // its blue channel (~190, from `terrain.ts`'s `haze` colour partially blended with fog) sits below

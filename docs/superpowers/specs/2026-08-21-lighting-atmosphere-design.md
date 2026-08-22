@@ -192,7 +192,7 @@ Two traps worth recording, both of which produced confident wrong answers before
   here" and the floor was removed — which sent the canopy's shaded undersides to pure black, 10.5 % of
   the frame from under a tree. The floor's entire purpose is the shaded side, so sampling lit points
   could not see it. Both levers ship: `diffuseTexture.level` (2.5) for what the sun reaches, the
-  emissive floor (0.24 multiplier) for what it does not. They **multiply** — changing the level
+  emissive floor (a 0.24 scalar on the hue vector normalised to green = 1, i.e. 0.24 green) for what it does not. They **multiply** — changing the level
   rescales the floor.
 - **`readPixels` after `endFrame()` can return a post-process RTT, not the canvas** — it reads back a
   uniform colour and looks like a broken scene. Call `engine.restoreDefaultFramebuffer()` first.

@@ -56,8 +56,11 @@ const TREE_TEXTURE_LEVEL = 2.5;
  *  texel, and changing the level rescales this too. The switch that would make it genuinely
  *  texture-independent is `useEmissiveAsIllumination`, which moves emissive outside that multiply.
  *
- *  Measured from under a tree as the fraction of the frame at pure black, sweeping the multiplier:
- *  0 -> 10.5 %, 0.16 -> 1.4 %, 0.24 -> 0.20 %, for +5 % mean luma. 0.24 is what shipped.
+ *  Measured from under a tree as the fraction of the frame at pure black. What was swept is a single
+ *  scalar on the hue vector below, normalised so green = 1 — so each sweep value IS the resulting
+ *  green channel: 0 -> 10.5 %, 0.16 -> 1.4 %, 0.24 -> 0.20 %, for +5 % mean luma. 0.24 green shipped,
+ *  which is the same colour as the grass floor x 1.41 described below; re-measure by sweeping that
+ *  scalar, not by scaling the triple channel-wise.
  *
  *  Measure this against a whole frame, never against sampled points: on lit canopy the floor looks
  *  like it does nothing (a 4x sweep moved a lit sample by 3/255), because the shaded side is the

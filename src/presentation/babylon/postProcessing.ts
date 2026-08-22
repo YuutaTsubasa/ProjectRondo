@@ -81,11 +81,14 @@ export function createAtmosphere(scene: Scene, camera: Camera): void {
   pipeline.bloomKernel = BLOOM_KERNEL;
   pipeline.bloomScale = BLOOM_SCALE;
   // Everything the pipeline can do that this scene did not ask for. Each one left enabled would cost
-  // a render target for an effect nobody wants.
+  // a render target for an effect nobody wants. Listed exhaustively rather than left to defaults, so
+  // that a Babylon upgrade turning one of them on by default is a merge conflict here rather than a
+  // silent extra pass.
   pipeline.depthOfFieldEnabled = false;
   pipeline.chromaticAberrationEnabled = false;
   pipeline.grainEnabled = false;
   pipeline.sharpenEnabled = false;
+  pipeline.glowLayerEnabled = false;
 
   // MSAA on the pipeline's render target. NOT optional: the engine is created with `antialias: true`
   // (hubScene.ts), but that only anti-aliases the default framebuffer, and attaching a pipeline
