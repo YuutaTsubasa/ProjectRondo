@@ -127,11 +127,18 @@ const FACE_COMPILE_TIMEOUT_MS = 10_000;
  */
 async function applyFaceMaterial(meshes: readonly AbstractMesh[]): Promise<void> {
   const head = meshes.filter((m) => HEAD_MESHES.includes(m.name));
-  if (head.length !== HEAD_MESHES.length) {
-    // Mesh names come from the GLB, so a re-export can rename them out from under this.
-    const found = head.map((m) => m.name).join(', ') || 'none';
+  // Each expected name must appear exactly once. Counting `head.length` would not establish that:
+  // glTF does not require unique node names and the loader does not dedupe them, so a GLB with two
+  // `Mesh_0`s and no `Mesh_33` still totals three — and the face would be applied to part of the head
+  // with an eyeball left on the dark shared material.
+  const wrongCount = HEAD_MESHES.map((name) => ({ name, n: meshes.filter((m) => m.name === name).length })).filter(
+    (x) => x.n !== 1,
+  );
+  if (wrongCount.length) {
+    // Mesh names come from the GLB, so a re-export can rename or duplicate them out from under this.
+    const detail = wrongCount.map((x) => `${x.name} x${x.n}`).join(', ');
     console.warn(
-      `[knight] expected head meshes ${HEAD_MESHES.join(', ')}, found ${head.length}/${HEAD_MESHES.length} (${found}) — face lighting skipped.`,
+      `[knight] expected each of ${HEAD_MESHES.join(', ')} exactly once; got ${detail} — face lighting skipped.`,
     );
     return;
   }
@@ -217,6 +224,7 @@ async function applyFaceMaterial(meshes: readonly AbstractMesh[]): Promise<void>
   facePbr.emissiveColor = new Color3(FACE_EMISSIVE, FACE_EMISSIVE, FACE_EMISSIVE);
   for (const mesh of head) mesh.material = face;
 
+  let abandoned = false;
   try {
     // Sequentially, NOT Promise.all: `forceCompilation` saves `allowShaderHotSwapping` into a per-call
     // local and writes false for the duration, so concurrent calls on one material race — the later
@@ -225,7 +233,11 @@ async function applyFaceMaterial(meshes: readonly AbstractMesh[]): Promise<void>
     // race would arm that trap for every later define change on the head.
     await withTimeout(
       (async () => {
-        for (const mesh of head) await face.forceCompilationAsync(mesh);
+        for (const mesh of head) {
+          // Once the wait has been abandoned, stop feeding the loop: each call arms its own poll.
+          if (abandoned) return;
+          await face.forceCompilationAsync(mesh);
+        }
       })(),
       FACE_COMPILE_TIMEOUT_MS,
       'face shader compile',
@@ -234,8 +246,13 @@ async function applyFaceMaterial(meshes: readonly AbstractMesh[]): Promise<void>
     // The clone adds an EMISSIVE define on top of a 101-bone skinned variant already near the
     // vertex-uniform ceiling, so this can fail where its parent succeeded. Put the head back on the
     // material that already compiles rather than letting the rejection escape into hubScene.
+    abandoned = true;
     for (const mesh of head) mesh.material = source;
-    face.dispose(false, false); // false, false: see the note above — the GPU upload is shared
+    // `face` is deliberately NOT disposed. On the timeout branch Babylon's compile poll may still be
+    // live against it — `checkReady` re-arms every 16 ms and its only bail-out is a missing scene
+    // (`material.pure.js:1243`), which `Material.dispose` never clears — so disposing here would
+    // leave that poll calling `isReadyForSubMesh` on a destroyed material, with a disposed uniform
+    // buffer, for the life of the page. One orphaned material is the cheaper failure.
     console.warn('[knight] face material failed to compile; head reverted to the shared material:', err);
   }
 }
