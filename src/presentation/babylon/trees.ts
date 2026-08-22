@@ -185,7 +185,8 @@ function retargetMaterials(scene: Scene, container: AssetContainer): void {
  * `TREE_TEXTURE_LEVEL` and `TREE_EMISSIVE`; see those for why both are needed.
  */
 function toStandard(scene: Scene, source: Material): StandardMaterial | null {
-  const albedo = (source as GltfPbrMaterial).albedoTexture;
+  const pbr = source as GltfPbrMaterial;
+  const albedo = pbr.albedoTexture;
   if (!albedo) return null; // no texture to carry over — leave whatever the GLB shipped
 
   const mat = new StandardMaterial(`${source.name}_std`, scene);
@@ -194,7 +195,7 @@ function toStandard(scene: Scene, source: Material): StandardMaterial | null {
   // TREE_EMISSIVE takes the emissive channel over, so glTF's emissiveFactor — which the loader puts
   // straight into emissiveColor — is discarded. Today's asset ships none; warn if one ever appears,
   // at parity with the emissiveTexture and occlusionTexture drops below.
-  const sourceEmissive = (source as { emissiveColor?: Color3 }).emissiveColor;
+  const sourceEmissive = pbr.emissiveColor;
   if (sourceEmissive && (sourceEmissive.r > 0 || sourceEmissive.g > 0 || sourceEmissive.b > 0)) {
     console.warn(
       `[trees] '${source.name}' has a non-zero emissiveFactor (${sourceEmissive.toHexString()}). It is discarded: TREE_EMISSIVE owns emissiveColor.`,
@@ -210,7 +211,6 @@ function toStandard(scene: Scene, source: Material): StandardMaterial | null {
   // `!backFaceCulling && twoSidedLighting`. Carrying only the first flipped every back-facing canopy
   // polygon to its front-facing normal, so leaves seen from behind were lit as though they faced away
   // from the sun. That shipped, and TREE_TEXTURE_LEVEL was fitted against the darkening it caused.
-  const pbr = source as GltfPbrMaterial;
   mat.backFaceCulling = source.backFaceCulling;
   if (pbr.twoSidedLighting !== undefined) mat.twoSidedLighting = pbr.twoSidedLighting;
   // glTF's baseColorFactor: RGB lands on albedoColor, A on the material's alpha. Both default to

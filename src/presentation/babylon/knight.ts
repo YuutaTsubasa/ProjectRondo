@@ -213,10 +213,6 @@ async function applyFaceMaterial(meshes: readonly AbstractMesh[]): Promise<void>
     for (const mesh of head) mesh.material = source;
     face.dispose(false, false); // false, false: see the note above — the GPU upload is shared
     console.warn('[knight] face material failed to compile; head reverted to the shared material:', err);
-  } finally {
-    // On the timeout path the restore inside forceCompilation never runs, so assert the default back
-    // rather than leaving the material with hot-swapping off. Harmless when it already restored.
-    face.allowShaderHotSwapping = true;
   }
 }
 
@@ -227,7 +223,7 @@ function withTimeout<T>(promise: Promise<T>, label: string): Promise<T> {
   const expiry = new Promise<never>((_, reject) => {
     timer = setTimeout(() => reject(new Error(`${label} did not settle within ${FACE_COMPILE_TIMEOUT_MS} ms`)), FACE_COMPILE_TIMEOUT_MS);
   });
-  return Promise.race([promise, expiry]).finally(() => clearTimeout(timer)) as Promise<T>;
+  return Promise.race([promise, expiry]).finally(() => clearTimeout(timer));
 }
 
 /**
