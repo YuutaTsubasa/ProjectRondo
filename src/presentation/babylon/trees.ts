@@ -191,6 +191,15 @@ function toStandard(scene: Scene, source: Material): StandardMaterial | null {
   const mat = new StandardMaterial(`${source.name}_std`, scene);
   mat.diffuseTexture = albedo;
   mat.specularColor = new Color3(0, 0, 0);
+  // TREE_EMISSIVE takes the emissive channel over, so glTF's emissiveFactor — which the loader puts
+  // straight into emissiveColor — is discarded. Today's asset ships none; warn if one ever appears,
+  // at parity with the emissiveTexture and occlusionTexture drops below.
+  const sourceEmissive = (source as { emissiveColor?: Color3 }).emissiveColor;
+  if (sourceEmissive && (sourceEmissive.r > 0 || sourceEmissive.g > 0 || sourceEmissive.b > 0)) {
+    console.warn(
+      `[trees] '${source.name}' has a non-zero emissiveFactor (${sourceEmissive.toHexString()}). It is discarded: TREE_EMISSIVE owns emissiveColor.`,
+    );
+  }
   // clone: handing out the module constant by reference lets a later mutation travel back into it
   mat.emissiveColor = TREE_EMISSIVE.clone();
 
