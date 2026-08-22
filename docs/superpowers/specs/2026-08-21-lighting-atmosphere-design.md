@@ -35,8 +35,9 @@ depth actually comes from.
 
 **Distances**, which set the fog range: field is 100×100 (half-extent 50), the mountain ring sits at
 radius 85 with heights 22–48 from a base of y −4, and the player is confined to roughly radius 42 by
-the barrier. So the far side of the field is up to ~100 units away and the mountains are 85–127 away
-depending on where the player stands.
+the barrier. So the far side of the field is up to ~100 units away and the mountains are 43–127 away
+depending on where the player stands — ring radius 85, less the barrier's radius-42 confinement at
+the near end.
 
 ## 3. Module and wiring
 
