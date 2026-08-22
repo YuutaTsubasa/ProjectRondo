@@ -26,7 +26,7 @@ depth actually comes from.
 
 | Thing | Current state | Why it matters here |
 | --- | --- | --- |
-| Sky | Unlit skydome, diameter 1000, `disableLighting`, `emissiveTexture` — gradient stops `#2b6cb0` → `#7fb2e5` → `#dcecf7`. **Note: the stop *names* were inverted relative to what the dome renders, so pre-P2 this rendered pale overhead and deep blue at the horizon — see §11b** | Pure emissive, so tone mapping remaps it; at 500 units out, any fog would swallow it |
+| Sky | Unlit skydome, diameter 1000, `disableLighting`, `emissiveTexture` — gradient stops `#2b6cb0` → `#7fb2e5` → `#dcecf7`. **Note: the stop *names* were inverted relative to what the dome renders, so pre-P2 this rendered pale overhead and only mid-blue at the horizon; the deep blue sat at the nadir and never appeared — see §11b** | Pure emissive, so tone mapping remaps it; at 500 units out, any fog would swallow it |
 | Sun | `DirectionalLight`, intensity 1.1, warm white, 1024 PCF shadow map | Unchanged by P2 |
 | Ambient | `HemisphericLight`, intensity 0.45 | May need a nudge once tone mapping lands |
 | Scatter / bushes / trees | `StandardMaterial` with deliberate **emissive floors** (grass `(0.10, 0.17, 0.06)`, bush `(0.05, 0.10, 0.03)`) so backlit billboards do not go black | Tuned *without* tone mapping — these are what ACES will shift most |
@@ -35,8 +35,9 @@ depth actually comes from.
 
 **Distances**, which set the fog range: field is 100×100 (half-extent 50), the mountain ring sits at
 radius 85 with heights 22–48 from a base of y −4, and the player is confined to roughly radius 42 by
-the barrier. So the far side of the field is up to ~100 units away and the mountains are 85–127 away
-depending on where the player stands.
+the barrier. So the far side of the field is up to ~100 units away and the mountains are 43–127 away
+depending on where the player stands — ring radius 85, less the barrier's radius-42 confinement at
+the near end.
 
 ## 3. Module and wiring
 
@@ -177,7 +178,7 @@ is not a downgrade — the source is metallic 0 with no metallic-roughness map, 
 Result, measured on the **final** shipped material (StandardMaterial + texture level + emissive floor)
 with the grass beside the trees held as an untouched control at 0.069: near trunk 0.32 → **0.05**,
 near canopy 0.19 → 0.09, mid canopy 0.47 → 0.13. Inverting EXP2 on the near trunk's 0.05 implies 30
-units against the ~27 measured geometrically; the PBR version implied 118.
+units against the ~27 measured geometrically; its PBR blend of 0.32 implied 82.
 
 (An earlier draft of this section quoted 0.04 / 0.08 / 0.11. Those were taken before the emissive floor
 was restored and are superseded — brightening the surface changes the blend fraction.)
@@ -191,7 +192,7 @@ Two traps worth recording, both of which produced confident wrong answers before
   here" and the floor was removed — which sent the canopy's shaded undersides to pure black, 10.5 % of
   the frame from under a tree. The floor's entire purpose is the shaded side, so sampling lit points
   could not see it. Both levers ship: `diffuseTexture.level` (2.5) for what the sun reaches, the
-  emissive floor (0.24 multiplier) for what it does not. They **multiply** — changing the level
+  emissive floor (a 0.24 scalar on the hue vector normalised to green = 1, i.e. 0.24 green) for what it does not. They **multiply** — changing the level
   rescales the floor.
 - **`readPixels` after `endFrame()` can return a post-process RTT, not the canvas** — it reads back a
   uniform colour and looks like a broken scene. Call `engine.restoreDefaultFramebuffer()` first.
@@ -210,8 +211,10 @@ sits against near-fog-coloured sky over its whole height. Implemented and measur
 109 to **169**.
 
 The ridge's colour is simply unreachable by this gradient. Its blue channel is ~190 (`terrain.ts`'s
-`haze`, partially blended with fog), which sits *below* every stop in the file — mid `#7fb2e5` is 229,
-pale `#dcecf7` is 247 — so no stop position can meet it. The deeper cause is fog strength, not sky
+`haze`, partially blended with fog), and nothing the gradient reaches *near the ridge's elevation* comes
+close: across stops 0.62–0.66 it runs blue 237 → 234. (The ramp does cross 190 near stop 0.93, because
+the zenith `#2b6cb0` is blue 176 — but that crossing is far above the ridge and cannot be brought down
+to it without dragging the zenith down too.) The deeper cause is fog strength, not sky
 colour: at the ring's ~95-unit distance and density 0.0076 the EXP2 factor is only ~41 %, nowhere near
 enough to pull the ridge toward `FOG_COLOR`. Reaching ~80 % there needs roughly double the density,
 which would fog the near field that §8 requires stay clear.
@@ -225,12 +228,14 @@ re-measure this coupling.
 
 Not introduced by P2, but fixed in it, and worth flagging because it is the single largest visual change
 in the branch. `addColorStop(1.0, …)` renders at the **zenith** on this dome, not the horizon, so the
-pre-P2 gradient — written as if 1.0 were the horizon — rendered **pale overhead and deep blue at the
-horizon**, the inverse of a sky.
+pre-P2 gradient — written as if 1.0 were the horizon — rendered **pale overhead and only mid-blue at the
+horizon**: washed out rather than colour-inverted. The deep blue `#2b6cb0` sat at stop 0.0, which is the
+**nadir** — below the terrain, never visible in any frame — so it was absent from the render rather than
+misplaced within it.
 
 Measured with a camera at y=30, sampling the centre pixel on the pre-fix gradient (whose pale
 `#dcecf7` sat at 1.0): straight up → (220,236,247), exactly the pale stop; 45° up → (178,211,239);
-horizontal → (134,181,223), far short of pale.
+horizontal → (134,181,223), which is the mid stop `#7fb2e5` (127,178,229), not the deep blue.
 
 This is an inversion of the largest surface in the frame, made under a "the palette does not change"
 constraint (§1). It is almost certainly the right fix — but it is invisible in §12's table, because both
@@ -258,6 +263,30 @@ FXAA was also tried and returned figures byte-identical to samples 1, i.e. the t
 effect in that harness; it was not pursued because this scene's aliasing is geometric, which is what
 MSAA addresses.
 
+## 11d. Finding — the material conversion dropped `twoSidedLighting`
+
+Caught in review round 2, after the conversion had already shipped in this branch.
+
+`tree.glb`'s single material is `"doubleSided": true`. Babylon's glTF loader turns that into **two**
+properties on the `PBRMaterial` — `backFaceCulling = false` *and* `twoSidedLighting = true` — and the
+conversion carried only the first. `StandardMaterial` gates its shader on
+`!backFaceCulling && twoSidedLighting`, so with the flag left at its default every back-facing canopy
+polygon was shaded using its front-facing normal: a leaf seen from behind was lit as though it faced
+away from the sun.
+
+Copying *some* of a material's properties is worse than copying none, because the result looks
+plausible. The fix carries the rest of the set that changes how the material renders — the glTF
+`baseColorFactor`'s RGB (`albedoColor` → `diffuseColor`) and A (`alpha`), and `alphaCutOff`. Today's
+asset omits the factor entirely, so that part is latent; it matters because the surrounding code is
+explicitly written for the asset-swap case, and a swapped GLB carrying a tint would have converted
+cleanly, warned about nothing, and rendered the wrong colour.
+
+Consequence worth stating plainly: `TREE_TEXTURE_LEVEL` (2.5) and `TREE_EMISSIVE` were both fitted
+against renders that had this darkening baked in. Re-measured after the fix, the three DoD viewpoints
+moved by less than half a luma point and C's crushed fraction improved slightly, so the constants were
+left alone — but they were fitted to a bug, and anyone re-deriving them should start from scratch
+rather than from those numbers.
+
 ## 12. Definition of done — measured
 
 All figures from a 1280x720 render, three fixed viewpoints, same session. "Before" disables tone
@@ -266,9 +295,13 @@ in both columns.
 
 | Viewpoint | Pure black, before → after | Blown, after | Mean luma, before → after |
 | --- | --- | --- | --- |
-| A · spawn point | 0.001 % → **0 %** | 0 % | 97.9 → 117.1 |
-| B · across the field to the mountains | 0.001 % → **0 %** | 0 % | 125.4 → 147.3 |
-| C · under a tree | 0 % → **0.197 %** | 0 % | 95.6 → 99.4 |
+| A · spawn point | 0.001 % → **0 %** | 0 % | 97.9 → 117.7 |
+| B · across the field to the mountains | 0.001 % → **0 %** | 0 % | 125.4 → 147.7 |
+| C · under a tree | 0 % → **0.179 %** | 0 % | 95.6 → 99.7 |
+
+Re-measured after the `twoSidedLighting` fix in §11d, which changed how every back-facing canopy
+polygon is lit. The shift was small — C's crushed fraction 0.197 % → 0.179 %, mean luma up under 0.5 in
+all three views — so `TREE_TEXTURE_LEVEL` and `TREE_EMISSIVE` were left as fitted rather than re-tuned.
 
 No blown highlights anywhere and no crushed regions; the worst case is 0.2 % of the frame under a
 canopy. Screenshots were captured with `canvas.toDataURL` off manually-driven frames, because the

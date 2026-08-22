@@ -22,7 +22,7 @@
 
 Babylon scene code is not unit-tested in this project (HANDOFF §6); it is verified in-browser. So each task's "test" is a scripted measurement with an expected result, not a Vitest case. Task 1 installs a shared harness every later task reuses.
 
-Three rules make the measurements trustworthy:
+Four rules make the measurements trustworthy:
 
 - **Fix the camera before sampling**, and prove it took. Stopping the render loop is not enough on its own — see the `__view` comment in Task 1 — so every sampling step checks the `cameraAt` the harness returns before trusting the numbers that follow.
 - **Trust `readPixels`, not the source values** — the same rule the terrain work landed on (HANDOFF §7).

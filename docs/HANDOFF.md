@@ -1,6 +1,6 @@
 # ProjectRondo — Developer Handoff
 
-Last updated: 2026-08-20. Purpose: everything the next machine / developer / Claude session needs to
+Last updated: 2026-08-21. Purpose: everything the next machine / developer / Claude session needs to
 pick this up cold. The repo is the source of truth; this file is the map.
 
 ## 1. What this is
@@ -55,7 +55,7 @@ pnpm build              # static bundle → dist/
 pnpm tauri dev          # native desktop app (needs Rust)
 ```
 
-## 4. Current state (all merged to `main`, latest `9c0395a`, no open PRs)
+## 4. Current state (all merged to `main`, latest `34ede96`, no open PRs)
 
 - **M1 — hub web parity:** third-person mouse-look knight (WASD/Space), pure-domain movement, Havok
   capsule, Idle/Walk animation blend.
@@ -69,38 +69,48 @@ pnpm tauri dev          # native desktop app (needs Rust)
   - **Map scale-up** (PR #21): field 50×50 → **100×100**; hard invisible walls replaced by a **natural
     terrain barrier** (edge ramps past the controller's walkable slope); grassy barrier slope; camera
     clamped above the terrain (no see-through on down-pitch/slopes).
-  - **Run + jump** (PR #23): Run/Jump clips retargeted through the Godot BoneMap pipeline; heading-steered
-    movement (`characterMovement.ts`), `groundContact.ts` as the single owner of grounded/coyote/buffer
-    state, `slopeMotion.ts` for sloped terrain. See §7 — four gameplay bugs it exposed are recorded there.
+  - **Run + jump** (PR #23): Mixamo Run/Jump retargeted onto the knight through the existing Godot
+    pipeline; **Shift to sprint** (`runSpeed` 8, derived from the clips' measured stride); jump wired
+    end to end; feet planted to **2.5 mm** on flat ground (was ~10 cm of float). Movement gained a
+    single pure owner for ground contact (`groundContact.ts` — coyote time, jump buffering, takeoff
+    guard) and slope-following (`slopeMotion.ts`), plus heading-based steering. Four gameplay bugs
+    fell out of it: **jumping while walking was impossible**, gentle slopes cut running from 8 u/s to
+    2.9, running turns had the model and the body pointing different ways, and landing sometimes
+    played the jump clip's tail. See the design spec §11-16 for the measurements behind each.
   - **P2 lighting & atmosphere:** ACES tone mapping + exposure/contrast, restrained bloom, EXP2 distance
-    fog, MSAA restored on the pipeline. Trees rebuilt off PBR (they were the only PBR surface, and fogged
+    fog, MSAA restored on the pipeline. Trees rebuilt off PBR (the only PBR surface fog actually reaches —
+    the knight is PBR too but stays inside the ~1 % band, see §7 — and they fogged
     in linear space, which bleached them). Skydome gradient orientation fixed — it was inverted, rendering
     pale overhead. Design + all findings:
     `docs/superpowers/specs/2026-08-21-lighting-atmosphere-design.md` (§11–§12 are the measured record).
     **Deferred:** the mountain ridge still keeps a visible edge against the sky; the only remaining lever
     is `terrain.ts`'s `haze` colour, which is a human art-direction call (§11a).
+  - **Knight face lighting:** the head — `Mesh_0` (face + hair + neck) plus the eyeballs `Mesh_32` /
+    `Mesh_33` — gets its own material cloned off the single shared `Material_001`, with the albedo added
+    back as emissive so the face stays bright and flat instead of tracking the sun. Face mean luma
+    70 → 146, with the pauldron held as a control measuring *identical*. The 31 `tripo_part_*` armour
+    meshes are untouched. Two things not to re-derive: the complaint was "the face is too dark and the
+    shading on it looks bad", **not** cel banding or outlines; and **do not convert the knight to
+    StandardMaterial** — that was tried on the theory that the trees' PBR-vs-gamma problem applied here
+    too, and it does not (the knight sits ~5 units from the camera where fog is 0.14 %). The conversion
+    made it markedly worse: near-black hair, grey face, dull armour.
 
 ## 5. What's next (the plan)
 
 Read the roadmap: `docs/superpowers/specs/2026-08-18-refined-hub-world-roadmap.md` (M4 phases + §7b
 scheduled additions). Sequence from here:
 
-1. **Toon shading on the knight — face lighting done, cel banding not.** `knight.ts` now gives the head
-   (`Mesh_0` = face + hair + neck, plus eyeballs `Mesh_32`/`Mesh_33`) its own material cloned off
-   `Material_001`, with the albedo added back as emissive so the face stays bright and flat instead of
-   tracking the sun. Face mean luma 70 → 146 with the armour measuring *identical* as a control. Two
-   things worth knowing before extending this:
-   - The complaint it solved was "the face is too dark and the shading on it looks bad" — **not** cel
-     banding or outlines. If hard light/shade bands are wanted, that is still unbuilt, and it means a
-     NodeMaterial that wires the fog block and 101-bone skinning explicitly or it becomes the next
-     odd-one-out (§7). `mesh.renderOutline` is built in and is the cheap way to add an outline.
-   - **Do not convert the knight to StandardMaterial.** It was tried, on the theory that the trees'
-     PBR-vs-gamma problem applied here too. It does not — the knight sits close to the camera where fog
-     is under 1 %, and the conversion made it markedly worse (near-black hair, grey face, dull armour).
-   Note `Mesh_0`'s 242k verts is most of the character's geometry budget — the GLB was texture-optimised
-   but never decimated.
+1. **Toon shading on the knight — the face is lit, the cel banding is not.** `knight.ts` gives the head
+   its own material (§4); what is *not* built is hard light/shade banding or an outline. If those are
+   wanted: Babylon has no built-in toon shader, so banding means a NodeMaterial that wires the fog block
+   and the 101-bone skinning explicitly or the knight becomes the next odd-one-out (§7), while
+   `mesh.renderOutline` is built in and is the cheap way to get the outline. Note `Mesh_0` is 242k of the
+   character's ~320k verts — the GLB was texture-optimised but never decimated, which is a separate job.
 2. **P3 — water & landmarks** (landmarks double as NPC / future mode-entry sites; the natural-barrier
-   cliff aesthetic can finish here).
+   cliff aesthetic can finish here). Budget against the already-loaded scene (roadmap §7): the fps
+   headroom the earlier phases left is what P3 spends. P2 measured its own cost at **0.3 ms** (1.837 ms
+   pre-P2 → 2.137 ms shipped), so the whole frame is ~2.1 ms against a 16.7 ms vsync budget and the
+   headroom is still roughly 8x (design spec §12).
 3. **P4 — life & motion** (wind sway, drifting clouds, ambient creatures).
 4. **Then: game modes** — Sonic-style 3D/2D levels, 2048, Sudoku (a new milestone, SP2+).
 
@@ -145,6 +155,9 @@ These are hard-won; several cost a debugging session each.
   then **texture-only** gltf-transform (resize + webp). **Do NOT `simplify`/`quantize`/`resample`
   skinned meshes** — it corrupts the animation (feet slide). Bump `?v=N` on the GLB URL in `knight.ts`
   after rebuilding so browsers refetch.
+- **Known, deferred:** landing from a run drops planar speed from 8 u/s to ~3.2 for ~0.4s (the capsule
+  bounces on the rolling terrain at speed; the locomotion blend faithfully follows it down into walk and
+  back). Physics, not animation — see the run/jump spec §15.
 - **Rebuilding the GLB has three sharp edges** (full recipe in the README): Godot serves a **stale
   asset import** after you edit a `.import` file unless you delete `.godot/imported/<Name>.fbx-*`
   first — the bone renaming just silently does not apply; the mono build **needs the .NET 8 SDK**
@@ -213,7 +226,9 @@ These are hard-won; several cost a debugging session each.
   Whole-frame statistics (fraction at pure black, blown pixels, mean luma) would have caught it
   immediately — and did, once used.
 - **Benchmark configs interleaved, never one block each.** A block-per-config run had the *same* config
-  at 2.96 ms and 2.06 ms, and reported "bloom off" as slower than "whole pipeline off". Round-robin
+  at 2.96 ms and 2.06 ms, and reported "bloom off" (1.778 ms) as *faster* than "whole pipeline off"
+  (2.001 ms) — impossible, since bloom-off still pays for tone mapping that pipeline-off does not.
+  Round-robin
   across configs with medians fixed it. Run-to-run spread here is ~30 %, so trust the *ordering* across
   several configs rather than any single number.
 

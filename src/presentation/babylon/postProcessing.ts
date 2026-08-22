@@ -2,19 +2,20 @@ import { Scene } from '@babylonjs/core/scene';
 import { Color3 } from '@babylonjs/core/Maths/math.color';
 import type { Camera } from '@babylonjs/core/Cameras/camera';
 import { DefaultRenderingPipeline } from '@babylonjs/core/PostProcesses/RenderPipeline/Pipelines/defaultRenderingPipeline';
-import { HORIZON_HEX } from './atmosphereColors';
 import { ImageProcessingConfiguration } from '@babylonjs/core/Materials/imageProcessingConfiguration';
 // Belt-and-braces: in Babylon 9.21 PostProcessRenderPipeline's own constructor registers this scene
 // component, so the import is redundant today. It is kept because that is an implementation detail
 // we do not control, and because every other deep-import side effect in this codebase is explicit.
 import '@babylonjs/core/PostProcesses/RenderPipeline/postProcessRenderPipelineManagerSceneComponent';
 
-/**
- * Distance fog and the camera's rendering pipeline — the frame-level half of the atmosphere, as
- * opposed to `environment.ts`, which builds the lights and the sky themselves.
- */
+import { HORIZON_HEX } from './atmosphereColors';
 
-/** Fog colour — shared with the sky's horizon stop; see `atmosphereColors.ts` for why. */
+/**
+ * Fog colour — shared with the sky's horizon stop; see `atmosphereColors.ts` for why.
+ *
+ * This module owns distance fog and the camera's rendering pipeline: the frame-level half of the
+ * atmosphere, as opposed to `environment.ts`, which builds the lights and the sky themselves.
+ */
 const FOG_COLOR = Color3.FromHexString(HORIZON_HEX);
 
 /**
@@ -80,11 +81,14 @@ export function createAtmosphere(scene: Scene, camera: Camera): void {
   pipeline.bloomKernel = BLOOM_KERNEL;
   pipeline.bloomScale = BLOOM_SCALE;
   // Everything the pipeline can do that this scene did not ask for. Each one left enabled would cost
-  // a render target for an effect nobody wants.
+  // a render target for an effect nobody wants. Listed exhaustively rather than left to defaults, so
+  // that a Babylon upgrade turning one of them on by default is a merge conflict here rather than a
+  // silent extra pass.
   pipeline.depthOfFieldEnabled = false;
   pipeline.chromaticAberrationEnabled = false;
   pipeline.grainEnabled = false;
   pipeline.sharpenEnabled = false;
+  pipeline.glowLayerEnabled = false;
 
   // MSAA on the pipeline's render target. NOT optional: the engine is created with `antialias: true`
   // (hubScene.ts), but that only anti-aliases the default framebuffer, and attaching a pipeline
