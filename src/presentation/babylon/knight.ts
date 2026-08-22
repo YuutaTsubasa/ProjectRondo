@@ -64,7 +64,7 @@ const IDLE_SWAY_KEEP = 0.2;
  *  character's ~320k vertices — and `Mesh_32`/`Mesh_33` are the two eyeballs. Identified from bind-pose
  *  bounding boxes against the `Head` and `CC_Base_*_Eye` bones, then confirmed by rendering `Mesh_0`
  *  alone. The other 31 meshes (`tripo_part_*`) are body and armour and are deliberately untouched. */
-const HEAD_MESHES = ['Mesh_0', 'Mesh_32', 'Mesh_33'];
+const HEAD_MESHES: readonly string[] = ['Mesh_0', 'Mesh_32', 'Mesh_33'];
 
 /**
  * How much of the albedo to add back as unlit light on the face.
@@ -98,6 +98,13 @@ const HEAD_MESHES = ['Mesh_0', 'Mesh_32', 'Mesh_33'];
  * Isolating the skin would need a mask texture or a Blender split, and the lift reads as an improvement.
  */
 const FACE_EMISSIVE = 0.45;
+
+/** Ceiling on waiting for the face shader. `Material.forceCompilation`'s `checkReady` re-arms itself
+ *  every 16 ms and only exits on ready-or-compile-error, so a blocking albedo texture that never
+ *  becomes ready — a stalled fetch, a lost context — leaves the promise pending forever. That would
+ *  hang `loadKnight`, and with it `createHubScene`: no render loop, no trees, no input, nothing
+ *  logged. Ten seconds is far past a real compile and still bounded. */
+const FACE_COMPILE_TIMEOUT_MS = 10_000;
 
 /**
  * Gives the head its own material so the face can be lit differently from the armour.
@@ -157,6 +164,14 @@ async function applyFaceMaterial(meshes: AbstractMesh[]): Promise<void> {
     );
   }
 
+  // glTF permits an emissiveTexture with emissiveFactor left at [0,0,0], so the check above does not
+  // cover this one. The clone inherits it and the assignment below replaces it.
+  if ((source as { emissiveTexture?: BaseTexture | null }).emissiveTexture) {
+    console.warn(
+      `[knight] '${source.name}' ships an emissiveTexture. It is discarded: face lighting puts the albedo there instead.`,
+    );
+  }
+
   const face = source.clone('knightFace');
   if (!face) {
     // Material.clone() returns null on the base class; only concrete subclasses override it. A
@@ -172,7 +187,14 @@ async function applyFaceMaterial(meshes: AbstractMesh[]): Promise<void> {
   for (const mesh of head) mesh.material = face;
 
   try {
-    await Promise.all(head.map((mesh) => face.forceCompilationAsync(mesh)));
+    // Sequentially, NOT Promise.all: `forceCompilation` saves `allowShaderHotSwapping` into a per-call
+    // local and writes false for the duration, so concurrent calls on one material race — the later
+    // ones capture the false an earlier one wrote, and the last restore leaves it permanently off.
+    // Hot-swapping off is what makes a mesh vanish while a new variant compiles (HANDOFF §7), so the
+    // race would arm that trap for every later define change on the head.
+    for (const mesh of head) {
+      await withTimeout(face.forceCompilationAsync(mesh), `'${mesh.name}' face shader compile`);
+    }
   } catch (err) {
     // The clone adds an EMISSIVE define on top of a 101-bone skinned variant already near the
     // vertex-uniform ceiling, so this can fail where its parent succeeded. Put the head back on the
@@ -180,7 +202,21 @@ async function applyFaceMaterial(meshes: AbstractMesh[]): Promise<void> {
     for (const mesh of head) mesh.material = source;
     face.dispose(false, false); // false, false: the textures belong to the source material
     console.warn('[knight] face material failed to compile; head reverted to the shared material:', err);
+  } finally {
+    // On the timeout path the restore inside forceCompilation never runs, so assert the default back
+    // rather than leaving the material with hot-swapping off. Harmless when it already restored.
+    face.allowShaderHotSwapping = true;
   }
+}
+
+/** Rejects if `promise` has not settled within {@link FACE_COMPILE_TIMEOUT_MS}. The underlying work is
+ *  not cancellable — Babylon's compile poll keeps running — so this bounds the *wait*, not the work. */
+function withTimeout<T>(promise: Promise<T>, label: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout>;
+  const expiry = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`${label} did not settle within ${FACE_COMPILE_TIMEOUT_MS} ms`)), FACE_COMPILE_TIMEOUT_MS);
+  });
+  return Promise.race([promise, expiry]).finally(() => clearTimeout(timer)) as Promise<T>;
 }
 
 /**
