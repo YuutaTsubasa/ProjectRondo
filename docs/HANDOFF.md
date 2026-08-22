@@ -87,9 +87,11 @@ pnpm tauri dev          # native desktop app (needs Rust)
     is `terrain.ts`'s `haze` colour, which is a human art-direction call (§11a).
   - **Knight face lighting:** the head — `Mesh_0` (face + hair + neck) plus the eyeballs `Mesh_32` /
     `Mesh_33` — gets its own material cloned off the single shared `Material_001`, with the albedo added
-    back as emissive so the face stays bright and flat instead of tracking the sun. Face mean luma
-    70 → 146, with the pauldron held as a control measuring *identical*. The 31 `tripo_part_*` armour
-    meshes are untouched. Two things not to re-derive: the complaint was "the face is too dark and the
+    back as emissive so the face stays bright and flat instead of tracking the sun. Head region mean
+    luma 35.6 → 68.8 at the shipped 0.45 (0.25 gives 57.1), with the rest of the frame flat at 114.3 as
+    a control — which is what says the 31 `tripo_part_*` armour meshes are untouched. Measure it with
+    the idle animation paused and the head region located by which pixels the change touches, not by a
+    hand-placed box; see `FACE_EMISSIVE` for why. Two things not to re-derive: the complaint was "the face is too dark and the
     shading on it looks bad", **not** cel banding or outlines; and **do not convert the knight to
     StandardMaterial** — that was tried on the theory that the trees' PBR-vs-gamma problem applied here
     too, and it does not (the knight sits ~5 units from the camera where fog is 0.14 %). The conversion

@@ -6,6 +6,7 @@ import { ImportMeshAsync } from '@babylonjs/core/Loading/sceneLoader';
 import { Quaternion } from '@babylonjs/core/Maths/math.vector';
 import { Color3 } from '@babylonjs/core/Maths/math.color';
 import type { AbstractMesh } from '@babylonjs/core/Meshes/abstractMesh';
+import type { BaseTexture } from '@babylonjs/core/Materials/Textures/baseTexture';
 // Side-effect: registers the glTF loader plugin (with KHR_mesh_quantization / webp support).
 import '@babylonjs/loaders/glTF';
 import { CAPSULE_HALF } from './capsule';
@@ -75,9 +76,23 @@ const HEAD_MESHES = ['Mesh_0', 'Mesh_32', 'Mesh_33'];
  * This works because **PBR adds emissive**; StandardMaterial folds it in before multiplying by the
  * diffuse texture, so the same trick there scales to nothing on a dark texel (see `trees.ts`).
  *
- * 0.45 measured over the face region at a fixed head-on camera: mean luma 99 -> 175, and the lit/unlit
- * spread compresses (min 0 -> 8, max 195 -> 225), which is the part that fixes the terminator. 0.25 is
- * the more conservative option at 152 if this reads too hot in motion.
+ * Measured head-on with the idle animation **paused at frame 0** and the camera tracking the `Head`
+ * bone live, over the head region located by which pixels the change itself touches (158k px, ~20 % of
+ * the frame) rather than by a hand-placed box — so it covers face, hair and neck, and the rest of the
+ * frame serves as a control:
+ *
+ * | emissive | head region mean luma | control (rest of frame) |
+ * | --- | --- | --- |
+ * | 0    | 35.6 | 114.3 |
+ * | 0.25 | 57.1 | 114.3 |
+ * | 0.45 | 68.8 | 114.3 |
+ *
+ * The control is flat to one decimal, which is what says the armour is untouched. 0.25 is the more
+ * conservative option if 0.45 reads too hot in motion.
+ *
+ * Reproduce it exactly that way. Two earlier figures for this constant (99 -> 175 and 70 -> 146)
+ * disagreed because each used a differently hand-placed box with the idle animation *running*, so the
+ * head sat at a different angle in each; both are superseded by the table above.
  *
  * Known and accepted: `Mesh_0` carries the hair too, so the hair lifts from near-black to a warm brown.
  * Isolating the skin would need a mask texture or a Blender split, and the lift reads as an improvement.
@@ -93,24 +108,79 @@ const FACE_EMISSIVE = 0.45;
  * `forceCompilationAsync` is not optional: swapping the material on a 101-bone skinned mesh triggers an
  * async shader rebuild, and the mesh renders as *nothing at all* until it finishes — long enough to
  * look like a bug and to poison any measurement taken in the meantime.
+ *
+ * Every failure here is warn-and-skip rather than throw. This runs inside `loadKnight`, which
+ * `hubScene` awaits *before* `loadTrees` and `runRenderLoop` — so anything thrown takes down the whole
+ * hub over a face tweak. The armour keeps the original material either way, so skipping costs one
+ * cosmetic effect and nothing else.
  */
 async function applyFaceMaterial(meshes: AbstractMesh[]): Promise<void> {
   const head = meshes.filter((m) => HEAD_MESHES.includes(m.name));
-  const source = head[0]?.material;
-  if (!source || head.length !== HEAD_MESHES.length) {
+  if (head.length !== HEAD_MESHES.length) {
     // Mesh names come from the GLB, so a re-export can rename them out from under this.
-    console.warn(`[knight] head meshes not found (${head.length}/${HEAD_MESHES.length}) — face lighting skipped.`);
+    const found = head.map((m) => m.name).join(', ') || 'none';
+    console.warn(
+      `[knight] expected head meshes ${HEAD_MESHES.join(', ')}, found ${head.length}/${HEAD_MESHES.length} (${found}) — face lighting skipped.`,
+    );
     return;
   }
 
+  const source = head[0].material;
+  if (!source) {
+    console.warn(`[knight] '${head[0].name}' has no material — face lighting skipped.`);
+    return;
+  }
+  // "Clone the head's material" only means anything while the head actually shares one. Splitting the
+  // eyes onto their own material is an ordinary thing for a re-export to do, and would otherwise paint
+  // the eye material across the face, the hair and the neck with every name check still passing.
+  if (head.some((m) => m.material !== source)) {
+    const names = [...new Set(head.map((m) => m.material?.name ?? 'none'))].join(', ');
+    console.warn(
+      `[knight] head meshes no longer share one material (${names}) — face lighting skipped rather than painting one of them across the rest.`,
+    );
+    return;
+  }
+
+  const albedo = (source as { albedoTexture?: BaseTexture | null }).albedoTexture;
+  if (!albedo) {
+    // With no texture to modulate it, FACE_EMISSIVE would be added as a flat grey wash over the head.
+    console.warn(`[knight] '${source.name}' has no albedoTexture — face lighting skipped.`);
+    return;
+  }
+
+  // The loader puts glTF's emissiveFactor straight into emissiveColor, which FACE_EMISSIVE overwrites.
+  // Today's GLB ships none; say so if one appears, as `trees.ts` does for the same drop.
+  const sourceEmissive = (source as { emissiveColor?: Color3 }).emissiveColor;
+  if (sourceEmissive && (sourceEmissive.r > 0 || sourceEmissive.g > 0 || sourceEmissive.b > 0)) {
+    console.warn(
+      `[knight] '${source.name}' has a non-zero emissiveFactor (${sourceEmissive.toHexString()}). It is discarded: face lighting owns emissiveColor.`,
+    );
+  }
+
   const face = source.clone('knightFace');
-  if (!face) return;
+  if (!face) {
+    // Material.clone() returns null on the base class; only concrete subclasses override it. A
+    // NodeMaterial — what HANDOFF §5 proposes for cel banding — is one of the types that lands here.
+    console.warn(
+      `[knight] '${source.name}' (${source.getClassName()}) did not clone — face lighting skipped.`,
+    );
+    return;
+  }
   // Reuses the source's textures by reference — never dispose textures off this material.
-  (face as { emissiveTexture?: unknown }).emissiveTexture =
-    (source as { albedoTexture?: unknown }).albedoTexture;
+  (face as { emissiveTexture?: BaseTexture | null }).emissiveTexture = albedo;
   (face as { emissiveColor?: Color3 }).emissiveColor = new Color3(FACE_EMISSIVE, FACE_EMISSIVE, FACE_EMISSIVE);
   for (const mesh of head) mesh.material = face;
-  await Promise.all(head.map((mesh) => face.forceCompilationAsync(mesh)));
+
+  try {
+    await Promise.all(head.map((mesh) => face.forceCompilationAsync(mesh)));
+  } catch (err) {
+    // The clone adds an EMISSIVE define on top of a 101-bone skinned variant already near the
+    // vertex-uniform ceiling, so this can fail where its parent succeeded. Put the head back on the
+    // material that already compiles rather than letting the rejection escape into hubScene.
+    for (const mesh of head) mesh.material = source;
+    face.dispose(false, false); // false, false: the textures belong to the source material
+    console.warn('[knight] face material failed to compile; head reverted to the shared material:', err);
+  }
 }
 
 /**
