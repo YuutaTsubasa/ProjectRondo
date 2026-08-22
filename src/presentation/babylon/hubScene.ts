@@ -17,6 +17,7 @@ import { createInput } from './input';
 import { createPlayer, type Player } from './playerController';
 import { loadKnight, driveKnightAnimation, type Knight, type KnightMotionSample } from './knight';
 import { createEnvironment } from './environment';
+import { createAtmosphere } from './postProcessing';
 import { createTerrain } from './terrain';
 import { loadTrees } from './trees';
 import { createGroundScatter } from './scatter';
@@ -54,6 +55,7 @@ export async function createHubScene(canvas: HTMLCanvasElement): Promise<HubScen
   const playerRoot = new TransformNode('player', scene);
   const follow = createFollowCamera(scene, playerRoot, canvas);
   scene.activeCamera = follow.camera;
+  createAtmosphere(scene, follow.camera);
 
   const input = createInput();
   const player = createPlayer(scene, playerRoot, follow, input);

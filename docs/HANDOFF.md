@@ -77,21 +77,27 @@ pnpm tauri dev          # native desktop app (needs Rust)
     fell out of it: **jumping while walking was impossible**, gentle slopes cut running from 8 u/s to
     2.9, running turns had the model and the body pointing different ways, and landing sometimes
     played the jump clip's tail. See the design spec §11-16 for the measurements behind each.
+  - **P2 lighting & atmosphere:** ACES tone mapping + exposure/contrast, restrained bloom, EXP2 distance
+    fog, MSAA restored on the pipeline. Trees rebuilt off PBR (the only PBR surface fog actually reaches —
+    the knight is PBR too but stays inside the ~1 % band, see §7 — and they fogged
+    in linear space, which bleached them). Skydome gradient orientation fixed — it was inverted, rendering
+    pale overhead. Design + all findings:
+    `docs/superpowers/specs/2026-08-21-lighting-atmosphere-design.md` (§11–§12 are the measured record).
+    **Deferred:** the mountain ridge still keeps a visible edge against the sky; the only remaining lever
+    is `terrain.ts`'s `haze` colour, which is a human art-direction call (§11a).
 
 ## 5. What's next (the plan)
 
 Read the roadmap: `docs/superpowers/specs/2026-08-18-refined-hub-world-roadmap.md` (M4 phases + §7b
 scheduled additions). Sequence from here:
 
-1. **P2 — 光影與氛圍後製 (lighting & atmosphere post-processing):** `DefaultRenderingPipeline` (ACES tone
-   mapping, bloom, colour grading), distance **fog** tuned to the terrain depth, optional godrays. This
-   is the next scheduled phase — biggest visual lift, and the fog finally blends the distant mountains'
-   bases into the horizon. Budget against the already-loaded scene (roadmap §7): the fps headroom the
-   earlier phases left is what P2 and P3 spend.
-2. **P3 — water & landmarks** (landmarks double as NPC / future mode-entry sites; the natural-barrier
-   cliff aesthetic can finish here).
-3. **P4 — life & motion** (wind sway, drifting clouds, ambient creatures).
-4. **Then: game modes** — Sonic-style 3D/2D levels, 2048, Sudoku (a new milestone, SP2+).
+1. **P3 — water & landmarks** (landmarks double as NPC / future mode-entry sites; the natural-barrier
+   cliff aesthetic can finish here). Budget against the already-loaded scene (roadmap §7): the fps
+   headroom the earlier phases left is what P3 spends. P2 measured its own cost at **0.3 ms** (1.837 ms
+   pre-P2 → 2.137 ms shipped), so the whole frame is ~2.1 ms against a 16.7 ms vsync budget and the
+   headroom is still roughly 8x (design spec §12).
+2. **P4 — life & motion** (wind sway, drifting clouds, ambient creatures).
+3. **Then: game modes** — Sonic-style 3D/2D levels, 2048, Sudoku (a new milestone, SP2+).
 
 ## 6. How work is done here (the workflow)
 
@@ -168,6 +174,38 @@ These are hard-won; several cost a debugging session each.
   instead makes turn radius scale with speed — a sprint took 0.6s to come round while the model turned
   in 0.2s, so the knight faced one way and slid the other. For the same reason `playerController` sets
   the model yaw straight from `motion.facing` with no second lerp: two smoothers means two headings.
+
+- **Mixing PBR and StandardMaterial in one scene breaks fog.** PBR shades and blends fog in *linear*
+  space; StandardMaterial blends in gamma space. Toward a near-white fog colour, a linear-space blend
+  multiplies a dark pixel several-fold while the gamma-space one barely moves it — so with identical fog
+  settings, PBR surfaces bleach to grey while everything around them looks untouched. Measured: a tree
+  27 units out took a **0.32** fog blend where EXP2 asks for 0.04 and the grass beside it took 0.07. The
+  hub is all StandardMaterial for this reason; glTF imports arrive as PBR and are converted in
+  `trees.ts`. **The knight is still PBR** — it survives only because it stays close to the camera where
+  fog is under 1 %. Give it a custom material and this bites.
+- **Attaching a `DefaultRenderingPipeline` silently turns off MSAA.** `antialias: true` on the engine
+  only anti-aliases the *default framebuffer*; a pipeline redirects the scene into an offscreen target
+  where it does not apply, and Babylon defaults `pipeline.samples` to 1. Nothing errors — the image just
+  gets more aliased. Set `pipeline.samples` explicitly (we use 4; 8 measured no better for double the
+  cost).
+- **`readPixels` after `endFrame()` may read a post-process render target, not the canvas.** It comes
+  back a flat uniform colour and looks exactly like a broken scene. Call
+  `engine.restoreDefaultFramebuffer()` first. Two related measurement traps: changing a material flag
+  triggers **async shader recompilation**, so a reading taken immediately after can reflect the *old*
+  shader (this produced a non-monotonic sweep and a confident wrong conclusion); and with the preview
+  pane hidden `requestAnimationFrame` never fires, so frames must be driven manually with
+  `beginFrame`/`render`/`endFrame` and awaiting a render observable will simply hang.
+- **Measure image quality on whole frames, not sampled points.** An emissive floor exists for the
+  *shaded* side of a surface; sampling lit pixels showed a 4x sweep moving them by 3/255, which read as
+  "this lever does nothing". It was removed on that basis and sent 10.5 % of the frame to pure black.
+  Whole-frame statistics (fraction at pure black, blown pixels, mean luma) would have caught it
+  immediately — and did, once used.
+- **Benchmark configs interleaved, never one block each.** A block-per-config run had the *same* config
+  at 2.96 ms and 2.06 ms, and reported "bloom off" (1.778 ms) as *faster* than "whole pipeline off"
+  (2.001 ms) — impossible, since bloom-off still pays for tone mapping that pipeline-off does not.
+  Round-robin
+  across configs with medians fixed it. Run-to-run spread here is ~30 %, so trust the *ordering* across
+  several configs rather than any single number.
 
 ## 8. Claude's local memory (optional, but valuable for continuity)
 
