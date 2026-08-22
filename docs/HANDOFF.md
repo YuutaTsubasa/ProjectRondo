@@ -78,7 +78,8 @@ pnpm tauri dev          # native desktop app (needs Rust)
     2.9, running turns had the model and the body pointing different ways, and landing sometimes
     played the jump clip's tail. See the design spec §11-16 for the measurements behind each.
   - **P2 lighting & atmosphere:** ACES tone mapping + exposure/contrast, restrained bloom, EXP2 distance
-    fog, MSAA restored on the pipeline. Trees rebuilt off PBR (they were the only PBR surface, and fogged
+    fog, MSAA restored on the pipeline. Trees rebuilt off PBR (the only PBR surface fog actually reaches —
+    the knight is PBR too but stays inside the ~1 % band, see §7 — and they fogged
     in linear space, which bleached them). Skydome gradient orientation fixed — it was inverted, rendering
     pale overhead. Design + all findings:
     `docs/superpowers/specs/2026-08-21-lighting-atmosphere-design.md` (§11–§12 are the measured record).
@@ -92,8 +93,9 @@ scheduled additions). Sequence from here:
 
 1. **P3 — water & landmarks** (landmarks double as NPC / future mode-entry sites; the natural-barrier
    cliff aesthetic can finish here). Budget against the already-loaded scene (roadmap §7): the fps
-   headroom the earlier phases left is what P3 spends. P2 measured its own share — 2.1 ms of a 16.7 ms
-   frame, so the headroom is still roughly 8x (design spec §12).
+   headroom the earlier phases left is what P3 spends. P2 measured its own cost at **0.3 ms** (1.837 ms
+   pre-P2 → 2.137 ms shipped), so the whole frame is ~2.1 ms against a 16.7 ms vsync budget and the
+   headroom is still roughly 8x (design spec §12).
 2. **P4 — life & motion** (wind sway, drifting clouds, ambient creatures).
 3. **Then: game modes** — Sonic-style 3D/2D levels, 2048, Sudoku (a new milestone, SP2+).
 
@@ -199,7 +201,9 @@ These are hard-won; several cost a debugging session each.
   Whole-frame statistics (fraction at pure black, blown pixels, mean luma) would have caught it
   immediately — and did, once used.
 - **Benchmark configs interleaved, never one block each.** A block-per-config run had the *same* config
-  at 2.96 ms and 2.06 ms, and reported "bloom off" as slower than "whole pipeline off". Round-robin
+  at 2.96 ms and 2.06 ms, and reported "bloom off" (1.778 ms) as *faster* than "whole pipeline off"
+  (2.001 ms) — impossible, since bloom-off still pays for tone mapping that pipeline-off does not.
+  Round-robin
   across configs with medians fixed it. Run-to-run spread here is ~30 %, so trust the *ordering* across
   several configs rather than any single number.
 

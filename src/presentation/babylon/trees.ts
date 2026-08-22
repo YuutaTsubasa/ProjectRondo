@@ -209,6 +209,7 @@ function toStandard(scene: Scene, source: Material): StandardMaterial | null {
     invertNormalMapX: boolean;
     invertNormalMapY: boolean;
     ambientTexture: BaseTexture;
+    emissiveTexture: BaseTexture;
   }>;
   mat.backFaceCulling = source.backFaceCulling;
   if (pbr.twoSidedLighting !== undefined) mat.twoSidedLighting = pbr.twoSidedLighting;
@@ -244,7 +245,7 @@ function toStandard(scene: Scene, source: Material): StandardMaterial | null {
   // shading fix rather than the asset's intent, and StandardMaterial multiplies the two. A GLB that
   // ships a real emissive map needs that conflict resolved on purpose, not silently compounded — so
   // this warns for the same reason the occlusion drop does.
-  if ((source as { emissiveTexture?: BaseTexture | null }).emissiveTexture) {
+  if (pbr.emissiveTexture) {
     console.warn(
       `[trees] '${source.name}' ships an emissiveTexture. It is not carried: TREE_EMISSIVE occupies emissiveColor, and StandardMaterial would multiply the two.`,
     );
