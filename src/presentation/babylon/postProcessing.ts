@@ -10,11 +10,11 @@ import { ImageProcessingConfiguration } from '@babylonjs/core/Materials/imagePro
 import '@babylonjs/core/PostProcesses/RenderPipeline/postProcessRenderPipelineManagerSceneComponent';
 
 /**
- * Distance fog and the camera's rendering pipeline — the frame-level half of the atmosphere, as
- * opposed to `environment.ts`, which builds the lights and the sky themselves.
+ * Fog colour — shared with the sky's horizon stop; see `atmosphereColors.ts` for why.
+ *
+ * This module owns distance fog and the camera's rendering pipeline: the frame-level half of the
+ * atmosphere, as opposed to `environment.ts`, which builds the lights and the sky themselves.
  */
-
-/** Fog colour — shared with the sky's horizon stop; see `atmosphereColors.ts` for why. */
 const FOG_COLOR = Color3.FromHexString(HORIZON_HEX);
 
 /**

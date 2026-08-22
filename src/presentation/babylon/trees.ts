@@ -153,7 +153,6 @@ function retargetMaterials(scene: Scene, container: AssetContainer): void {
       );
     }
   }
-  if (replacements.size === 0) return;
 
   // Scale only the textures the new materials actually sample. Applying this to every texture the
   // container holds would also hit any normal/emissive/occlusion map the GLB ships — channels
@@ -188,7 +187,27 @@ function toStandard(scene: Scene, source: Material): Material {
   mat.specularColor = new Color3(0, 0, 0);
   // clone: handing out the module constant by reference lets a later mutation travel back into it
   mat.emissiveColor = TREE_EMISSIVE.clone();
+
+  // Everything below carries a property that changes how the material renders. Copying only some of
+  // them is worse than copying none, because the result looks plausible: `tree.glb` is
+  // `"doubleSided": true`, which makes the loader set `backFaceCulling = false` *and*
+  // `twoSidedLighting = true`, and StandardMaterial gates the shader on
+  // `!backFaceCulling && twoSidedLighting`. Carrying only the first flipped every back-facing canopy
+  // polygon to its front-facing normal, so leaves seen from behind were lit as though they faced away
+  // from the sun. That shipped, and TREE_TEXTURE_LEVEL was fitted against the darkening it caused.
+  const pbr = source as Partial<{
+    twoSidedLighting: boolean;
+    albedoColor: Color3;
+    alphaCutOff: number;
+  }>;
   mat.backFaceCulling = source.backFaceCulling;
+  if (pbr.twoSidedLighting !== undefined) mat.twoSidedLighting = pbr.twoSidedLighting;
+  // glTF's baseColorFactor: RGB lands on albedoColor, A on the material's alpha. Both default to
+  // "no tint" and today's asset omits the factor entirely — but a swapped GLB that carries one would
+  // otherwise convert cleanly, warn about nothing, and render the wrong colour.
+  if (pbr.albedoColor) mat.diffuseColor = pbr.albedoColor.clone();
+  mat.alpha = source.alpha;
+  if (pbr.alphaCutOff !== undefined) mat.alphaCutOff = pbr.alphaCutOff;
   if (albedo.hasAlpha) {
     mat.useAlphaFromDiffuseTexture = true;
     mat.transparencyMode = source.transparencyMode;

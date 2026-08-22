@@ -258,6 +258,30 @@ FXAA was also tried and returned figures byte-identical to samples 1, i.e. the t
 effect in that harness; it was not pursued because this scene's aliasing is geometric, which is what
 MSAA addresses.
 
+## 11d. Finding — the material conversion dropped `twoSidedLighting`
+
+Caught in review round 2, after the conversion had already shipped in this branch.
+
+`tree.glb`'s single material is `"doubleSided": true`. Babylon's glTF loader turns that into **two**
+properties on the `PBRMaterial` — `backFaceCulling = false` *and* `twoSidedLighting = true` — and the
+conversion carried only the first. `StandardMaterial` gates its shader on
+`!backFaceCulling && twoSidedLighting`, so with the flag left at its default every back-facing canopy
+polygon was shaded using its front-facing normal: a leaf seen from behind was lit as though it faced
+away from the sun.
+
+Copying *some* of a material's properties is worse than copying none, because the result looks
+plausible. The fix carries the rest of the set that changes how the material renders — the glTF
+`baseColorFactor`'s RGB (`albedoColor` → `diffuseColor`) and A (`alpha`), and `alphaCutOff`. Today's
+asset omits the factor entirely, so that part is latent; it matters because the surrounding code is
+explicitly written for the asset-swap case, and a swapped GLB carrying a tint would have converted
+cleanly, warned about nothing, and rendered the wrong colour.
+
+Consequence worth stating plainly: `TREE_TEXTURE_LEVEL` (2.5) and `TREE_EMISSIVE` were both fitted
+against renders that had this darkening baked in. Re-measured after the fix, the three DoD viewpoints
+moved by less than half a luma point and C's crushed fraction improved slightly, so the constants were
+left alone — but they were fitted to a bug, and anyone re-deriving them should start from scratch
+rather than from those numbers.
+
 ## 12. Definition of done — measured
 
 All figures from a 1280x720 render, three fixed viewpoints, same session. "Before" disables tone
@@ -266,9 +290,13 @@ in both columns.
 
 | Viewpoint | Pure black, before → after | Blown, after | Mean luma, before → after |
 | --- | --- | --- | --- |
-| A · spawn point | 0.001 % → **0 %** | 0 % | 97.9 → 117.1 |
-| B · across the field to the mountains | 0.001 % → **0 %** | 0 % | 125.4 → 147.3 |
-| C · under a tree | 0 % → **0.197 %** | 0 % | 95.6 → 99.4 |
+| A · spawn point | 0.001 % → **0 %** | 0 % | 97.9 → 117.7 |
+| B · across the field to the mountains | 0.001 % → **0 %** | 0 % | 125.4 → 147.7 |
+| C · under a tree | 0 % → **0.179 %** | 0 % | 95.6 → 99.7 |
+
+Re-measured after the `twoSidedLighting` fix in §11d, which changed how every back-facing canopy
+polygon is lit. The shift was small — C's crushed fraction 0.197 % → 0.179 %, mean luma up under 0.5 in
+all three views — so `TREE_TEXTURE_LEVEL` and `TREE_EMISSIVE` were left as fitted rather than re-tuned.
 
 No blown highlights anywhere and no crushed regions; the worst case is 0.2 % of the frame under a
 canopy. Screenshots were captured with `canvas.toDataURL` off manually-driven frames, because the
