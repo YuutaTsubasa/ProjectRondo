@@ -211,8 +211,10 @@ sits against near-fog-coloured sky over its whole height. Implemented and measur
 109 to **169**.
 
 The ridge's colour is simply unreachable by this gradient. Its blue channel is ~190 (`terrain.ts`'s
-`haze`, partially blended with fog), which sits *below* every stop in the file — mid `#7fb2e5` is 229,
-pale `#dcecf7` is 247 — so no stop position can meet it. The deeper cause is fog strength, not sky
+`haze`, partially blended with fog), and nothing the gradient reaches *near the ridge's elevation* comes
+close: across stops 0.62–0.66 it runs blue 237 → 234. (The ramp does cross 190 near stop 0.93, because
+the zenith `#2b6cb0` is blue 176 — but that crossing is far above the ridge and cannot be brought down
+to it without dragging the zenith down too.) The deeper cause is fog strength, not sky
 colour: at the ring's ~95-unit distance and density 0.0076 the EXP2 factor is only ~41 %, nowhere near
 enough to pull the ridge toward `FOG_COLOR`. Reaching ~80 % there needs roughly double the density,
 which would fog the near field that §8 requires stay clear.

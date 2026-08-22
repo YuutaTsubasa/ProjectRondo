@@ -46,8 +46,10 @@ function skyGradientTexture(scene: Scene): DynamicTexture {
   // less: contrast between the ridge band and the sky immediately above it went from 109 to 169.
   // The reason is that the ridge's own colour is unreachable by this gradient near its elevation --
   // its blue channel (~190, from `terrain.ts`'s `haze` colour partially blended with fog) sits below
-  // every stop's blue channel in this file (mid '#7fb2e5' is 229, pale '#dcecf7' is 247), so no stop
-  // position can meet it. The deeper cause: at the ring's ~95-unit distance and the current fog
+  // every stop the gradient reaches NEAR THE RIDGE'S ELEVATION: across stops 0.62-0.66 the gradient
+  // runs blue 237 -> 234, nowhere near 190. (It is not below every stop in the file — the zenith
+  // '#2b6cb0' is blue 176, so the ramp does cross 190 somewhere around stop 0.93. That crossing is
+  // far above the ridge and cannot be moved down to it without dragging the zenith with it.) The deeper cause: at the ring's ~95-unit distance and the current fog
   // density (0.0076 in postProcessing.ts), the exponential-squared fog factor is only ~41%, nowhere
   // near enough to pull the ridge's material colour close to FOG_COLOR; reaching ~80% fog there would
   // need roughly double the density, which would fog the supposedly-clear near field too. So this is
@@ -57,7 +59,11 @@ function skyGradientTexture(scene: Scene): DynamicTexture {
   // colour next should re-measure this coupling; it is easy to silently break either side of it.
   g.addColorStop(0.0, HORIZON_HEX); // below horizon: unseen, held flat at the horizon colour
   g.addColorStop(0.5, HORIZON_HEX); // horizon: pale, and the fog colour
-  g.addColorStop(0.72, '#7fb2e5'); // mid sky: the original mid colour, restored
+  // 0.72: the original mid colour, restored. The position is NOT measured — the visible sky spans
+  // stops 0.5 (horizon) to 1.0 (zenith), so this sits a little below that band's midpoint (0.75),
+  // keeping the original "mid blue partway up the visible sky" relationship while staying clear of
+  // 0.68, which was measured to make the ridge worse. Treat it as inherited, not derived.
+  g.addColorStop(0.72, '#7fb2e5'); // mid sky
   g.addColorStop(1.0, '#2b6cb0'); // zenith: deep sky blue
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, 16, 512);

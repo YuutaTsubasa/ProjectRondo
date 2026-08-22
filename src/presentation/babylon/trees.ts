@@ -240,9 +240,16 @@ function toStandard(scene: Scene, source: Material): StandardMaterial | null {
       `[trees] '${source.name}' ships an occlusionTexture. It is not carried: StandardMaterial would apply it to the whole diffuse term including the emissive floor, where PBR applies it to nothing in this scene.`,
     );
   }
-  // `emissiveTexture` is deliberately NOT carried: `emissiveColor` above is this scene's shading fix,
-  // not the asset's intent, and StandardMaterial multiplies the two. A GLB that ships a real emissive
-  // map needs that conflict resolved on purpose rather than silently compounded.
+  // glTF emissiveTexture is deliberately not carried either: `emissiveColor` above is this scene's
+  // shading fix rather than the asset's intent, and StandardMaterial multiplies the two. A GLB that
+  // ships a real emissive map needs that conflict resolved on purpose, not silently compounded — so
+  // this warns for the same reason the occlusion drop does.
+  if ((source as { emissiveTexture?: BaseTexture | null }).emissiveTexture) {
+    console.warn(
+      `[trees] '${source.name}' ships an emissiveTexture. It is not carried: TREE_EMISSIVE occupies emissiveColor, and StandardMaterial would multiply the two.`,
+    );
+  }
+
   if (albedo.hasAlpha) {
     mat.useAlphaFromDiffuseTexture = true;
     mat.transparencyMode = source.transparencyMode;
