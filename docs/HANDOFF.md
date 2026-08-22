@@ -90,19 +90,12 @@ pnpm tauri dev          # native desktop app (needs Rust)
 Read the roadmap: `docs/superpowers/specs/2026-08-18-refined-hub-world-roadmap.md` (M4 phases + §7b
 scheduled additions). Sequence from here:
 
-1. **Toon shading on the knight** — the face is already isolated: the character is 34 skinned meshes
-   sharing one material `Material_001`, of which `Mesh_0` (242,391 verts) is the head (face + hair +
-   neck) and `Mesh_32`/`Mesh_33` are the eyeballs. So a face-only material needs no Blender split.
-   Babylon has no built-in toon shader; `mesh.renderOutline` is built in and is the cheap first step.
-   Any custom material must wire the fog block and the 101-bone skinning explicitly, or it becomes the
-   next odd-one-out (see §7 and P2's §11). Note `Mesh_0`'s 242k verts is most of the character's
-   geometry budget — the GLB was texture-optimised but never decimated.
-2. **P3 — water & landmarks** (landmarks double as NPC / future mode-entry sites; the natural-barrier
+1. **P3 — water & landmarks** (landmarks double as NPC / future mode-entry sites; the natural-barrier
    cliff aesthetic can finish here). Budget against the already-loaded scene (roadmap §7): the fps
    headroom the earlier phases left is what P3 spends. P2 measured its own share — 2.1 ms of a 16.7 ms
    frame, so the headroom is still roughly 8x (design spec §12).
-3. **P4 — life & motion** (wind sway, drifting clouds, ambient creatures).
-4. **Then: game modes** — Sonic-style 3D/2D levels, 2048, Sudoku (a new milestone, SP2+).
+2. **P4 — life & motion** (wind sway, drifting clouds, ambient creatures).
+3. **Then: game modes** — Sonic-style 3D/2D levels, 2048, Sudoku (a new milestone, SP2+).
 
 ## 6. How work is done here (the workflow)
 
