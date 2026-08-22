@@ -204,7 +204,11 @@ async function applyFaceMaterial(meshes: readonly AbstractMesh[]): Promise<void>
     // Hot-swapping off is what makes a mesh vanish while a new variant compiles (HANDOFF §7), so the
     // race would arm that trap for every later define change on the head.
     for (const mesh of head) {
-      await withTimeout(face.forceCompilationAsync(mesh), `'${mesh.name}' face shader compile`);
+      await withTimeout(
+        face.forceCompilationAsync(mesh),
+        FACE_COMPILE_TIMEOUT_MS,
+        `'${mesh.name}' face shader compile`,
+      );
     }
   } catch (err) {
     // The clone adds an EMISSIVE define on top of a 101-bone skinned variant already near the
@@ -216,12 +220,12 @@ async function applyFaceMaterial(meshes: readonly AbstractMesh[]): Promise<void>
   }
 }
 
-/** Rejects if `promise` has not settled within {@link FACE_COMPILE_TIMEOUT_MS}. The underlying work is
- *  not cancellable — Babylon's compile poll keeps running — so this bounds the *wait*, not the work. */
-function withTimeout<T>(promise: Promise<T>, label: string): Promise<T> {
+/** Rejects if `promise` has not settled within `ms`. The underlying work is not cancellable — Babylon's
+ *  compile poll keeps running — so this bounds the *wait*, not the work. */
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
   let timer: ReturnType<typeof setTimeout>;
   const expiry = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => reject(new Error(`${label} did not settle within ${FACE_COMPILE_TIMEOUT_MS} ms`)), FACE_COMPILE_TIMEOUT_MS);
+    timer = setTimeout(() => reject(new Error(`${label} did not settle within ${ms} ms`)), ms);
   });
   return Promise.race([promise, expiry]).finally(() => clearTimeout(timer));
 }
