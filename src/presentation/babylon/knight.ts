@@ -185,18 +185,23 @@ async function applyFaceMaterial(meshes: readonly AbstractMesh[]): Promise<void>
     );
     return;
   }
-  // NOT a borrow: `Material.clone()` runs every texture slot through `SerializationHelper.Clone`,
-  // which calls `sourceProperty.clone()`, so `face` gets its own `Texture` *wrappers* (verified: new
-  // uniqueIds). What it does not get is its own pixels — those wrappers share the source's
-  // `InternalTexture`, i.e. the same GPU upload (verified: identical `_texture.uniqueId`). The slot
-  // assigned just below is the one genuine borrow, pointing straight at the source's albedo.
+  // `Material.clone()` runs every texture slot through `SerializationHelper.Clone`, which calls
+  // `sourceProperty.clone()`, so `face` owns its own `Texture` *wrappers* (verified: new uniqueIds).
+  // What it does not own is its own pixels — those wrappers share the source's `InternalTexture`,
+  // i.e. one GPU upload for both materials (verified: identical `_texture.uniqueId`).
   //
-  // That is why disposal below passes `false` for textures: the wrappers are cheap, but the upload
-  // underneath them is shared and is NOT reference-counted here (`_texture.references` is undefined),
-  // so freeing it would take the armour's textures with it — the failure this session already hit once.
-  // The cost is that a failed compile leaves two orphaned wrappers in `scene.textures` until teardown.
+  // So the emissive slot takes the clone's OWN albedo wrapper, not the source's. Both point at the
+  // same upload, so nothing is saved by aliasing the source's — but aliasing it would couple the two
+  // materials at the wrapper level, where the mutable per-wrapper state lives (`level`, `uScale`,
+  // `coordinatesIndex`, `wrapU`). `trees.ts` sets `.level` on exactly such a carried-over wrapper, so
+  // that is a live pattern in this codebase, not a hypothetical.
+  //
+  // Disposal below still passes `false` for textures: the wrappers are cheap, but the upload beneath
+  // them is shared and NOT reference-counted here (`_texture.references` is undefined), so freeing it
+  // would take the armour's pixels with it — the failure this session already hit once. The cost is
+  // that a failed compile leaves the clone's orphaned wrappers in `scene.textures` until teardown.
   const facePbr = face as GltfPbrMaterial;
-  facePbr.emissiveTexture = albedo;
+  facePbr.emissiveTexture = facePbr.albedoTexture ?? albedo;
   facePbr.emissiveColor = new Color3(FACE_EMISSIVE, FACE_EMISSIVE, FACE_EMISSIVE);
   for (const mesh of head) mesh.material = face;
 

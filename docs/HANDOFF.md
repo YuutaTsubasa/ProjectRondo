@@ -91,7 +91,9 @@ pnpm tauri dev          # native desktop app (needs Rust)
     luma 35.6 → 68.8 at the shipped 0.45 (0.25 gives 57.1), with the rest of the frame flat at 114.3 as
     a control — which is what says the 31 `tripo_part_*` armour meshes are untouched. Measure it with
     the idle animation paused and the head region located by which pixels the change touches, not by a
-    hand-placed box; see `FACE_EMISSIVE` for why. Three things not to re-derive. The complaint was "the face is too dark, too affected by scene
+    hand-placed box; see `FACE_EMISSIVE` for why.
+
+    Three things not to re-derive. The complaint was "the face is too dark, too affected by scene
     lighting, and the shadow on it looks bad" — **not** cel banding or outlines, neither of which was
     asked for. **That "shadow" is not a shadow:** `receiveShadows` is already `false` on all 34 skinned
     meshes, so nothing is cast onto the face; the dark band is the **N·L terminator**, the diffuse
