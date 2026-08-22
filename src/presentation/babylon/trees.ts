@@ -24,15 +24,17 @@ const BASE_SCALE = 6;
  * puts the trees back where they were before they stopped being PBR.
  *
  * **Why the trees are not PBR.** The GLB ships a `PBRMaterial`, and every other surface fog actually
- * reaches is a `StandardMaterial`. (The knight is glTF and therefore PBR too, but it stays within a
- * 5 units of the camera (`followCamera.ts`'s `distance`), where EXP2 puts fog at 0.14 %, so the
- * mismatch never shows on it — see HANDOFF §7.) That mismatch only becomes visible once fog is on. PBR shades and mixes fog
- * in linear space, where a small blend toward a near-white fog colour multiplies a dark pixel
+ * reaches is a `StandardMaterial`. The trees-vs-hub mismatch that creates only becomes visible once
+ * fog is on. PBR shades and mixes fog in linear space, where a small blend toward a near-white fog colour multiplies a dark pixel
  * several-fold; StandardMaterial mixes in gamma space, where the same blend barely moves it. Measured
  * at the spawn viewpoint, a tree ~27 units out took a 0.32 fog blend where EXP2 asks for 0.04 and the
  * grass beside it took 0.07 — so the trees bleached to grey while the terrain behind them looked
  * untouched. That reads as "the fog is only on the trees", but the fog is uniform; the trees were the
  * only surface reacting in linear space, and the only one dark enough for it to show.
+ *
+ * (The knight is glTF and therefore PBR too, but it sits about 5 units from the camera —
+ * `followCamera.ts`'s `distance` — where EXP2 puts fog at 0.14 %, so the mismatch never shows on it.
+ * See HANDOFF §7.)
  *
  * Rebuilding over the same albedo texture as a StandardMaterial puts them back in line. Measured on
  * the final shipped material, with the grass beside them held as an untouched control at 0.069: near
@@ -204,7 +206,6 @@ function toStandard(scene: Scene, source: Material): StandardMaterial | null {
     invertNormalMapX: boolean;
     invertNormalMapY: boolean;
     ambientTexture: BaseTexture;
-    ambientTextureStrength: number;
   }>;
   mat.backFaceCulling = source.backFaceCulling;
   if (pbr.twoSidedLighting !== undefined) mat.twoSidedLighting = pbr.twoSidedLighting;
@@ -223,18 +224,18 @@ function toStandard(scene: Scene, source: Material): StandardMaterial | null {
     if (pbr.invertNormalMapX !== undefined) mat.invertNormalMapX = pbr.invertNormalMapX;
     if (pbr.invertNormalMapY !== undefined) mat.invertNormalMapY = pbr.invertNormalMapY;
   }
-  // glTF occlusionTexture. This one cannot be carried faithfully: PBR pairs it with
-  // `ambientTextureStrength` and `useAmbientInGrayScale`, and StandardMaterial has neither — its
-  // shader is a flat per-channel multiply. At the glTF default strength of 1 with the conventional
-  // greyscale map that is the same result, which is why it is still carried; anything else is not,
-  // so say so rather than quietly darkening the asset.
+  // glTF occlusionTexture is deliberately NOT carried, and strength is not the reason. In *this*
+  // scene PBR's occlusion map is a no-op: it only reaches direct light through
+  // `ambientTextureImpactOnAnalyticalLights`, which defaults to 0 and the glTF loader never sets, and
+  // its only other use multiplies irradiance behind `#ifdef REFLECTION`, which never compiles because
+  // nothing here sets an environment texture. StandardMaterial has no such gate: `baseAmbientColor`
+  // multiplies the whole `finalDiffuse` term, and `emissiveColor` sits *inside* that term — so
+  // copying the map would convert a no-op into a real darkening and dim TREE_EMISSIVE, the one thing
+  // holding the shaded canopy off pure black. Losing AO is the smaller lie, and it is not a silent one.
   if (pbr.ambientTexture) {
-    mat.ambientTexture = pbr.ambientTexture;
-    if (pbr.ambientTextureStrength !== undefined && pbr.ambientTextureStrength !== 1) {
-      console.warn(
-        `[trees] '${source.name}' has occlusionTexture strength ${pbr.ambientTextureStrength}; StandardMaterial cannot express it and will apply the map at full strength.`,
-      );
-    }
+    console.warn(
+      `[trees] '${source.name}' ships an occlusionTexture. It is not carried: StandardMaterial would apply it to the whole diffuse term including the emissive floor, where PBR applies it to nothing in this scene.`,
+    );
   }
   // `emissiveTexture` is deliberately NOT carried: `emissiveColor` above is this scene's shading fix,
   // not the asset's intent, and StandardMaterial multiplies the two. A GLB that ships a real emissive

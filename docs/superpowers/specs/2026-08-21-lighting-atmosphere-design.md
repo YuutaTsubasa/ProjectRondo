@@ -26,7 +26,7 @@ depth actually comes from.
 
 | Thing | Current state | Why it matters here |
 | --- | --- | --- |
-| Sky | Unlit skydome, diameter 1000, `disableLighting`, `emissiveTexture` — gradient stops `#2b6cb0` → `#7fb2e5` → `#dcecf7`. **Note: the stop *names* were inverted relative to what the dome renders, so pre-P2 this rendered pale overhead and deep blue at the horizon — see §11b** | Pure emissive, so tone mapping remaps it; at 500 units out, any fog would swallow it |
+| Sky | Unlit skydome, diameter 1000, `disableLighting`, `emissiveTexture` — gradient stops `#2b6cb0` → `#7fb2e5` → `#dcecf7`. **Note: the stop *names* were inverted relative to what the dome renders, so pre-P2 this rendered pale overhead and only mid-blue at the horizon; the deep blue sat at the nadir and never appeared — see §11b** | Pure emissive, so tone mapping remaps it; at 500 units out, any fog would swallow it |
 | Sun | `DirectionalLight`, intensity 1.1, warm white, 1024 PCF shadow map | Unchanged by P2 |
 | Ambient | `HemisphericLight`, intensity 0.45 | May need a nudge once tone mapping lands |
 | Scatter / bushes / trees | `StandardMaterial` with deliberate **emissive floors** (grass `(0.10, 0.17, 0.06)`, bush `(0.05, 0.10, 0.03)`) so backlit billboards do not go black | Tuned *without* tone mapping — these are what ACES will shift most |
@@ -226,12 +226,14 @@ re-measure this coupling.
 
 Not introduced by P2, but fixed in it, and worth flagging because it is the single largest visual change
 in the branch. `addColorStop(1.0, …)` renders at the **zenith** on this dome, not the horizon, so the
-pre-P2 gradient — written as if 1.0 were the horizon — rendered **pale overhead and deep blue at the
-horizon**, the inverse of a sky.
+pre-P2 gradient — written as if 1.0 were the horizon — rendered **pale overhead and only mid-blue at the
+horizon**: washed out rather than colour-inverted. The deep blue `#2b6cb0` sat at stop 0.0, which is the
+**nadir** — below the terrain, never visible in any frame — so it was absent from the render rather than
+misplaced within it.
 
 Measured with a camera at y=30, sampling the centre pixel on the pre-fix gradient (whose pale
 `#dcecf7` sat at 1.0): straight up → (220,236,247), exactly the pale stop; 45° up → (178,211,239);
-horizontal → (134,181,223), far short of pale.
+horizontal → (134,181,223), which is the mid stop `#7fb2e5` (127,178,229), not the deep blue.
 
 This is an inversion of the largest surface in the frame, made under a "the palette does not change"
 constraint (§1). It is almost certainly the right fix — but it is invisible in §12's table, because both
