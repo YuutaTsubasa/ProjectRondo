@@ -132,14 +132,17 @@ async function applyFaceMaterial(meshes: readonly AbstractMesh[]): Promise<void>
   // have got this far. `createHubScene` does not guard `loadKnight`, and `App.svelte` calls it with
   // `.then()` and no `.catch`, so anything escaping here is an unhandled rejection and a blank canvas.
   try {
-    await buildFaceMaterial(meshes);
+    await swapHeadMaterial(meshes);
   } catch (err) {
     console.warn('[knight] face lighting failed; the head keeps the shared material:', err);
   }
 }
 
-/** The body of {@link applyFaceMaterial}. Split out so the try/catch above covers all of it. */
-async function buildFaceMaterial(meshes: readonly AbstractMesh[]): Promise<void> {
+/**
+ * Guards, clones, puts the clone on the three head meshes, awaits its compile, and rolls the meshes
+ * back if that fails. Split out from {@link applyFaceMaterial} so the try/catch there covers all of it.
+ */
+async function swapHeadMaterial(meshes: readonly AbstractMesh[]): Promise<void> {
   const head = meshes.filter((m) => HEAD_MESHES.includes(m.name));
   // Each expected name must appear exactly once. Counting `head.length` would not establish that:
   // glTF does not require unique node names and the loader does not dedupe them, so a GLB with two
@@ -237,6 +240,16 @@ async function buildFaceMaterial(meshes: readonly AbstractMesh[]): Promise<void>
   }
   facePbr.emissiveTexture = facePbr.albedoTexture;
   facePbr.emissiveColor = new Color3(FACE_EMISSIVE, FACE_EMISSIVE, FACE_EMISSIVE);
+  // The clone also inherits `emissiveIntensity`, which the shader folds into the emissive term as
+  // `vLightingIntensity.y` — so an asset shipping KHR_materials_emissive_strength would multiply
+  // FACE_EMISSIVE by it and the measured table above would stop describing what renders. Pin it to 1
+  // so the constant means what it says, and report the discard like the other two channels.
+  if (pbr.emissiveIntensity !== undefined && pbr.emissiveIntensity !== 1) {
+    console.warn(
+      `[knight] '${source.name}' has emissiveIntensity ${pbr.emissiveIntensity}. It is reset to 1: FACE_EMISSIVE is calibrated against unscaled emissive.`,
+    );
+  }
+  facePbr.emissiveIntensity = 1;
   for (const mesh of head) mesh.material = face;
 
   let abandoned = false;

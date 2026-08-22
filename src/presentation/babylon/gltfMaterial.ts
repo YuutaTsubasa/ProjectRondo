@@ -19,6 +19,7 @@ export type GltfPbrMaterial = Partial<{
   ambientTexture: BaseTexture | null;
   bumpTexture: BaseTexture | null;
   emissiveColor: Color3;
+  emissiveIntensity: number;
   emissiveTexture: BaseTexture | null;
   invertNormalMapX: boolean;
   invertNormalMapY: boolean;
