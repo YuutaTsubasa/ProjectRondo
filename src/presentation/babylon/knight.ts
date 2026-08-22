@@ -178,8 +178,10 @@ async function applyFaceMaterial(meshes: readonly AbstractMesh[]): Promise<void>
 
   const face = source.clone('knightFace');
   if (!face) {
-    // Material.clone() returns null on the base class; only concrete subclasses override it. A
-    // NodeMaterial — what HANDOFF §5 proposes for cel banding — is one of the types that lands here.
+    // `Material.clone()` returns null on the base class (`material.pure.js:1189`); only subclasses
+    // that override it return anything. NOT a NodeMaterial, despite HANDOFF §5 proposing one for cel
+    // banding: it overrides `clone(name, shareEffect)`, and it exposes no `albedoTexture`, so a
+    // NodeMaterial head is already turned away by the guard above with a different message.
     console.warn(
       `[knight] '${source.name}' (${source.getClassName()}) did not clone — face lighting skipped.`,
     );
@@ -201,7 +203,17 @@ async function applyFaceMaterial(meshes: readonly AbstractMesh[]): Promise<void>
   // would take the armour's pixels with it — the failure this session already hit once. The cost is
   // that a failed compile leaves the clone's orphaned wrappers in `scene.textures` until teardown.
   const facePbr = face as GltfPbrMaterial;
-  facePbr.emissiveTexture = facePbr.albedoTexture ?? albedo;
+  if (!facePbr.albedoTexture) {
+    // Falling back to the source's wrapper here would silently give up the decoupling argued for
+    // above, and would leave the face with no albedo at all — flat albedoColor with the source's
+    // image in the emissive slot. That is worse than skipping, so skip and say so.
+    face.dispose(false, false);
+    console.warn(
+      `[knight] the clone of '${source.name}' came back without an albedoTexture — face lighting skipped.`,
+    );
+    return;
+  }
+  facePbr.emissiveTexture = facePbr.albedoTexture;
   facePbr.emissiveColor = new Color3(FACE_EMISSIVE, FACE_EMISSIVE, FACE_EMISSIVE);
   for (const mesh of head) mesh.material = face;
 
