@@ -6,7 +6,7 @@ import { ImportMeshAsync } from '@babylonjs/core/Loading/sceneLoader';
 import { Quaternion } from '@babylonjs/core/Maths/math.vector';
 import { Color3 } from '@babylonjs/core/Maths/math.color';
 import type { AbstractMesh } from '@babylonjs/core/Meshes/abstractMesh';
-import type { BaseTexture } from '@babylonjs/core/Materials/Textures/baseTexture';
+import type { GltfPbrMaterial } from './gltfMaterial';
 // Side-effect: registers the glTF loader plugin (with KHR_mesh_quantization / webp support).
 import '@babylonjs/loaders/glTF';
 import { CAPSULE_HALF } from './capsule';
@@ -121,7 +121,7 @@ const FACE_COMPILE_TIMEOUT_MS = 10_000;
  * hub over a face tweak. The armour keeps the original material either way, so skipping costs one
  * cosmetic effect and nothing else.
  */
-async function applyFaceMaterial(meshes: AbstractMesh[]): Promise<void> {
+async function applyFaceMaterial(meshes: readonly AbstractMesh[]): Promise<void> {
   const head = meshes.filter((m) => HEAD_MESHES.includes(m.name));
   if (head.length !== HEAD_MESHES.length) {
     // Mesh names come from the GLB, so a re-export can rename them out from under this.
@@ -148,7 +148,8 @@ async function applyFaceMaterial(meshes: AbstractMesh[]): Promise<void> {
     return;
   }
 
-  const albedo = (source as { albedoTexture?: BaseTexture | null }).albedoTexture;
+  const pbr = source as GltfPbrMaterial;
+  const albedo = pbr.albedoTexture;
   if (!albedo) {
     // With no texture to modulate it, FACE_EMISSIVE would be added as a flat grey wash over the head.
     console.warn(`[knight] '${source.name}' has no albedoTexture — face lighting skipped.`);
@@ -157,7 +158,7 @@ async function applyFaceMaterial(meshes: AbstractMesh[]): Promise<void> {
 
   // The loader puts glTF's emissiveFactor straight into emissiveColor, which FACE_EMISSIVE overwrites.
   // Today's GLB ships none; say so if one appears, as `trees.ts` does for the same drop.
-  const sourceEmissive = (source as { emissiveColor?: Color3 }).emissiveColor;
+  const sourceEmissive = pbr.emissiveColor;
   if (sourceEmissive && (sourceEmissive.r > 0 || sourceEmissive.g > 0 || sourceEmissive.b > 0)) {
     console.warn(
       `[knight] '${source.name}' has a non-zero emissiveFactor (${sourceEmissive.toHexString()}). It is discarded: face lighting owns emissiveColor.`,
@@ -166,7 +167,7 @@ async function applyFaceMaterial(meshes: AbstractMesh[]): Promise<void> {
 
   // glTF permits an emissiveTexture with emissiveFactor left at [0,0,0], so the check above does not
   // cover this one. The clone inherits it and the assignment below replaces it.
-  if ((source as { emissiveTexture?: BaseTexture | null }).emissiveTexture) {
+  if (pbr.emissiveTexture) {
     console.warn(
       `[knight] '${source.name}' ships an emissiveTexture. It is discarded: face lighting puts the albedo there instead.`,
     );
@@ -181,9 +182,19 @@ async function applyFaceMaterial(meshes: AbstractMesh[]): Promise<void> {
     );
     return;
   }
-  // Reuses the source's textures by reference — never dispose textures off this material.
-  (face as { emissiveTexture?: BaseTexture | null }).emissiveTexture = albedo;
-  (face as { emissiveColor?: Color3 }).emissiveColor = new Color3(FACE_EMISSIVE, FACE_EMISSIVE, FACE_EMISSIVE);
+  // NOT a borrow: `Material.clone()` runs every texture slot through `SerializationHelper.Clone`,
+  // which calls `sourceProperty.clone()`, so `face` gets its own `Texture` *wrappers* (verified: new
+  // uniqueIds). What it does not get is its own pixels — those wrappers share the source's
+  // `InternalTexture`, i.e. the same GPU upload (verified: identical `_texture.uniqueId`). The slot
+  // assigned just below is the one genuine borrow, pointing straight at the source's albedo.
+  //
+  // That is why disposal below passes `false` for textures: the wrappers are cheap, but the upload
+  // underneath them is shared and is NOT reference-counted here (`_texture.references` is undefined),
+  // so freeing it would take the armour's textures with it — the failure this session already hit once.
+  // The cost is that a failed compile leaves two orphaned wrappers in `scene.textures` until teardown.
+  const facePbr = face as GltfPbrMaterial;
+  facePbr.emissiveTexture = albedo;
+  facePbr.emissiveColor = new Color3(FACE_EMISSIVE, FACE_EMISSIVE, FACE_EMISSIVE);
   for (const mesh of head) mesh.material = face;
 
   try {
@@ -200,7 +211,7 @@ async function applyFaceMaterial(meshes: AbstractMesh[]): Promise<void> {
     // vertex-uniform ceiling, so this can fail where its parent succeeded. Put the head back on the
     // material that already compiles rather than letting the rejection escape into hubScene.
     for (const mesh of head) mesh.material = source;
-    face.dispose(false, false); // false, false: the textures belong to the source material
+    face.dispose(false, false); // false, false: see the note above — the GPU upload is shared
     console.warn('[knight] face material failed to compile; head reverted to the shared material:', err);
   } finally {
     // On the timeout path the restore inside forceCompilation never runs, so assert the default back
