@@ -11,7 +11,7 @@ import '@babylonjs/loaders/glTF';
 import { CAPSULE_HALF } from './capsule';
 import { terrainHeight } from './terrainHeight';
 import { moveToward } from '../../domain/math/scalar';
-import { hasEmissiveFactor, type GltfPbrMaterial } from './gltfMaterial';
+import { emissiveFactorOf, type GltfPbrMaterial } from './gltfMaterial';
 
 export interface KnightAnimations {
   readonly idle: AnimationGroup;
@@ -126,6 +126,20 @@ const FACE_COMPILE_TIMEOUT_MS = 10_000;
  * cosmetic effect and nothing else.
  */
 async function applyFaceMaterial(meshes: readonly AbstractMesh[]): Promise<void> {
+  // The warn-and-skip guarantee has to cover the whole body, not just the compile await:
+  // `SerializationHelper.Clone` walks each serialized texture slot calling `.clone()` and
+  // `_clonePlugins` re-parses the plugin set, either of which can throw on a material exotic enough to
+  // have got this far. `createHubScene` does not guard `loadKnight`, and `App.svelte` calls it with
+  // `.then()` and no `.catch`, so anything escaping here is an unhandled rejection and a blank canvas.
+  try {
+    await buildFaceMaterial(meshes);
+  } catch (err) {
+    console.warn('[knight] face lighting failed; the head keeps the shared material:', err);
+  }
+}
+
+/** The body of {@link applyFaceMaterial}. Split out so the try/catch above covers all of it. */
+async function buildFaceMaterial(meshes: readonly AbstractMesh[]): Promise<void> {
   const head = meshes.filter((m) => HEAD_MESHES.includes(m.name));
   // Each expected name must appear exactly once. Counting `head.length` would not establish that:
   // glTF does not require unique node names and the loader does not dedupe them, so a GLB with two
@@ -169,9 +183,10 @@ async function applyFaceMaterial(meshes: readonly AbstractMesh[]): Promise<void>
 
   // The loader puts glTF's emissiveFactor straight into emissiveColor, which FACE_EMISSIVE overwrites.
   // Today's GLB ships none; say so if one appears, as `trees.ts` does for the same drop.
-  if (hasEmissiveFactor(pbr)) {
+  const discardedEmissive = emissiveFactorOf(pbr);
+  if (discardedEmissive) {
     console.warn(
-      `[knight] '${source.name}' has a non-zero emissiveFactor (${pbr.emissiveColor?.toHexString()}). It is discarded: face lighting owns emissiveColor.`,
+      `[knight] '${source.name}' has a non-zero emissiveFactor (${discardedEmissive.toHexString()}). It is discarded: face lighting owns emissiveColor.`,
     );
   }
 

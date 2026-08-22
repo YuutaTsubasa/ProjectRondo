@@ -26,14 +26,19 @@ export type GltfPbrMaterial = Partial<{
 }>;
 
 /**
- * True when the material carries a glTF `emissiveFactor` that is not black.
+ * The material's glTF `emissiveFactor` when it is not black, otherwise `null`.
  *
  * Both `trees.ts` and `knight.ts` take the emissive channel over for their own purposes and so have
  * to warn that the asset's own value is being discarded. The *messages* differ — each names the
  * constant that claimed the channel — but the test does not, and it is the kind of thing that grows an
  * epsilon or a fourth channel later.
+ *
+ * Returns the colour rather than a boolean so the caller can report it without a second, unchecked
+ * read: a `boolean` would leave both call sites writing `emissiveColor?.toHexString()`, which the type
+ * allows to be `undefined` and would interpolate the literal "undefined" into a warning whose entire
+ * job is to name the discarded value.
  */
-export function hasEmissiveFactor(material: GltfPbrMaterial): boolean {
+export function emissiveFactorOf(material: GltfPbrMaterial): Color3 | null {
   const emissive = material.emissiveColor;
-  return !!emissive && (emissive.r > 0 || emissive.g > 0 || emissive.b > 0);
+  return emissive && (emissive.r > 0 || emissive.g > 0 || emissive.b > 0) ? emissive : null;
 }

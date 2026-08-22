@@ -12,7 +12,7 @@ import { CreateCylinder } from '@babylonjs/core/Meshes/Builders/cylinderBuilder'
 import { PhysicsAggregate } from '@babylonjs/core/Physics/v2/physicsAggregate';
 import { PhysicsShapeType } from '@babylonjs/core/Physics/v2/IPhysicsEnginePlugin';
 import { terrainHeight } from './terrainHeight';
-import { hasEmissiveFactor, type GltfPbrMaterial } from './gltfMaterial';
+import { emissiveFactorOf, type GltfPbrMaterial } from './gltfMaterial';
 import '@babylonjs/loaders/glTF'; // side-effect: registers the glTF loader
 
 /** The tree GLB is normalized to ~1 unit tall (Tripo output); scale it up to a real tree height.
@@ -195,9 +195,10 @@ function toStandard(scene: Scene, source: Material): StandardMaterial | null {
   // TREE_EMISSIVE takes the emissive channel over, so glTF's emissiveFactor — which the loader puts
   // straight into emissiveColor — is discarded. Today's asset ships none; warn if one ever appears,
   // at parity with the emissiveTexture and occlusionTexture drops below.
-  if (hasEmissiveFactor(pbr)) {
+  const discardedEmissive = emissiveFactorOf(pbr);
+  if (discardedEmissive) {
     console.warn(
-      `[trees] '${source.name}' has a non-zero emissiveFactor (${pbr.emissiveColor?.toHexString()}). It is discarded: TREE_EMISSIVE owns emissiveColor.`,
+      `[trees] '${source.name}' has a non-zero emissiveFactor (${discardedEmissive.toHexString()}). It is discarded: TREE_EMISSIVE owns emissiveColor.`,
     );
   }
   // clone: handing out the module constant by reference lets a later mutation travel back into it

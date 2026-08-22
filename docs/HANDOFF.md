@@ -109,11 +109,19 @@ Read the roadmap: `docs/superpowers/specs/2026-08-18-refined-hub-world-roadmap.m
 scheduled additions). Sequence from here:
 
 1. **Toon shading on the knight — the face is lit, the cel banding is not.** `knight.ts` gives the head
-   its own material (§4); what is *not* built is hard light/shade banding or an outline. If those are
-   wanted: Babylon has no built-in toon shader, so banding means a NodeMaterial that wires the fog block
-   and the 101-bone skinning explicitly or the knight becomes the next odd-one-out (§7), while
-   `mesh.renderOutline` is built in and is the cheap way to get the outline. Note `Mesh_0` is 242k of the
-   character's ~320k verts — the GLB was texture-optimised but never decimated, which is a separate job.
+   its own material (§4); what is *not* built is hard light/shade banding or an outline.
+
+   If those are wanted, check `@babylonjs/materials` first: it ships `CellMaterial`, a cel shader with
+   `computeHighLevel` banding that inherits the standard bone/fog/instance define handling, so it
+   needs neither a manual fog block nor explicit 101-bone skinning, and being gamma-space it lands on
+   the *same* side of the §7 fog-space split as the trees rather than making the knight the next
+   odd-one-out. It is **not installed** (only `core`, `havok`, `loaders` are), so it is a dependency
+   decision rather than a free win. Failing that, banding means a NodeMaterial that wires the fog
+   block and the 101-bone skinning explicitly. Either way `mesh.renderOutline` is built into `core`
+   and is the cheap way to get the outline.
+
+   Note `Mesh_0` is 242k of the character's ~320k verts — the GLB was texture-optimised but never
+   decimated, which is a separate job.
 2. **P3 — water & landmarks** (landmarks double as NPC / future mode-entry sites; the natural-barrier
    cliff aesthetic can finish here). Budget against the already-loaded scene (roadmap §7): the fps
    headroom the earlier phases left is what P3 spends. P2 measured its own cost at **0.3 ms** (1.837 ms
