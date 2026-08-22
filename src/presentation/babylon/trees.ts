@@ -1,7 +1,6 @@
 import type { Scene } from '@babylonjs/core/scene';
 import type { AssetContainer } from '@babylonjs/core/assetContainer';
 import type { Material } from '@babylonjs/core/Materials/material';
-import { hasEmissiveFactor, type GltfPbrMaterial } from './gltfMaterial';
 import type { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 import type { ShadowGenerator } from '@babylonjs/core/Lights/Shadows/shadowGenerator';
 import { LoadAssetContainerAsync } from '@babylonjs/core/Loading/sceneLoader';
@@ -13,6 +12,7 @@ import { CreateCylinder } from '@babylonjs/core/Meshes/Builders/cylinderBuilder'
 import { PhysicsAggregate } from '@babylonjs/core/Physics/v2/physicsAggregate';
 import { PhysicsShapeType } from '@babylonjs/core/Physics/v2/IPhysicsEnginePlugin';
 import { terrainHeight } from './terrainHeight';
+import { hasEmissiveFactor, type GltfPbrMaterial } from './gltfMaterial';
 import '@babylonjs/loaders/glTF'; // side-effect: registers the glTF loader
 
 /** The tree GLB is normalized to ~1 unit tall (Tripo output); scale it up to a real tree height.

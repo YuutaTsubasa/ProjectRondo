@@ -6,12 +6,12 @@ import { ImportMeshAsync } from '@babylonjs/core/Loading/sceneLoader';
 import { Quaternion } from '@babylonjs/core/Maths/math.vector';
 import { Color3 } from '@babylonjs/core/Maths/math.color';
 import type { AbstractMesh } from '@babylonjs/core/Meshes/abstractMesh';
-import { hasEmissiveFactor, type GltfPbrMaterial } from './gltfMaterial';
 // Side-effect: registers the glTF loader plugin (with KHR_mesh_quantization / webp support).
 import '@babylonjs/loaders/glTF';
 import { CAPSULE_HALF } from './capsule';
 import { terrainHeight } from './terrainHeight';
 import { moveToward } from '../../domain/math/scalar';
+import { hasEmissiveFactor, type GltfPbrMaterial } from './gltfMaterial';
 
 export interface KnightAnimations {
   readonly idle: AnimationGroup;
@@ -255,6 +255,12 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
  * {@link TARGET_HEIGHT}, seats its feet at the capsule bottom, and returns the four animation
  * groups with Idle playing. The mesh inherits the parent's facing rotation. `motion` is polled each
  * frame to keep the feet planted only while the character is actually on the ground.
+ *
+ * Also gives the head its own material and **awaits its shader compile** — see
+ * {@link applyFaceMaterial}. That await is what callers feel: `hubScene` awaits this before
+ * `loadTrees` and `runRenderLoop`, so hub startup is gated on it for up to
+ * {@link FACE_COMPILE_TIMEOUT_MS}. Face lighting never throws; every failure warns and leaves the
+ * head on the material the rest of the character uses.
  */
 export async function loadKnight(
   scene: Scene,
