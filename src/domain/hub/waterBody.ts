@@ -7,7 +7,7 @@ export interface WaterBody {
   readonly centreX: number;
   readonly centreZ: number;
   /**
-   * Radius of the *rendered surface*, deliberately larger than the flooded contour (~7.7 units).
+   * Radius of the *rendered surface*, deliberately larger than the flooded contour (~8.7 units).
    * Where terrain rises above `surfaceY` it occludes the water, so an oversized disc disappears
    * into the bank, while an undersized one would leave a visible gap at the shoreline.
    */

@@ -21,6 +21,7 @@ import { createAtmosphere } from './postProcessing';
 import { createTerrain } from './terrain';
 import { loadTrees } from './trees';
 import { createGroundScatter } from './scatter';
+import { createWater } from './water';
 
 export interface HubScene {
   readonly engine: Engine;
@@ -51,6 +52,7 @@ export async function createHubScene(canvas: HTMLCanvasElement): Promise<HubScen
   scene.enablePhysics(Vector3.Zero(), new HavokPlugin(true, havok));
   createTerrain(scene);
   createGroundScatter(scene);
+  createWater(scene);
 
   const playerRoot = new TransformNode('player', scene);
   const follow = createFollowCamera(scene, playerRoot, canvas);
