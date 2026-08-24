@@ -155,9 +155,16 @@ repo: `tree.glb` and the knight came from Tripo, and run+jump was blocked until 
 
 ## 6. Testing
 
-`domain/hub/waterBody.ts` is data with no behaviour, so it adds no unit tests; the existing **124 must
-stay green**. Everything else is verified in-browser, per the project's convention that babylon scene
-code is not unit-tested (HANDOFF §6).
+`domain/hub/waterBody.ts` is data, but it gets a small **placement test** — the codebase already tests
+its data constants this way (`tests/domain/hub/character/valueTypes.test.ts` asserts `DEFAULT_CONFIG`).
+The value here is not the shape but the fit: asserting against `terrainHeight` that the pond centre is
+below the surface, that the flooded area is broad enough to read as water, that it is shallow enough to
+wade, and that the oversized disc's rim is dry land. That catches the real error — a pond moved to
+somewhere that is not a basin. It lives in `tests/presentation/` because it depends on
+`terrainHeight.ts`, which is a presentation module.
+
+So **124 existing plus 4 new must be green**. Everything else is verified in-browser, per the project's
+convention that babylon scene code is not unit-tested (HANDOFF §6).
 
 - **Screenshots** at three viewpoints: the pond from the bank, the plaza from spawn distance, and a
   wide shot holding both.
