@@ -114,16 +114,20 @@ export interface WaterBody {
 }
 
 /**
- * The hub's pond. Placed by sampling `terrainHeight` on a 1-unit grid over the walkable field: this
- * is the equal-lowest basin (floor −1.53) and the widest at shallow flood, so it holds water without
- * needing depth. 0.58 m at the deepest — knee-height on the ~1.9-unit knight — so it wades.
+ * The hub's pond. Centre and radius come from flood-filling the basin at the surface height, not from
+ * eyeballing the lowest point: at y = −0.95 the connected flooded region is 238 cells spanning
+ * x −23..−9, with its centroid at (−15.3, −4.8). Centring on the lowest *point* instead put the disc
+ * 2–3 units off, leaving a fifth of its rim underwater — a visible gap at the shoreline.
  *
- * ~15 units from spawn, and 40 from the plaza in `landmark.ts`, so the two destinations do not crowd.
+ * Radius 12 is the smallest that keeps the whole rim on dry land, which is what lets the bank occlude
+ * it. 0.58 m at the deepest — knee-height on the ~1.9-unit knight — so it wades.
+ *
+ * ~16 units from spawn, and 38 from the plaza in `landmark.ts`, so the two destinations do not crowd.
  */
 export const POND: WaterBody = {
-  centreX: -13,
-  centreZ: -7,
-  radius: 10,
+  centreX: -15,
+  centreZ: -5,
+  radius: 12,
   surfaceY: -0.95,
 };
 ```
@@ -134,9 +138,9 @@ export const POND: WaterBody = {
 pnpm vitest run tests/presentation/waterPlacement.test.ts
 ```
 
-Expected: PASS, 4 tests.
+Expected: PASS, 4 tests. Measured values at these constants: centre y −1.507, 238 submerged cells, depth 0.584, 0 of 64 rim cells wet.
 
-If "floods a pool broad enough" fails, the basin is shallower than measured — do **not** raise `surfaceY` past `-0.53` to force it, because that breaks the wade test. Report the mismatch instead.
+If "floods a pool broad enough" fails, the basin is shallower than measured — do **not** raise `surfaceY` past `-0.53` to force it, because that breaks the wade test. If "has a shore" fails, the disc is too small for the basin at that centre — grow `radius`, do not shrink the test. Report either mismatch rather than tuning past it.
 
 - [ ] **Step 5: Full suite and typecheck**
 

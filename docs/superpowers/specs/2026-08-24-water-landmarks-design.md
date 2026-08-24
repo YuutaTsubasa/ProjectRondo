@@ -47,16 +47,16 @@ Measured by sampling `terrainHeight` on a 1-unit grid across the walkable field 
   | Centre | y | Ring spread | Max slope | Distance from pond |
   | --- | --- | --- | --- | --- |
   | (8, 16) | −1.30 | 1.15 m | 8.2° | 31 |
-  | **(−6, 32)** | **1.17** | **1.26 m** | **6.1°** | **40** |
+  | **(−6, 32)** | **1.17** | **1.26 m** | **6.1°** | **38** |
   | (0, 14) | −0.99 | 1.32 m | 6.3° | 25 |
   | (−24, 24) | 4.37 | 2.38 m | 16.6° | — |
 
   There is a real tension here worth recording: **the flattest ground is the lowest ground**, because
   the flattest places are basin floors, and the highest ground is meaningfully sloped (16–17°).
-  **(−6, 32)** is the only site that is both flat and above y = 0, and it is 40 units from the pond, so
+  **(−6, 32)** is the only site that is both flat and above y = 0, and it is 38 units from the pond, so
   the two features do not crowd each other.
 
-**Composition:** the pond lands ~15 units from spawn — found immediately, on the way to everything —
+**Composition:** the pond lands ~16 units from spawn — found immediately, on the way to everything —
 and the plaza ~33 units out, far enough to be a walk toward something visible.
 
 ## 3. Modules and wiring
@@ -77,12 +77,18 @@ from `hubScene`, owning their own materials and colliders.
 
 ## 4. Water
 
-A disc at **(−13, −7)**, surface at **y = −0.95** — 0.58 m over the basin floor, roughly knee-height on
-the ~1.9-unit knight — with radius **10** against a flooded contour of ~7.7.
+A disc at **(−15, −5)**, surface at **y = −0.95** — 0.58 m over the basin floor, roughly knee-height on
+the ~1.9-unit knight — with radius **12**.
 
-**The disc is deliberately oversized.** Where terrain rises above the surface it occludes the water, so
-an over-large disc simply disappears into the bank while an under-sized one would leave a visible gap
-at the shoreline. Fitting a mesh to the contour would be the alternative and is not worth it.
+**The disc is deliberately oversized, and centred on the basin's centroid rather than its lowest
+point.** Where terrain rises above the surface it occludes the water, so an over-large disc disappears
+into the bank while an under-sized one leaves a visible gap at the shoreline.
+
+Flood-filling at y = −0.95 gives a connected region of **238 cells spanning x −23..−9**, centroid
+**(−15.3, −4.8)** — the basin is both larger and offset from its deepest point. Centring on the deepest
+point at radius 10 would have left **20 of 64 rim cells underwater**, i.e. a disc that is not oversized
+at all on its west side; (−15, −5) at radius 12 leaves none. Fitting a mesh to the contour would be the
+alternative and is not worth it.
 
 ### Material
 
