@@ -13,6 +13,7 @@ import { CreateSphere } from '@babylonjs/core/Meshes/Builders/sphereBuilder';
 import { PhysicsAggregate } from '@babylonjs/core/Physics/v2/physicsAggregate';
 import { PhysicsShapeType } from '@babylonjs/core/Physics/v2/IPhysicsEnginePlugin';
 import { terrainHeight, EDGE_RADIUS, BARRIER_TOP } from './terrainHeight';
+import { ROCK_DIFFUSE_RGB } from './rockColors';
 
 // Cosmetic scatter covers the walkable interior AND the grassy barrier slope, up to the barrier top
 // (a bare barrier looks wrong); colliders, though, only go where the player can reach — see below.
@@ -179,7 +180,7 @@ function rockMesh(scene: Scene): Mesh {
   for (let i = 0; i < fpos.length; i += 3) dot += fpos[i] * nor[i] + fpos[i + 1] * nor[i + 1] + fpos[i + 2] * nor[i + 2];
   if (dot < 0) { for (let i = 0; i < nor.length; i++) nor[i] = -nor[i]; rock.updateVerticesData(VertexBuffer.NormalKind, nor); }
   const mat = new StandardMaterial('rockMat', scene);
-  mat.diffuseColor = new Color3(0.55, 0.54, 0.52);
+  mat.diffuseColor = new Color3(...ROCK_DIFFUSE_RGB);
   mat.specularColor = new Color3(0.05, 0.05, 0.05);
   mat.ambientColor = new Color3(1, 1, 1); // pick up the hemispheric ambient so shaded faces aren't black
   rock.material = mat;

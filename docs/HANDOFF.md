@@ -1,6 +1,6 @@
 # ProjectRondo — Developer Handoff
 
-Last updated: 2026-08-21. Purpose: everything the next machine / developer / Claude session needs to
+Last updated: 2026-08-24. Purpose: everything the next machine / developer / Claude session needs to
 pick this up cold. The repo is the source of truth; this file is the map.
 
 ## 1. What this is
@@ -55,7 +55,7 @@ pnpm build              # static bundle → dist/
 pnpm tauri dev          # native desktop app (needs Rust)
 ```
 
-## 4. Current state (all merged to `main`, latest `34ede96`, no open PRs)
+## 4. Current state (M1–M4/P2 merged to `main`; **P3 is open as a PR**, branch `claude/p3-water-landmarks`)
 
 - **M1 — hub web parity:** third-person mouse-look knight (WASD/Space), pure-domain movement, Havok
   capsule, Idle/Walk animation blend.
@@ -102,6 +102,22 @@ pnpm tauri dev          # native desktop app (needs Rust)
     StandardMaterial** — that was tried on the theory that the trees' PBR-vs-gamma problem applied here
     too, and it does not (the knight sits ~5 units from the camera where fog is 0.14 %). The conversion
     made it markedly worse: near-black hair, grey face, dull armour.
+  - **P3 water & landmarks:** a wadeable **pond** — a `StandardMaterial` disc at (−15, −0.95, −5),
+    radius 12, procedural scrolling ripple normals, opacity Fresnel, **no collider** so the player
+    wades the terrain underneath — and a **stone colonnade** as the hub's destination: eight pillars
+    on a radius-8 ring at (−6, 32) plus a central pedestal, each a static `PhysicsAggregate`, pillars
+    seated individually on the terrain but sharing one crown height (base spread 1.237, crown spread
+    **0**). Both sit on the existing height field; `terrainHeight.ts` is untouched.
+    Design + the measured record: `docs/superpowers/specs/2026-08-24-water-landmarks-design.md`
+    (§9 is the measurements). Costs **0.09–0.26 ms/frame** of a 16.7 ms budget, effectively all of it
+    the landmark; the water is at the noise floor.
+
+    P3 also exposed a **pre-existing `knight.ts` bug** that was latent since foot-planting was
+    written (§7): the visual knight was planted against `terrainHeight`, the height *field*, so it
+    rendered *through* anything with its own collider. On the pedestal the capsule was correctly at
+    1.843 on a 1.717 top while the model's lowest vertex sat at 1.167 — exactly the terrain height,
+    0.55 low. Now planted against a downward physics raycast, falling back to `terrainHeight` on a
+    miss. This is not a P3 bug; P3 was just the first thing built that the player stands *on*.
 
 ## 5. What's next (the plan)
 
@@ -122,13 +138,15 @@ scheduled additions). Sequence from here:
 
    Note `Mesh_0` is 242k of the character's ~320k verts — the GLB was texture-optimised but never
    decimated, which is a separate job.
-2. **P3 — water & landmarks** (landmarks double as NPC / future mode-entry sites; the natural-barrier
-   cliff aesthetic can finish here). Budget against the already-loaded scene (roadmap §7): the fps
-   headroom the earlier phases left is what P3 spends. P2 measured its own cost at **0.3 ms** (1.837 ms
-   pre-P2 → 2.137 ms shipped), so the whole frame is ~2.1 ms against a 16.7 ms vsync budget and the
-   headroom is still roughly 8x (design spec §12).
-3. **P4 — life & motion** (wind sway, drifting clouds, ambient creatures).
-4. **Then: game modes** — Sonic-style 3D/2D levels, 2048, Sudoku (a new milestone, SP2+).
+2. **P4 — life & motion** (wind sway, drifting clouds, ambient creatures). Budget against the
+   already-loaded scene (roadmap §7): the fps headroom the earlier phases left is what P4 spends. P2
+   measured its own cost at **0.3 ms** and P3 at **0.09–0.26 ms**, so there is still roughly 8x
+   headroom against the 16.7 ms vsync budget. Note P3's numbers were taken on a different machine
+   from P2's, so compare *within-session deltas*, never the absolutes (P3 spec §9d).
+   P3 left `WaterBody` (`src/domain/hub/waterBody.ts`) as the shape P4's shallow-water feedback —
+   splashes, slowdown, wet shading — should read, and the plaza's eight pillars are where the
+   mode-entrances attach.
+3. **Then: game modes** — Sonic-style 3D/2D levels, 2048, Sudoku (a new milestone, SP2+).
 
 ## 6. How work is done here (the workflow)
 
@@ -249,12 +267,39 @@ These are hard-won; several cost a debugging session each.
   "this lever does nothing". It was removed on that basis and sent 10.5 % of the frame to pure black.
   Whole-frame statistics (fraction at pure black, blown pixels, mean luma) would have caught it
   immediately — and did, once used.
-- **Benchmark configs interleaved, never one block each.** A block-per-config run had the *same* config
-  at 2.96 ms and 2.06 ms, and reported "bloom off" (1.778 ms) as *faster* than "whole pipeline off"
+- **The character controller has NO step-up: `maxStepHeight` is 0.** That is Babylon's default and
+  `playerController` never raises it, so the capsule rides a 60° slope but cannot climb a vertical
+  face of *any* height — a 0.55 m kerb is as impassable as a wall. Measured: walking at the plaza
+  pedestal jams the player at 2.21 from its axis (its 1.6 radius plus the 0.5 capsule). **Anything
+  the player must get on top of has to be reachable by slope, or by jumping.** Raising
+  `maxStepHeight` is a world-wide movement change — it alters how the player meets every rock, trunk
+  and pillar — so it is a movement-system decision, not something to fix per-prop.
+- **Foot-planting must use the surface the player is standing on, not `terrainHeight`.** `knight.ts`
+  drops the visual knight by the gap between the capsule bottom and the ground, because the capsule
+  rests ~0.13 above whatever it stands on. That lookup used the height *field*, so on any raised
+  collider the model rendered straight *through* it: on the plaza pedestal the capsule was correctly
+  at 1.843 on a 1.717 top while the knight's lowest rendered vertex sat at 1.167 — exactly
+  `terrainHeight(-6, 32)`, 0.55 low, i.e. standing on the ground inside the plinth. It now casts a
+  downward physics ray (`PhysicsEngine.raycastToRef`, ~7 µs) and falls back to `terrainHeight` on a
+  miss. Two traps this hid behind: **no physics assertion can see it** — the capsule was always
+  right, only the render was wrong, so the check must compare the knight's lowest rendered vertex
+  against the collider; and **"stand on X" passes on the broken build if you teleport the capsule**,
+  which is what an automated check naturally does. Make the character get there under its own power.
+  (`CharacterSurfaceInfo` cannot help — it carries normals and velocities, no surface *position*.)
+- **Benchmark configs interleaved, never one block each — and shuffle the order *within* each round.**
+  Interleaving alone was not enough in P3: with a fixed order inside each round, "landmark off"
+  (2.805 ms) came out *faster* than "both off" (2.984 ms), which is impossible since both-off draws
+  strictly less. Shuffling the config order within each round fixed it. Better still, take **paired
+  within-round differences** rather than comparing absolute medians: absolutes drifted nearly 2x
+  between runs with machine load (0.92 → 2.70 ms for the same scene), which swamps any small effect,
+  and pairing cancels that drift. Also **never compare absolute ms across machines** — P2's 2.137 ms
+  and P3's 0.92–2.70 ms are different hardware and the comparison is meaningless.
+
+  The original P2 finding this bullet grew from: a block-per-config run had the *same* config at
+  2.96 ms and 2.06 ms, and reported "bloom off" (1.778 ms) as *faster* than "whole pipeline off"
   (2.001 ms) — impossible, since bloom-off still pays for tone mapping that pipeline-off does not.
-  Round-robin
-  across configs with medians fixed it. Run-to-run spread here is ~30 %, so trust the *ordering* across
-  several configs rather than any single number.
+  Round-robin across configs with medians fixed that one. Run-to-run spread is ~30 % at best, so
+  trust the *ordering* across several configs rather than any single number.
 
 ## 8. Claude's local memory (optional, but valuable for continuity)
 
