@@ -8,6 +8,7 @@ import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
 // Side-effect: registers the StandardMaterial shader. Required with tree-shaken deep imports.
 import '@babylonjs/core/Materials/standardMaterial';
 import { terrainHeight } from './terrainHeight';
+import { ROCK_DIFFUSE_RGB } from './rockColors';
 
 /**
  * Where the colonnade stands. Chosen by sampling `terrainHeight`: of the sites flat enough for a
@@ -28,10 +29,11 @@ const CROWN_HEIGHT = 4.2;
 const PEDESTAL_RADIUS = 1.6;
 const PEDESTAL_HEIGHT = 0.55;
 
-/** Reuses `scatter.ts`'s rock colour so the structure lands inside P2's grade rather than beside it. */
+/** Reuses `scatter.ts`'s rock colour (via `rockColors.ts`) so the structure lands inside P2's grade
+ *  rather than beside it. */
 function stoneMaterial(scene: Scene): StandardMaterial {
   const mat = new StandardMaterial('stoneMat', scene);
-  mat.diffuseColor = new Color3(0.55, 0.54, 0.52);
+  mat.diffuseColor = new Color3(...ROCK_DIFFUSE_RGB);
   mat.specularColor = new Color3(0.05, 0.05, 0.05);
   mat.ambientColor = new Color3(1, 1, 1); // pick up the hemispheric ambient so shaded faces aren't black
   return mat;

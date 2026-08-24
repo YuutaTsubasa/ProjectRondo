@@ -105,7 +105,7 @@ export interface WaterBody {
   readonly centreX: number;
   readonly centreZ: number;
   /**
-   * Radius of the *rendered surface*, deliberately larger than the flooded contour (~7.7 units).
+   * Radius of the *rendered surface*, deliberately larger than the flooded contour (~8.7 units).
    * Where terrain rises above `surfaceY` it occludes the water, so an oversized disc disappears
    * into the bank, while an undersized one would leave a visible gap at the shoreline.
    */
@@ -329,7 +329,7 @@ Start the dev server with the Browser pane (`preview_start` with `{name: "dev"}`
 })()
 ```
 
-Expected: `materialClass: "StandardMaterial"`, `fogEnabled: true`, `hasBump: true`, position `[-13, -0.95, -7]`.
+Expected: `materialClass: "StandardMaterial"`, `fogEnabled: true`, `hasBump: true`, position `[-15, -0.95, -5]`.
 
 Then take a screenshot from the bank. Drive frames manually and call `engine.restoreDefaultFramebuffer()` before any `readPixels` — otherwise you read a post-process render target and get a flat colour that looks like a broken scene (HANDOFF §7).
 
@@ -373,7 +373,7 @@ import { terrainHeight } from './terrainHeight';
 /**
  * Where the colonnade stands. Chosen by sampling `terrainHeight`: of the sites flat enough for a
  * radius-8 ring, this is the only one above y = 0 (1.17, with 1.26 m of spread across the ring and
- * 6.1° of slope), and it is 40 units from the pond so the two destinations do not crowd each other.
+ * 6.1° of slope), and it is 38 units from the pond so the two destinations do not crowd each other.
  *
  * Worth knowing before moving it: in this height field the flattest ground IS the lowest ground,
  * because the flat places are basin floors. The high ground runs 16–17° across a ring this wide.
