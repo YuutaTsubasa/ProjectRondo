@@ -12,7 +12,7 @@ import { terrainHeight } from './terrainHeight';
 /**
  * Where the colonnade stands. Chosen by sampling `terrainHeight`: of the sites flat enough for a
  * radius-8 ring, this is the only one above y = 0 (1.17, with 1.26 m of spread across the ring and
- * 6.1° of slope), and it is 40 units from the pond so the two destinations do not crowd each other.
+ * 6.1° of slope), and it is 38 units from the pond so the two destinations do not crowd each other.
  *
  * Worth knowing before moving it: in this height field the flattest ground IS the lowest ground,
  * because the flat places are basin floors. The high ground runs 16–17° across a ring this wide.

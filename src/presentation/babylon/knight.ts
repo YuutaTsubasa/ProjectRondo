@@ -3,9 +3,11 @@ import type { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 import type { AnimationGroup } from '@babylonjs/core/Animations/animationGroup';
 import type { ShadowGenerator } from '@babylonjs/core/Lights/Shadows/shadowGenerator';
 import { ImportMeshAsync } from '@babylonjs/core/Loading/sceneLoader';
-import { Quaternion } from '@babylonjs/core/Maths/math.vector';
+import { Quaternion, Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { Color3 } from '@babylonjs/core/Maths/math.color';
 import type { AbstractMesh } from '@babylonjs/core/Meshes/abstractMesh';
+import { PhysicsRaycastResult } from '@babylonjs/core/Physics/physicsRaycastResult';
+import type { PhysicsEngine as PhysicsEngineV2 } from '@babylonjs/core/Physics/v2/physicsEngine';
 // Side-effect: registers the glTF loader plugin (with KHR_mesh_quantization / webp support).
 import '@babylonjs/loaders/glTF';
 import { CAPSULE_HALF } from './capsule';
@@ -54,6 +56,17 @@ export interface Knight {
    */
   planted: number;
 }
+
+/**
+ * How far above the soles the ground probe starts, and how far below them it reaches.
+ *
+ * The capsule always rests a little ABOVE whatever it stands on (rounded bottom plus the
+ * controller's keepDistance) — measured at 0.13–0.15 on both terrain and the plaza pedestal — so the
+ * ray has to start above the soles to be sure it is above the surface, and reach far enough below to
+ * still find the ground during the brief `planted` fade after takeoff.
+ */
+const GROUND_PROBE_ABOVE = 0.25;
+const GROUND_PROBE_BELOW = 1;
 
 /** Target on-screen height of the knight, in world units (roughly the physics capsule height; see capsule.ts). */
 const TARGET_HEIGHT = 1.9;
@@ -295,6 +308,44 @@ async function swapHeadMaterial(meshes: readonly AbstractMesh[]): Promise<void> 
   }
 }
 
+/**
+ * Builds "how high is the surface actually under the soles?", used by the foot-planting below.
+ *
+ * This exists because {@link terrainHeight} is the height *field*, not the height of whatever the
+ * player is standing on. Anything with its own collider — the plaza pedestal, a pillar, a rock, and
+ * whatever P4 adds — sits above the field, and planting against the field drops the knight straight
+ * through it. Measured on the pedestal before this probe existed: the capsule bottom was correctly at
+ * 1.843 on a 1.717 top, while the knight's lowest rendered vertex was at 1.167 — exactly
+ * `terrainHeight(-6, 32)`, i.e. the model rendered through the pedestal and stood on the ground.
+ *
+ * A physics raycast is used rather than the character controller's support probe because
+ * `CharacterSurfaceInfo` in this Babylon version carries only normals and velocities — there is no
+ * `averageSurfacePosition` to read a height off.
+ *
+ * The ray is NOT filtered against the player's own capsule, which is safe here and was checked
+ * rather than assumed: `PhysicsCharacterController` registers no body the raycast can see (its
+ * `collider` is undefined), and a ray started inside the capsule still reports the pedestal at
+ * 1.717. If that ever changes, the fix is an `ignoreBody` in the query.
+ *
+ * On a miss it returns the height field, so the worst case is exactly today's behaviour rather than
+ * snapping the knight somewhere worse.
+ */
+function createGroundProbe(scene: Scene): (x: number, footY: number, z: number) => number {
+  // `raycastToRef` writes into these instead of allocating a result and two vectors every frame.
+  // It lives on the v2 engine; `IPhysicsEngine` only declares the allocating `raycast`.
+  const result = new PhysicsRaycastResult();
+  const from = new Vector3();
+  const to = new Vector3();
+  return (x, footY, z) => {
+    const engine = scene.getPhysicsEngine() as PhysicsEngineV2 | null;
+    if (!engine) return terrainHeight(x, z);
+    from.set(x, footY + GROUND_PROBE_ABOVE, z);
+    to.set(x, footY - GROUND_PROBE_BELOW, z);
+    engine.raycastToRef(from, to, result);
+    return result.hasHit ? result.hitPointWorld.y : terrainHeight(x, z);
+  };
+}
+
 /** Rejects if `promise` has not settled within `ms`. The underlying work is not cancellable — Babylon's
  *  compile poll keeps running — so this bounds the *wait*, not the work. */
 function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
@@ -390,15 +441,26 @@ export async function loadKnight(
 
       // On rolling terrain the physics capsule rests ABOVE the ground (its rounded bottom rides
       // slopes/bumps, plus the controller's keepDistance), so a rigidly-parented knight floats. Each
-      // frame, drop the visual by however far the capsule bottom sits above the terrain under the
+      // frame, drop the visual by however far the capsule bottom sits above the surface under the
       // player, so the feet stay planted.
       //
-      // Airborne that correction is exactly wrong — the gap to the terrain IS the jump height, so
+      // That surface is whatever the player is actually standing on, not the height field — see
+      // {@link createGroundProbe}, which is what lets the knight stand ON the plaza pedestal instead
+      // of rendering through it.
+      //
+      // Airborne that correction is exactly wrong — the gap to the ground IS the jump height, so
       // applying it would pin the knight to the ground while the capsule flies. `knight.planted`
-      // fades it out, which also keeps takeoff and landing from popping.
+      // fades it out, which also keeps takeoff and landing from popping. The probe is skipped
+      // entirely once the correction is fading to nothing, so a jump costs no raycast.
+      const groundUnder = createGroundProbe(scene);
       scene.onBeforeRenderObservable.add(() => {
+        if (knight.planted <= 0) {
+          root.position.y = seatedLocalY;
+          return;
+        }
         const p = parent.getAbsolutePosition();
-        root.position.y = seatedLocalY - knight.planted * (p.y - CAPSULE_HALF - terrainHeight(p.x, p.z));
+        const footY = p.y - CAPSULE_HALF;
+        root.position.y = seatedLocalY - knight.planted * (footY - groundUnder(p.x, footY, p.z));
       });
     });
   }
