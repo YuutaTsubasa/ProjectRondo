@@ -61,9 +61,10 @@ export interface Knight {
  * How far above the soles the ground probe starts, and how far below them it reaches.
  *
  * The capsule always rests a little ABOVE whatever it stands on (rounded bottom plus the
- * controller's keepDistance) — measured at 0.13–0.15 on both terrain and the plaza pedestal — so the
- * ray has to start above the soles to be sure it is above the surface, and reach far enough below to
- * still find the ground during the brief `planted` fade after takeoff.
+ * controller's keepDistance) — measured at 0.109–0.142 across jumps onto the pedestal from three
+ * directions, open ground, and a pillar crown (design spec §9b, capsule bottom minus support-surface
+ * height) — so the ray has to start above the soles to be sure it is above the surface, and reach far
+ * enough below to still find the ground during the brief `planted` fade after takeoff.
  */
 const GROUND_PROBE_ABOVE = 0.25;
 const GROUND_PROBE_BELOW = 1;

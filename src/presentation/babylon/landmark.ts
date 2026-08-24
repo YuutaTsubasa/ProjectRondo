@@ -28,6 +28,11 @@ const PILLAR_RADIUS = 0.45;
 const CROWN_HEIGHT = 4.2;
 const PEDESTAL_RADIUS = 1.6;
 const PEDESTAL_HEIGHT = 0.55;
+/** How far each pillar's base is sunk below its terrain sample, so no pillar hovers over a dip
+ *  between samples. Used both to lengthen the pillar (added to its height) and to lower its position
+ *  (subtracted from its centre) — the two uses must change together, or the crown drifts off
+ *  `crownY` and the ring stops reading level. */
+const PILLAR_SINK = 0.3;
 
 /** Reuses `scatter.ts`'s rock colour (via `rockColors.ts`) so the structure lands inside P2's grade
  *  rather than beside it. */
@@ -61,13 +66,13 @@ export function createLandmark(scene: Scene, shadowGenerator?: ShadowGenerator):
     const z = PLAZA_Z + RING_RADIUS * Math.sin(angle);
     const baseY = terrainHeight(x, z);
     // Sink the base slightly so no pillar hovers over a dip between terrain samples.
-    const height = crownY - baseY + 0.3;
+    const height = crownY - baseY + PILLAR_SINK;
     const pillar = CreateCylinder(
       `plazaPillar_${i}`,
       { diameter: PILLAR_RADIUS * 2, height, tessellation: 12 },
       scene,
     );
-    pillar.position.set(x, baseY - 0.3 + height / 2, z);
+    pillar.position.set(x, baseY - PILLAR_SINK + height / 2, z);
     pillar.material = mat;
     pillar.isPickable = false;
     new PhysicsAggregate(pillar, PhysicsShapeType.CYLINDER, { mass: 0 }, scene);
