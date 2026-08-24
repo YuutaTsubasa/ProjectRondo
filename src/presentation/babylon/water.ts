@@ -69,7 +69,9 @@ function rippleNormalTexture(scene: Scene): DynamicTexture {
  */
 export function createWater(scene: Scene, body: WaterBody = POND): void {
   const surface = CreateDisc('water', { radius: body.radius, tessellation: 64 }, scene);
-  // CreateDisc builds in the XY plane facing +Z; rotate it flat, normal up.
+  // Measured (not assumed): under `useRightHandedSystem = true`, CreateDisc's XY-plane vertices
+  // come out with local normal (0, 0, -1), not the +Z one might expect. Rotating +π/2 about X
+  // carries that (0, 0, -1) to world (0, 1, 0) — normal up — which is why this sign is correct.
   surface.rotation.x = Math.PI / 2;
   surface.position.set(body.centreX, body.surfaceY, body.centreZ);
   surface.isPickable = false;
@@ -97,7 +99,8 @@ export function createWater(scene: Scene, body: WaterBody = POND): void {
 
   scene.onBeforeRenderObservable.add(() => {
     const dt = scene.getEngine().getDeltaTime() / 1000;
-    ripple.uOffset += SCROLL_U_PER_SEC * dt;
-    ripple.vOffset += SCROLL_V_PER_SEC * dt;
+    // UV offsets are periodic, so wrap into [0, 1) rather than accumulate unbounded floats.
+    ripple.uOffset = (ripple.uOffset + SCROLL_U_PER_SEC * dt) % 1;
+    ripple.vOffset = (ripple.vOffset + SCROLL_V_PER_SEC * dt) % 1;
   });
 }
