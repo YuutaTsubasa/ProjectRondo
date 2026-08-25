@@ -122,7 +122,6 @@ export function createTerrain(scene: Scene): AbstractMesh {
   mat.diffuseTexture = grass;
   mat.specularColor = new Color3(0.05, 0.05, 0.05);
   terrain.material = mat;
-  terrain.receiveShadows = true;
 
   new PhysicsAggregate(terrain, PhysicsShapeType.MESH, { mass: 0 }, scene);
   createBoundaries(scene);

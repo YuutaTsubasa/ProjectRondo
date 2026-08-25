@@ -3,9 +3,6 @@ import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { Color3 } from '@babylonjs/core/Maths/math.color';
 import { HemisphericLight } from '@babylonjs/core/Lights/hemisphericLight';
 import { DirectionalLight } from '@babylonjs/core/Lights/directionalLight';
-import { ShadowGenerator } from '@babylonjs/core/Lights/Shadows/shadowGenerator';
-// Side-effect: registers the shadow-map render component. Without it the ShadowGenerator produces no shadows.
-import '@babylonjs/core/Lights/Shadows/shadowGeneratorSceneComponent';
 import { CreateSphere } from '@babylonjs/core/Meshes/Builders/sphereBuilder';
 import { Mesh } from '@babylonjs/core/Meshes/mesh';
 import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
@@ -15,7 +12,6 @@ import { DynamicTexture } from '@babylonjs/core/Materials/Textures/dynamicTextur
 import { HORIZON_HEX } from './atmosphereColors';
 
 export interface Environment {
-  readonly shadowGenerator: ShadowGenerator;
   readonly sun: DirectionalLight;
 }
 
@@ -71,7 +67,8 @@ function skyGradientTexture(scene: Scene): DynamicTexture {
   return tex;
 }
 
-/** Builds the outdoor atmosphere: gradient skydome, directional sun with a shadow generator, and a dim ambient fill. */
+/** Builds the outdoor atmosphere: gradient skydome, a directional sun, and a dim ambient fill.
+ *  The sun's shadow generator lives in `shadows.ts` — it needs the camera, which does not exist yet. */
 export function createEnvironment(scene: Scene): Environment {
   // Skydome: a large inward-facing sphere, unlit, infinitely far so it stays put as the camera moves.
   const sky = CreateSphere('sky', { diameter: 1000, sideOrientation: Mesh.BACKSIDE }, scene);
@@ -96,9 +93,5 @@ export function createEnvironment(scene: Scene): Environment {
   sun.intensity = 1.1;
   sun.diffuse = new Color3(1, 0.98, 0.9);
 
-  const shadowGenerator = new ShadowGenerator(1024, sun);
-  shadowGenerator.usePercentageCloserFiltering = true;
-  shadowGenerator.bias = 0.002;
-
-  return { shadowGenerator, sun };
+  return { sun };
 }

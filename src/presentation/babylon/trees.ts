@@ -2,7 +2,7 @@ import type { Scene } from '@babylonjs/core/scene';
 import type { AssetContainer } from '@babylonjs/core/assetContainer';
 import type { Material } from '@babylonjs/core/Materials/material';
 import type { TransformNode } from '@babylonjs/core/Meshes/transformNode';
-import type { ShadowGenerator } from '@babylonjs/core/Lights/Shadows/shadowGenerator';
+import type { Shadows } from './shadows';
 import { LoadAssetContainerAsync } from '@babylonjs/core/Loading/sceneLoader';
 import { Quaternion } from '@babylonjs/core/Maths/math.vector';
 import { Color3 } from '@babylonjs/core/Maths/math.color';
@@ -94,7 +94,7 @@ const SPOTS: readonly [number, number, number, number][] = [
  * The GLB should be texture-optimized offline like the knight (gltf-transform: `resize --width 1024
  * --height 1024` then `webp --quality 80`; trees are static, so geometry `simplify` is also safe here).
  */
-export async function loadTrees(scene: Scene, shadowGenerator?: ShadowGenerator): Promise<void> {
+export async function loadTrees(scene: Scene, shadows?: Shadows): Promise<void> {
   let container;
   try {
     container = await LoadAssetContainerAsync('/models/tree.glb?v=4', scene);
@@ -124,8 +124,13 @@ export async function loadTrees(scene: Scene, shadowGenerator?: ShadowGenerator)
     new PhysicsAggregate(trunk, PhysicsShapeType.CYLINDER, { mass: 0 }, scene);
     root.rotationQuaternion = Quaternion.FromEulerAngles(0, yaw, 0);
     root.scaling.setAll(BASE_SCALE * scale);
-    if (shadowGenerator)
-      for (const mesh of root.getChildMeshes(false)) if (mesh.getTotalVertices() > 0) shadowGenerator.addShadowCaster(mesh);
+    // Trees both cast and catch each other's shadows. `cast`/`receive` skip zero-vertex nodes, so
+    // the explicit getTotalVertices guard that used to live here is no longer needed.
+    if (shadows) {
+      const meshes = root.getChildMeshes(false);
+      shadows.cast(...meshes);
+      shadows.receive(...meshes);
+    }
   });
 
   // NB: do NOT dispose `container` here. `instantiateModelsToScene(doNotInstantiate)` clones share

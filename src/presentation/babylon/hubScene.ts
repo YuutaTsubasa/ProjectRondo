@@ -17,6 +17,7 @@ import { createInput } from './input';
 import { createPlayer, type Player } from './playerController';
 import { loadKnight, driveKnightAnimation, type Knight, type KnightMotionSample } from './knight';
 import { createEnvironment } from './environment';
+import { createShadows } from './shadows';
 import { createAtmosphere } from './postProcessing';
 import { createTerrain } from './terrain';
 import { loadTrees } from './trees';
@@ -44,21 +45,28 @@ export async function createHubScene(canvas: HTMLCanvasElement): Promise<HubScen
   // skinned characters, which otherwise collapses them to the floor when the parent yaws.
   scene.useRightHandedSystem = true;
 
-  const { shadowGenerator } = createEnvironment(scene);
+  const { sun } = createEnvironment(scene);
 
   // Physics: Havok. The domain owns all gravity and the character controller is passed zero
   // gravity, so the world gravity stays zero too — no second, contradictory source of gravity.
   // (Set a real value here if/when dynamic rigid bodies are introduced.)
   const havok = await HavokPhysics();
   scene.enablePhysics(Vector3.Zero(), new HavokPlugin(true, havok));
-  createTerrain(scene);
-  createGroundScatter(scene);
-  createWater(scene);
-  createLandmark(scene, shadowGenerator);
 
+  // The camera is hoisted above the world build because cascaded shadow maps derive their splits
+  // from the active camera. It depends only on playerRoot and the canvas — not on physics, the
+  // terrain or the player controller — so moving it earlier is safe.
   const playerRoot = new TransformNode('player', scene);
   const follow = createFollowCamera(scene, playerRoot, canvas);
   scene.activeCamera = follow.camera;
+  const shadows = createShadows(sun, follow.camera);
+
+  const terrain = createTerrain(scene);
+  shadows.receive(terrain);
+  createGroundScatter(scene);
+  createWater(scene);
+  createLandmark(scene, shadows);
+
   createAtmosphere(scene, follow.camera);
 
   const input = createInput();
@@ -67,14 +75,14 @@ export async function createHubScene(canvas: HTMLCanvasElement): Promise<HubScen
     const v = player.motion.velocity;
     return { planarSpeed: Math.hypot(v.x, v.z), airborne: player.airborne };
   };
-  const knight = await loadKnight(scene, playerRoot, shadowGenerator);
+  const knight = await loadKnight(scene, playerRoot, shadows);
   driveKnightAnimation(scene, knight, readMotion, () => ({
     walk: player.config.maxSpeed,
     run: player.config.runSpeed,
     // Up and back down under the domain's own gravity — the flat-ground airtime the jump clip fills.
     airtime: (2 * player.config.jumpSpeed) / player.config.gravity,
   }));
-  await loadTrees(scene, shadowGenerator);
+  await loadTrees(scene, shadows);
 
   engine.runRenderLoop(() => scene.render());
   // Size the drawing buffer to the canvas now; the resize event only fires on later changes.
