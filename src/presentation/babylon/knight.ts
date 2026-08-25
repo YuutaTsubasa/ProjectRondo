@@ -11,6 +11,7 @@ import type { PhysicsEngine as PhysicsEngineV2 } from '@babylonjs/core/Physics/v
 // Side-effect: registers the glTF loader plugin (with KHR_mesh_quantization / webp support).
 import '@babylonjs/loaders/glTF';
 import { CAPSULE_HALF } from './capsule';
+import { HEAD_MESHES } from './shadowPolicy';
 import { terrainHeight } from './terrainHeight';
 import { moveToward } from '../../domain/math/scalar';
 import { emissiveFactorOf, type GltfPbrMaterial } from './gltfMaterial';
@@ -73,12 +74,6 @@ const GROUND_PROBE_BELOW = 1;
 const TARGET_HEIGHT = 1.9;
 /** Fraction of the idle animation's motion to keep (0 = frozen, 1 = full sway). Kills the side rock. */
 const IDLE_SWAY_KEEP = 0.2;
-
-/** The head group, by mesh name. `Mesh_0` is the whole head — face, hair and neck collar, 242k of the
- *  character's ~320k vertices — and `Mesh_32`/`Mesh_33` are the two eyeballs. Identified from bind-pose
- *  bounding boxes against the `Head` and `CC_Base_*_Eye` bones, then confirmed by rendering `Mesh_0`
- *  alone. The other 31 meshes (`tripo_part_*`) are body and armour and are deliberately untouched. */
-const HEAD_MESHES: readonly string[] = ['Mesh_0', 'Mesh_32', 'Mesh_33'];
 
 /**
  * How much of the albedo to add back as unlit light on the face.
