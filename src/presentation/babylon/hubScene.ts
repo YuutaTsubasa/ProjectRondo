@@ -63,7 +63,7 @@ export async function createHubScene(canvas: HTMLCanvasElement): Promise<HubScen
 
   const terrain = createTerrain(scene);
   shadows.receive(terrain);
-  createGroundScatter(scene);
+  createGroundScatter(scene, shadows);
   createWater(scene);
   createLandmark(scene, shadows);
 

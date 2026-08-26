@@ -1,4 +1,5 @@
 import type { Scene } from '@babylonjs/core/scene';
+import type { Shadows } from './shadows';
 import { Matrix, Quaternion, Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { Color3 } from '@babylonjs/core/Maths/math.color';
 import { Mesh } from '@babylonjs/core/Meshes/mesh';
@@ -234,7 +235,7 @@ function addRockColliders(scene: Scene, placements: Placement[]): void {
 
 /** Scatters procedural ground detail — grass tufts, wildflowers, rocks, and bushes — as one
  *  thin-instanced base mesh per element type (one draw call each). */
-export function createGroundScatter(scene: Scene): void {
+export function createGroundScatter(scene: Scene, shadows?: Shadows): void {
   const grass = crossCard(scene, 'grassTuft', 0.5, 3, grassMaterial(scene));
   grass.thinInstanceSetBuffer('matrix', scatterMatrices({ count: 16000, seed: 1, y: 0, minScale: 0.7, maxScale: 1.3 }).buffer, 16);
 
@@ -248,4 +249,8 @@ export function createGroundScatter(scene: Scene): void {
 
   const bush = bushMesh(scene);
   bush.thinInstanceSetBuffer('matrix', scatterMatrices({ count: 160, seed: 4, y: 0, minScale: 0.7, maxScale: 1.3, extent: EXTENT - 2 }).buffer, 16);
+
+  // Ground detail receives but never casts. 16 000 alpha-tested cross cards redrawn once per
+  // cascade is the most expensive option on the table and reads as speckle noise, not foliage.
+  shadows?.receive(grass, flowers, rock, bush);
 }

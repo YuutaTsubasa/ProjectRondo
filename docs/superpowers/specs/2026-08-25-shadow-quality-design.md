@@ -58,12 +58,13 @@ beat a ~0.2-unit offset survived, and nothing in the real scene is.
 actually stands among never receive, so even a correct shadow is largely hidden behind bright green
 blades.
 
-Honesty about the evidence here: setting `receiveShadows` on all 133 remaining meshes at runtime,
-with `bias` already lowered to 0, produced **no visible change**. So this cause is reasoned, not
-demonstrated. The likely explanation is cause 1c — with the knight's shadow only a few texels
-across, there was almost nothing for the new receivers to catch — but it could equally be that the
-thin-instance materials needed a recompile the runtime poke did not trigger. Treat 1b as a
-hypothesis that the acceptance thresholds in §5b must confirm, not as an established fact.
+**Verdict: confirmed.** Toggling `receiveShadows` on grassTuft / wildflower / rock / bush at
+runtime moved the knight's ground shadow from 222 px to **438 px**, and toggling back off
+reproduced 222 px exactly. That is roughly 2x — real, worth doing, but not the dominant factor
+(see the full measurement and the texel-density comparison in §7's Task 4 write-up). A first
+reading of 4530 px was a false signal: an async shader recompile landed between frames, caught
+because the restore-control read 4526 instead of 0 — flipping `receiveShadows` needs settle
+frames before the next measurement is trustworthy.
 
 ### 1c. Contributing cause: texel density
 
@@ -300,7 +301,7 @@ the choice can be revisited in one edit.
 The camera sits 13.05 units from the knight, i.e. in cascade 1 at 133 texels/unit — resolution is not
 what's limiting the visible shadow area.
 
-### spec 1b — the grass-receiver hypothesis: confirmed, but smaller than claimed
+### Task 4 — ground-detail receivers (spec 1b: confirmed, but smaller than claimed)
 
 Runtime toggle of `receiveShadows` on grassTuft / wildflower / rock / bush, with 25 settle frames on
 each side and a zero control verified before each reading:

@@ -11,7 +11,7 @@ import type { PhysicsEngine as PhysicsEngineV2 } from '@babylonjs/core/Physics/v
 // Side-effect: registers the glTF loader plugin (with KHR_mesh_quantization / webp support).
 import '@babylonjs/loaders/glTF';
 import { CAPSULE_HALF } from './capsule';
-import { HEAD_MESHES } from './shadowPolicy';
+import { HEAD_MESHES, knightReceivesShadow } from './shadowPolicy';
 import { terrainHeight } from './terrainHeight';
 import { moveToward } from '../../domain/math/scalar';
 import { emissiveFactorOf, type GltfPbrMaterial } from './gltfMaterial';
@@ -381,8 +381,12 @@ export async function loadKnight(
   // meshes to always render — it's one character, the cull savings don't matter.
   for (const mesh of result.meshes) mesh.alwaysSelectAsActiveMesh = true;
 
-  // The knight casts the sun's shadow onto the grass. Receivers are set in Task 4.
-  shadows?.cast(...result.meshes);
+  // The whole knight casts — including the head, so its shadow lands on the ground and the
+  // shoulders. Only the body receives; a shadow edge across the face reads badly.
+  if (shadows) {
+    shadows.cast(...result.meshes);
+    shadows.receive(...result.meshes.filter((m) => knightReceivesShadow(m.name)));
+  }
 
   await applyFaceMaterial(result.meshes);
 
