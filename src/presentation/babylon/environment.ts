@@ -15,6 +15,9 @@ export interface Environment {
   readonly sun: DirectionalLight;
 }
 
+/** How much of the horizon colour the ambient's ground half carries. See the comment at its use. */
+const AMBIENT_GROUND_SCALE = 0.35;
+
 /** A vertical gradient painted on a DynamicTexture for the unlit skydome; stop 1.0 renders at the
  *  dome's zenith and stop 0.0 at its lowest, unseen point (see the comment inside for the measured
  *  evidence — this is the opposite of what the stop-position names would suggest). */
@@ -86,6 +89,11 @@ export function createEnvironment(scene: Scene): Environment {
   // Ambient fill — dim so the sun's shadow stays visible (was intensity 1 as the only light).
   const ambient = new HemisphericLight('ambient', new Vector3(0, 1, 0), scene);
   ambient.intensity = 0.45;
+  // Shadowed surfaces are lit by ambient alone, so tinting the ground half of the hemisphere toward
+  // the sky colour is what makes shadows read as sky-blue rather than dead grey. Scaled well below
+  // full because groundColor defaults to BLACK: the undimmed #dcecf7 would nearly double the ambient
+  // term on every downward-facing surface and brighten the whole scene, not just the shadows.
+  ambient.groundColor = Color3.FromHexString(HORIZON_HEX).scale(AMBIENT_GROUND_SCALE);
 
   // Sun: an angled directional light that casts shadows.
   const sun = new DirectionalLight('sun', new Vector3(-0.5, -1, -0.5), scene);

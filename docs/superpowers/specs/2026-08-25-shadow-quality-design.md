@@ -349,6 +349,28 @@ Threshold 1 is therefore replaced (Ruling 9) by two criteria that actually test 
 (b) enabling ground-detail receivers measurably increases it.
 Both hold. Whether the shadow is *strong enough* is an art-direction question, settled in Task 5.
 
+### Task 5 — shadow lift and sky tint
+
+Baseline (before this task's change), measured with `__shadowProbe()`, animations and physics
+frozen, the water ripple pinned, the camera pinned side-on, 40 settle frames, and a zero
+reproducibility control: `frame.mean` = **138.00**, `frame.crushedPct` = **0**.
+`ambient.groundColor` at baseline read `(0, 0, 0)` — Babylon's default black — with
+`ambient.intensity` 0.45, `sun.intensity` 1.1, and shadow `darkness` 0.15 (both set in Task 2).
+
+Threshold 3 requires the post-change `frame.mean` to land within ±5% of the baseline, i.e. in the
+window **131.1 to 144.9**, with `frame.crushedPct` no higher than the baseline's 0.
+
+Chosen: `AMBIENT_GROUND_SCALE = 0.35`, applied as
+`ambient.groundColor = Color3.FromHexString(HORIZON_HEX).scale(AMBIENT_GROUND_SCALE)`. The scale
+factor is necessary because `groundColor` defaults to black: shadowed surfaces are lit by the
+ambient term alone, and `groundColor` is what tints that term, but applying the undimmed horizon
+colour (`#dcecf7`) directly would nearly double the ambient contribution on every downward-facing
+surface — brightening the whole scene rather than tinting only the shadows. Scaling it down keeps
+the tint's hue while holding the brightness contribution small.
+
+Post-change measurement of `frame.mean` / `frame.crushedPct` against the ±5% window above is
+**pending** — not yet taken as of this commit.
+
 ## 8. Follow-ups deliberately left out
 
 - **Water receiving shadows.** Shadows through an opacity-Fresnel surface get strange; one line to
