@@ -300,6 +300,47 @@ These are hard-won; several cost a debugging session each.
   (2.001 ms) — impossible, since bloom-off still pays for tone mapping that pipeline-off does not.
   Round-robin across configs with medians fixed that one. Run-to-run spread is ~30 % at best, so
   trust the *ordering* across several configs rather than any single number.
+- **`ShadowGenerator.bias` is normalized light-space depth, not world units — the safe value does
+  not carry over between generators.** Its world-space size scales with the light frustum's depth
+  range. 0.002 over an `autoUpdateExtends` frustum covering the whole hub (83.7 x 65.3 units) worked
+  out to roughly 0.2 world units and silently suppressed *every* shadow in the scene: the receiver
+  shaders still compiled with `SHADOW1`/`SHADOWPCF1` and the shadow map still re-rendered every
+  frame, so nothing looked wrong anywhere except the picture, and only objects thicker than the
+  offset cast at all. Under cascaded shadow maps the same knob is a different problem in the
+  opposite direction — each cascade's depth range is small enough that `bias` is entirely
+  irrelevant across the whole swept range `[0, 1e-3]`. The "safe" number is a property of the
+  generator, not the scene: re-tune it after changing cascade count, `shadowMaxZ`, or swapping the
+  generator.
+- **Verifying shadows: freeze the whole frame, not just the animation.** Pausing `AnimationGroup`s
+  is NOT enough — `driveKnightAnimation` re-plays and re-weights them every frame regardless, so the
+  knight kept moving between captures and a 0-vs-0 control that should have read 0 read 169. Set
+  `scene.animationsEnabled = false` to actually stop it (side effect: the knight reverts to bind
+  pose in captures — harmless, don't mistake it for a bug). Also set `scene.physicsEnabled = false`
+  — physics stepping alone accounted for 59 of 64 stray control pixels — and pin the water ripple,
+  which scrolls `uOffset`/`vOffset` on an `onBeforeRenderObservable` in `water.ts` entirely outside
+  `animationGroups` and will pollute any control with the pond in frame.
+- **Always run a 0-vs-0 control, and for caster-list swaps a restore control too — both must read
+  exactly 0.** This is what caught the very first false positive on this branch: an idle animation
+  advancing between two captures read as "shadows are working" until the 0-vs-0 control came back
+  non-zero.
+- **Shader recompiles land asynchronously and can defeat the usual controls.** One measurement
+  returned 0 px with a zero reproducibility control AND a zero restore control — looking entirely
+  trustworthy while being completely wrong — because receiver shader variants compile lazily on
+  first draw and the warm-up frames used were not enough for meshes newly set to receive. A global
+  darkness A/B, which forces a full redraw, exposed the contamination. Any reading taken right after
+  a `receiveShadows` flip on a mesh not yet drawn in that state is invalid, and neither control
+  catches it.
+- **Perf: never A/B by toggling `scene.shadowsEnabled`.** It changes material defines, so the
+  comparison ends up timing shader recompilation, not shadow rendering — it produced a 4.729 ms
+  "cost" with a tight IQR against a frame that only took 3.4 ms in total, an arithmetically
+  impossible result that the tight IQR made look authoritative. Hold every define fixed and pair
+  `shadowMap.refreshRate` 1 (re-render the map each frame) against 0 (render once, never again)
+  instead. Absolute cross-config comparisons on a busy machine are also unusable on their own: the
+  identical shipped config measured 2.855 ms and then 5.141 ms minutes apart with nothing changed —
+  an 80% spread that only a reproduce-the-first-config control caught.
+- **`ShadowGenerator`s are keyed by camera in Babylon 9.** Ours is constructed with the follow
+  camera, so the no-arg `sun.getShadowGenerator()` misses and returns `null`. Call
+  `sun.getShadowGenerator(scene.activeCamera)`.
 
 ## 8. Claude's local memory (optional, but valuable for continuity)
 

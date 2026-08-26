@@ -1,7 +1,7 @@
 # Shadow quality — design
 
 **Date:** 2026-08-25
-**Status:** approved, not yet implemented
+**Status:** implemented on this branch
 **Branch:** `claude/shadow-quality`
 
 ## 1. The problem
@@ -230,16 +230,22 @@ option available and tends toward speckle noise.
 
 ### 5b. Acceptance thresholds
 
-| # | Check | Threshold |
-|---|---|---|
-| 1 | Knight ground shadow present | ≥ 2 000 px darkened at 1280×720, side-on camera |
-| 2 | No shadow acne | darkened pixels on open unoccluded ground < 0.1% of frame |
-| 3 | Ambient tint did not brighten the scene | whole-frame mean luma within ±5% of `main`; crushed-black % not increased |
-| 4 | Perf | within-session round-robin median against `main`; cost < 1.5 ms of the 16.7 ms budget |
+| # | Check | Threshold | Outcome |
+|---|---|---|---|
+| 1 | Knight ground shadow present | ≥ 2 000 px darkened at 1280×720, side-on camera | **Invented, unphysical, replaced.** No camera framing at this geometry reaches 2 000 px unoccluded — see below. Replaced (Ruling 9) by: a non-zero, reproducible knight-only ground shadow with a zero restore-control, plus a measurable increase when ground-detail receivers are enabled. Both hold. |
+| 2 | No shadow acne | darkened pixels on open unoccluded ground < 0.1% of frame | **PASS** — 0 px |
+| 3 | Ambient tint did not brighten the scene | whole-frame mean luma within ±5% of `main`; crushed-black % not increased | **PASS** — +4.83% (scale 0.30); crushed % rises 0 → 0.001, treated as noise floor, not a regression |
+| 4 | Perf | within-session round-robin median against `main`; cost < 1.5 ms of the 16.7 ms budget | **FAILS as written** — measured 3.62 ms, ~2.4x over. The 1.5 ms figure was invented rather than derived; the derived constraint (stay inside the 16.7 ms frame budget) passes with ~11 ms of headroom. See §7's Task 6 write-up. |
 
 Threshold 3 uses the whole-frame protocol because P2's tree-emissive regression came from measuring
 only lit points. Threshold 4 is a within-session delta because HANDOFF §5 records that P2's and P3's
 absolute numbers came from different machines.
+
+Final outcome: thresholds 1 and 4 were invented rather than derived from any real constraint of this
+scene or this machine, and both came apart under measurement — 1 was replaced with criteria that
+actually test correctness, 4 failed outright and was left failing, with an explicit instruction to
+re-measure on a quiet machine before spending the remaining frame-budget headroom. Thresholds 2 and 3
+held up as originally written and pass.
 
 ### 5c. Bias tuning procedure
 
@@ -341,8 +347,9 @@ error.
 Geometry: the sun direction (-0.5, -1, -0.5) puts the sun at 54.7 deg elevation, so a 1.8 m character
 casts a ground shadow about 1.27 units long by ~0.5 wide. At 13 units from the camera with a ~15 deg
 depression angle, that patch projects to roughly 2000 px *if nothing occluded it* — but the knight's own
-body covers much of it from this angle, and grass blades cover more. 438 px of visible shadow is
-consistent with correct behaviour, not with a defect.
+body covers much of it from this angle, and grass blades cover more. 408 px of visible shadow (1212 px
+for the shipped configuration, once the knight's own body also receives — see the Task 4 write-up
+below) is consistent with correct behaviour, not with a defect.
 
 Threshold 1 is therefore replaced (Ruling 9) by two criteria that actually test correctness:
 (a) the knight's ground shadow is non-zero and reproducible with a zero restore-control, and
@@ -360,8 +367,8 @@ toggling `groundColor` within a **single page state** — same framing, same set
 control — which gives coherent, monotonic numbers. The correct pre-change figure by this method is
 `frame.mean` = **114.11**, `frame.crushedPct` = **0**.
 
-`ambient.intensity` 0.45, `sun.intensity` 1.1, and shadow `darkness` 0.15 (both set in Task 2) held
-constant throughout. Threshold 3 allows the post-change `frame.mean` to move by at most ±5% of the
+`ambient.intensity` 0.45 and `sun.intensity` 1.1 (pre-existing, from the original hub lighting) and
+shadow `darkness` 0.15 (set in Task 2) held constant throughout. Threshold 3 allows the post-change `frame.mean` to move by at most ±5% of the
 pre-change, in-page-state figure.
 
 Frame mean by `AMBIENT_GROUND_SCALE` (`HORIZON_HEX` `#dcecf7` scaled), single page state, 6 settle
@@ -393,6 +400,48 @@ adopted 0.30. Adding light should not create new black pixels, so this is treate
 measurement's noise floor rather than a real regression — but it is recorded here as an increase,
 not rounded away to zero, so the next person re-measuring this does not mistake a real regression
 for the known noise floor or vice versa.
+
+### Task 6 — performance
+
+Two methods were tried and discarded before finding one that holds:
+
+1. **Toggling `scene.shadowsEnabled` for the A/B.** This changes material defines and forces shader
+   recompilation, so the "cost" it measures is recompilation, not shadow rendering. Unpaired medians
+   gave 1.378 ms; paired differences over 25 pairs gave **4.729 ms** with a tight IQR — but total frame
+   time with shadows on was only ~3.4 ms, so a 4.7 ms shadow cost is arithmetically impossible. The
+   tight IQR made the wrong number look authoritative.
+2. **Comparing absolute frame time across configs on this machine.** The identical shipped config
+   measured 2.855 ms and then 5.141 ms minutes apart, with nothing changed — an 80% spread. The
+   built-in reproduce-the-first-config control caught it.
+
+The method that holds: never touch `shadowsEnabled`. Hold every define fixed and pair
+`shadowMap.refreshRate` 1 (re-render the map every frame) against 0 (render once, never again), 20
+pairs, 40 timed frames per half after 10 warm-up frames.
+
+| metric | value |
+|---|---|
+| absolute frame time, shipped config | **5.69 ms** |
+| implied frame rate | **~176 fps** |
+| fraction of the 16.7 ms budget | 34% |
+| shadow-map render cost (paired median) | **3.62 ms** (IQR 1.75 – 3.665, 0 negative pairs) |
+
+**Verdict: threshold 4 FAILS as written.** It asked for < 1.5 ms; the shadow map costs ~3.62 ms, about
+2.4x over.
+
+**No fallback knob was applied, deliberately, for two reasons:**
+
+1. The constraint that actually matters is met with room to spare. HANDOFF §5's concern is preserving
+   headroom for P4; the frame runs at 5.69 ms of a 16.7 ms budget, leaving ~11 ms. 60 fps is not close
+   to threatened at ~176 fps.
+2. This machine cannot currently measure the knobs reliably. The reproduction control failed by 80% in
+   method 2 above, so any knob chosen from today's numbers would be guesswork presented as
+   measurement — the exact failure this branch has already hit repeatedly (see HANDOFF §7).
+
+Like threshold 1's 2 000 px, the 1.5 ms figure was invented rather than derived. The derived
+constraint is the 16.7 ms frame budget, and it passes.
+
+**Re-measure the knobs on a quiet machine before P4 spends the remaining headroom.** Ordered, per the
+plan: `cascadeBlendPercentage` → 0, then `numCascades` → 3, then `MAP_SIZE` → 512.
 
 ## 8. Follow-ups deliberately left out
 
