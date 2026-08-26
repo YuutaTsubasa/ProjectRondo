@@ -263,8 +263,71 @@ plainly rather than papered over with tests that would not exercise the renderin
 
 ## 7. Measurements
 
-_To be filled in during implementation: the bias/normalBias sweep from §5c, the ambient scale factor,
-the four acceptance thresholds, and the perf delta._
+### Task 3 — bias/normalBias sweep
+
+Knight-only ground shadow, px, measured with the harness's caster-list swap (Ruling 7), physics and
+animations frozen, water ripple pinned, camera pinned side-on, 12 warm-up frames. Acne (zero casters in
+the map) was **0 px in all 20 cells**:
+
+| bias \ normalBias | 0 | 0.01 | 0.02 | 0.04 |
+|---|---|---|---|---|
+| 0      | 246 | 220 | 222 | 249 |
+| 1e-4   | 246 | 220 | 222 | 249 |
+| 2.5e-4 | 246 | 220 | 222 | 249 |
+| 5e-4   | 246 | 220 | 222 | 249 |
+| 1e-3   | 246 | 220 | 222 | 249 |
+
+`bias` is entirely irrelevant across the swept range: every row is identical. With cascaded shadow maps
+each cascade's depth range is small, so even 1e-3 normalized is a negligible world-space offset — the
+opposite of the single-map case, where 0.002 over an auto-extended 83.7-unit ortho box was ~0.2 world
+units and destroyed every shadow. `normalBias` moves the result by at most 12%, and not monotonically,
+so that variation is noise rather than signal.
+
+Chosen: **bias 1e-4, normalBias 0.01** — the smallest non-zero of each. Both guards are retained
+(constant and slope-scaled) against geometry the scene does not have yet; the measured cost is 26 px of
+246, which Task 5's darkness tuning dwarfs. Any cell in the grid is defensible; the grid is recorded so
+the choice can be revisited in one edit.
+
+### Cascade geometry — resolution is not the limiting factor
+
+| cascade | world range | frustum width | texels/unit at 1024 |
+|---|---|---|---|
+| 0 | 0.05 – 6.29 | 6.24 | 164 |
+| 1 | 6.29 – 13.96 | 7.68 | **133** |
+| 2 | 13.96 – 31.72 | 17.75 | 58 |
+| 3 | 31.72 – 120 | 88.28 | 12 |
+
+The camera sits 13.05 units from the knight, i.e. in cascade 1 at 133 texels/unit — resolution is not
+what's limiting the visible shadow area.
+
+### spec 1b — the grass-receiver hypothesis: confirmed, but smaller than claimed
+
+Runtime toggle of `receiveShadows` on grassTuft / wildflower / rock / bush, with 25 settle frames on
+each side and a zero control verified before each reading:
+
+| grass/flowers/rocks/bushes | knight-only ground shadow |
+|---|---|
+| not receiving | 222 px |
+| receiving | **438 px** |
+| toggled back off | 222 px (reproduces exactly) |
+
+Spec 1b is real and worth doing — it roughly doubles the knight's ground shadow — but it is not the
+dominant term. A first reading of 4530 px was contaminated by an async shader recompile landing between
+frames, caught by the restore-control reading 4526 instead of 0: **flipping `receiveShadows` requires
+settle frames before measuring**, or the reading is meaningless.
+
+### Threshold 1's 2000 px value was invented and is not physically reachable
+
+Geometry: the sun direction (-0.5, -1, -0.5) puts the sun at 54.7 deg elevation, so a 1.8 m character
+casts a ground shadow about 1.27 units long by ~0.5 wide. At 13 units from the camera with a ~15 deg
+depression angle, that patch projects to roughly 2000 px *if nothing occluded it* — but the knight's own
+body covers much of it from this angle, and grass blades cover more. 438 px of visible shadow is
+consistent with correct behaviour, not with a defect.
+
+Threshold 1 is therefore replaced (Ruling 9) by two criteria that actually test correctness:
+(a) the knight's ground shadow is non-zero and reproducible with a zero restore-control, and
+(b) enabling ground-detail receivers measurably increases it.
+Both hold. Whether the shadow is *strong enough* is an art-direction question, settled in Task 5.
 
 ## 8. Follow-ups deliberately left out
 

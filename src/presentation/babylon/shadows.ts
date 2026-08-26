@@ -18,14 +18,20 @@ const SHADOW_MAX_Z = 120;
 /** Fraction of each cascade blended into the next, hiding the seam. First knob to drop for frame time. */
 const CASCADE_BLEND = 0.1;
 /**
- * Starting values only — Task 3 replaces them with a measured pair.
+ * Measured (Task 3): a 5x4 sweep of bias in [0, 1e-3] x normalBias in [0, 0.04] on the knight-only
+ * ground shadow found `bias` entirely irrelevant across the whole swept range — every row of the grid
+ * came back identical, because each CSM cascade's depth range is small enough that even 1e-3 normalized
+ * is a negligible world offset. That is the exact opposite of the single-map case, where 0.002 over an
+ * auto-extended 83.7-unit ortho box was ~0.2 world units and destroyed every shadow: with cascades the
+ * same normalized value stays harmless. `normalBias` moved the result by at most 12%, non-monotonically,
+ * i.e. noise. Chosen: the smallest non-zero of each, keeping both guards active against geometry the
+ * scene does not have yet, at a measured cost of 26 of 246 px.
  *
  * `bias` is an offset in the light's NORMALIZED depth range, not in world units, so its world-space
- * size scales with the light frustum's depth. That is what broke shadows before this module existed:
- * 0.002 over an auto-extended 83.7-unit ortho box was ~0.2 world units and swallowed every shadow.
+ * size scales with the light frustum's depth.
  */
-const BIAS = 0.0005;
-const NORMAL_BIAS = 0.02;
+const BIAS = 0.0001;
+const NORMAL_BIAS = 0.01;
 /** 0 is an opaque black shadow, 1 is no shadow. Lifted slightly so shadows are not crushed. */
 const DARKNESS = 0.15;
 /** Single-map fallback resolution when cascades are unavailable (WebGL1). */
