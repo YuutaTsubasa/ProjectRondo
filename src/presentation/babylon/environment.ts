@@ -16,7 +16,7 @@ export interface Environment {
 }
 
 /** How much of the horizon colour the ambient's ground half carries. See the comment at its use. */
-const AMBIENT_GROUND_SCALE = 0.35;
+const AMBIENT_GROUND_SCALE = 0.3;
 
 /** A vertical gradient painted on a DynamicTexture for the unlit skydome; stop 1.0 renders at the
  *  dome's zenith and stop 0.0 at its lowest, unseen point (see the comment inside for the measured
