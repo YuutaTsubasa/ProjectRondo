@@ -58,12 +58,13 @@ beat a ~0.2-unit offset survived, and nothing in the real scene is.
 actually stands among never receive, so even a correct shadow is largely hidden behind bright green
 blades.
 
-**Verdict: confirmed.** Toggling `receiveShadows` on grassTuft / wildflower / rock / bush at
-runtime moved the knight's ground shadow from 222 px to **438 px**, and toggling back off
-reproduced 222 px exactly. That is roughly 2x — real, worth doing, but not the dominant factor
-(see the full measurement and the texel-density comparison in §7's Task 4 write-up). A first
-reading of 4530 px was a false signal: an async shader recompile landed between frames, caught
-because the restore-control read 4526 instead of 0 — flipping `receiveShadows` needs settle
+**Verdict: confirmed.** Measured against the implemented source, `receiveShadows` on grassTuft /
+wildflower / rock / bush moves the knight-isolated ground shadow from 220 px to **408 px** — real,
+worth doing, but not the dominant factor. The shipped configuration (ground detail and the
+knight's body both receiving) reaches **1212 px**, and the knight's own body self-shadow supplies
+most of that gain, not the grass — see §7's Task 4 write-up for the full three-way decomposition.
+A first reading of 4530 px was a false signal: an async shader recompile landed between frames,
+caught because the restore-control read 4526 instead of 0 — flipping `receiveShadows` needs settle
 frames before the next measurement is trustworthy.
 
 ### 1c. Contributing cause: texel density
@@ -303,19 +304,37 @@ what's limiting the visible shadow area.
 
 ### Task 4 — ground-detail receivers (spec 1b: confirmed, but smaller than claimed)
 
-Runtime toggle of `receiveShadows` on grassTuft / wildflower / rock / bush, with 25 settle frames on
-each side and a zero control verified before each reading:
+Measured against the implemented source (not a runtime toggle): five consecutive
+`__knightShadow()` runs returned 1212 px with a zero restore-control, so the figures below are
+stable, not sampled. Policy verified live: grassTuft/wildflower/rock/bush all `receiveShadows =
+true`; all 31 `tripo_part_*` body meshes `true`; `Mesh_0`/`Mesh_32`/`Mesh_33` (the face) all
+`false`; 34 knight casters registered.
 
-| grass/flowers/rocks/bushes | knight-only ground shadow |
-|---|---|
-| not receiving | 222 px |
-| receiving | **438 px** |
-| toggled back off | 222 px (reproduces exactly) |
+Removing the knight from the caster list removes both its ground shadow and its self-shadow at
+once, so the knight-isolated metric conflates the two — decomposing it needs three
+configurations, not one:
 
-Spec 1b is real and worth doing — it roughly doubles the knight's ground shadow — but it is not the
-dominant term. A first reading of 4530 px was contaminated by an async shader recompile landing between
-frames, caught by the restore-control reading 4526 instead of 0: **flipping `receiveShadows` requires
-settle frames before measuring**, or the reading is meaningless.
+| configuration | knight-isolated px | delta |
+|---|---|---|
+| A — neither ground detail nor body receives | 220 | baseline |
+| B — ground detail receives, body does not | 408 | +188 from grass (+85%) |
+| C — ground detail AND body receive (shipped) | **1212** | +804 from self-shadow |
+
+Restoring to C reproduced 1212 exactly. Total improvement over the pre-task baseline: **220 to
+1212 px, 5.5x.**
+
+**The headline is not what the spec predicted.** §1b framed the missing ground-detail receivers as
+the key contributing cause; measured, grass receiving contributes +188 px while the knight's own
+body self-shadow contributes +804 px — over four times more. Both are worth having, but
+ground-detail receivers were not the dominant term; the spec's emphasis was wrong.
+
+A third recompile trap: the very first `__knightShadow()` reading after this task's page load
+returned **0 px**, with a zero reproducibility control *and* a zero restore-control — it looked
+perfectly trustworthy and was completely wrong. Receiver shader variants compile lazily on first
+draw, and 25 warm-up frames were not enough for the newly-receiving meshes. A global darkness A/B
+(20 804 px) exposed it. Any measurement taken right after `receiveShadows` changes on a mesh that
+has not yet been drawn in that state is invalid, and the usual controls do not catch this class of
+error.
 
 ### Threshold 1's 2000 px value was invented and is not physically reachable
 
