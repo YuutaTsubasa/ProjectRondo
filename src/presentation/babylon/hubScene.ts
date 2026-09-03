@@ -22,6 +22,7 @@ import { createAtmosphere } from './postProcessing';
 import { createTerrain } from './terrain';
 import { loadTrees } from './trees';
 import { createGroundScatter } from './scatter';
+import { createWind } from './wind';
 import { createWater } from './water';
 import { createLandmark } from './landmark';
 
@@ -71,6 +72,7 @@ export async function createHubScene(canvas: HTMLCanvasElement): Promise<HubScen
 
   const terrain = createTerrain(scene);
   shadows.receive(terrain);
+  createWind(scene);
   createGroundScatter(scene, shadows);
   createWater(scene);
   createLandmark(scene, shadows);

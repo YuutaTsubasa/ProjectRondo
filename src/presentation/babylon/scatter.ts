@@ -15,6 +15,7 @@ import { PhysicsAggregate } from '@babylonjs/core/Physics/v2/physicsAggregate';
 import { PhysicsShapeType } from '@babylonjs/core/Physics/v2/IPhysicsEnginePlugin';
 import { terrainHeight, EDGE_RADIUS, BARRIER_TOP } from './terrainHeight';
 import { ROCK_DIFFUSE_RGB } from './rockColors';
+import { applyWind } from './wind';
 
 // Cosmetic scatter covers the walkable interior AND the grassy barrier slope, up to the barrier top
 // (a bare barrier looks wrong); colliders, though, only go where the player can reach — see below.
@@ -216,6 +217,12 @@ function bushMesh(scene: Scene): Mesh {
   return bush;
 }
 
+/** Grass card height, in local units. Also the wind's bend height — `crossCard` bakes the base to
+ *  y=0, so the card's height IS its size argument. The two must not drift apart. */
+const GRASS_CARD_SIZE = 0.5;
+/** Wildflower card height. Same relationship as GRASS_CARD_SIZE. */
+const FLOWER_CARD_SIZE = 0.22;
+
 const ROCK_COLLIDER_MIN_SCALE = 0.75; // only the biggest rocks (top ~quarter) block the player
 
 /** Invisible static sphere colliders for the large rocks only, and only where the player can reach
@@ -236,11 +243,15 @@ function addRockColliders(scene: Scene, placements: Placement[]): void {
 /** Scatters procedural ground detail — grass tufts, wildflowers, rocks, and bushes — as one
  *  thin-instanced base mesh per element type (one draw call each). */
 export function createGroundScatter(scene: Scene, shadows: Shadows): void {
-  const grass = crossCard(scene, 'grassTuft', 0.5, 3, grassMaterial(scene));
+  const grassMat = grassMaterial(scene);
+  const grass = crossCard(scene, 'grassTuft', GRASS_CARD_SIZE, 3, grassMat);
   grass.thinInstanceSetBuffer('matrix', scatterMatrices({ count: 16000, seed: 1, y: 0, minScale: 0.7, maxScale: 1.3 }).buffer, 16);
+  applyWind(grassMat, GRASS_CARD_SIZE);
 
-  const flowers = crossCard(scene, 'wildflower', 0.22, 2, flowerMaterial(scene));
+  const flowerMat = flowerMaterial(scene);
+  const flowers = crossCard(scene, 'wildflower', FLOWER_CARD_SIZE, 2, flowerMat);
   flowers.thinInstanceSetBuffer('matrix', scatterMatrices({ count: 1600, seed: 2, y: 0, minScale: 0.7, maxScale: 1.2 }).buffer, 16);
+  applyWind(flowerMat, FLOWER_CARD_SIZE);
 
   const rockScatter = scatterMatrices({ count: 200, seed: 3, y: -0.05, minScale: 0.3, maxScale: 0.9 });
   const rock = rockMesh(scene);
