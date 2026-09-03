@@ -1,4 +1,5 @@
 import type { Scene } from '@babylonjs/core/scene';
+import type { Shadows } from './shadows';
 import { Matrix, Quaternion, Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { Color3 } from '@babylonjs/core/Maths/math.color';
 import { Mesh } from '@babylonjs/core/Meshes/mesh';
@@ -234,7 +235,7 @@ function addRockColliders(scene: Scene, placements: Placement[]): void {
 
 /** Scatters procedural ground detail — grass tufts, wildflowers, rocks, and bushes — as one
  *  thin-instanced base mesh per element type (one draw call each). */
-export function createGroundScatter(scene: Scene): void {
+export function createGroundScatter(scene: Scene, shadows: Shadows): void {
   const grass = crossCard(scene, 'grassTuft', 0.5, 3, grassMaterial(scene));
   grass.thinInstanceSetBuffer('matrix', scatterMatrices({ count: 16000, seed: 1, y: 0, minScale: 0.7, maxScale: 1.3 }).buffer, 16);
 
@@ -248,4 +249,12 @@ export function createGroundScatter(scene: Scene): void {
 
   const bush = bushMesh(scene);
   bush.thinInstanceSetBuffer('matrix', scatterMatrices({ count: 160, seed: 4, y: 0, minScale: 0.7, maxScale: 1.3, extent: EXTENT - 2 }).buffer, 16);
+
+  // Ground detail receives, but only the solid meshes (rock, bush) cast. Measured (Task 7):
+  // enabling rock+bush casting changes 42 990 px (4.7% of frame) and reads as intended contact
+  // shadows. Grass and flowers stay cast-off: they are 16 000 + 1 600 alpha-tested cross cards,
+  // the most expensive option on the table, and enabling their casting on top changes a further
+  // 151 322 px (16.4%) that is mostly speckle noise, not shadow.
+  shadows.receive(grass, flowers, rock, bush);
+  shadows.cast(rock, bush);
 }

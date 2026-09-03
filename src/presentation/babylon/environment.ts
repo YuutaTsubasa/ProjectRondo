@@ -3,9 +3,6 @@ import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { Color3 } from '@babylonjs/core/Maths/math.color';
 import { HemisphericLight } from '@babylonjs/core/Lights/hemisphericLight';
 import { DirectionalLight } from '@babylonjs/core/Lights/directionalLight';
-import { ShadowGenerator } from '@babylonjs/core/Lights/Shadows/shadowGenerator';
-// Side-effect: registers the shadow-map render component. Without it the ShadowGenerator produces no shadows.
-import '@babylonjs/core/Lights/Shadows/shadowGeneratorSceneComponent';
 import { CreateSphere } from '@babylonjs/core/Meshes/Builders/sphereBuilder';
 import { Mesh } from '@babylonjs/core/Meshes/mesh';
 import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
@@ -15,9 +12,11 @@ import { DynamicTexture } from '@babylonjs/core/Materials/Textures/dynamicTextur
 import { HORIZON_HEX } from './atmosphereColors';
 
 export interface Environment {
-  readonly shadowGenerator: ShadowGenerator;
   readonly sun: DirectionalLight;
 }
+
+/** How much of the horizon colour the ambient's ground half carries. See the comment at its use. */
+const AMBIENT_GROUND_SCALE = 0.3;
 
 /** A vertical gradient painted on a DynamicTexture for the unlit skydome; stop 1.0 renders at the
  *  dome's zenith and stop 0.0 at its lowest, unseen point (see the comment inside for the measured
@@ -71,7 +70,8 @@ function skyGradientTexture(scene: Scene): DynamicTexture {
   return tex;
 }
 
-/** Builds the outdoor atmosphere: gradient skydome, directional sun with a shadow generator, and a dim ambient fill. */
+/** Builds the outdoor atmosphere: gradient skydome, a directional sun, and a dim ambient fill.
+ *  The sun's shadow generator lives in `shadows.ts` — it needs the camera, which does not exist yet. */
 export function createEnvironment(scene: Scene): Environment {
   // Skydome: a large inward-facing sphere, unlit, infinitely far so it stays put as the camera moves.
   const sky = CreateSphere('sky', { diameter: 1000, sideOrientation: Mesh.BACKSIDE }, scene);
@@ -89,6 +89,17 @@ export function createEnvironment(scene: Scene): Environment {
   // Ambient fill — dim so the sun's shadow stays visible (was intensity 1 as the only light).
   const ambient = new HemisphericLight('ambient', new Vector3(0, 1, 0), scene);
   ambient.intensity = 0.45;
+  // Shadowed surfaces are lit by ambient alone, so tinting the ground half of the hemisphere toward
+  // the sky colour is what makes shadows read as sky-blue rather than dead grey. Babylon's hemispheric
+  // term is mix(groundColor, diffuseColor, ndl) with ndl = dot(N, lightDir)*0.5 + 0.5 and lightDir
+  // (0,1,0), so groundColor's weight is (1 - ndl): it goes to zero for a normal facing straight up and
+  // is strongest for a normal facing straight down, scaling with everything in between. The terrain —
+  // this scene's principal shadow receiver — has its normals explicitly flipped skyward (terrain.ts),
+  // so it takes essentially none of this tint; what it actually tints is the grass/flower cards and any
+  // surface not facing straight up. Scaled well below full because groundColor defaults to BLACK: the
+  // undimmed #dcecf7 would nearly double the ambient term on those surfaces and brighten them well
+  // beyond a subtle tint.
+  ambient.groundColor = Color3.FromHexString(HORIZON_HEX).scale(AMBIENT_GROUND_SCALE);
 
   // Sun: an angled directional light that casts shadows.
   const sun = new DirectionalLight('sun', new Vector3(-0.5, -1, -0.5), scene);
@@ -96,9 +107,5 @@ export function createEnvironment(scene: Scene): Environment {
   sun.intensity = 1.1;
   sun.diffuse = new Color3(1, 0.98, 0.9);
 
-  const shadowGenerator = new ShadowGenerator(1024, sun);
-  shadowGenerator.usePercentageCloserFiltering = true;
-  shadowGenerator.bias = 0.002;
-
-  return { shadowGenerator, sun };
+  return { sun };
 }

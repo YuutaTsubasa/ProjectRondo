@@ -95,13 +95,14 @@ pnpm tauri dev          # native desktop app (needs Rust)
 
     Three things not to re-derive. The complaint was "the face is too dark, too affected by scene
     lighting, and the shadow on it looks bad" — **not** cel banding or outlines, neither of which was
-    asked for. **That "shadow" is not a shadow:** `receiveShadows` is already `false` on all 34 skinned
-    meshes, so nothing is cast onto the face; the dark band is the **N·L terminator**, the diffuse
-    falloff on the side turned away from the sun, which is why the fix is an emissive floor rather than
-    anything to do with the shadow generator. And **do not convert the knight to
-    StandardMaterial** — that was tried on the theory that the trees' PBR-vs-gamma problem applied here
-    too, and it does not (the knight sits ~5 units from the camera where fog is 0.14 %). The conversion
-    made it markedly worse: near-black hair, grey face, dull armour.
+    asked for. **That "shadow" is not a shadow:** `receiveShadows` is `false` on the three `HEAD_MESHES`
+    (`Mesh_0`, `Mesh_32`, `Mesh_33`) — the shadow-quality PR makes the other 31 `tripo_part_*` body
+    meshes receive, but the face stays excluded — so nothing is cast onto the face; the dark band
+    is the **N·L terminator**, the diffuse falloff on the side turned away from the sun, which is
+    why the fix is an emissive floor rather than anything to do with the shadow generator. And **do
+    not convert the knight to StandardMaterial** — that was tried on the theory that the trees'
+    PBR-vs-gamma problem applied here too, and it does not (the knight sits ~5 units from the camera
+    where fog is 0.14 %). The conversion made it markedly worse: near-black hair, grey face, dull armour.
   - **P3 water & landmarks:** a wadeable **pond** — a `StandardMaterial` disc at (−15, −0.95, −5),
     radius 12, procedural scrolling ripple normals, opacity Fresnel, **no collider** so the player
     wades the terrain underneath — and a **stone colonnade** as the hub's destination: eight pillars
@@ -142,7 +143,13 @@ scheduled additions). Sequence from here:
    already-loaded scene (roadmap §7): the fps headroom the earlier phases left is what P4 spends. P2
    measured its own cost at **0.3 ms** and P3 at **0.09–0.26 ms**, so there is still roughly 8x
    headroom against the 16.7 ms vsync budget. Note P3's numbers were taken on a different machine
-   from P2's, so compare *within-session deltas*, never the absolutes (P3 spec §9d).
+   from P2's, so compare *within-session deltas*, never the absolutes (P3 spec §9d). **That 8x figure
+   predates the shadow-quality branch and no longer holds** — it adds four 1024² cascades plus ~360
+   newly-casting thin instances (rock/bush) whose cost is *unmeasured*: the only session that tried
+   to time it ran with the Browser pane hidden, which GPU-throttles the page and invalidated every
+   timing sample taken (see `docs/superpowers/specs/2026-08-25-shadow-quality-design.md` §7's "Task 6 —
+   performance" for the retracted figures and why). Re-measure frame cost with a visible window before
+   P4 spends the remainder.
    P3 left `WaterBody` (`src/domain/hub/waterBody.ts`) as the shape P4's shallow-water feedback —
    splashes, slowdown, wet shading — should read, and the plaza's eight pillars are where the
    mode-entrances attach.
@@ -300,6 +307,70 @@ These are hard-won; several cost a debugging session each.
   (2.001 ms) — impossible, since bloom-off still pays for tone mapping that pipeline-off does not.
   Round-robin across configs with medians fixed that one. Run-to-run spread is ~30 % at best, so
   trust the *ordering* across several configs rather than any single number.
+- **`ShadowGenerator.bias` is normalized light-space depth, not world units — the safe value does
+  not carry over between generators.** Its world-space size scales with the light frustum's depth
+  range. 0.002 over an `autoUpdateExtends` frustum covering the whole hub (83.7 x 65.3 units) worked
+  out to roughly 0.2 world units and silently suppressed *every* shadow in the scene: the receiver
+  shaders still compiled with `SHADOW1`/`SHADOWPCF1` and the shadow map still re-rendered every
+  frame, so nothing looked wrong anywhere except the picture, and only objects thicker than the
+  offset cast at all. Under cascaded shadow maps the same knob is a different problem in the
+  opposite direction — each cascade's depth range is small enough that `bias` is entirely
+  irrelevant across the whole swept range `[0, 1e-3]`. The "safe" number is a property of the
+  generator, not the scene: re-tune it after changing cascade count, `shadowMaxZ`, or swapping the
+  generator.
+- **Verifying shadows: freeze the whole frame, not just the animation.** Pausing `AnimationGroup`s
+  is NOT enough — `driveKnightAnimation` re-plays and re-weights them every frame regardless, so the
+  knight kept moving between captures and a 0-vs-0 control that should have read 0 read 169. Set
+  `scene.animationsEnabled = false` to actually stop it (side effect: the knight reverts to bind
+  pose in captures — harmless, don't mistake it for a bug). Also set `scene.physicsEnabled = false`
+  — physics stepping alone accounted for 59 of 64 stray control pixels — and pin the water ripple,
+  which scrolls `uOffset`/`vOffset` on an `onBeforeRenderObservable` in `water.ts` entirely outside
+  `animationGroups` and will pollute any control with the pond in frame.
+- **Always run a 0-vs-0 control, and for caster-list swaps a restore control too — both must read
+  exactly 0.** This is what caught the very first false positive on this branch: an idle animation
+  advancing between two captures read as "shadows are working" until the 0-vs-0 control came back
+  non-zero.
+- **Shader recompiles land asynchronously and can defeat the usual controls.** One measurement
+  returned 0 px with a zero reproducibility control AND a zero restore control — looking entirely
+  trustworthy while being completely wrong — because receiver shader variants compile lazily on
+  first draw and the warm-up frames used were not enough for meshes newly set to receive. A global
+  darkness A/B, which forces a full redraw, exposed the contamination. Any reading taken right after
+  a `receiveShadows` flip on a mesh not yet drawn in that state is invalid, and neither control
+  catches it.
+- **Perf: never A/B by toggling `scene.shadowsEnabled`.** It changes material defines, so the
+  comparison ends up timing shader recompilation, not shadow rendering — it produced a 4.729 ms
+  "cost" with a tight IQR against a frame that only took 3.4 ms in total, an arithmetically
+  impossible result that the tight IQR made look authoritative. Hold every define fixed and pair
+  `shadowMap.refreshRate` 1 (re-render the map each frame) against 0 (render once, never again)
+  instead. Absolute cross-config comparisons on a busy machine are also unusable on their own: the
+  identical shipped config measured 2.855 ms and then 5.141 ms minutes apart with nothing changed —
+  an 80% spread that only a reproduce-the-first-config control caught.
+- **`ShadowGenerator`s are keyed by camera in Babylon 9.** Ours is constructed with the follow
+  camera, so the no-arg `sun.getShadowGenerator()` misses and returns `null`. Call
+  `sun.getShadowGenerator(scene.activeCamera)`.
+- **That keying is a live invariant on the cascaded branch, not a one-time setup detail — watch it if
+  a second camera is ever added.** `createShadows(sun, camera)` (`shadows.ts`) registers the cascaded
+  generator under `camera`, and Babylon looks it up every frame as
+  `light.getShadowGenerator(scene.activeCamera) ?? light.getShadowGenerator()`
+  (`materialHelper.functions.js`, `light.js`). On that branch the no-arg fallback reads the `null`
+  key, which nothing on that branch registers under, so the lookup only succeeds because
+  `scene.activeCamera === camera`. (The WebGL1 fallback is different: `ShadowGenerator`'s constructor
+  stores `camera ?? null`, so `new ShadowGenerator(FALLBACK_MAP_SIZE, sun)` — passed no camera —
+  registers itself under that same `null` key, and the no-arg fallback resolves it regardless of
+  `scene.activeCamera`; see `shadowGenerator.js:633,645`.) `hubScene.ts` keeps the cascaded-branch
+  invariant true today only because it sets `scene.activeCamera = follow.camera` immediately before
+  calling `createShadows` with that same camera, and never repoints `scene.activeCamera` afterwards.
+  This project already has an AVG overlay path; the day a cutscene or AVG camera becomes
+  `scene.activeCamera` without also becoming the shadow generator's camera, every shadow on the
+  cascaded branch stops rendering with no error and no console warning. Either re-create the generator
+  for the new camera or keep `scene.activeCamera` pointed at the camera the generator was built with.
+- **Performance cannot be measured through a hidden Browser pane.** A pane that is open but not
+  visible still renders, but the page is GPU-throttled: eight back-to-back samples of one identical
+  config came back 47.7–128.0 ms, a 2.7x spread with a monotonic upward drift as the throttle ramps.
+  This invalidates every timing number taken that way — frame time, fps, paired A/B costs — while
+  leaving pixel/image comparisons untouched, since throttling changes *when* a frame is produced, not
+  *what* it contains. Check `document.hidden` before trusting any timing number; if it's `true`, the
+  numbers are worthless no matter how tight the IQR looks.
 
 ## 8. Claude's local memory (optional, but valuable for continuity)
 
