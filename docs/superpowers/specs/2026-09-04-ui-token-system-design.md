@@ -149,7 +149,14 @@ today, and both become illegible once the panels flip light:
 - `DialogueOverlay` `.hint` — 12px `color: #d8ff00` -> `--c-blue`
 - `Backlog` `.who` — speaker name -> `--c-blue`
 
+A third site is the same defect and is sanctioned by this section even though it is not named
+above: `DialogueOverlay` `.hit:focus-visible`'s `outline` was lime at 0.6 alpha, about 1.2:1 on
+a light panel — an invisible focus ring. It moves off lime alongside `.hint` and `.who`.
+
 Every other lime occurrence is a block, tick, rail, or cut corner and simply becomes `--c-lime`.
+
+(All three sites' final colour, and why `--c-blue` itself turned out not to be the answer, is
+recorded in section 6's `--c-blue` correction.)
 
 ### 4e. The panels flip light; the scrims stay dark
 
@@ -164,6 +171,11 @@ It follows that anything drawn **on** a scrim rather than on a panel keeps light
 `.head` is the one such element: `.panel` has no background, so that label sits directly on the
 scrim. Flipping it to ink would make it dark-on-dark — the same defect 4d fixes for lime-on-white,
 in the opposite direction.
+
+The flip to a light panel also drops each panel's `box-shadow` alpha, sanctioned here though only
+the plan named the numbers: `DialogueOverlay` `.box` goes from 0.45 to 0.25, and `Backlog` `.log`
+from 0.50 to 0.28. A dark drop-shadow at its old alpha reads as grime under a pale panel; both
+values were lowered to match.
 
 ### 4f. `--c-yellow` is defined and unused, on purpose
 
@@ -202,6 +214,20 @@ literal. `tokens.css` is the only place a hex may appear.
 **Limit, stated plainly:** this catches hard-coded hex. It does **not** catch a token used with
 the wrong meaning — `--c-yellow` on a confirm button passes green. Token semantics are a review
 concern, not a test concern.
+
+Two further gaps exist and are worth naming honestly rather than leaving implicit:
+
+- **Hex is not colour.** `rgb(216, 255, 0)`, a named colour like `rebeccapurple`, `oklch()` and
+  `color-mix()` all pass the guard just as cleanly as a bare hex literal would have. `rgba()` is
+  allowed on purpose — shadows and the scrims need it — but that allowance is the hole: it is why
+  Task 5's lime focus ring, an `rgba()`, had to be caught by eye rather than by this test.
+- **Only `.svelte` files are scanned.** `dialogueSession.svelte.ts` and `portraitLibrary.ts`, in
+  the same `src/presentation/dialogue/` directory, are not, even though section 2's "zero
+  hard-coded hex in `src/presentation/dialogue/`" goal is stated for the directory, not the
+  extension.
+
+Neither gap is currently violated by anything in the directory; this is a documented limit, not
+a defect to fix.
 
 ### 5b. Dialogue-box contrast (measured; this is the one that can overturn the design)
 
@@ -280,13 +306,37 @@ between pure white (scene white) and `rgb(184, 184, 184)` (scene black). Against
 | Box text on the darkest possible panel | 9.50:1 | 4.5:1 |
 | `Backlog` `.text` (ink at 0.85, the weakest text on a panel) on the darkest panel | 7.26:1 | 4.5:1 |
 
-**`--surface-glass` stays at 0.72; no tuning was needed.** The threshold cannot be violated at that
-alpha for any scene, which a single sample could not have established — it would only have tested
-the scene as it happened to look. `backdrop-filter: saturate(140%)` shifts backdrop channels but
-cannot escape the bound, since the bound already spans black to white.
+**`--surface-glass` stays at 0.72; no tuning was needed.** For `--c-ink` text, the threshold
+cannot be violated at that alpha for any scene, which a single sample could not have
+established — it would only have tested the scene as it happened to look. `backdrop-filter:
+saturate(140%)` shifts backdrop channels but cannot escape the bound, since the bound already
+spans black to white. This bound is specific to `--c-ink`; it does not extend to every colour
+used as text — see the next sub-section.
 
 Arithmetic was computed in-page rather than by hand; see `docs/HANDOFF.md` section 7 for why
 hand-computed luminance is not trusted in this project.
+
+### Task 9 — `--c-blue` fails as text; corrected to `--c-blue-deep` and `--c-ink`
+
+4d moved two lime text sites (`DialogueOverlay` `.hint`, `Backlog` `.who`) to `--c-blue` on the
+premise that lime was the only defect. That premise was correct but the replacement was never
+measured, and `--c-blue` (`#145BFF`) is itself too light as text on `--surface-glass`:
+
+| Site | worst-case panel rgb(184) | over lit grass | over the backlog's own scrim |
+|---|---|---|---|
+| `--c-blue` (as shipped) | **2.65:1** | **4.11:1** | **3.44:1** |
+| `--c-ink` | 9.50:1 | 14.72:1 | 12.30:1 |
+| `--c-blue-deep` (`#0A2E99`) | 5.66:1 | 8.76:1 | 7.32:1 |
+
+All three sit below the 4.5:1 threshold for `--c-blue` as text, and `--c-blue` also fails the
+3:1 non-text threshold at the floor, which caught `.hit:focus-visible`'s outline as well as the
+two text sites. The fix: `.hint` and `.hit:focus-visible` were never named in 4d as text/outline
+changes distinct from `.who` — see 4d's correction below — and all three move off `--c-blue`.
+`.hint` becomes `--c-ink` (it is a secondary UI label, matching `Controls` and `Backlog` `.text`);
+`.who` and `.hit:focus-visible`'s outline become `--c-blue-deep`, a darker token added
+specifically to clear 4.5:1 (text) and 3:1 (non-text) everywhere the glass can composite,
+while keeping blue as the speaker-name colour the style sheet specifies. Every other `--c-blue`
+use — rails, ticks, `.head .mark`, the panel border — is a fill, not text, and was unaffected.
 
 ### Task 9 — one pre-existing contrast failure, not introduced here
 
