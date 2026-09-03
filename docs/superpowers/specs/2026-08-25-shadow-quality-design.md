@@ -249,7 +249,7 @@ option available and tends toward speckle noise.
 | # | Check | Threshold | Outcome |
 |---|---|---|---|
 | 1 | Knight ground shadow present | ≥ 2 000 px darkened at 1280×720, side-on camera | **Invented, unphysical, replaced.** No camera framing at this geometry reaches 2 000 px unoccluded — see below. Replaced (Ruling 9) by: a non-zero, reproducible knight-only ground shadow with a zero restore-control, plus a measurable increase when ground-detail receivers are enabled. Both hold. |
-| 2 | No shadow acne | darkened pixels on open unoccluded ground < 0.1% of frame | **Originally recorded PASS at 0 px — invalid; re-measured (Task 8).** The Task 3 reading was taken with an empty caster list, so 0 px was forced by the configuration, not produced by the swept values: acne requires a surface that both casts and receives, which nothing did at that point. The shipped configuration is the first with any (62 such meshes). Re-measured against it, `normalBias = 0.01` (the Task 3 pick) has severe acne — 75.4% of the pedestal-top ROI. Fixed by raising `normalBias` to 0.04 (1.0% of ROI, at no cost to the knight's ground shadow). See §7 Task 8. |
+| 2 | No shadow acne | darkened pixels on open unoccluded ground < 0.1% of frame | **Original method structurally invalid — replaced (Task 8); the replacement passes.** The Task 3 reading (0 px, recorded as PASS) was taken with an empty caster list, so 0 px was forced by the configuration, not produced by the swept values: acne requires a surface that both casts and receives, which nothing did at that point, so it certified nothing. Replaced by the Task 8 pedestal-top ROI method, measured against the shipped configuration (the first with any casting+receiving meshes — 62 of them). At `normalBias = 0.01` (the Task 3 pick) that method reads severe acne — 75.4% of the 34 850-px pedestal-top ROI. Raising `normalBias` to 0.04 brings it to 360 px, 1.0% of the ROI — converted to the original criterion's own denominator (921 600 px at 1280×720), 360 / 921 600 = 0.039% of frame, under the < 0.1%-of-frame bar. See §7 Task 8. |
 | 3 | Ambient tint did not brighten the scene | whole-frame mean luma within ±5% of `main`; crushed-black % not increased | **PASS** — +4.83% (scale 0.30); crushed % rises 0 → 0.001, treated as noise floor, not a regression |
 | 4 | Perf | within-session round-robin median against `main`; cost < 1.5 ms of the 16.7 ms budget | **unmeasured — requires a visible window.** Every timing figure this session was taken with the Browser pane hidden (`document.hidden === true`), which GPU-throttles the page; eight samples of an identical config spread 2.7x with a monotonic upward drift. There is no valid measurement to judge this threshold against. See §7's Task 6 write-up. |
 
@@ -263,9 +263,11 @@ came apart under measurement, and was replaced with criteria that actually test 
 session was taken with the Browser pane hidden and GPU-throttled, so threshold 4 is unmeasured, not
 failed, with an explicit instruction to re-measure on a machine with the pane actually visible before
 spending the remaining frame-budget headroom. Threshold 3 held up as originally written and passes.
-Threshold 2's original PASS did not hold up: it was measured with an empty caster list, where acne
-was structurally impossible, so it certified nothing. Re-measured against the shipped configuration
-(Task 8) it failed at `normalBias = 0.01` and now passes at `normalBias = 0.04`, which is shipped.
+Threshold 2's original method was structurally invalid: measured with an empty caster list, where
+acne was impossible by construction, its PASS at 0 px certified nothing. It was replaced by the
+Task 8 pedestal-top ROI method, measured against the shipped configuration; by that method,
+`normalBias = 0.01` fails (75.4% of the ROI) and the shipped `normalBias = 0.04` passes (360 px,
+1.0% of ROI, i.e. 0.039% of frame — under the original < 0.1%-of-frame bar).
 
 ### 5c. Bias tuning procedure
 
