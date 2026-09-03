@@ -62,7 +62,18 @@ const FALLBACK_MAP_SIZE = 2048;
 export interface Shadows {
   /** The live generator — CascadedShadowGenerator, or a plain ShadowGenerator on WebGL1. */
   readonly generator: ShadowGenerator;
+  /**
+   * Registers each mesh as a shadow caster. Descendants are not walked (`includeDescendants: false`,
+   * the opposite of `addShadowCaster`'s default) — callers must pass a flat, already-complete mesh
+   * list. A mesh with zero vertices (e.g. a glTF `__root__` node) is silently skipped: handing
+   * `cast()` one registers nothing, with no error and no console warning.
+   */
   cast(...meshes: readonly AbstractMesh[]): void;
+  /**
+   * Sets `receiveShadows = true` on each mesh given. Children are not walked — only the meshes
+   * passed are affected. A mesh with zero vertices (e.g. a glTF `__root__` node) is silently
+   * skipped, same as `cast()`.
+   */
   receive(...meshes: readonly AbstractMesh[]): void;
 }
 

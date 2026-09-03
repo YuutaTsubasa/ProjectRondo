@@ -738,7 +738,13 @@ Spec §1b claims the missing `receiveShadows` flags are why the knight's shadow 
 
 - [ ] **Step 1: Capture the before number**
 
-Before changing anything, run `await window.__shadowProbe()` and save `shadowPixels`. This is the baseline the hypothesis is judged against.
+~~Before changing anything, run `await window.__shadowProbe()` and save `shadowPixels`. This is the baseline the hypothesis is judged against.~~
+
+Superseded: `__shadowProbe`'s whole-frame `shadowPixels` cannot resolve this hypothesis — the harness
+preamble above and `__probeSetup`'s own comment say so (a whole-frame A/B read 14 640 px while the
+knight's own contribution was 222 px, so a completely broken knight shadow would have passed). The
+baseline actually judged against is `__knightShadow`'s knight-isolated figure, decomposed into
+configuration A (neither ground detail nor body receives): 220 px. See spec §7 Task 4.
 
 - [ ] **Step 2: Make ground detail receive**
 
@@ -785,7 +791,15 @@ Expected: tsc clean; 131 tests pass.
 
 - [ ] **Step 6: Judge the hypothesis**
 
-Reload and run `await window.__shadowProbe()`. Compare `shadowPixels` against the Step 1 baseline, and take a screenshot of the knight standing in dense grass.
+~~Reload and run `await window.__shadowProbe()`. Compare `shadowPixels` against the Step 1 baseline, and take a screenshot of the knight standing in dense grass.~~
+
+Superseded, same reason as Step 1: judge with `__knightShadow()` instead, decomposed into the three
+configurations spec §7 Task 4 records — A: neither ground detail nor body receives, 220 px; B: ground
+detail only, 408 px (+188 from grass); C: ground detail and body, 1212 px (+804 from self-shadow).
+Removing the knight from the caster list removes both its ground shadow and its self-shadow at once,
+so a single before/after `__knightShadow()` reading conflates the two causes and cannot separate them
+either — the three-configuration decomposition is required, not optional. Take a screenshot of the
+knight standing in dense grass as before.
 
 - If the number rose meaningfully and the shadow visibly crosses the grass blades, §1b is **confirmed**.
 - If it barely moved, §1b is **refuted** and the real limit is texel density (§1c). Say so plainly and report it; the follow-up would be raising `MAP_SIZE` or lowering `SHADOW_MAX_Z`, which is a new decision for the user, not something to do silently here.
@@ -813,7 +827,14 @@ git commit -m "feat(shadows): ground detail receives; knight body self-shadows, 
 
 - [ ] **Step 1: Capture the before frame**
 
-Run `await window.__shadowProbe()` and save `frame.mean` and `frame.crushedPct`. Threshold 3 is measured against these.
+~~Run `await window.__shadowProbe()` and save `frame.mean` and `frame.crushedPct`. Threshold 3 is measured against these.~~
+
+Superseded (spec §7 Task 5): this cross-reload before/after comparison is retracted. An earlier pass
+measured "before" (reload, `groundColor` black) against "after" (reload, `groundColor` tinted) and
+both returned `frame.mean` = 138.00 exactly — a reload artifact, not a real measurement; do not reuse
+that baseline. Threshold 3 is instead judged by toggling `groundColor` within a **single page state**
+(same framing, same settle, zero reload). The pre-tint reading by that method is `frame.mean` =
+**114.11**, `frame.crushedPct` = **0**.
 
 - [ ] **Step 2: Tint the ambient**
 
@@ -839,7 +860,13 @@ and replace lines 89-91 with:
 
 - [ ] **Step 3: Measure threshold 3**
 
-Reload and run `await window.__shadowProbe()`. `frame.mean` must be within ±5% of the Step 1 value and `frame.crushedPct` must not be higher. If `mean` overshoots, lower `AMBIENT_GROUND_SCALE` and repeat; record every value tried, not just the one that passed.
+~~Reload and run `await window.__shadowProbe()`. `frame.mean` must be within ±5% of the Step 1 value and `frame.crushedPct` must not be higher. If `mean` overshoots, lower `AMBIENT_GROUND_SCALE` and repeat; record every value tried, not just the one that passed.~~
+
+Superseded, same reason as Step 1: do not reload between readings. In the same page state, toggle
+`groundColor` and compare `__shadowProbe()`'s `frame.mean`/`frame.crushedPct` against the Step 1
+single-page-state baseline (114.11 / 0); the ±5% allowance and the "lower `AMBIENT_GROUND_SCALE` and
+repeat" instruction still apply. Adopted result: scale 0.30 gives `frame.mean` = 119.62 (+4.83%),
+`crushedPct` = 0.001, within threshold — see spec §7 Task 5's full sweep table.
 
 - [ ] **Step 4: Screenshot for the art call**
 
