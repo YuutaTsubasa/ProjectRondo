@@ -42,10 +42,11 @@ Sweeping bias with everything else fixed (1280×720, knight at origin, camera si
 | 0 | 3 719 |
 
 The receiver side was never broken: the terrain's compiled shader contains `SHADOW1`, `SHADOWPCF1`
-and `SHADOWS`, and the shadow map re-renders every frame. Of the 64 registered casters, all 34
-skinned knight meshes and 28 of the 29 non-skinned ones report ready once shaders finish compiling
-(the odd one out has no submeshes). An earlier reading of 29-of-64 was taken mid-compile and is not
-evidence of anything. The depth comparison ran on schedule and always returned "lit".
+and `SHADOWS`, and the shadow map re-renders every frame. The 64 registered casters were the knight's
+35 `result.meshes` (34 skinned plus the glTF `__root__`), 20 tree meshes and 9 landmark meshes, so 34
+are skinned and 30 are not. All 34 skinned meshes and 29 of the 30 non-skinned ones report ready once
+shaders finish compiling; the odd one out is `__root__`, which has no submeshes. An earlier reading of
+29-of-64 was taken mid-compile and is not evidence of anything. The depth comparison ran on schedule and always returned "lit".
 
 A control confirmed the same bias suppressed *everything*, not just the knight: a scatter rock scaled
 12× and floated above the player did cast a visible shadow (16 395 px). Only objects thick enough to
