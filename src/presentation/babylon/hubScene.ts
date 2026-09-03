@@ -25,6 +25,7 @@ import { createGroundScatter } from './scatter';
 import { createWind } from './wind';
 import { createWater } from './water';
 import { createClouds } from './clouds';
+import { createButterflies } from './butterflies';
 import { createLandmark } from './landmark';
 
 export interface HubScene {
@@ -77,6 +78,7 @@ export async function createHubScene(canvas: HTMLCanvasElement): Promise<HubScen
   createGroundScatter(scene, shadows);
   createWater(scene);
   createClouds(scene);
+  createButterflies(scene);
   createLandmark(scene, shadows);
 
   createAtmosphere(scene, follow.camera);
