@@ -249,7 +249,13 @@ option available and tends toward speckle noise.
 
 ### 5a. Shadow-presence harness
 
-1. Pause every `AnimationGroup`. Skipping this is what produced the §1d false positive.
+1. Freeze the whole frame, not just the animation: set `scene.animationsEnabled = false`, pause every
+   `AnimationGroup`, set `scene.physicsEnabled = false`, and pin the water ripple (it scrolls
+   `uOffset`/`vOffset` on its own `onBeforeRenderObservable` in `water.ts`, entirely outside
+   `animationGroups`). Pausing `AnimationGroup`s alone is **not** enough — `driveKnightAnimation`
+   re-plays and re-weights them every frame regardless of their paused state, and that gap is what
+   produced the §1d false positive: a 0-vs-0 control that should have read 0 read 169 with only the
+   pause applied. Physics stepping alone accounted for 59 of 64 stray control pixels.
 2. `engine.restoreDefaultFramebuffer()` before `readPixels`.
 3. A/B `setDarkness(0)` against `setDarkness(1)`; count pixels differing by more than 4.
 4. Run the control: darkness 0 against darkness 0 must change exactly 0 pixels.

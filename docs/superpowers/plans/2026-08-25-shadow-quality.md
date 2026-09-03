@@ -66,7 +66,20 @@ The five numbered comments correspond to the spec's §5a steps — none of them 
 window.__shadowProbe = async ({ x = 0, z = 0 } = {}) => {
   const { engine, scene, follow } = window.hub;
   const V3 = window.charController.getPosition().constructor;
-  scene.animationGroups.forEach((g) => g.pause());          // (1) else the idle pose moves between grabs
+  // (1) freeze the whole frame, not just the animation. Pausing AnimationGroups alone is NOT enough:
+  //     driveKnightAnimation re-plays and re-weights them every frame regardless of paused state, and
+  //     that gap is what produced the §1d false positive (a 0-vs-0 control that should have read 0 read
+  //     169 with only the pause applied). Physics stepping alone accounted for 59 of 64 stray control
+  //     pixels, and the water ripple scrolls on its own observable entirely outside animationGroups.
+  scene.animationsEnabled = false;
+  scene.animationGroups.forEach((g) => g.pause());
+  scene.physicsEnabled = false;
+  const __water = scene.meshes.find((m) => m.name === 'water');
+  const __ripple = __water && __water.material && __water.material.bumpTexture;
+  if (__ripple) {
+    const u = __ripple.uOffset, v = __ripple.vOffset;
+    scene.onBeforeRenderObservable.add(() => { __ripple.uOffset = u; __ripple.vOffset = v; });
+  }
   if (window.__hold) scene.onBeforeRenderObservable.remove(window.__hold);
   // (5) the sun travels toward -X-Z, so view from +X,-Z and the shadow lies side-on to the camera
   //     rather than hidden directly behind the knight.
@@ -682,7 +695,17 @@ Teleport the knight to open ground with no tree in frame and repeat, so the same
 window.charController.setPosition(new (window.charController.getPosition().constructor)(20, 5, 20));
 ```
 
-Then re-run the Step 1 loop with `await window.__shadowProbe({ x: 20, z: 20 })`. Here `shadowPixels` is the acne count and ~~must come in **under 922**~~ — still worth recording as raw sweep data, but this pass/fail bar is retracted (see below).
+Step 1's loop uses `window.__knightShadow()`, which takes no arguments and has no framing parameter —
+the camera framing comes from `__probeSetup`'s `__pinCamera(x, z)` instead, and its own comment notes
+that `__probeSetup()` pins the camera at the origin by default. So before re-running, move the pin to
+match the teleport:
+
+```js
+window.__pinCamera(20, 20);
+```
+
+Then re-run the Step 1 loop unchanged (same sweep, same `const { px, restore } = window.__knightShadow();`
+call). Here `px` is the acne count and ~~must come in **under 922**~~ — still worth recording as raw sweep data, but this pass/fail bar is retracted (see below).
 
 - [ ] **Step 3: Pick the pair and edit the constants**
 
@@ -834,7 +857,9 @@ measured "before" (reload, `groundColor` black) against "after" (reload, `ground
 both returned `frame.mean` = 138.00 exactly — a reload artifact, not a real measurement; do not reuse
 that baseline. Threshold 3 is instead judged by toggling `groundColor` within a **single page state**
 (same framing, same settle, zero reload). The pre-tint reading by that method is `frame.mean` =
-**114.11**, `frame.crushedPct` = **0**.
+**114.11**, `frame.crushedPct` = **0**. `__shadowProbe()` performs the full three-part freeze itself
+(step (1) above) before grabbing frames, so this measurement is valid whether or not `__probeSetup()`
+has been run first.
 
 - [ ] **Step 2: Tint the ambient**
 
@@ -866,7 +891,8 @@ Superseded, same reason as Step 1: do not reload between readings. In the same p
 `groundColor` and compare `__shadowProbe()`'s `frame.mean`/`frame.crushedPct` against the Step 1
 single-page-state baseline (114.11 / 0); the ±5% allowance and the "lower `AMBIENT_GROUND_SCALE` and
 repeat" instruction still apply. Adopted result: scale 0.30 gives `frame.mean` = 119.62 (+4.83%),
-`crushedPct` = 0.001, within threshold — see spec §7 Task 5's full sweep table.
+`crushedPct` = 0.001, within threshold — see spec §7 Task 5's full sweep table. As in Step 1,
+`__shadowProbe()` freezes the frame itself, so no separate `__probeSetup()` call is required here.
 
 - [ ] **Step 4: Screenshot for the art call**
 

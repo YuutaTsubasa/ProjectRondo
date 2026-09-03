@@ -53,9 +53,13 @@ export async function createHubScene(canvas: HTMLCanvasElement): Promise<HubScen
   const havok = await HavokPhysics();
   scene.enablePhysics(Vector3.Zero(), new HavokPlugin(true, havok));
 
-  // The camera is hoisted above the world build because cascaded shadow maps derive their splits
-  // from the active camera. It depends only on playerRoot and the canvas — not on physics, the
-  // terrain or the player controller — so moving it earlier is safe.
+  // The camera is hoisted above the world build because createShadows needs it: cascade splits come
+  // from the `camera` argument passed below, and the resulting generator stays registered under that
+  // same camera for the life of the scene (see the createShadows doc comment in shadows.ts — Babylon
+  // resolves the generator via scene.activeCamera every frame, with a no-arg fallback that never
+  // matches). Setting scene.activeCamera to follow.camera immediately before createShadows is what
+  // keeps the two in sync; it depends only on playerRoot and the canvas — not on physics, the terrain
+  // or the player controller — so moving it earlier is safe.
   const playerRoot = new TransformNode('player', scene);
   const follow = createFollowCamera(scene, playerRoot, canvas);
   scene.activeCamera = follow.camera;

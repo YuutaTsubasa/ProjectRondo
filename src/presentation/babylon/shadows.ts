@@ -80,9 +80,20 @@ export interface Shadows {
 /**
  * Builds the sun's shadow generator and hands back the only two verbs the rest of the scene needs.
  *
- * Must be called AFTER `scene.activeCamera` is set: cascade splits are derived from the camera, and
- * `CascadedShadowGenerator.IsSupported` reads `EngineStore.LastCreatedEngine`, so the engine has to
- * exist too. `hubScene.ts` orders it that way on purpose.
+ * `IsSupported` reads `EngineStore.LastCreatedEngine`, so the engine must already exist when this is
+ * called; cascade splits come from the `camera` argument, not from `scene.activeCamera` — nothing in
+ * here reads it.
+ *
+ * What actually matters, and lasts for the life of the scene rather than just at construction time:
+ * the generator is registered under `camera`, and both `PrepareDefinesForLight`
+ * (`materialHelper.functions.js`) and `Light._bindLight` (`light.js`) resolve it every frame as
+ * `light.getShadowGenerator(scene.activeCamera) ?? light.getShadowGenerator()`. The no-arg fallback
+ * looks up the `null` key, which nothing is ever registered under, so that `??` only saves you if
+ * `scene.activeCamera === camera`. `hubScene.ts` passes `follow.camera` here right after setting it
+ * as `scene.activeCamera`, so this holds today — but it is an ongoing invariant, not a one-time
+ * ordering requirement. Repoint `scene.activeCamera` at a different camera later (a cutscene or AVG
+ * camera) without updating the generator and every shadow stops rendering silently, no error, no
+ * console warning — see `docs/HANDOFF.md` §7.
  */
 export function createShadows(sun: DirectionalLight, camera: Camera): Shadows {
   let generator: ShadowGenerator;
