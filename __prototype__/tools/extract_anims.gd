@@ -10,17 +10,17 @@ const SRC := {
 # back to the crouch mid-air. Every other clip is a cycle.
 const NON_LOOPING := ["Jump"]
 const FROM := "Skeleton3D:"
-const TO := "Armature/Skeleton3D:"
+const TO := "Skeleton3D:"
 # Inward thigh correction to counter the model's wide A-stance rest pose.
 const ADDUCT_DEG := -5.0
-const L_THIGH := "Armature/Skeleton3D:LeftUpperLeg"
-const R_THIGH := "Armature/Skeleton3D:RightUpperLeg"
+const L_THIGH := "Skeleton3D:LeftUpperLeg"
+const R_THIGH := "Skeleton3D:RightUpperLeg"
 
 # World fore-aft (Z) axis expressed in the thighs' parent frame; the true adduction axis.
 var _adduct_axis := Vector3(0, 0, 1)
 
 func _initialize():
-	var knight: Node = load("res://Assets/Characters/Knight/knight.glb").instantiate()
+	var knight: Node = load("res://Assets/Characters/MedievalKnight/knight.fbx").instantiate()
 	var ksk := _find(knight, "Skeleton3D") as Skeleton3D
 	var pelvis := ksk.find_bone("CC_Base_Pelvis")
 	var parent_basis: Basis = ksk.get_bone_global_rest(pelvis).basis if pelvis >= 0 else Basis()

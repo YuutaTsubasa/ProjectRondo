@@ -3,6 +3,8 @@ import type { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 import type { AnimationGroup } from '@babylonjs/core/Animations/animationGroup';
 import type { ShadowGenerator } from '@babylonjs/core/Lights/Shadows/shadowGenerator';
 import { ImportMeshAsync } from '@babylonjs/core/Loading/sceneLoader';
+import { Texture } from '@babylonjs/core/Materials/Textures/texture';
+import type { PBRMaterial } from '@babylonjs/core/Materials/PBR/pbrMaterial';
 import { Quaternion, Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { Color3 } from '@babylonjs/core/Maths/math.color';
 import type { AbstractMesh } from '@babylonjs/core/Meshes/abstractMesh';
@@ -74,11 +76,12 @@ const TARGET_HEIGHT = 1.9;
 /** Fraction of the idle animation's motion to keep (0 = frozen, 1 = full sway). Kills the side rock. */
 const IDLE_SWAY_KEEP = 0.2;
 
-/** The head group, by mesh name. `Mesh_0` is the whole head — face, hair and neck collar, 242k of the
- *  character's ~320k vertices — and `Mesh_32`/`Mesh_33` are the two eyeballs. Identified from bind-pose
- *  bounding boxes against the `Head` and `CC_Base_*_Eye` bones, then confirmed by rendering `Mesh_0`
- *  alone. The other 31 meshes (`tripo_part_*`) are body and armour and are deliberately untouched. */
-const HEAD_MESHES: readonly string[] = ['Mesh_0', 'Mesh_32', 'Mesh_33'];
+/** The head group, by mesh name. `Mesh_1` is the face + hair, `Mesh_20` the inner head (mouth/brows),
+ *  and `Mesh_43`/`Mesh_46` are the two eyeballs — the top-of-body cluster by world height, confirmed by
+ *  rendering them alone (a clean floating head, both eyes present). Both eyeballs must be included or the
+ *  uncovered one keeps the lit shared material and reads dark against the bright face. The other 43
+ *  meshes are body and armour and are deliberately untouched. */
+const HEAD_MESHES: readonly string[] = ['Mesh_1', 'Mesh_20', 'Mesh_43', 'Mesh_46'];
 
 /**
  * How much of the albedo to add back as unlit light on the face.
@@ -112,6 +115,29 @@ const HEAD_MESHES: readonly string[] = ['Mesh_0', 'Mesh_32', 'Mesh_33'];
  * Isolating the skin would need a mask texture or a Blender split, and the lift reads as an improvement.
  */
 const FACE_EMISSIVE = 0.45;
+
+/** Cache-buster for the packed metallic/roughness map; bump when the map is rebuilt. */
+const BODY_MR_URL = '/models/knight_mr.webp?v=1';
+
+/**
+ * Gives the armour a metallic/roughness map so the plate catches light as metal instead of reading as
+ * flat matte. The map is packed glTF-style (roughness in G, metallic in B) from the source PBR set.
+ * Runs *after* {@link applyFaceMaterial}, so the head's toon clone — cloned before this — keeps a
+ * non-metallic, unlit face. The whole body shares one material, so setting it once covers every mesh.
+ */
+function applyBodyPbr(meshes: readonly AbstractMesh[], scene: Scene): void {
+  const mat = meshes.find((m) => !HEAD_MESHES.includes(m.name) && m.material)?.material as PBRMaterial | undefined;
+  if (!mat) {
+    console.warn('[knight] no body material found — PBR skipped, armour stays matte.');
+    return;
+  }
+  const mr = new Texture(BODY_MR_URL, scene, false, false);
+  mat.metallicTexture = mr;
+  mat.useRoughnessFromMetallicTextureGreen = true;
+  mat.useMetallnessFromMetallicTextureBlue = true;
+  mat.metallic = 1;
+  mat.roughness = 1;
+}
 
 /** Ceiling on waiting for the face shader. `Material.forceCompilation`'s `checkReady` re-arms itself
  *  every 16 ms and only exits on ready-or-compile-error, so a blocking albedo texture that never
@@ -376,7 +402,7 @@ export async function loadKnight(
 ): Promise<Knight> {
   // ?v bust: the browser aggressively caches the GLB, so a plain reload keeps serving an old copy.
   // Bump this whenever knight_web.glb is rebuilt so clients refetch it.
-  const result = await ImportMeshAsync('/models/knight_web.glb?v=4', scene);
+  const result = await ImportMeshAsync('/models/knight_web.glb?v=5', scene);
   const root = result.meshes[0] as TransformNode;
   root.parent = parent;
   root.position.setAll(0);
@@ -390,6 +416,7 @@ export async function loadKnight(
   if (shadowGenerator) for (const mesh of result.meshes) shadowGenerator.addShadowCaster(mesh);
 
   await applyFaceMaterial(result.meshes);
+  applyBodyPbr(result.meshes, scene);
 
   const raw = root.getHierarchyBoundingVectors(true);
   const rawHeight = raw.max.y - raw.min.y;
