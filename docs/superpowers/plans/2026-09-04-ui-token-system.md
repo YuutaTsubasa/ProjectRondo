@@ -22,7 +22,7 @@
 - Box-shadows stay `rgba(0, 0, 0, ...)` and are not tokenised (the spec's 4c names exactly three surface tokens). Their alpha is lowered where a panel flips light, because a shadow tuned for a dark panel reads as dirt under a pale one.
 - Run `pnpm test` after every task. 131 tests pass on the branch point. The count grows with every
   task except Task 8, which deliberately collapses six named cases into two and so drops it from
-  143 to 139. Every task states its expected count.
+  144 to 140. Every task states its expected count.
 
 ---
 
@@ -204,7 +204,7 @@ Expected: 3 passed.
 pnpm test
 ```
 
-Expected: 134 passed (131 existing + 3 new).
+Expected: 135 passed (131 existing + 4 new — `it.each` over two colours yields two cases).
 
 - [ ] **Step 7: Commit**
 
@@ -376,7 +376,7 @@ pnpm vitest run tests/app/fonts.test.ts
 pnpm test
 ```
 
-Expected: 3 passed for the font file; 137 passed overall (131 + 3 from Task 1 + 3 here).
+Expected: 3 passed for the font file; 138 passed overall (131 + 4 from Task 1 + 3 here).
 
 - [ ] **Step 7: Correct the spec**
 
@@ -530,7 +530,7 @@ pnpm vitest run tests/presentation/dialogueTokens.test.ts
 pnpm test
 ```
 
-Expected: 1 passed for the guard; 138 passed overall.
+Expected: 1 passed for the guard; 139 passed overall.
 
 - [ ] **Step 5: Commit**
 
@@ -621,7 +621,7 @@ pnpm vitest run tests/presentation/dialogueTokens.test.ts
 pnpm test
 ```
 
-Expected: 2 passed for the guard; 139 passed overall.
+Expected: 2 passed for the guard; 140 passed overall.
 
 - [ ] **Step 5: Commit**
 
@@ -763,7 +763,7 @@ pnpm vitest run tests/presentation/dialogueTokens.test.ts
 pnpm test
 ```
 
-Expected: 4 passed for the guard; 141 passed overall.
+Expected: 4 passed for the guard; 142 passed overall.
 
 - [ ] **Step 6: Commit**
 
@@ -881,7 +881,7 @@ pnpm vitest run tests/presentation/dialogueTokens.test.ts
 pnpm test
 ```
 
-Expected: 5 passed for the guard; 142 passed overall.
+Expected: 5 passed for the guard; 143 passed overall.
 
 - [ ] **Step 5: Commit**
 
@@ -991,7 +991,7 @@ pnpm vitest run tests/presentation/dialogueTokens.test.ts
 pnpm test
 ```
 
-Expected: 6 passed for the guard; 143 passed overall.
+Expected: 6 passed for the guard; 144 passed overall.
 
 - [ ] **Step 5: Commit**
 
@@ -1077,8 +1077,8 @@ Expected: 2 passed.
 pnpm test
 ```
 
-Expected: 139 passed — the six named cases collapsed into two, so the count drops by four from
-Task 7's 143.
+Expected: 140 passed — the six named cases collapsed into two, so the count drops by four from
+Task 7's 144.
 
 - [ ] **Step 4: Commit**
 
