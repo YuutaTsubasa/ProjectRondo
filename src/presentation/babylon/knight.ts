@@ -177,6 +177,15 @@ function applyBodyPbr(meshes: readonly AbstractMesh[], scene: Scene): void {
   mat.metallic = BODY_METALLIC;
   mat.roughness = 1;
   mat.directIntensity = BODY_DIRECT_INTENSITY;
+  // The armour is a stack of single-sided shells that do not quite meet — most visibly where the
+  // upper arm passes the torso. Back-face culling removes the far shell's inward-facing triangles,
+  // so those seams showed the scene straight through the character rather than the armour's inside.
+  // Measured against the knight's true silhouette (taken with culling off, so gaps are inside it,
+  // scene frozen, zero reproducibility control): 107 of 53 245 silhouette pixels read as background
+  // with culling on, 0 with it off, and every camera angle tried showed the same (241-497 px on,
+  // 0 off). Only the body needs this — leaving the face culled measures identically at 0, and the
+  // head is a closed mesh that gains nothing from the extra fragments.
+  mat.backFaceCulling = false;
 }
 
 /** Ceiling on waiting for the face shader. `Material.forceCompilation`'s `checkReady` re-arms itself
