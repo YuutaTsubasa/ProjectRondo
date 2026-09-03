@@ -357,7 +357,7 @@ These are hard-won; several cost a debugging session each.
   `scene.activeCamera === camera`. (The WebGL1 fallback is different: `ShadowGenerator`'s constructor
   stores `camera ?? null`, so `new ShadowGenerator(FALLBACK_MAP_SIZE, sun)` — passed no camera —
   registers itself under that same `null` key, and the no-arg fallback resolves it regardless of
-  `scene.activeCamera`; see `shadowGenerator.js:633,646`.) `hubScene.ts` keeps the cascaded-branch
+  `scene.activeCamera`; see `shadowGenerator.js:633,645`.) `hubScene.ts` keeps the cascaded-branch
   invariant true today only because it sets `scene.activeCamera = follow.camera` immediately before
   calling `createShadows` with that same camera, and never repoints `scene.activeCamera` afterwards.
   This project already has an AVG overlay path; the day a cutscene or AVG camera becomes

@@ -58,7 +58,7 @@
 
 ## Measurement Harness
 
-Tasks 3–6 all use these probes. Run them with the Browser pane's `javascript_tool` against the dev server. `__shadowProbe` is the whole-frame darkness A/B; `__knightShadow` is the knight-isolated metric the headline figures (the Task 3 grid, Task 4's 220/408/1212 decomposition, Task 8's 1145/1190/1615 px) actually use; `__acne` is threshold 2 — not a darkness A/B, a pedestal-top ROI diffed against a deliberately over-biased reference, and it requires the plaza framing (the ROI is the pedestal top at 1280×720, only valid from that camera position); `__fpsAB` is timing.
+Tasks 3–6 all use these probes. Run them with the Browser pane's `javascript_tool` against the dev server. `__shadowProbe` is the whole-frame darkness A/B; `__knightShadow` is the knight-isolated metric the headline figures (the Task 3 grid, Task 4's 220/408/1212 decomposition, Task 8's 1145/1190/1615 px) actually use; `__acne` is threshold 2 — not a darkness A/B, a pedestal-top ROI diffed against a deliberately over-biased reference; it pins the plaza framing itself for the duration of the measurement (the ROI is the pedestal top at 1280×720, only valid from that camera position) and restores the prior pin afterward; `__fpsAB` is timing.
 
 The five numbered comments correspond to the spec's §5a steps — none of them are optional. Skipping (1) produced the false positive recorded in spec §1d.
 
@@ -180,11 +180,18 @@ window.__probeSetup = () => {
     scene.onBeforeRenderObservable.add(() => { ripple.uOffset = u; ripple.vOffset = v; });
   }
 
-  window.__pinCamera = (x = 0, z = 0) => {          // side-on to the sun, which travels toward -X-Z
+  let pinState = null;                               // last args passed to __pinCamera; __acne restores this
+  window.__pinCamera = (x = 0, z = 0, pose = null) => {  // side-on to the sun, which travels toward -X-Z
+    pinState = { x, z, pose };
     if (window.__hold) scene.onBeforeRenderObservable.remove(window.__hold);
     window.__hold = scene.onBeforeRenderObservable.add(() => {
-      window.hub.follow.camera.position.set(x + 9, 4.5, z - 9);
-      window.hub.follow.camera.setTarget(new V3(x - 1.5, 1.0, z + 1.5));
+      if (pose) {
+        window.hub.follow.camera.position.set(pose.position[0], pose.position[1], pose.position[2]);
+        window.hub.follow.camera.setTarget(new V3(pose.target[0], pose.target[1], pose.target[2]));
+      } else {
+        window.hub.follow.camera.position.set(x + 9, 4.5, z - 9);
+        window.hub.follow.camera.setTarget(new V3(x - 1.5, 1.0, z + 1.5));
+      }
     });
   };
   window.__grab = () => {
@@ -227,11 +234,13 @@ window.__probeSetup = () => {
   // acne plus a small floor of legitimate self-shadow the big bias also removed; the floor is visible
   // as the point where the curve plateaus.
   //
-  // Frame the plaza first: the pedestal and pillars are curved stone that both casts and receives, the
-  // geometry most prone to acne in this scene.
-  //   window.hub.follow.camera.position.set(-1.5, 3.0, 27.5);
-  //   window.hub.follow.camera.setTarget(new V3(-6, 2.2, 32));
-  // The ROI below is the pedestal top at 1280x720 in that framing. Re-derive it if you move the camera.
+  // Frame the plaza: the pedestal and pillars are curved stone that both casts and receives, the
+  // geometry most prone to acne in this scene. __acne pins this pose itself for the duration of the
+  // measurement (a later observer wins over createFollowCamera's own onBeforeRenderObservable, same as
+  // any other __pinCamera call) and restores whatever pin was active beforehand when it's done — so
+  // callers don't need to frame the plaza themselves, and can't accidentally measure the wrong framing.
+  // The ROI below is the pedestal top at 1280x720 in this pose. Re-derive it if this pose moves.
+  const PLAZA_POSE = { position: [-1.5, 3.0, 27.5], target: [-6, 2.2, 32] };
   window.__acne = (roi = { x0: 440, x1: 850, yTop0: 385, yTop1: 470 }) => {
     const settle = () => { for (let i = 0; i < 12; i++) window.__grab(); };
     const roiDiff = (a, b) => {
@@ -244,6 +253,8 @@ window.__probeSetup = () => {
         }
       return n;
     };
+    const priorPin = pinState;
+    window.__pinCamera(0, 0, PLAZA_POSE);               // frame the plaza for this measurement only
     const bias0 = sg.bias, nb0 = sg.normalBias;
     settle();
     const preRun = window.__grab();                    // pre-run frame, for the restore control
@@ -254,6 +265,7 @@ window.__probeSetup = () => {
     const roiPixels = (roi.x1 - roi.x0) * (roi.yTop1 - roi.yTop0);
     const px = roiDiff(reference, candidate);
     const restore = roiDiff(preRun, candidate);         // restore MUST be 0
+    if (priorPin) window.__pinCamera(priorPin.x, priorPin.z, priorPin.pose);  // restore the prior framing
     return { acnePx: px, roiPixels, sharePct: +(100 * px / roiPixels).toFixed(2), restore };
   };
 
@@ -731,9 +743,10 @@ Reload the page (the dev server forces a full reload on any source change) and r
 Superseded by Step 3's note above: thresholds 1 and 2 as originally defined are retracted, and
 `__shadowProbe` cannot check either replacement. Re-verify threshold 1's replacement with
 `window.__knightShadow()` (non-zero `px`, `restore` 0). Threshold 2's replacement is the Task 8
-pedestal-top ROI diff — reload, frame the plaza (the camera pose in the `__acne` setup comment above),
-run `window.__probeSetup()`, then `window.__acne()` — this cannot be done from this step's origin
-framing.
+pedestal-top ROI diff — reload, run `window.__probeSetup()`, then `window.__acne()`. Do not frame the
+plaza by hand first: `__acne` pins the plaza pose itself for the duration of the measurement and
+restores the prior pin afterward, and a manual pin here would just be overwritten by `__probeSetup`'s
+own closing `__pinCamera(0, 0)` before `__acne` ever runs.
 
 - [ ] **Step 5: Record both tables in the spec**
 
