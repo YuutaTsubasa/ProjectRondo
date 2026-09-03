@@ -91,9 +91,12 @@ as `0` instead of omitting them, and at least three of them ship this way.** `ex
 - `extensions.KHR_materials_emissive_strength.emissiveStrength: 0` (spec default 1) — Babylon maps
   this straight to `emissiveIntensity = 0`, which trips `swapHeadMaterial`'s guard in `knight.ts` on
   every load and would zero `FACE_EMISSIVE` if that guard did not pin it back to 1.
-- `pbrMetallicRoughness.metallicFactor: 0` (spec default 1) — currently inert only because
-  `applyBodyPbr` overwrites `metallic` unconditionally; it is the same defect and would surface the
-  moment that overwrite stopped happening.
+- `pbrMetallicRoughness.metallicFactor: 0` (spec default 1) — `applyBodyPbr` overwrites `metallic` only
+  from inside its metallic/roughness texture's `onLoad` callback (see `knight.ts`), so this `0` is still
+  in force before that map arrives and stays in force forever on a permanently failed fetch; it is
+  currently benign on both those paths only because the GLB ships no `roughnessFactor` key, so
+  roughness stays at the spec default 1, and metallic 0 with roughness 1 reads matte. It is the same
+  defect as the other two above and would surface the moment a regeneration or reorder changed that.
 
 Because this is a systematic property of the export pass and not three coincidences, **no scalar in
 this GLB should be trusted without checking it against the glTF spec default** — do not stop at

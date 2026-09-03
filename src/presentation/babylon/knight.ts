@@ -180,13 +180,16 @@ const BODY_DIRECT_INTENSITY = 1.6;
 
 /**
  * Gives the armour a metallic/roughness map so the plate catches light as metal instead of reading as
- * flat matte, and — synchronously, before any of that map's fetch has even started — corrects two
- * export-side defects in the shared body material and closes a seam: the shipped
- * `normalTexture.scale` of 0 (see `source.bumpTexture.level` below) and the missing
- * `backFaceCulling`/`twoSidedLighting` pair that left the armour's single-sided shells see-through at
- * their seams. Runs *after* {@link applyFaceMaterial}, so the head's toon clone — cloned before this —
- * keeps a non-metallic, unlit face. The whole body shares one material, so setting it once covers every
- * mesh.
+ * flat matte, and — synchronously, before any of that map's fetch has even started — corrects one
+ * export-side defect in the shared body material and closes a seam: the shipped `normalTexture.scale`
+ * of 0 (see `source.bumpTexture.level` below) is the export-side defect; the `backFaceCulling`/
+ * `twoSidedLighting` pair that closes up the armour's single-sided shells at their see-through seams is
+ * not one — this GLB is legitimately not `doubleSided`, so the loader correctly never set
+ * `twoSidedLighting`, and dropping culling is a deliberate art call, not a correction (see the comments
+ * above those two assignments below).
+ *
+ * Runs *after* {@link applyFaceMaterial}, so the head's toon clone — cloned before this — keeps a
+ * non-metallic, unlit face. The whole body shares one material, so setting it once covers every mesh.
  *
  * **The map is fire-and-forget; the corrections above it are not.** The normal-scale fix,
  * `backFaceCulling` and `twoSidedLighting` are all written to `source` before this function returns —
