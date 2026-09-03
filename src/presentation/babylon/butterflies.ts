@@ -7,9 +7,11 @@ import '@babylonjs/core/Materials/standardMaterial';
 import { Material } from '@babylonjs/core/Materials/material';
 import { DynamicTexture } from '@babylonjs/core/Materials/Textures/dynamicTexture';
 import { Color3 } from '@babylonjs/core/Maths/math.color';
-import { butterflyAt } from '../../domain/hub/butterfly';
+import { butterflyAt, MIN_HEIGHT } from '../../domain/hub/butterfly';
+import { POND } from '../../domain/hub/waterBody';
 import { rng } from '../../domain/math/rng';
 import { terrainHeight } from './terrainHeight';
+import { windTime } from './wind';
 
 /** Enough to find one wherever you stand, few enough that the field does not read as infested. */
 const COUNT = 10;
@@ -48,17 +50,35 @@ export function createButterflies(scene: Scene): void {
     return w;
   });
 
-  let elapsed = 0;
   scene.onBeforeRenderObservable.add(() => {
-    elapsed += scene.getEngine().getDeltaTime() / 1000;
+    // Read the shared wind clock rather than accumulating a private one, so the butterflies' motion
+    // and the wind-bent grass agree on "now" instead of merely starting in step (`wind.ts` is the
+    // only writer of this clock).
+    const t = windTime();
     for (let i = 0; i < wings.length; i++) {
-      const s = butterflyAt(seeds[i], elapsed);
-      wings[i].position.set(s.x, terrainHeight(s.x, s.z) + s.heightAboveGround, s.z);
+      const s = butterflyAt(seeds[i], t);
+      wings[i].position.set(s.x, groundClearedY(s.x, s.z, s.heightAboveGround), s.z);
       // The wingbeat, as a horizontal squash: a billboard has no third dimension to fold, so scaling
       // x toward 0 and back is what a pair of wings opening and closing looks like edge-on.
       wings[i].scaling.x = 0.25 + 0.75 * Math.abs(Math.cos(s.wingPhase * Math.PI * 2));
     }
   });
+}
+
+/**
+ * `heightAboveGround` from the domain is clearance above the TERRAIN, not the water — the domain
+ * stays ignorant of the pond on purpose (`waterBody.ts`'s own header: the pond shape exists precisely
+ * so presentation can read it). Over the pond the terrain dips below `POND.surfaceY`, so terrain-only
+ * clearance can put a butterfly under the water surface. Inside the pond's radius, floor the world Y
+ * at the surface plus the same minimum clearance the domain guarantees above ground (`MIN_HEIGHT`), so
+ * a butterfly crossing the water skims above it instead of clipping through it.
+ */
+function groundClearedY(x: number, z: number, heightAboveGround: number): number {
+  const y = terrainHeight(x, z) + heightAboveGround;
+  const dx = x - POND.centreX;
+  const dz = z - POND.centreZ;
+  if (dx * dx + dz * dz > POND.radius * POND.radius) return y;
+  return Math.max(y, POND.surfaceY + MIN_HEIGHT);
 }
 
 /** Two pale wings on a dark body, drawn into an alpha-cutout texture. Cutout, not blended, for the

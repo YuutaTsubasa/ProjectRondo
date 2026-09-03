@@ -2,17 +2,7 @@ import type { Scene } from '@babylonjs/core/scene';
 import type { Material } from '@babylonjs/core/Materials/material';
 import type { UniformBuffer } from '@babylonjs/core/Materials/uniformBuffer';
 import { MaterialPluginBase } from '@babylonjs/core/Materials/materialPluginBase';
-
-/**
- * The hub's one wind direction, in the XZ plane, unit length — (0.8, 0.6) is exactly 1. Module-private:
- * nothing here is exported. The other two effects in this phase are meant to agree with it, but neither
- * imports it: the clouds (`clouds.ts`) agree by a visual check of their drift direction against this
- * one, and the butterflies agree via a deliberately hand-kept copy of these two values in
- * `src/domain/hub/butterfly.ts`, which may not import from the presentation layer. A copy kept in step
- * by hand is a maintenance hazard — changing the direction here means changing it there too.
- */
-const WIND_DIR_X = 0.8;
-const WIND_DIR_Z = 0.6;
+import { WIND_DIRECTION_X, WIND_DIRECTION_Z } from '../../domain/hub/windDirection';
 
 /** Radians of phase per world unit along the wind direction. The visible result is the wavelength of
  *  a gust travelling over the field: 2*PI / 0.35 is ~18 units, so roughly five gusts span the 100-unit
@@ -23,13 +13,11 @@ const SPATIAL_FREQ = 0.35;
 /** Radians of phase per second — how fast a gust travels. */
 const SPEED = 1.1;
 
-/** Peak horizontal displacement of a fully-bent tip, in WORLD units. Deliberately world-space and not
- *  scaled per instance: wind is a property of the air, so a small tuft and a large one are pushed the
- *  same distance (spec §3c). At 0.06 a 0.5-unit grass card leans about 12% of its height. */
-const AMPLITUDE = 0.06;
-
 /** The single source of wind time, in seconds. Every plugin instance binds this same value, so the
- *  whole field shares one phase; nothing else may write it. */
+ *  whole field shares one phase; nothing else may write it. `createWind` is the only writer — clouds
+ *  and butterflies read it through {@link windTime} rather than integrating their own clock, so all
+ *  three effects agree on "now" even though each still runs its own per-frame observer to apply its
+ *  own motion. */
 const field = { time: 0 };
 
 /**
@@ -43,6 +31,14 @@ export function createWind(scene: Scene): void {
   scene.onBeforeRenderObservable.add(() => {
     field.time += scene.getEngine().getDeltaTime() / 1000;
   });
+}
+
+/** The shared wind clock, in seconds — the same value every wind-bent material binds this frame.
+ *  Read-only from outside this module: `clouds.ts` and `butterflies.ts` call this instead of
+ *  accumulating their own elapsed time, so P4's three moving effects share one clock rather than
+ *  three that merely start in step and drift apart across a scene teardown. */
+export function windTime(): number {
+  return field.time;
 }
 
 /**
@@ -59,21 +55,38 @@ export function createWind(scene: Scene): void {
  * `bendHeight` is LOCAL-space height. The thin-instance matrix and any parent scaling are applied
  * later in `finalWorld`, so one value per material is correct across instances of different sizes.
  *
+ * `amplitude` is the per-sine scale fed into the shader's gust envelope, in WORLD units — NOT the peak
+ * displacement. The envelope `sin(x) + 0.5*sin(2.3x + 1.7)` peaks at ~1.4999, so a fully-bent tip moves
+ * about 1.5x `amplitude`. It is a per-material argument rather than one shared constant because wind is
+ * a property of the air (spec §3c: every surface is pushed the same world distance, not scaled by its
+ * own size) — but "the same world distance" cannot be one number for both a 0.22-unit flower and a
+ * 6-unit tree, so each call site picks the value for its own surface:
+ * - grass (`scatter.ts`, 0.5-unit card): 0.06 — peak ~0.09, ~18% of the card's height (~26% on the
+ *   smallest 0.7-scaled tufts).
+ * - wildflowers (`scatter.ts`, 0.22-unit card): 0.06 — peak ~0.09, ~41% of the card's height.
+ * - trees (`trees.ts`, ~6-unit canopy): 0.6 — a STARTING value, not a tuned one. It puts the peak
+ *   displacement at ~0.9, ~15% of tree height, in the same proportional range as the grass, chosen
+ *   because trees are the one surface the DoD names by name ("grass and trees sway with wind") and a
+ *   world-space constant here would have left them at ~1.5% and effectively still. The browser pass
+ *   must tune all three; grass and flowers keep today's 0.06 so nothing about their motion changes.
+ *
  * NOT replicated into the shadow map, and it cannot be: `shadowMap.vertex` exposes only
  * `CUSTOM_VERTEX_DEFINITIONS` — there is no injection point between `positionUpdated` and `worldPos`
  * on that path. Grass and flowers do not cast, so they are unaffected; trees do (spec §3e, Task 2).
  */
-export function applyWind(material: Material, bendHeight: number): void {
-  new WindPlugin(material, bendHeight);
+export function applyWind(material: Material, bendHeight: number, amplitude: number): void {
+  new WindPlugin(material, bendHeight, amplitude);
 }
 
 class WindPlugin extends MaterialPluginBase {
   private readonly bendHeight: number;
+  private readonly amplitude: number;
 
-  constructor(material: Material, bendHeight: number) {
+  constructor(material: Material, bendHeight: number, amplitude: number) {
     // Priority 200: after Babylon's own built-in plugins, which sit well below 200.
     super(material, 'Wind', 200, { WIND: true });
     this.bendHeight = bendHeight;
+    this.amplitude = amplitude;
     // The plugin carries no toggleable property of its own, so it has to be enabled explicitly.
     this._enable(true);
   }
@@ -97,8 +110,8 @@ uniform vec2 windBend;
   }
 
   bindForSubMesh(uniformBuffer: UniformBuffer): void {
-    uniformBuffer.updateFloat4('windPhase', WIND_DIR_X, WIND_DIR_Z, SPATIAL_FREQ, field.time * SPEED);
-    uniformBuffer.updateFloat2('windBend', AMPLITUDE, this.bendHeight);
+    uniformBuffer.updateFloat4('windPhase', WIND_DIRECTION_X, WIND_DIRECTION_Z, SPATIAL_FREQ, field.time * SPEED);
+    uniformBuffer.updateFloat2('windBend', this.amplitude, this.bendHeight);
   }
 
   getCustomCode(shaderType: string) {

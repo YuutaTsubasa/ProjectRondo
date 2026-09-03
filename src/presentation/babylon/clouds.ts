@@ -1,28 +1,35 @@
 import type { Scene } from '@babylonjs/core/scene';
 import { CreateSphere } from '@babylonjs/core/Meshes/Builders/sphereBuilder';
 import { Mesh } from '@babylonjs/core/Meshes/mesh';
+import { Quaternion, Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
 // Side-effect: registers the StandardMaterial shader (tree-shaken deep imports need this).
 import '@babylonjs/core/Materials/standardMaterial';
 import { DynamicTexture } from '@babylonjs/core/Materials/Textures/dynamicTexture';
 import { Texture } from '@babylonjs/core/Materials/Textures/texture';
 import { rng } from '../../domain/math/rng';
+import { WIND_DIRECTION_X, WIND_DIRECTION_Z } from '../../domain/hub/windDirection';
+import { windTime } from './wind';
 
 /** Just inside `environment.ts`'s 1000-diameter skydome, so the clouds are in front of the gradient
  *  and behind everything else. Both are `infiniteDistance`, so neither has a real position. */
 const DOME_DIAMETER = 900;
 
-/** Texture widths of drift per second. Small: clouds that visibly race read as a timelapse. Tuned in
- *  the browser (Step 7). */
-const DRIFT_SPEED = 0.004;
+/** Radians of dome rotation per second about the drift axis (see `createClouds`) — roughly the old
+ *  `uOffset` scroll's apparent speed (0.004 texture-widths/s * 2*PI). UNTUNED: pick the real rate in
+ *  the browser (Step 7); small values matter because clouds that visibly race read as a timelapse. */
+const DRIFT_RATE = 0.025;
 
-/** Peak alpha of a cloud's centre. Above ~0.7 the layer stops reading as cloud and starts reading as
- *  a painted ceiling. */
+/** Peak alpha of a single blob's centre. NOT the layer's ceiling: 40 blobs are drawn `source-over`
+ *  into one canvas, so two overlapping centres already composite to 0.55 + 0.55*(1-0.55) = 0.80, and
+ *  denser clusters go higher still. Above ~0.7 in the composited result the layer stops reading as
+ *  cloud and starts reading as a painted ceiling — 0.55 keeps a single blob well under that, but says
+ *  nothing about what clusters do. */
 const CLOUD_ALPHA = 0.55;
 
 /**
- * A drifting cloud layer: a second inward-facing dome carrying a procedurally drawn alpha texture
- * that scrolls in u.
+ * A drifting cloud layer: a second inward-facing dome carrying a procedurally drawn alpha texture,
+ * rotated about a HORIZONTAL axis so the cloud band travels along the wind's bearing.
  *
  * `fogEnabled = false` and `infiniteDistance = true` for the same reason `environment.ts` records for
  * the skydome: at this distance scene fog would flatten the whole thing into a sheet of fog colour.
@@ -33,6 +40,7 @@ export function createClouds(scene: Scene): void {
   const dome = CreateSphere('clouds', { diameter: DOME_DIAMETER, segments: 24, sideOrientation: Mesh.BACKSIDE }, scene);
   dome.infiniteDistance = true;
   dome.isPickable = false;
+  dome.rotationQuaternion = Quaternion.Identity();
 
   const mat = new StandardMaterial('cloudMat', scene);
   mat.disableLighting = true;
@@ -45,14 +53,16 @@ export function createClouds(scene: Scene): void {
   mat.opacityTexture = tex;
   dome.material = mat;
 
-  // Drift from the same clock as the grass. `uOffset` is in texture widths, so it wraps naturally as
-  // long as the texture tiles in u — which `cloudTexture` is drawn to do.
-  //
-  // Which SIGN sends the clouds the same way the grass leans is a property of how the sphere's UVs
-  // wrap against WIND_DIR_*, not something worth deriving on paper. Confirm it in the browser
-  // (Step 7) and negate DRIFT_SPEED if they cross.
+  // Rotating the dome about Y (what scrolling `tex.uOffset` amounts to, since u is the sphere's
+  // azimuth) is a spin, not a drift: it has no single bearing, so it only agrees with the wind
+  // direction from two viewing azimuths and is perpendicular to it from the other two. Rotating about
+  // the HORIZONTAL axis perpendicular to the wind instead makes every point on the dome travel along
+  // the wind's bearing, from any viewing angle. For a unit-length wind direction (dx, dz) in the XZ
+  // plane, that axis is (dz, 0, -dx) — already unit length, and perpendicular to (dx, 0, dz) by
+  // construction (their dot product is dz*dx + 0 + (-dx)*dz = 0).
+  const driftAxis = new Vector3(WIND_DIRECTION_Z, 0, -WIND_DIRECTION_X);
   scene.onBeforeRenderObservable.add(() => {
-    tex.uOffset += (DRIFT_SPEED * scene.getEngine().getDeltaTime()) / 1000;
+    Quaternion.RotationAxisToRef(driftAxis, windTime() * DRIFT_RATE, dome.rotationQuaternion!);
   });
 }
 

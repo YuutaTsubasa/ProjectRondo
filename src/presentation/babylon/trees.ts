@@ -73,6 +73,12 @@ const TREE_EMISSIVE = new Color3(0.141, 0.24, 0.085);
 const TRUNK_RADIUS = 0.5;
 const TRUNK_HEIGHT = 4;
 
+/** Wind amplitude for tree canopies, in WORLD units — see `applyWind`'s doc comment. A STARTING value
+ *  scaled for the tree's ~6-unit world height (BASE_SCALE), not a tuned one: it puts the canopy's
+ *  proportional lean in the same range as the grass instead of the ~1.5% a shared grass-scale constant
+ *  would give a tree. The browser pass must tune this. */
+const TREE_WIND_AMPLITUDE = 0.6;
+
 /** Fixed scatter: [x, z, yawRadians, scale]. Spread across the enlarged 100×100 field (out to ±36);
  *  the centre (~radius 5) is left clear so no tree spawns on the player's spawn point. */
 const SPOTS: readonly [number, number, number, number][] = [
@@ -167,7 +173,7 @@ function retargetMaterials(scene: Scene, container: AssetContainer): void {
   for (const [mat, height] of bendHeights) {
     // A non-positive extent means the mesh sits entirely at or below its own origin; dividing by it
     // in the shader would be a divide-by-zero or an inverted weight. Skip rather than sway wrongly.
-    if (height > 0) applyWind(mat, height);
+    if (height > 0) applyWind(mat, height, TREE_WIND_AMPLITUDE);
   }
 
   container.materials = container.materials.map((m) => replacements.get(m) ?? m);

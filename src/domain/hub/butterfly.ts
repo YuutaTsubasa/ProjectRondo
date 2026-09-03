@@ -1,3 +1,5 @@
+import { WIND_DIRECTION_X, WIND_DIRECTION_Z } from './windDirection';
+
 /**
  * A butterfly's position and wingbeat at a moment in time, as plain data — pure and engine-agnostic,
  * the same way `waterBody.ts` is. `butterflies.ts` turns it into billboards.
@@ -38,12 +40,6 @@ export const MAX_SPEED = 4;
 const HOME_MAX = 24;
 /** Half-extent of the wander loop around home, per axis. */
 const WANDER = 3.5;
-
-/** Wind direction, matching `wind.ts`'s WIND_DIR_X / WIND_DIR_Z. Re-declared rather than imported:
- *  the domain may not import from `src/presentation/`. The two are kept in step by hand — if the wind
- *  direction changes there, change it here, or the butterflies will drift across the gusts. */
-const WIND_X = 0.8;
-const WIND_Z = 0.6;
 
 /** How much longer the wander loop is along the wind than across it. Elongating the loop is what makes
  *  the butterflies read as going *with* the weather; an actual translating drift would leave the field
@@ -90,8 +86,8 @@ export const butterflyAt = (seed: number, t: number): ButterflySample => {
   // proof, whereas shrinking leaves both axes bounded by WANDER and still gives a 1.6:1 loop.
   const alongU = wanderU;
   const acrossV = wanderV / WIND_STRETCH;
-  const x = homeX + alongU * WIND_X - acrossV * WIND_Z;
-  const z = homeZ + alongU * WIND_Z + acrossV * WIND_X;
+  const x = homeX + alongU * WIND_DIRECTION_X - acrossV * WIND_DIRECTION_Z;
+  const z = homeZ + alongU * WIND_DIRECTION_Z + acrossV * WIND_DIRECTION_X;
 
   const midHeight = (MIN_HEIGHT + MAX_HEIGHT) / 2;
   const heightSwing = (MAX_HEIGHT - MIN_HEIGHT) / 2;

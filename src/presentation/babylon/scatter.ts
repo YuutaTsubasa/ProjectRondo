@@ -215,6 +215,10 @@ const FLOWER_CARD_SIZE = 0.22;
 
 const ROCK_COLLIDER_MIN_SCALE = 0.75; // only the biggest rocks (top ~quarter) block the player
 
+/** Wind amplitude for grass and flowers, in WORLD units — see `applyWind`'s doc comment for what this
+ *  scale means and why it differs from the trees' value. */
+const SCATTER_WIND_AMPLITUDE = 0.06;
+
 /** Invisible static sphere colliders for the large rocks only, and only where the player can reach
  *  (inside EDGE_RADIUS — rocks on the unwalkable barrier slope render but need no collider). Rendering
  *  stays a single thin-instance draw call; these decoupled bodies just stop the player at the big rocks. */
@@ -236,12 +240,12 @@ export function createGroundScatter(scene: Scene, shadows: Shadows): void {
   const grassMat = grassMaterial(scene);
   const grass = crossCard(scene, 'grassTuft', GRASS_CARD_SIZE, 3, grassMat);
   grass.thinInstanceSetBuffer('matrix', scatterMatrices({ count: 16000, seed: 1, y: 0, minScale: 0.7, maxScale: 1.3 }).buffer, 16);
-  applyWind(grassMat, GRASS_CARD_SIZE);
+  applyWind(grassMat, GRASS_CARD_SIZE, SCATTER_WIND_AMPLITUDE);
 
   const flowerMat = flowerMaterial(scene);
   const flowers = crossCard(scene, 'wildflower', FLOWER_CARD_SIZE, 2, flowerMat);
   flowers.thinInstanceSetBuffer('matrix', scatterMatrices({ count: 1600, seed: 2, y: 0, minScale: 0.7, maxScale: 1.2 }).buffer, 16);
-  applyWind(flowerMat, FLOWER_CARD_SIZE);
+  applyWind(flowerMat, FLOWER_CARD_SIZE, SCATTER_WIND_AMPLITUDE);
 
   const rockScatter = scatterMatrices({ count: 200, seed: 3, y: -0.05, minScale: 0.3, maxScale: 0.9 });
   const rock = rockMesh(scene);
