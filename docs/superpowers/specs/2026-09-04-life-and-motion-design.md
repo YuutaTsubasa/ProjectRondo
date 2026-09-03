@@ -47,13 +47,22 @@ meshes cost 1.73 ms.
 
 Three routes were considered.
 
-1. **`MaterialPluginBase`, injecting into the existing materials.** Chosen. Grass and flowers keep
-   their `StandardMaterial` alpha-test setup, trees keep the PBR material P2 rebuilt them onto, and
-   both keep fog, shadow *receiving*, and thin instancing without any of it being re-derived.
-2. **`NodeMaterial`.** Rejected. It replaces the material wholesale, so every property those two files
+1. **`MaterialPluginBase`, injecting into the existing materials.** Chosen. Every swaying surface
+   keeps the material it already has, along with fog, shadow *receiving* and thin instancing, none of
+   it re-derived.
+
+   **All three are `StandardMaterial`.** Grass and flowers are alpha-test cross cards built that way
+   from the start; the trees only *look* like the exception. P2 moved them **off** PBR and rebuilt them
+   as `StandardMaterial` over the same albedo texture, because PBR mixes fog in linear space and they
+   bleached to grey while the grass beside them did not — `trees.ts`'s block comment on
+   `TREE_TEXTURE_LEVEL` is the measured record. So one plugin against one shader covers the whole
+   phase. (An earlier draft of this spec had the trees on PBR, from misreading HANDOFF's "trees rebuilt
+   off PBR" as "onto PBR". Corrected here before any code was written.)
+2. **`NodeMaterial`.** Rejected. It replaces the material wholesale, so every property those files
    carefully set — `transparencyMode = MATERIAL_ALPHATEST`, `useAlphaFromDiffuseTexture`,
-   `backFaceCulling = false`, the PBR work from P2 — has to be rebuilt inside the graph and kept in
-   sync by hand. It buys nothing here; the displacement is a few lines of arithmetic.
+   `backFaceCulling = false`, and the whole PBR-to-Standard conversion P2 measured its way to — has to
+   be rebuilt inside the graph and kept in sync by hand. It buys nothing here; the displacement is a
+   few lines of arithmetic.
 3. **CPU-side matrix updates.** Rejected on sight: 16 000 grass matrices rewritten per frame, against a
    whole-frame budget of 16.7 ms.
 
@@ -61,8 +70,10 @@ Three routes were considered.
 
 Read out of `node_modules/@babylonjs/core/Shaders/` rather than recalled:
 
-- `default.vertex` (grass, flowers) and `pbr.vertex` (trees) expose the **same** hook set, including
-  `CUSTOM_VERTEX_UPDATE_POSITION` and `CUSTOM_VERTEX_UPDATE_WORLDPOS`.
+- `default.vertex` — the shader **all three** swaying materials compile to (§3a) — exposes
+  `CUSTOM_VERTEX_UPDATE_POSITION` and `CUSTOM_VERTEX_UPDATE_WORLDPOS`. `pbr.vertex` exposes the same
+  set, so nothing here would have to change if a PBR surface ever needs to sway, but no surface in P4
+  is one.
 - `CUSTOM_VERTEX_UPDATE_POSITION` sits **before** `#include<instancesVertex>`, so `finalWorld` does not
   exist yet there — a thin instance's world position is unavailable, and every instance would sway in
   the same phase. It is the wrong hook.
@@ -90,8 +101,16 @@ At the hook, per vertex:
 `bendHeight` is per-material, and **must be read, not hard-coded**. Grass and flower cards are built by
 `crossCard` with their base baked to y=0, so their heights are their `size` arguments exactly — 0.5 and
 0.22 (`scatter.ts`). The tree canopy's height is a property of `tree.glb` and has to come from the
-loaded mesh's bounding box at load time; a guessed constant there produces either no visible sway or a
-canopy that shears off its trunk.
+container meshes' bounding boxes at load time; a guessed constant there produces either no visible sway
+or a canopy that shears off its trunk.
+
+Two scale interactions, both deliberate. `positionUpdated` is **local** space — the thin-instance
+matrix and the per-tree `root.scaling` are both applied later, in `finalWorld` — so a single
+`bendHeight` per material is correct across instances of different sizes, and `tree.glb`'s
+~1-unit-tall normalisation is what `bendHeight` measures, not the 6x `BASE_SCALE` a tree ends up at.
+The displacement itself is in **world** units, so every tuft and every tree tip travels the same
+distance regardless of its own scale. That is the right way round: wind is a property of the air, not
+of the plant.
 
 ### 3d. Ownership and time
 
