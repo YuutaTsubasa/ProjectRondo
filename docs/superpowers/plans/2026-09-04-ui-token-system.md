@@ -20,7 +20,9 @@
 - Fonts are self-hosted from the app origin. **No CDN links** — the app is CSP-constrained.
 - `--font-headline` and `--font-ui` must carry `'Noto Sans TC'` in their fallback stacks: Poppins and JetBrains Mono have no CJK coverage, and speaker names are Chinese.
 - Box-shadows stay `rgba(0, 0, 0, ...)` and are not tokenised (the spec's 4c names exactly three surface tokens). Their alpha is lowered where a panel flips light, because a shadow tuned for a dark panel reads as dirt under a pale one.
-- Run `pnpm test` after every task. 131 tests pass on the branch point; the count only ever grows.
+- Run `pnpm test` after every task. 131 tests pass on the branch point. The count grows with every
+  task except Task 8, which deliberately collapses six named cases into two and so drops it from
+  143 to 139. Every task states its expected count.
 
 ---
 
@@ -309,10 +311,13 @@ grep -c fontsource package.json || echo "clean"
 
 - [ ] **Step 4: Replace the two `@font-face` blocks**
 
-`src/app/fonts.css` opens with a comment and the Chakra Petch and Archivo blocks — lines 1 to 21. Everything from the Noto Sans TC comment onwards is correct and stays. Replace the head of the file:
+`src/app/fonts.css` opens with a comment and the Chakra Petch and Archivo blocks — **lines 1 to 19**.
+Line 20 is blank and line 21 begins the Noto Sans TC comment, so the deletion stops at 19: taking
+21 would orphan that comment and its stray `*/` would swallow the first Noto `@font-face`.
+Everything from line 20 onwards is correct and stays. Replace the head of the file:
 
 ```bash
-sed -i '1,21d' src/app/fonts.css
+sed -i '1,19d' src/app/fonts.css
 cat > /tmp/fonts-head.css <<'CSSEOF'
 /*
  * Self-hosted design fonts (CSP-safe: served from the app origin, no external CDN).
@@ -482,7 +487,8 @@ pnpm vitest run tests/presentation/dialogueTokens.test.ts
 ```
 
 Expected: FAIL, with the received array showing the four literals in `Nameplate.svelte` —
-`['#d8ff00', '#eef0f2', '#0000ff', '#0b0b0d']`.
+`['#d8ff00', '#eef0f2', '#0000ff', '#0b0b0d', '#0000ff']` — five, not four: `#0000ff` is used
+twice, on `.rail` and on `.tick`.
 
 - [ ] **Step 3: Convert the component**
 
