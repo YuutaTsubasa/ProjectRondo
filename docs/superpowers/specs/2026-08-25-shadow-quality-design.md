@@ -162,11 +162,14 @@ physics, terrain or the player controller. `createAtmosphere` stays after the ca
 
 ### 4d. Call sites
 
-`knight.ts`, `trees.ts` and `landmark.ts` swap `shadowGenerator?: ShadowGenerator` for
-`shadows?: Shadows` and call `shadows.cast(mesh)` in place of `addShadowCaster(mesh)`, plus
+`knight.ts`, `trees.ts`, `landmark.ts` and `scatter.ts` swap `shadowGenerator?: ShadowGenerator` for
+`shadows: Shadows` and call `shadows.cast(mesh)` in place of `addShadowCaster(mesh)`, plus
 `shadows.receive(...)` where they own receiving geometry. `terrain.ts:125` drops its own
-`receiveShadows = true`; the terrain is registered via `shadows.receive(terrain)` in `hubScene.ts`
-so the whole policy reads in one place.
+`receiveShadows = true`; the terrain is registered via `shadows.receive(terrain)` in `hubScene.ts`.
+`shadows.ts` itself holds no policy — it is the shared mechanism; who casts and who receives stays
+authored per module. Shipped with `shadows` required rather than optional: `hubScene.ts` is the only
+caller of any of these functions and always supplies one, so leaving it optional bought call sites
+that would silently ship with no shadows. See the plan's "Deviations from the spec" note.
 
 ### 4e. Cascade configuration
 
@@ -269,6 +272,10 @@ becomes a pure predicate exported from `knight.ts`:
 ```ts
 export function knightReceivesShadow(meshName: string): boolean;  // !HEAD_MESHES.includes(meshName)
 ```
+
+Shipped as `knightReceivesShadow` exported from `shadowPolicy.ts`, not `knight.ts` — `knight.ts`
+imports Babylon and cannot load in the node test env; see the plan's "Deviations from the spec"
+note.
 
 Covering: each of the three head meshes returns `false`; a `tripo_part_*` name returns `true`; and
 the predicate stays in sync with `HEAD_MESHES` so the two cannot drift apart.

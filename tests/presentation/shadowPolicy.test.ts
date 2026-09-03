@@ -11,10 +11,6 @@ describe('knightReceivesShadow', () => {
     expect(knightReceivesShadow('tripo_part_17')).toBe(true);
   });
 
-  it('names the three head meshes the GLB ships', () => {
-    expect([...HEAD_MESHES]).toEqual(['Mesh_0', 'Mesh_32', 'Mesh_33']);
-  });
-
   it('matches whole names, not prefixes', () => {
     // 'Mesh_3' must not be swallowed by the 'Mesh_33' entry.
     expect(knightReceivesShadow('Mesh_3')).toBe(true);

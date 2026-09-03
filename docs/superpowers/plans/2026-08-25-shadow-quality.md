@@ -1,10 +1,12 @@
 # Shadow Quality Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+>
+> **Status: shipped.** This plan is the historical record of what was scoped, not a description of the final state — several thresholds and code snippets below were superseded during implementation (see "Deviations from the spec" and the acceptance-threshold table's footnote). Do not execute this plan against a codebase that already has shadow quality merged; read `docs/superpowers/specs/2026-08-25-shadow-quality-design.md` §7 for what actually shipped first.
 
 **Goal:** Make the hub render shadows at all, then make the knight's shadow legible on the ground — sharp near the camera, present at distance, with the body self-shadowing and the face not.
 
-**Architecture:** A new `shadows.ts` owns a `CascadedShadowGenerator` (single-map `ShadowGenerator` fallback on WebGL1) behind a two-method `Shadows` interface, `cast()` and `receive()`. Every world module registers through it, so the cast/receive policy reads in one place instead of being scattered across five files. A second new module, `shadowPolicy.ts`, holds the Babylon-free head/body split so it can be unit-tested in the node env.
+**Architecture:** A new `shadows.ts` owns a `CascadedShadowGenerator` (single-map `ShadowGenerator` fallback on WebGL1) behind a two-method `Shadows` interface, `cast()` and `receive()`. It is the shared mechanism every world module calls into — `shadows.ts` holds no policy of its own; who casts and who receives stays authored per module (`knight.ts`, `trees.ts`, `landmark.ts`, `scatter.ts`, and the terrain call in `hubScene.ts`). A second new module, `shadowPolicy.ts`, holds the Babylon-free head/body split so it can be unit-tested in the node env.
 
 **Tech Stack:** TypeScript (strict, `verbatimModuleSyntax`), Babylon.js 9.21.0 deep tree-shaken imports, Vitest (`environment: 'node'`), pnpm.
 
@@ -49,6 +51,8 @@
 
 1. **§4a signature.** The spec wrote `createShadows(scene, sun, camera)`. `scene` is never used — the generator reaches the scene through the light. Dropped: `createShadows(sun, camera)`.
 2. **§6 predicate location.** The spec put `knightReceivesShadow` in `knight.ts`. That file imports Babylon, so it cannot load in the node test env. The predicate *and* `HEAD_MESHES` move to the Babylon-free `shadowPolicy.ts`, and `knight.ts` imports the list from there. This also satisfies the spec's "cannot drift apart" requirement structurally rather than by test.
+3. **`shadows` is required, not optional.** `createGroundScatter`, `createLandmark`, `loadTrees` and `loadKnight` all take `shadows: Shadows`, not `shadows?: Shadows`. `hubScene.ts` is the only caller of any of them and always supplies one; an optional parameter bought call sites that would silently ship a no-shadows scene — the exact failure class this branch exists to fix — for no benefit.
+4. **"Policy reads in one place" (§4d) does not describe what shipped.** `shadows.ts` holds the generator and the two verbs; it holds no policy. Who casts and who receives is still authored per module, same as before this branch, just through a shared interface instead of a shared `ShadowGenerator` reference.
 
 ---
 
@@ -137,10 +141,12 @@ window.__fpsAB = (rounds = 20, framesPer = 40, warmup = 10) => {
 
 | # | Check | Threshold |
 |---|---|---|
-| 1 | Knight ground shadow present | `shadowPixels` ≥ 2000, and `controlPixels` === 0 |
+| 1 | Knight ground shadow present | ~~`shadowPixels` ≥ 2000~~ — invented, unphysical; retracted and replaced with reproducibility-based criteria (spec §5b) |
 | 2 | No shadow acne | `shadowPixels` < 922 (0.1% of frame) when aimed at open ground with no caster in view |
 | 3 | Tint did not brighten the scene | `frame.mean` within ±5% of the pre-change value; `frame.crushedPct` not higher |
-| 4 | Perf | `costMs` < 1.5 |
+| 4 | Perf | ~~`costMs` < 1.5~~ — unmeasured, not passed; every sample on this branch was taken through a hidden, GPU-throttled Browser pane (spec §7, "Task 6 — performance") |
+
+Thresholds 1 and 4 are shown struck through as originally scoped; both were retracted during implementation rather than met. See spec §5b and §7 for the corrected criteria and the full measured record.
 
 ---
 
@@ -600,6 +606,11 @@ and add as the last statement of the function body:
   // cascade is the most expensive option on the table and reads as speckle noise, not foliage.
   shadows?.receive(grass, flowers, rock, bush);
 ```
+
+Superseded by Task 7 (spec §7, not a task in this file): rock and bush were measured to cast cheaply
+and read as intended contact shadows, so the shipped function also calls `shadows.cast(rock, bush)`.
+Grass and flowers stay cast-off for the reason in the comment above. The shipped signature is also
+`shadows: Shadows` (required), not `shadows?: Shadows` — see "Deviations from the spec" note 3.
 
 - [ ] **Step 3: Pass shadows in**
 

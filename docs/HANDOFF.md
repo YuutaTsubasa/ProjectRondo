@@ -146,8 +146,9 @@ scheduled additions). Sequence from here:
    predates the shadow-quality branch and no longer holds** — it adds four 1024² cascades plus ~360
    newly-casting thin instances (rock/bush) whose cost is *unmeasured*: the only session that tried
    to time it ran with the Browser pane hidden, which GPU-throttles the page and invalidated every
-   timing sample taken (see `.superpowers/sdd/2026-08-25-shadow-quality/measurements.md`). Re-measure
-   frame cost with a visible window before P4 spends the remainder.
+   timing sample taken (see `docs/superpowers/specs/2026-08-25-shadow-quality-design.md` §7's "Task 6 —
+   performance" for the retracted figures and why). Re-measure frame cost with a visible window before
+   P4 spends the remainder.
    P3 left `WaterBody` (`src/domain/hub/waterBody.ts`) as the shape P4's shallow-water feedback —
    splashes, slowdown, wet shading — should read, and the plaza's eight pillars are where the
    mode-entrances attach.

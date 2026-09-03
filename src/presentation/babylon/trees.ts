@@ -94,7 +94,7 @@ const SPOTS: readonly [number, number, number, number][] = [
  * The GLB should be texture-optimized offline like the knight (gltf-transform: `resize --width 1024
  * --height 1024` then `webp --quality 80`; trees are static, so geometry `simplify` is also safe here).
  */
-export async function loadTrees(scene: Scene, shadows?: Shadows): Promise<void> {
+export async function loadTrees(scene: Scene, shadows: Shadows): Promise<void> {
   let container;
   try {
     container = await LoadAssetContainerAsync('/models/tree.glb?v=4', scene);
@@ -126,11 +126,9 @@ export async function loadTrees(scene: Scene, shadows?: Shadows): Promise<void> 
     root.scaling.setAll(BASE_SCALE * scale);
     // Trees both cast and catch each other's shadows. `cast`/`receive` skip zero-vertex nodes, so
     // the explicit getTotalVertices guard that used to live here is no longer needed.
-    if (shadows) {
-      const meshes = root.getChildMeshes(false);
-      shadows.cast(...meshes);
-      shadows.receive(...meshes);
-    }
+    const meshes = root.getChildMeshes(false);
+    shadows.cast(...meshes);
+    shadows.receive(...meshes);
   });
 
   // NB: do NOT dispose `container` here. `instantiateModelsToScene(doNotInstantiate)` clones share

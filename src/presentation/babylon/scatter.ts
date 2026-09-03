@@ -235,7 +235,7 @@ function addRockColliders(scene: Scene, placements: Placement[]): void {
 
 /** Scatters procedural ground detail — grass tufts, wildflowers, rocks, and bushes — as one
  *  thin-instanced base mesh per element type (one draw call each). */
-export function createGroundScatter(scene: Scene, shadows?: Shadows): void {
+export function createGroundScatter(scene: Scene, shadows: Shadows): void {
   const grass = crossCard(scene, 'grassTuft', 0.5, 3, grassMaterial(scene));
   grass.thinInstanceSetBuffer('matrix', scatterMatrices({ count: 16000, seed: 1, y: 0, minScale: 0.7, maxScale: 1.3 }).buffer, 16);
 
@@ -255,6 +255,6 @@ export function createGroundScatter(scene: Scene, shadows?: Shadows): void {
   // shadows. Grass and flowers stay cast-off: they are 16 000 + 1 600 alpha-tested cross cards,
   // the most expensive option on the table, and enabling their casting on top changes a further
   // 151 322 px (16.4%) that is mostly speckle noise, not shadow.
-  shadows?.receive(grass, flowers, rock, bush);
-  shadows?.cast(rock, bush);
+  shadows.receive(grass, flowers, rock, bush);
+  shadows.cast(rock, bush);
 }

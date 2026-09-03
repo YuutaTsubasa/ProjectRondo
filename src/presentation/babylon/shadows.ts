@@ -84,14 +84,19 @@ export function createShadows(sun: DirectionalLight, camera: Camera): Shadows {
   generator.normalBias = NORMAL_BIAS;
   generator.setDarkness(DARKNESS);
 
-  // Zero-vertex meshes are boundary walls, collider proxies and glTF __root__ nodes. They would
-  // render nothing into the map but still cost a draw call per cascade.
+  // Zero-vertex meshes are collider proxies and glTF __root__ nodes. They would render nothing
+  // into the map but still cost a draw call per cascade.
   const hasGeometry = (mesh: AbstractMesh) => mesh.getTotalVertices() > 0;
 
   return {
     generator,
+    // `includeDescendants` (addShadowCaster's second arg, default true) would walk each mesh's
+    // children and push them unfiltered — bypassing hasGeometry for any zero-vertex descendant,
+    // and making cast() reach further than receive() for the exact same mesh list. Every caller
+    // already hands cast() a flat, pre-filtered list (knight.ts's result.meshes, trees.ts's
+    // getChildMeshes(false), ...), so disable it: cast() registers exactly what it's given.
     cast: (...meshes) => {
-      for (const mesh of meshes) if (hasGeometry(mesh)) generator.addShadowCaster(mesh);
+      for (const mesh of meshes) if (hasGeometry(mesh)) generator.addShadowCaster(mesh, false);
     },
     receive: (...meshes) => {
       for (const mesh of meshes) if (hasGeometry(mesh)) mesh.receiveShadows = true;

@@ -367,7 +367,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
 export async function loadKnight(
   scene: Scene,
   parent: TransformNode,
-  shadows?: Shadows,
+  shadows: Shadows,
 ): Promise<Knight> {
   // ?v bust: the browser aggressively caches the GLB, so a plain reload keeps serving an old copy.
   // Bump this whenever knight_web.glb is rebuilt so clients refetch it.
@@ -383,10 +383,8 @@ export async function loadKnight(
 
   // The whole knight casts — including the head, so its shadow lands on the ground and the
   // shoulders. Only the body receives; a shadow edge across the face reads badly.
-  if (shadows) {
-    shadows.cast(...result.meshes);
-    shadows.receive(...result.meshes.filter((m) => knightReceivesShadow(m.name)));
-  }
+  shadows.cast(...result.meshes);
+  shadows.receive(...result.meshes.filter((m) => knightReceivesShadow(m.name)));
 
   await applyFaceMaterial(result.meshes);
 

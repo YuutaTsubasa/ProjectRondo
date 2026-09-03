@@ -56,7 +56,7 @@ function stoneMaterial(scene: Scene): StandardMaterial {
  * a 1.3 m platform needs steps or it is an invisible wall, and seating the pillars individually
  * removes the problem instead of solving it.
  */
-export function createLandmark(scene: Scene, shadows?: Shadows): void {
+export function createLandmark(scene: Scene, shadows: Shadows): void {
   const mat = stoneMaterial(scene);
   const crownY = terrainHeight(PLAZA_X, PLAZA_Z) + CROWN_HEIGHT;
 
@@ -76,7 +76,8 @@ export function createLandmark(scene: Scene, shadows?: Shadows): void {
     pillar.material = mat;
     pillar.isPickable = false;
     new PhysicsAggregate(pillar, PhysicsShapeType.CYLINDER, { mass: 0 }, scene);
-    if (shadows) { shadows.cast(pillar); shadows.receive(pillar); }
+    shadows.cast(pillar);
+    shadows.receive(pillar);
   }
 
   const pedestalY = terrainHeight(PLAZA_X, PLAZA_Z);
@@ -89,5 +90,6 @@ export function createLandmark(scene: Scene, shadows?: Shadows): void {
   pedestal.material = mat;
   pedestal.isPickable = false;
   new PhysicsAggregate(pedestal, PhysicsShapeType.CYLINDER, { mass: 0 }, scene);
-  if (shadows) { shadows.cast(pedestal); shadows.receive(pedestal); }
+  shadows.cast(pedestal);
+  shadows.receive(pedestal);
 }
