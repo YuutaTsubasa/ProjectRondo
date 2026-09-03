@@ -336,7 +336,7 @@ changes distinct from `.who` — see 4d's correction below — and all three mov
 `.who` and `.hit:focus-visible`'s outline become `--c-blue-deep`, a darker token added
 specifically to clear 4.5:1 (text) and 3:1 (non-text) everywhere the glass can composite,
 while keeping blue as the speaker-name colour the style sheet specifies. Every other `--c-blue`
-use — rails, ticks, `.head .mark`, the panel border — is a fill, not text, and was unaffected.
+use — the rails, the nameplate tick, and the panel border — is a fill, not text, and was unaffected.
 
 ### Task 9 — one pre-existing contrast failure, not introduced here
 
