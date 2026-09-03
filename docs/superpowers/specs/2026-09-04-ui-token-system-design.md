@@ -117,9 +117,9 @@ built from it, so a test asserts the pairs stay equal.
 ### 4b. Font tokens
 
 ```
---font-headline   Poppins 700/800          new, OFL, self-hosted
+--font-headline   Poppins 700              new, OFL, self-hosted
 --font-body       Noto Sans TC             existing, unchanged
---font-ui         JetBrains Mono 400/700   new, OFL, self-hosted
+--font-ui         JetBrains Mono 400/800   new, OFL, self-hosted
 ```
 
 The style sheet names Nexa Bold, which is commercial. Poppins was chosen from a four-way
@@ -221,7 +221,9 @@ A wrong `src` path falls back to `system-ui` without an error, and the result lo
 
 ### 5d. Byte budget
 
-Chakra Petch and Archivo removed (-24 KB); Poppins 700/800 and JetBrains Mono 400/700 added.
+Chakra Petch and Archivo removed (-24 KB); Poppins 700 and JetBrains Mono 400/800 added.
+The weights are the ones the components declare, not the 700/800 + 400/700 the first draft
+guessed at.
 Estimated net around +45 KB; the actual figure is recorded in section 6 after implementation.
 Noto Sans TC (~2 MB) is untouched.
 
@@ -237,6 +239,12 @@ All 131 existing tests stay green (21 files, measured 2026-09-04).
 ## 6. Measurements
 
 Recorded during implementation.
+
+Task 2 font sizes (measured 2026-09-04, `du -b`): `poppins-700.woff2` 7,816 bytes,
+`jetbrains-mono-400.woff2` 21,168 bytes, `jetbrains-mono-800.woff2` 21,236 bytes (50,220 bytes
+added total). Against the 24,316 bytes removed (`chakra-petch-700.woff2` 9,900 +
+`archivo-800.woff2` 14,416), the net change is +25,904 bytes (~+25.3 KB), not the +45 KB
+estimated in 5d.
 
 ## 7. Follow-ups deliberately left out
 

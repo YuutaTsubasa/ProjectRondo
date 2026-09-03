@@ -1,21 +1,30 @@
 /*
  * Self-hosted design fonts (CSP-safe: served from the app origin, no external CDN).
- * Chakra Petch = nameplate / panel headers, Archivo = uppercase labels & controls,
+ * Poppins = headline (nameplate, panel titles), JetBrains Mono = uppercase UI labels,
  * Noto Sans TC = CJK body text. Files live in /public/fonts (from Fontsource, OFL).
+ * Only the weights the components actually declare are shipped: Poppins 700, JetBrains Mono
+ * 400 and 800. tests/app/fonts.test.ts fails on a file nothing references.
  */
 @font-face {
-  font-family: 'Chakra Petch';
+  font-family: 'Poppins';
   font-style: normal;
   font-weight: 700;
   font-display: swap;
-  src: url('/fonts/chakra-petch-700.woff2') format('woff2');
+  src: url('/fonts/poppins-700.woff2') format('woff2');
 }
 @font-face {
-  font-family: 'Archivo';
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/jetbrains-mono-400.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'JetBrains Mono';
   font-style: normal;
   font-weight: 800;
   font-display: swap;
-  src: url('/fonts/archivo-800.woff2') format('woff2');
+  src: url('/fonts/jetbrains-mono-800.woff2') format('woff2');
 }
 
 /* Noto Sans TC: the Traditional-Chinese subset (default range) plus a small Latin
