@@ -91,7 +91,16 @@ shipped file** — no metallic or roughness source texture is committed alongsid
 `Material_Diffuse.jpg` / `Material_Normal.jpg` in
 `__prototype__/Assets/Characters/MedievalKnight/knight.fbm/`, so there is nothing in the repo to
 recover the original invocation from. Given the source roughness and metallic textures (same UV
-layout, same resolution as each other), pack and encode them with the `sharp` already pinned above:
+layout, same resolution as each other), pack and encode them with `sharp`. It is not a dependency of
+this repo — `package.json` declares none, and `pnpm-lock.yaml` only resolves `sharp@0.35.3`
+transitively, as a build dependency of something else — so install it directly for this script, pinned
+away from `0.35.x`: that version throws `colourspace: parameter space not set` on `.toColourspace(…)`,
+this recipe's first call (the same failure the toolchain note below hits with `gltf-transform`'s
+transitive `sharp`, and the same fix):
+
+```bash
+npm install sharp@0.34.5
+```
 
 ```js
 // pack-mr.js: node pack-mr.js roughness.png metallic.png public/models/knight_mr.webp

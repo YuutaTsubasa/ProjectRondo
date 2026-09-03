@@ -114,9 +114,13 @@ const IDLE_SWAY_KEEP = 0.2;
  * current head before trusting the numbers, and note the constant itself may want retuning once that's
  * done.
  *
- * Known and accepted: the face mesh carries the hair too, so the hair lifts from near-black to a warm
- * brown. Isolating the skin would need a mask texture or a Blender split, and the lift reads as an
- * improvement.
+ * Previously described here as inseparable from the hair — that was wrong. `shadowPolicy.ts` (`HEAD_MESHES`)
+ * establishes that `Mesh_1` is hair only (no face, no neck, no skin) and `Mesh_20` is the face/head
+ * skin: they are already separate meshes, both listed separately in `HEAD_MESHES`, both put on the
+ * same emissive clone by `swapHeadMaterial` below. So the hair lift (near-black to a warm brown) and
+ * the face lift are two separate meshes on one shared material, not one mesh carrying both — they
+ * could be tuned independently (e.g. a second, hair-only material) if that were ever wanted. Left as
+ * one shared `FACE_EMISSIVE` for now; the lift on the hair reads as an improvement, not a defect.
  */
 const FACE_EMISSIVE = 0.45;
 
@@ -179,6 +183,12 @@ const BODY_DIRECT_INTENSITY = 1.6;
  * flat matte. The map is packed glTF-style (roughness in G, metallic in B) from the source PBR set.
  * Runs *after* {@link applyFaceMaterial}, so the head's toon clone — cloned before this — keeps a
  * non-metallic, unlit face. The whole body shares one material, so setting it once covers every mesh.
+ *
+ * That head/body split only holds while `applyFaceMaterial` actually swapped the clone in.
+ * `applyFaceMaterial` is deliberately warn-and-skip and returns without swapping from several guard
+ * points, and this function excludes the head only *by name* — so on any of those paths the head
+ * meshes are still sitting on the very material this function is about to make metallic and
+ * light-tracking. Detected below and skipped rather than silently making the face metallic.
  */
 function applyBodyPbr(meshes: readonly AbstractMesh[], scene: Scene): void {
   const body = meshes.filter((m) => !HEAD_MESHES.includes(m.name) && m.material);
@@ -209,79 +219,126 @@ function applyBodyPbr(meshes: readonly AbstractMesh[], scene: Scene): void {
     );
     return;
   }
-  const mr = new Texture(BODY_MR_URL, scene, false, false);
-  // `Texture` defaults to `isBlocking = true`, which makes `PBRBaseMaterial.isReadyForSubMesh` return
-  // false — and every body submesh skipped by `Mesh.render` — for as long as this webp is still
-  // downloading, so the knight would render as a floating head until it lands. Non-blocking lets the
-  // body render on the shared material's current state (matte) immediately and pick up the map once it
-  // arrives, the same "never render as nothing" guarantee `FACE_COMPILE_TIMEOUT_MS` protects on the head.
-  mr.isBlocking = false;
-  // The GLB's own metallicTexture/metallic/roughness are overwritten below with no fallback. Today's
-  // GLB ships flat factors and no metallicTexture, so nothing is lost — but the source FBX *does* carry
-  // metallic and roughness maps (see the README's regeneration recipe), so getting them into the GLB
-  // directly is the obvious next step for this pipeline; the day that happens, this would silently
-  // paint the separately-versioned `knight_mr.webp` sidecar over a correct, co-versioned map. Warn, in
-  // the same spirit as the head path's emissiveFactor/emissiveTexture/emissiveIntensity guards.
-  if (source.metallicTexture) {
+  // `body` was filtered by name, which only proves the head *meshes* aren't in it — not that the head
+  // is off `source`. `applyFaceMaterial` warn-and-skips from seven different guard points (name-count
+  // mismatch, no material, split head materials, no albedoTexture, `clone()` returning null, a clone
+  // without an albedoTexture, or a compile failure that rolls the head back to `source`), and on every
+  // one of them the head meshes are still on this exact material object. Applying `metallic = 0.6`,
+  // `directIntensity = 1.6` and unculled two-sided lighting to it would make the face metallic and
+  // light-tracking — a worse outcome than the matte face `applyFaceMaterial`'s own doc promises when it
+  // skips. Detect that by identity, not by name, and skip loudly instead.
+  if (meshes.some((m) => HEAD_MESHES.includes(m.name) && m.material === source)) {
     console.warn(
-      `[knight] '${source.name}' already ships a metallicTexture. It is discarded: applyBodyPbr replaces it with ${BODY_MR_URL}.`,
+      `[knight] head meshes are still on '${source.name}' — face lighting must not have swapped its clone in. PBR skipped rather than making the face metallic too.`,
     );
+    return;
   }
-  source.metallicTexture = mr;
-  source.useRoughnessFromMetallicTextureGreen = true;
-  source.useMetallnessFromMetallicTextureBlue = true;
-  // Babylon reads roughness from the metallic texture's ALPHA channel by default, and alpha takes
-  // precedence over green — so setting Green alone does nothing. The packed map is fully opaque
-  // (alpha 255 everywhere, verified by reading it back), which pinned roughness at 1.0 and discarded
-  // the 0.25-0.6 the G channel actually carries. Turning this off is what lets the packing take effect.
-  source.useRoughnessFromMetallicTextureAlpha = false;
-  source.metallic = BODY_METALLIC;
-  source.roughness = 1;
-  source.directIntensity = BODY_DIRECT_INTENSITY;
-  // The armour is a stack of single-sided shells that do not quite meet — most visibly where the
-  // upper arm passes the torso. Back-face culling removes the far shell's inward-facing triangles,
-  // so those seams showed the scene straight through the character rather than the armour's inside.
-  // Measured against the knight's true silhouette (taken with culling off, so gaps are inside it,
-  // scene frozen, zero reproducibility control): 107 of 53 245 silhouette pixels read as background
-  // with culling on, 0 with it off, and every camera angle tried showed the same (241-497 px on,
-  // 0 off). Only the body needs this — leaving the face culled measures identically at 0, and the
-  // head is a closed mesh that gains nothing from the extra fragments.
+  // Every mutation below is applied together, and only once BODY_MR_URL has actually finished
+  // loading — inside the `onLoad` callback. The previous shape of this function set
+  // `metallic`/`roughness`/the sampler eagerly, before the fetch could possibly have completed, on
+  // the theory that non-blocking would leave the body rendering on "the shared material's current
+  // state (matte)" in the meantime. That is not what actually happens: Babylon's `_setTexture`
+  // substitutes its zero-filled `emptyTexture` for any sampler that is not ready, and
+  // `pbrBlockReflectivity` then computes `metallicRoughness.r *= map.b` and `.g *= map.g` against
+  // that all-zero texture, so both resolve to 0 — fully dielectric at roughness 0, a hard
+  // pinpoint-specular "plastic" look, the opposite end of the range from matte. The same substitution
+  // is also what a *failed* fetch leaves in place forever, silently. Measured on the knight's own
+  // pixels by pointing this texture at a URL that 404s:
   //
-  // This also reaches the shadow map, not just the camera pass: `ShadowGenerator._renderSubMeshForShadowMap`
-  // passes the material's own `backFaceCulling` straight through, so turning it off here turns
-  // culling off for all four CSM cascade renders too, and these 43 meshes both cast and receive.
-  // Measured the consequence directly (same frozen frame, 70 436 knight pixels, zero
-  // reproducibility control), body culled vs. unculled:
+  // | state | mean luma | pixels above 150 |
+  // | --- | --- | --- |
+  // | map loaded | 85.0 | 1.32% |
+  // | failed fetch (emptyTexture) | 104.2 | 31.17% |
   //
-  // | | body culled | body unculled | delta |
-  // | --- | --- | --- | --- |
-  // | `scene.shadowsEnabled = true` | 53.5 mean luma, 30.68% below 20 | 51.9, 30.73% | **−1.6** |
-  // | `scene.shadowsEnabled = false` | 63.1, 29.81% | 63.1, 29.81% | **0.00** |
-  //
-  // With shadows off the change is aggregate-neutral, as expected — the seam pixels are a small
-  // fraction of the body. With shadows on, the back faces write depth into the same cascades these
-  // meshes sample, and that darkens the knight by ~1.6 luma (~3%). The near-black fraction barely
-  // moves (30.68% -> 30.73%), so this is a mild uniform darkening, not new acne — accepted, and it
-  // slightly offsets `BODY_METALLIC`/`BODY_DIRECT_INTENSITY` above. `NORMAL_BIAS = 0.04` in
-  // `shadows.ts` (Task 8) was validated against this material CULLED, so that validation no longer
-  // describes what ships — but the table above shows no acne increase with it unculled, so this is
-  // recorded rather than re-tuned. The extra fragment cost across four cascades is real and
-  // unmeasured; timing cannot be measured through a hidden browser pane on this machine.
-  source.backFaceCulling = false;
-  // Babylon gates the back-face normal flip in `pbrBlockNormalFinal` on
-  // `!backFaceCulling && twoSidedLighting` (see `trees.ts`'s identical pairing for the doubleSided
-  // glTF case). This GLB is not `doubleSided`, so the loader never set `twoSidedLighting`, and without
-  // it every back face `backFaceCulling = false` newly rasterises would shade with its outward normal
-  // instead of the flipped one. Set it explicitly for the correct pairing on a double-sided material.
-  //
-  // Measured rather than assumed load-bearing: over the 5431 px that back faces actually fill (pixels
-  // differing between the culled and unculled renders), toggling this changed 1 pixel. Seam mean luma
-  // was 60.4 with 0% near-black either way — brighter than the armour's own mean, not the unlit black
-  // the wrong-normal mechanism predicts — because the hemispheric ambient already lights these seams
-  // adequately. So this is not what is holding the seams up today; it is the correct flag for a
-  // double-sided material and cheap insurance against future geometry or lighting changes that would
-  // make the wrong-normal shading visible.
-  source.twoSidedLighting = true;
+  // A 24-fold jump in bright pixels — the pinpoint-specular signature. Deferring every write here to
+  // `onLoad` makes the pre-load state and a permanently-failed fetch identical: the body simply stays
+  // on the shared material's current GLB state (today, flat matte) until the map is actually ready —
+  // which is what "armour appears as it was, then gains its map" requires. `onError` also warns now,
+  // in the same voice as every other guard in this function, instead of leaving the plastic look
+  // permanent and silent.
+  const mr = new Texture(BODY_MR_URL, scene, {
+    noMipmap: false,
+    invertY: false,
+    onLoad: () => {
+      // The GLB's own metallicTexture/metallic/roughness are overwritten here with no fallback.
+      // Today's GLB ships flat factors and no metallicTexture, so nothing is lost — but the source
+      // FBX *does* carry metallic and roughness maps (see the README's regeneration recipe), so
+      // getting them into the GLB directly is the obvious next step for this pipeline; the day that
+      // happens, this would silently paint the separately-versioned `knight_mr.webp` sidecar over a
+      // correct, co-versioned map. Warn, in the same spirit as the head path's
+      // emissiveFactor/emissiveTexture/emissiveIntensity guards.
+      if (source.metallicTexture) {
+        console.warn(
+          `[knight] '${source.name}' already ships a metallicTexture. It is discarded: applyBodyPbr replaces it with ${BODY_MR_URL}.`,
+        );
+      }
+      source.metallicTexture = mr;
+      source.useRoughnessFromMetallicTextureGreen = true;
+      source.useMetallnessFromMetallicTextureBlue = true;
+      // Babylon reads roughness from the metallic texture's ALPHA channel by default, and alpha takes
+      // precedence over green — so setting Green alone does nothing. The packed map is fully opaque
+      // (alpha 255 everywhere, verified by reading it back), which pinned roughness at 1.0 and discarded
+      // the 0.25-0.6 the G channel actually carries. Turning this off is what lets the packing take effect.
+      source.useRoughnessFromMetallicTextureAlpha = false;
+      source.metallic = BODY_METALLIC;
+      source.roughness = 1;
+      source.directIntensity = BODY_DIRECT_INTENSITY;
+      // The armour is a stack of single-sided shells that do not quite meet — most visibly where the
+      // upper arm passes the torso. Back-face culling removes the far shell's inward-facing triangles,
+      // so those seams showed the scene straight through the character rather than the armour's inside.
+      // Measured against the knight's true silhouette (taken with culling off, so gaps are inside it,
+      // scene frozen, zero reproducibility control): 107 of 53 245 silhouette pixels read as background
+      // with culling on, 0 with it off, and every camera angle tried showed the same (241-497 px on,
+      // 0 off). Only the body needs this — leaving the face culled measures identically at 0, and the
+      // head is a closed mesh that gains nothing from the extra fragments.
+      //
+      // This also reaches the shadow map, not just the camera pass: `ShadowGenerator._renderSubMeshForShadowMap`
+      // passes the material's own `backFaceCulling` straight through, so turning it off here turns
+      // culling off for all four CSM cascade renders too, and these 43 meshes both cast and receive.
+      // Measured the consequence directly (same frozen frame, 70 436 knight pixels, zero
+      // reproducibility control), body culled vs. unculled:
+      //
+      // | | body culled | body unculled | delta |
+      // | --- | --- | --- | --- |
+      // | `scene.shadowsEnabled = true` | 53.5 mean luma, 30.68% below 20 | 51.9, 30.73% | **−1.6** |
+      // | `scene.shadowsEnabled = false` | 63.1, 29.81% | 63.1, 29.81% | **0.00** |
+      //
+      // With shadows off the change is aggregate-neutral, as expected — the seam pixels are a small
+      // fraction of the body. With shadows on, the back faces write depth into the same cascades these
+      // meshes sample, and that darkens the knight by ~1.6 luma (~3%). The near-black fraction barely
+      // moves (30.68% -> 30.73%), so this is a mild uniform darkening, not new acne — accepted, and it
+      // slightly offsets `BODY_METALLIC`/`BODY_DIRECT_INTENSITY` above. `NORMAL_BIAS = 0.04` in
+      // `shadows.ts` (Task 8) was validated against this material CULLED, so that validation no longer
+      // describes what ships — but the table above shows no acne increase with it unculled, so this is
+      // recorded rather than re-tuned. The extra fragment cost across four cascades is real and
+      // unmeasured; timing cannot be measured through a hidden browser pane on this machine.
+      source.backFaceCulling = false;
+      // Babylon gates the back-face normal flip in `pbrBlockNormalFinal` on
+      // `!backFaceCulling && twoSidedLighting` (see `trees.ts`'s identical pairing for the doubleSided
+      // glTF case). This GLB is not `doubleSided`, so the loader never set `twoSidedLighting`, and without
+      // it every back face `backFaceCulling = false` newly rasterises would shade with its outward normal
+      // instead of the flipped one. Set it explicitly for the correct pairing on a double-sided material.
+      //
+      // Measured rather than assumed load-bearing: over the 5431 px that back faces actually fill (pixels
+      // differing between the culled and unculled renders), toggling this changed 1 pixel. Seam mean luma
+      // was 60.4 with 0% near-black either way — brighter than the armour's own mean, not the unlit black
+      // the wrong-normal mechanism predicts — because the hemispheric ambient already lights these seams
+      // adequately. So this is not what is holding the seams up today; it is the correct flag for a
+      // double-sided material and cheap insurance against future geometry or lighting changes that would
+      // make the wrong-normal shading visible.
+      source.twoSidedLighting = true;
+    },
+    onError: (message, exception) => {
+      // Nothing above ever ran — `source` is untouched, so the armour stays on the shared material's
+      // current GLB state (today, flat matte) rather than silently freezing into the pinpoint-specular
+      // look the table above measures. That is the *right* fallback, but a permanent one with no
+      // explanation, so say so.
+      console.warn(
+        `[knight] failed to load ${BODY_MR_URL} — armour stays on the shared material's current (matte) state, permanently:`,
+        message ?? exception,
+      );
+    },
+  });
 }
 
 /** Ceiling on waiting for the face shader. `Material.forceCompilation`'s `checkReady` re-arms itself
