@@ -193,9 +193,11 @@ scheduled additions). Sequence from here:
    known, accepted overrun, not a regression to chase before P4 — the frame still fits 60 fps three
    times over — but it is where the budget lives if P4 runs out.
 
-   P3 left `WaterBody` (`src/domain/hub/waterBody.ts`) as the shape P4's shallow-water feedback —
-   splashes, slowdown, wet shading — should read, and the plaza's eight pillars are where the
-   mode-entrances attach.
+   P3 left `WaterBody` (`src/domain/hub/waterBody.ts`) as the shape shallow-water feedback — splashes,
+   slowdown, wet shading — should read when someone builds it. **It is not part of P4**, which is wind,
+   clouds and ambient life only: shallow water is movement feel and would reach into the pure movement
+   domain, so it was ruled out when P4 was designed (`2026-09-04-life-and-motion-design.md` §1). It has
+   no scheduled owner. The plaza's eight pillars are where the mode-entrances attach.
 3. **Then: game modes** — Sonic-style 3D/2D levels, 2048, Sudoku (a new milestone, SP2+).
 
 ## 6. How work is done here (the workflow)
