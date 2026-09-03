@@ -1173,7 +1173,9 @@ A wrong `src` path falls back to `system-ui` silently and the result looks plaus
 ]
 ```
 
-Expected: all three `true`. A `false` means the `@font-face` `src` or the family string is wrong —
+Expected: all three `true` **after a preceding `document.fonts.load(spec)`**. Without that load, a
+`font-display: swap` face nothing has requested yet sits at status `unloaded` and `check()` returns
+`false` — a false negative, not a missing font. A genuine `false` means the `src` or family is wrong —
 fix `src/app/fonts.css` and reload.
 
 - [ ] **Step 6: Capture the screenshots**

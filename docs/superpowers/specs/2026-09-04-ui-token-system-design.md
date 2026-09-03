@@ -251,6 +251,60 @@ added total). Against the 24,316 bytes removed (`chakra-petch-700.woff2` 9,900 +
 `archivo-800.woff2` 14,416), the net change is +25,904 bytes (~+25.3 KB), not the +45 KB
 estimated in 5d.
 
+### Task 9 — fonts load (2026-09-04)
+
+All three faces load from their real files. `document.fonts.load()` then `check()`:
+`700 16px Poppins` → loaded, `400 16px "JetBrains Mono"` → loaded, `800 16px "JetBrains Mono"`
+→ loaded. All seven `@font-face` rules are registered, so no `src` path is wrong.
+
+**5c's method as written is unsound and is corrected here.** `document.fonts.check()` on its own
+returns `false` for a `font-display: swap` face that nothing has requested yet — the face sits at
+status `unloaded`. `JetBrains Mono 400` read `false` on the first attempt for exactly that reason:
+it is used only by `Choices` `.head` and `DialogueOverlay` `.hint`, neither of which was on screen.
+That is a false negative, not a missing font. `document.fonts.load(spec)` must precede the check.
+
+### Task 9 — dialogue-box contrast (2026-09-04)
+
+**Bounded analytically rather than sampled, and the bound is the stronger result.** The Browser
+pane could not be displayed in this session, so the page was not compositing frames and no
+screenshot could be taken. Rather than sample one pixel of one scene, the composite was bounded
+over *every* possible backdrop.
+
+`--surface-glass` is `rgba(255, 255, 255, 0.72)`, so the panel is 72% opaque white over whatever
+the 3D scene composites to. The backdrop can contribute at most 28%, which brackets the panel
+between pure white (scene white) and `rgb(184, 184, 184)` (scene black). Against `--c-ink`:
+
+| Measured | Ratio | Threshold |
+|---|---|---|
+| Box text on the brightest possible panel | 18.93:1 | 4.5:1 |
+| Box text on the darkest possible panel | 9.50:1 | 4.5:1 |
+| `Backlog` `.text` (ink at 0.85, the weakest text on a panel) on the darkest panel | 7.26:1 | 4.5:1 |
+
+**`--surface-glass` stays at 0.72; no tuning was needed.** The threshold cannot be violated at that
+alpha for any scene, which a single sample could not have established — it would only have tested
+the scene as it happened to look. `backdrop-filter: saturate(140%)` shifts backdrop channels but
+cannot escape the bound, since the bound already spans black to white.
+
+Arithmetic was computed in-page rather than by hand; see `docs/HANDOFF.md` section 7 for why
+hand-computed luminance is not trusted in this project.
+
+### Task 9 — one pre-existing contrast failure, not introduced here
+
+`Choices` `.head` ("SELECT AN ACTION") is white at 0.6 alpha on the scrim, and the scrim is
+`rgba(6, 7, 10, 0.55)` over the scene. Over a bright sky that composites to **2.70:1** — below the
+4.5:1 threshold for its 11px text.
+
+This is unchanged from before the branch: the scrim and the label are both as they were, and 4e's
+correction restored the label to its original value byte-for-byte after it was briefly flipped to
+ink. Fixing it would mean darkening the scrim or raising the label's opacity, both of which are
+visual-design changes this pass excludes. Recorded for a later pass, not deferred silently.
+
+### Task 9 — screenshots not captured
+
+5e's before/after screenshots could not be taken: the Browser pane was not displayable, so the page
+composited no frames. The visual result is unverified by eye. This is the one acceptance item in
+section 5 that is outstanding.
+
 ## 7. Follow-ups deliberately left out
 
 - The remaining style-sheet components (quick menu, system menu, slider, toggle, status panel).
