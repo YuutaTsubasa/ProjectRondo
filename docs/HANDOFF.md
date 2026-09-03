@@ -89,9 +89,14 @@ pnpm tauri dev          # native desktop app (needs Rust)
     mouth/brows), and the eyeballs `Mesh_43` / `Mesh_46` — gets its own material cloned off the single
     shared glTF material, with the albedo added back as emissive so the face stays bright and flat
     instead of tracking the sun. Head region mean luma 35.6 → 68.8 at the shipped 0.45 (0.25 gives
-    57.1), with the rest of the frame flat at 114.3 as a control — which is what says the 43 body
-    meshes are untouched. Measure it with the idle animation paused and the head region located by
-    which pixels the change touches, not by a hand-placed box; see `FACE_EMISSIVE` for why.
+    57.1), with the rest of the frame flat at 114.3 as a control — which is what says the body meshes
+    are untouched. **That table is from the previous character's two-mesh head (`Mesh_0` +
+    `Mesh_32`/`Mesh_33`), not the current four-mesh head above, and has not been retaken** — a
+    different head mesh with a different face texture in a different frame composition cannot
+    reproduce it. `FACE_EMISSIVE` was tuned against those numbers, so the constant is inherited and
+    unverified for this model; re-measure both the table and the constant on the current head before
+    relying on either. Measure it with the idle animation paused and the head region located by which
+    pixels the change touches, not by a hand-placed box; see `FACE_EMISSIVE` for the method.
 
     **Body PBR (medieval-knight swap):** the armour, previously baseColor+normal only, now also gets a
     packed metallic/roughness map (`public/models/knight_mr.webp`, glTF-style: roughness → G, metallic

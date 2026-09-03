@@ -105,8 +105,18 @@ const IDLE_SWAY_KEEP = 0.2;
  * disagreed because each used a differently hand-placed box with the idle animation *running*, so the
  * head sat at a different angle in each; both are superseded by the table above.
  *
- * Known and accepted: `Mesh_1` carries the hair too, so the hair lifts from near-black to a warm brown.
- * Isolating the skin would need a mask texture or a Blender split, and the lift reads as an improvement.
+ * **This table is from the previous character** (whose head was `Mesh_0` + `Mesh_32`/`Mesh_33` — see
+ * `HEAD_MESHES` in `shadowPolicy.ts`), not the current four-mesh head this file swaps in
+ * (`Mesh_1`/`Mesh_20`/`Mesh_43`/`Mesh_46`), and has not been retaken since. A different head mesh with
+ * a different face texture in a different frame composition will not reproduce these figures. Left
+ * here because `FACE_EMISSIVE` below was *tuned* against this table, so the constant's provenance is
+ * this measurement even though the measurement no longer describes what ships — re-measure on the
+ * current head before trusting the numbers, and note the constant itself may want retuning once that's
+ * done.
+ *
+ * Known and accepted: the face mesh carries the hair too, so the hair lifts from near-black to a warm
+ * brown. Isolating the skin would need a mask texture or a Blender split, and the lift reads as an
+ * improvement.
  */
 const FACE_EMISSIVE = 0.45;
 
@@ -188,7 +198,6 @@ function applyBodyPbr(meshes: readonly AbstractMesh[], scene: Scene): void {
     );
     return;
   }
-  const mat = source;
   const mr = new Texture(BODY_MR_URL, scene, false, false);
   // `Texture` defaults to `isBlocking = true`, which makes `PBRBaseMaterial.isReadyForSubMesh` return
   // false — and every body submesh skipped by `Mesh.render` — for as long as this webp is still
@@ -196,17 +205,28 @@ function applyBodyPbr(meshes: readonly AbstractMesh[], scene: Scene): void {
   // body render on the shared material's current state (matte) immediately and pick up the map once it
   // arrives, the same "never render as nothing" guarantee `FACE_COMPILE_TIMEOUT_MS` protects on the head.
   mr.isBlocking = false;
-  mat.metallicTexture = mr;
-  mat.useRoughnessFromMetallicTextureGreen = true;
-  mat.useMetallnessFromMetallicTextureBlue = true;
+  // The GLB's own metallicTexture/metallic/roughness are overwritten below with no fallback. Today's
+  // GLB ships flat factors and no metallicTexture, so nothing is lost — but the source FBX *does* carry
+  // metallic and roughness maps (see the README's regeneration recipe), so getting them into the GLB
+  // directly is the obvious next step for this pipeline; the day that happens, this would silently
+  // paint the separately-versioned `knight_mr.webp` sidecar over a correct, co-versioned map. Warn, in
+  // the same spirit as the head path's emissiveFactor/emissiveTexture/emissiveIntensity guards.
+  if (source.metallicTexture) {
+    console.warn(
+      `[knight] '${source.name}' already ships a metallicTexture. It is discarded: applyBodyPbr replaces it with ${BODY_MR_URL}.`,
+    );
+  }
+  source.metallicTexture = mr;
+  source.useRoughnessFromMetallicTextureGreen = true;
+  source.useMetallnessFromMetallicTextureBlue = true;
   // Babylon reads roughness from the metallic texture's ALPHA channel by default, and alpha takes
   // precedence over green — so setting Green alone does nothing. The packed map is fully opaque
   // (alpha 255 everywhere, verified by reading it back), which pinned roughness at 1.0 and discarded
   // the 0.25-0.6 the G channel actually carries. Turning this off is what lets the packing take effect.
-  mat.useRoughnessFromMetallicTextureAlpha = false;
-  mat.metallic = BODY_METALLIC;
-  mat.roughness = 1;
-  mat.directIntensity = BODY_DIRECT_INTENSITY;
+  source.useRoughnessFromMetallicTextureAlpha = false;
+  source.metallic = BODY_METALLIC;
+  source.roughness = 1;
+  source.directIntensity = BODY_DIRECT_INTENSITY;
   // The armour is a stack of single-sided shells that do not quite meet — most visibly where the
   // upper arm passes the torso. Back-face culling removes the far shell's inward-facing triangles,
   // so those seams showed the scene straight through the character rather than the armour's inside.
@@ -215,7 +235,21 @@ function applyBodyPbr(meshes: readonly AbstractMesh[], scene: Scene): void {
   // with culling on, 0 with it off, and every camera angle tried showed the same (241-497 px on,
   // 0 off). Only the body needs this — leaving the face culled measures identically at 0, and the
   // head is a closed mesh that gains nothing from the extra fragments.
-  mat.backFaceCulling = false;
+  source.backFaceCulling = false;
+  // Babylon gates the back-face normal flip in `pbrBlockNormalFinal` on
+  // `!backFaceCulling && twoSidedLighting` (see `trees.ts`'s identical pairing for the doubleSided
+  // glTF case). This GLB is not `doubleSided`, so the loader never set `twoSidedLighting`, and without
+  // it every back face `backFaceCulling = false` newly rasterises would shade with its outward normal
+  // instead of the flipped one. Set it explicitly for the correct pairing on a double-sided material.
+  //
+  // Measured rather than assumed load-bearing: over the 5431 px that back faces actually fill (pixels
+  // differing between the culled and unculled renders), toggling this changed 1 pixel. Seam mean luma
+  // was 60.4 with 0% near-black either way — brighter than the armour's own mean, not the unlit black
+  // the wrong-normal mechanism predicts — because the hemispheric ambient already lights these seams
+  // adequately. So this is not what is holding the seams up today; it is the correct flag for a
+  // double-sided material and cheap insurance against future geometry or lighting changes that would
+  // make the wrong-normal shading visible.
+  source.twoSidedLighting = true;
 }
 
 /** Ceiling on waiting for the face shader. `Material.forceCompilation`'s `checkReady` re-arms itself

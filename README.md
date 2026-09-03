@@ -103,20 +103,38 @@ Promise.all(
     sharp(p).toColourspace('b-w').raw().toBuffer({ resolveWithObject: true }),
   ),
 ).then(([rough, metal]) => {
+  // `toColourspace('b-w')` does not drop an alpha channel: an RGBA source — ordinary for a PBR
+  // texture set — comes back with channels === 2 (grey + alpha), and indexing `.data[i]` below as if
+  // it were 1 byte/px would interleave alpha into the packed G/B channels with no error raised.
+  if (rough.info.channels !== 1 || metal.info.channels !== 1) {
+    throw new Error(
+      `expected greyscale (1 channel) sources, got roughness=${rough.info.channels} metallic=${metal.info.channels} — strip alpha first`,
+    );
+  }
   const { width, height } = rough.info;
   const rgba = Buffer.alloc(width * height * 4, 255); // alpha stays opaque
   for (let i = 0; i < width * height; i++) {
     rgba[i * 4 + 1] = rough.data[i]; // roughness -> G
     rgba[i * 4 + 2] = metal.data[i]; // metallic  -> B
   }
+  // Lossless, NOT the `quality: 80` the baseColor recipe above uses: lossy WebP is always YUV 4:2:0,
+  // which would chroma-subsample G and B to half resolution and cross-contaminate them through the
+  // RGB→YUV round trip — exactly the two channels this map exists to keep independent. That trade is
+  // fine for a colour map; it is not for a data map.
   return sharp(rgba, { raw: { width, height, channels: 4 } })
-    .webp({ quality: 80 })
+    .webp({ lossless: true })
     .toFile(outPath);
 });
 ```
 
 Bump `BODY_MR_URL`'s `?v=N` in `knight.ts` after rebuilding, for the same cache-busting reason as the
 GLB above.
+
+**The currently committed `public/models/knight_mr.webp` was built with the lossy `quality: 80`
+recipe** (its header is `RIFF … WEBP VP8 ` — lossy, not `VP8L`), before this was corrected to
+`lossless: true`. It should be re-packed once the roughness/metallic source textures are to hand; they
+are not in this repo (that gap is why the recipe above has to be a reconstruction), so it cannot be
+regenerated in this PR.
 
 **Adding an animation:** drop the FBX in `__prototype__/Assets/Animations/` (LFS-tracked), run step 0
 once so Godot writes a default `.import`, copy the `_subresources` bone_map block out of
