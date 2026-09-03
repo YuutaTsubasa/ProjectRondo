@@ -38,10 +38,13 @@ functional core, reactive UI**, plus the project's **18 code-quality principles*
 **Prerequisites**
 - **Node** (v24 used here) + **pnpm** (v11). `corepack enable` or install pnpm directly.
 - **Git LFS** — REQUIRED. `.glb`/`.fbx`/`.blend`/`.vrm`/`.webp` are LFS-tracked (see `.gitattributes`).
-  After cloning: `git lfs install && git lfs pull`, or the knight/tree models (and `knight_mr.webp`, the
-  armour's metallic/roughness map) are just pointer files — the scene loads with the knight's armour
-  stuck matte and a console warning instead of empty, since only that one texture fetch fails. (`.png`/
-  `.jpg`/fonts are normal binaries and clone fine.)
+  After cloning: `git lfs install && git lfs pull`, or every LFS-tracked file is left as a pointer file,
+  and the two matter differently. If `knight_web.glb` itself is still a pointer, `ImportMeshAsync` fails,
+  `loadKnight` rejects, and — since `App.svelte` calls it with `.then()` and no `.catch` — that is an
+  unhandled rejection and a blank canvas: the scene loads empty. Only if the GLB pulled correctly but
+  `knight_mr.webp` (the armour's metallic/roughness map) is still a pointer does the failure stay local:
+  that one texture fetch fails, and the scene loads with the knight's armour stuck matte and a console
+  warning instead of empty. (`.png`/`.jpg`/fonts are normal binaries and clone fine.)
 - **Rust toolchain** — only needed for `pnpm tauri` desktop builds. Not needed to run in the browser.
 - **Godot 4.7.1 (mono)** — only needed to *regenerate* the knight/tree GLBs from the prototype (rare).
   On the old machine it was at `/Applications/Godot_mono.app`; install wherever on the new one.

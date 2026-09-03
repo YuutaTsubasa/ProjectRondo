@@ -81,6 +81,16 @@ Bump the `?v=N` query on the GLB URL in `src/presentation/babylon/knight.ts` aft
 browsers refetch it. Then delete the ~90 MB `__prototype__/knight_web.glb` intermediate and the
 `knight_web*.png` / `.import` side files Godot's next scan drops next to it.
 
+**Known defect in the currently shipped GLB: `normalTexture.scale` is `0`.** The base commit's GLB had
+no `scale` key at all (the glTF spec default, 1); today's has `{"index": 1, "scale": 0}`, which zeroes
+out the armour's normal map entirely (`knight.ts`'s `applyBodyPbr` corrects it at load time — see
+`source.bumpTexture.level` there — and warns when it has to). Neither `export_web_glb.gd` nor
+`knight.fbx.import` sets a normal scale anywhere, so the value is coming from somewhere in step 1 or 2
+above that has not been isolated (Godot's glTF exporter, or the `gltf-transform` pass). Check the
+`normalTexture` block of the freshly exported GLB's JSON chunk against this before shipping a
+regeneration, and drop the load-time correction in `knight.ts` once a regenerated file ships `scale: 1`
+(or no `scale` key) on its own.
+
 ### Regenerating the knight's metallic/roughness map
 
 `public/models/knight_mr.webp` packs the armour's roughness and metallic channels glTF-style
