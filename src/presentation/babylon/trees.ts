@@ -13,6 +13,7 @@ import { PhysicsAggregate } from '@babylonjs/core/Physics/v2/physicsAggregate';
 import { PhysicsShapeType } from '@babylonjs/core/Physics/v2/IPhysicsEnginePlugin';
 import { terrainHeight } from './terrainHeight';
 import { emissiveFactorOf, type GltfPbrMaterial } from './gltfMaterial';
+import { applyWind } from './wind';
 import '@babylonjs/loaders/glTF'; // side-effect: registers the glTF loader
 
 /** The tree GLB is normalized to ~1 unit tall (Tripo output); scale it up to a real tree height.
@@ -150,6 +151,25 @@ function retargetMaterials(scene: Scene, container: AssetContainer): void {
     const swap = mesh.material && replacements.get(mesh.material);
     if (swap) mesh.material = swap;
   }
+  // Bend height per material, in LOCAL space, taken from the tallest mesh that uses it — the shader
+  // weights by the raw `position` attribute, which is what a bounding box's `maximum` is expressed
+  // in. Measured from the container's own meshes, before instantiation and before `root.scaling`
+  // multiplies everything by BASE_SCALE: tree.glb is normalized to ~1 unit tall and that
+  // normalization is what this reads. A hard-coded 6 here would weight the whole canopy at ~0 and
+  // the trees would stand still.
+  const bendHeights = new Map<StandardMaterial, number>();
+  for (const mesh of container.meshes) {
+    const mat = mesh.material;
+    if (!(mat instanceof StandardMaterial) || mesh.getTotalVertices() === 0) continue;
+    const top = mesh.getBoundingInfo().boundingBox.maximum.y;
+    bendHeights.set(mat, Math.max(bendHeights.get(mat) ?? 0, top));
+  }
+  for (const [mat, height] of bendHeights) {
+    // A non-positive extent means the mesh sits entirely at or below its own origin; dividing by it
+    // in the shader would be a divide-by-zero or an inverted weight. Skip rather than sway wrongly.
+    if (height > 0) applyWind(mat, height);
+  }
+
   container.materials = container.materials.map((m) => replacements.get(m) ?? m);
 
   // Warn BEFORE the empty-map guard would have returned: the case where *nothing* converted is the
