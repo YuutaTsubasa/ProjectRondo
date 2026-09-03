@@ -22,7 +22,9 @@ const CASCADES = 4;
 const LAMBDA = 0.8;
 /** Shadows stop here. Beyond ~120 units the fog (density 0.0076) has already taken ~60% of the contrast. */
 const SHADOW_MAX_Z = 120;
-/** Fraction of each cascade blended into the next, hiding the seam. First knob to drop for frame time. */
+/** Fraction of each cascade blended into the next, hiding the seam. Babylon's own default is also 0.1
+ *  (`_initializeGenerator`); written out because every other constant here is a deliberate deviation,
+ *  so an unstated 0.1 would read as tuned. First knob to drop for frame time. */
 const CASCADE_BLEND = 0.1;
 /**
  * Measured (Task 3): a 5x4 sweep of bias in [0, 1e-3] x normalBias in [0, 0.04] on the knight-only
