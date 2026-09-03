@@ -202,7 +202,7 @@ threshold 3 decides.
 | terrain | – | yes |
 | grass tufts (16 000) | – | yes |
 | wildflowers (1 600) | – | yes |
-| rocks (200), bushes (160) | – | yes |
+| rocks (200), bushes (160) | yes | yes |
 | trees (20) | yes | yes |
 | pillars ×8 + pedestal | yes | yes |
 | knight body (31 × `tripo_part_*`) | yes | yes |
@@ -235,17 +235,19 @@ option available and tends toward speckle noise.
 | 1 | Knight ground shadow present | ≥ 2 000 px darkened at 1280×720, side-on camera | **Invented, unphysical, replaced.** No camera framing at this geometry reaches 2 000 px unoccluded — see below. Replaced (Ruling 9) by: a non-zero, reproducible knight-only ground shadow with a zero restore-control, plus a measurable increase when ground-detail receivers are enabled. Both hold. |
 | 2 | No shadow acne | darkened pixels on open unoccluded ground < 0.1% of frame | **PASS** — 0 px |
 | 3 | Ambient tint did not brighten the scene | whole-frame mean luma within ±5% of `main`; crushed-black % not increased | **PASS** — +4.83% (scale 0.30); crushed % rises 0 → 0.001, treated as noise floor, not a regression |
-| 4 | Perf | within-session round-robin median against `main`; cost < 1.5 ms of the 16.7 ms budget | **FAILS as written** — measured 3.62 ms, ~2.4x over. The 1.5 ms figure was invented rather than derived; the derived constraint (stay inside the 16.7 ms frame budget) passes with ~11 ms of headroom. See §7's Task 6 write-up. |
+| 4 | Perf | within-session round-robin median against `main`; cost < 1.5 ms of the 16.7 ms budget | **unmeasured — requires a visible window.** Every timing figure this session was taken with the Browser pane hidden (`document.hidden === true`), which GPU-throttles the page; eight samples of an identical config spread 2.7x with a monotonic upward drift. There is no valid measurement to judge this threshold against. See §7's Task 6 write-up. |
 
 Threshold 3 uses the whole-frame protocol because P2's tree-emissive regression came from measuring
 only lit points. Threshold 4 is a within-session delta because HANDOFF §5 records that P2's and P3's
 absolute numbers came from different machines.
 
-Final outcome: thresholds 1 and 4 were invented rather than derived from any real constraint of this
-scene or this machine, and both came apart under measurement — 1 was replaced with criteria that
-actually test correctness, 4 failed outright and was left failing, with an explicit instruction to
-re-measure on a quiet machine before spending the remaining frame-budget headroom. Thresholds 2 and 3
-held up as originally written and pass.
+Final outcome: threshold 1 was invented rather than derived from any real constraint of this scene and
+came apart under measurement, and was replaced with criteria that actually test correctness. Threshold
+4's own 1.5 ms figure was also invented, but its verdict never got that far — every timing number this
+session was taken with the Browser pane hidden and GPU-throttled, so threshold 4 is unmeasured, not
+failed, with an explicit instruction to re-measure on a machine with the pane actually visible before
+spending the remaining frame-budget headroom. Thresholds 2 and 3 held up as originally written and
+pass.
 
 ### 5c. Bias tuning procedure
 
@@ -403,7 +405,15 @@ for the known noise floor or vice versa.
 
 ### Task 6 — performance
 
-Two methods were tried and discarded before finding one that holds:
+**Retracted — every timing number this subsection originally reported is unusable.** The whole session
+ran with `document.hidden === true`: the Browser pane was never displayed, so the page was
+GPU-throttled. Eight back-to-back samples of one identical config, taken to double-check a suspicious
+reading, came back 47.7 / 87.4 / 101.0 / 121.1 / 128.0 / 125.2 / 117.1 / 120.4 ms — a 2.7x spread with
+a monotonic upward drift as throttling ramps up over the session. No timing measurement taken this
+session is trustworthy, and none is cited as fact below.
+
+Two methods were tried and discarded before the throttling itself was identified — the methodological
+lessons from both still hold, independent of the throttling:
 
 1. **Toggling `scene.shadowsEnabled` for the A/B.** This changes material defines and forces shader
    recompilation, so the "cost" it measures is recompilation, not shadow rendering. Unpaired medians
@@ -412,43 +422,54 @@ Two methods were tried and discarded before finding one that holds:
    tight IQR made the wrong number look authoritative.
 2. **Comparing absolute frame time across configs on this machine.** The identical shipped config
    measured 2.855 ms and then 5.141 ms minutes apart, with nothing changed — an 80% spread. The
-   built-in reproduce-the-first-config control caught it.
+   built-in reproduce-the-first-config control caught it. At the time this read as machine load; the
+   eight-sample check above shows it was hidden-tab throttling instead, which also retroactively
+   explains a fourth reading of 71.075 ms for the same scene that didn't fit either theory.
 
-The method that holds: never touch `shadowsEnabled`. Hold every define fixed and pair
-`shadowMap.refreshRate` 1 (re-render the map every frame) against 0 (render once, never again), 20
-pairs, 40 timed frames per half after 10 warm-up frames.
+The method that was believed to hold — never touch `shadowsEnabled`; hold every define fixed and pair
+`shadowMap.refreshRate` 1 against 0, 20 pairs, 40 timed frames per half after 10 warm-up frames — is
+methodologically sound but was still run inside the throttled tab, so its output (a shipped-config
+frame time, an implied fps, a shadow-map render cost) is invalidated along with everything else and is
+not reproduced here.
 
-| metric | value |
+**Verdict on threshold 4: UNMEASURED, not failed.** An earlier version of this document reported a
+shadow-map cost of ~3.62 ms and declared threshold 4 (< 1.5 ms) failed by 2.4x. That verdict is
+withdrawn — it was computed from throttled numbers, not real ones — not confirmed, not overturned,
+simply never validly measured. Whatever the true cost is, it must be found on a machine where the tab
+is actually visible.
+
+**What survives.** Throttling changes *when* a frame is produced, never *what* it contains, so every
+pixel- and image-based measurement in this document is unaffected and stands as recorded: the
+bias/normalBias grid (§7 Task 3), the acne readings (0 px at all 20 cells), the receiver decomposition
+(220 / 408 / 1212 px, §7 Task 4), the ambient tint luma sweep (§7 Task 5), and the ground-detail caster
+comparisons (§7 Task 7, below). All of these carry zero-valued reproducibility and/or restore controls,
+which a throttled clock cannot forge — the controls bound *pixel* differences, not frame timing.
+
+**Perf must be re-measured before it is trusted or acted on**, on a machine where the Browser pane is
+actually visible (`document.hidden === false`) — a hidden pane silently invalidates every timing number
+taken through it, with no error and no visible symptom other than the drift documented above. Until
+then, treat P4's frame-budget headroom (HANDOFF §5) as unknown rather than "~11 ms of 16.7 ms."
+
+### Task 7 — rocks and bushes cast
+
+Camera side-on to the sun over the open grass, same frozen harness as the earlier tasks. Restore
+controls read 0 px for both comparisons.
+
+| configuration | pixels changed vs previous |
 |---|---|
-| absolute frame time, shipped config | **5.69 ms** |
-| implied frame rate | **~176 fps** |
-| fraction of the 16.7 ms budget | 34% |
-| shadow-map render cost (paired median) | **3.62 ms** (IQR 1.75 – 3.665, 0 negative pairs) |
+| A — shipped (no ground detail casts) | baseline |
+| B — rock (200) + bush (160) cast | **42 990** (4.7% of frame) |
+| C — B plus grass (16 000) + flowers (1 600) cast | +151 322 (16.4% of frame) |
 
-**Verdict: threshold 4 FAILS as written.** It asked for < 1.5 ms; the shadow map costs ~3.62 ms, about
-2.4x over.
-
-**No fallback knob was applied, deliberately, for two reasons:**
-
-1. The constraint that actually matters is met with room to spare. HANDOFF §5's concern is preserving
-   headroom for P4; the frame runs at 5.69 ms of a 16.7 ms budget, leaving ~11 ms. 60 fps is not close
-   to threatened at ~176 fps.
-2. This machine cannot currently measure the knobs reliably. The reproduction control failed by 80% in
-   method 2 above, so any knob chosen from today's numbers would be guesswork presented as
-   measurement — the exact failure this branch has already hit repeatedly (see HANDOFF §7).
-
-Like threshold 1's 2 000 px, the 1.5 ms figure was invented rather than derived. The derived
-constraint is the 16.7 ms frame budget, and it passes.
-
-**Re-measure the knobs on a quiet machine before P4 spends the remaining headroom.** Ordered, per the
-plan: `cascadeBlendPercentage` → 0, then `numCascades` → 3, then `MAP_SIZE` → 512.
+B is the change shipped: rocks and bushes gain contact shadows and stop looking pasted onto the
+ground. C was measured to confirm the grass/flower exclusion is deliberate rather than an oversight —
+most of that additional 16.4% is speckle from 17 600 alpha-tested cross cards redrawn per cascade, not
+legible shadow, so grass and flowers stay cast-off.
 
 ## 8. Follow-ups deliberately left out
 
 - **Water receiving shadows.** Shadows through an opacity-Fresnel surface get strange; one line to
   switch on later if wanted.
-- **Rocks and bushes casting.** 360 solid objects, cheap, and would read well. Excluded because the
-  agreed caster set is knight + trees + pillars.
 - **The debug HUD blooms.** The overlay text in the top-left is picked up by the bloom pass. Noticed
   while shooting comparison frames; unrelated to shadows.
 - **Toon/cel banding on the knight.** Still open, still separate — see HANDOFF §5.

@@ -341,6 +341,13 @@ These are hard-won; several cost a debugging session each.
 - **`ShadowGenerator`s are keyed by camera in Babylon 9.** Ours is constructed with the follow
   camera, so the no-arg `sun.getShadowGenerator()` misses and returns `null`. Call
   `sun.getShadowGenerator(scene.activeCamera)`.
+- **Performance cannot be measured through a hidden Browser pane.** A pane that is open but not
+  visible still renders, but the page is GPU-throttled: eight back-to-back samples of one identical
+  config came back 47.7–128.0 ms, a 2.7x spread with a monotonic upward drift as the throttle ramps.
+  This invalidates every timing number taken that way — frame time, fps, paired A/B costs — while
+  leaving pixel/image comparisons untouched, since throttling changes *when* a frame is produced, not
+  *what* it contains. Check `document.hidden` before trusting any timing number; if it's `true`, the
+  numbers are worthless no matter how tight the IQR looks.
 
 ## 8. Claude's local memory (optional, but valuable for continuity)
 

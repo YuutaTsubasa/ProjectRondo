@@ -250,7 +250,11 @@ export function createGroundScatter(scene: Scene, shadows?: Shadows): void {
   const bush = bushMesh(scene);
   bush.thinInstanceSetBuffer('matrix', scatterMatrices({ count: 160, seed: 4, y: 0, minScale: 0.7, maxScale: 1.3, extent: EXTENT - 2 }).buffer, 16);
 
-  // Ground detail receives but never casts. 16 000 alpha-tested cross cards redrawn once per
-  // cascade is the most expensive option on the table and reads as speckle noise, not foliage.
+  // Ground detail receives, but only the solid meshes (rock, bush) cast. Measured (Task 7):
+  // enabling rock+bush casting changes 42 990 px (4.7% of frame) and reads as intended contact
+  // shadows. Grass and flowers stay cast-off: they are 16 000 + 1 600 alpha-tested cross cards,
+  // the most expensive option on the table, and enabling their casting on top changes a further
+  // 151 322 px (16.4%) that is mostly speckle noise, not shadow.
   shadows?.receive(grass, flowers, rock, bush);
+  shadows?.cast(rock, bush);
 }
