@@ -58,7 +58,7 @@
 
 ## Measurement Harness
 
-Tasks 3–6 all use this. Run it with the Browser pane's `javascript_tool` against the dev server. Paste it once per page load; it defines `window.__shadowProbe` and `window.__fpsAB`.
+Tasks 3–6 all use these probes. Run them with the Browser pane's `javascript_tool` against the dev server. `__shadowProbe` is the whole-frame darkness A/B; `__knightShadow` is the knight-isolated metric the headline figures (the Task 3 grid, Task 4's 220/408/1212 decomposition, Task 8's 1145/1190/1615 px) actually use; `__acne` is threshold 2; `__fpsAB` is timing.
 
 The five numbered comments correspond to the spec's §5a steps — none of them are optional. Skipping (1) produced the false positive recorded in spec §1d.
 
@@ -136,6 +136,94 @@ window.__fpsAB = (rounds = 20, framesPer = 40, warmup = 10) => {
 };
 'harness ready';
 ```
+
+The Task 3 grid, Task 4's 220/408/1212 px decomposition and Task 8's 1145/1190/1615 px figures all come
+from this second probe, not from `__shadowProbe` above. Paste it after the harness above, once per page
+load, then verify `reproducibilityControl` is 0 before trusting any reading.
+
+```js
+// One-time setup. Run this before any measurement, then verify the reproducibility control is 0.
+window.__probeSetup = () => {
+  const { scene, engine } = window.hub;
+  const canvas = engine.getRenderingCanvas(), gl = engine._gl;
+  const V3 = window.charController.getPosition().constructor;
+
+  // Freezing the frame takes all three of these. Pausing AnimationGroups alone is NOT enough:
+  // driveKnightAnimation re-plays them every frame, physics stepping moved 59 of 64 stray control
+  // pixels, and the water ripple scrolls on its own observable in water.ts.
+  scene.animationsEnabled = false;
+  scene.animationGroups.forEach((g) => g.pause());
+  scene.physicsEnabled = false;
+  const water = scene.meshes.find((m) => m.name === 'water');
+  const ripple = water && water.material && water.material.bumpTexture;
+  if (ripple) {
+    const u = ripple.uOffset, v = ripple.vOffset;
+    scene.onBeforeRenderObservable.add(() => { ripple.uOffset = u; ripple.vOffset = v; });
+  }
+
+  window.__pinCamera = (x = 0, z = 0) => {          // side-on to the sun, which travels toward -X-Z
+    if (window.__hold) scene.onBeforeRenderObservable.remove(window.__hold);
+    window.__hold = scene.onBeforeRenderObservable.add(() => {
+      window.hub.follow.camera.position.set(x + 9, 4.5, z - 9);
+      window.hub.follow.camera.setTarget(new V3(x - 1.5, 1.0, z + 1.5));
+    });
+  };
+  window.__grab = () => {
+    const W = canvas.width, H = canvas.height;
+    for (let i = 0; i < 8; i++) { engine.beginFrame(); scene.render(); engine.endFrame(); }
+    engine.restoreDefaultFramebuffer();
+    const px = new Uint8Array(W * H * 4);
+    gl.readPixels(0, 0, W, H, gl.RGBA, gl.UNSIGNED_BYTE, px);
+    return px;
+  };
+  window.__diff = (a, b) => {
+    let n = 0;
+    for (let k = 0; k < a.length; k += 4) if (Math.abs(b[k] - a[k]) > 4) n++;
+    return n;
+  };
+
+  const sg = window.shadows.generator;
+  const all = sg.getShadowMap().renderList.slice();
+  const knight = all.filter((m) => m.skeleton);
+
+  // The knight-isolated metric. A whole-frame darkness A/B does NOT work here: it is dominated by
+  // tree and pillar shadows and read 14 640 px while the knight's own contribution was 222 px, so a
+  // completely broken knight shadow would have passed. Swap the knight out of the caster list
+  // instead, and use the PUBLIC add/removeShadowCaster API — mutating renderList directly corrupts
+  // the generator's internal state and silently zeroes every later reading.
+  window.__knightShadow = () => {
+    window.__grab();
+    const a = window.__grab();
+    for (const m of knight) sg.removeShadowCaster(m);
+    const b = window.__grab();
+    for (const m of knight) sg.addShadowCaster(m);
+    const c = window.__grab();
+    return { px: window.__diff(a, b), restore: window.__diff(a, c) };  // restore MUST be 0
+  };
+
+  // Acne = darkening that survives when nothing casts. Requires a surface that both casts and
+  // receives, so it can only be observed in a configuration that has one.
+  window.__acne = () => {
+    for (const m of all) sg.removeShadowCaster(m);
+    const d = sg.getDarkness();
+    sg.setDarkness(0); window.__grab(); const a = window.__grab();
+    sg.setDarkness(1); const b = window.__grab();
+    sg.setDarkness(d);
+    for (const m of all) sg.addShadowCaster(m);
+    return window.__diff(a, b);
+  };
+
+  window.__pinCamera(0, 0);
+  for (let i = 0; i < 40; i++) window.__grab();       // settle: receiver shader variants compile lazily
+  const a = window.__grab(), b = window.__grab();
+  return { reproducibilityControl: window.__diff(a, b), casters: all.length, knightMeshes: knight.length };
+};
+```
+
+**Every reading is invalid unless `reproducibilityControl` is 0 and the returned `restore` is 0.**
+Both controls exist because this branch produced six separate confident-but-wrong measurements; one of
+them read 0 px with *both* controls at zero because receiver shader variants had not finished
+compiling. Re-run `__probeSetup` after any change to `receiveShadows`, and settle before measuring.
 
 **Acceptance thresholds** (spec §5b), in the units this harness reports at 1280×720:
 
@@ -361,6 +449,17 @@ export function createShadows(sun: DirectionalLight, camera: Camera): Shadows {
 }
 ```
 
+Superseded by what shipped: the "zero-vertex meshes are boundary walls, collider proxies and glTF
+`__root__` nodes" rationale above is wrong and was retracted. `bound_*` walls (`CreateBox`) and rock
+collider proxies (`CreateSphere`) both carry vertices; `hasGeometry` never excludes them. They stay out
+of the shadow render list only because they are never passed to `cast()`/`receive()` in the first
+place — the guard catches `__root__` nodes and other empty transform nodes only. The shipped comment on
+`hasGeometry` says this explicitly. `cast()`'s `generator.addShadowCaster(mesh)` call above is also the
+pre-fix form; the shipped call is `generator.addShadowCaster(mesh, false)` — `includeDescendants`
+defaults to `true` and would walk each mesh's children unfiltered, bypassing `hasGeometry` for any
+zero-vertex descendant and making `cast()` reach further than `receive()` for the same mesh list. Every
+caller already hands `cast()` a flat, pre-filtered list, so it is disabled.
+
 - [ ] **Step 2: Strip the generator out of environment.ts**
 
 In `src/presentation/babylon/environment.ts`, delete lines 6-8:
@@ -455,7 +554,7 @@ In `src/presentation/babylon/hubScene.ts`, add to the import block:
 import { createShadows } from './shadows';
 ```
 
-Change line 47 to `const { sun } = createEnvironment(scene);`, then replace the block currently spanning lines 53-59 (`createTerrain` … `createAtmosphere`) with:
+Change line 47 to `const { sun } = createEnvironment(scene);`, then replace the block currently spanning lines 54-62 (`createTerrain` … `createAtmosphere`) with:
 
 ```ts
   // The camera is hoisted above the world build because cascaded shadow maps derive their splits
