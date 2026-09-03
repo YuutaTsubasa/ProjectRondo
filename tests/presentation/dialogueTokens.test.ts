@@ -21,4 +21,7 @@ describe('dialogue components use tokens, not hex literals', () => {
   it('Nameplate.svelte', () => {
     expect(hexLiteralsIn('Nameplate.svelte')).toEqual([]);
   });
+  it('Controls.svelte', () => {
+    expect(hexLiteralsIn('Controls.svelte')).toEqual([]);
+  });
 });
