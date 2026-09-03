@@ -18,9 +18,14 @@
  *
  *  These names are model-specific and they changed once already: the previous character's head was
  *  `Mesh_0` + `Mesh_32`/`Mesh_33`. **Any character swap must update this list**, and the failure is
- *  quiet in both directions — a stale entry leaves a body mesh flat-lit and out of the shadow set,
- *  while a missing one puts a shadow terminator across the face. `applyFaceMaterial` warns if any
- *  name here is not found exactly once, which is the tripwire for exactly that mistake.
+ *  quiet in both directions — a stale entry that still resolves to some mesh in the new model
+ *  (exactly what happened here: `Mesh_0` went from head mesh to body mesh across this swap) leaves
+ *  that body mesh flat-lit and out of the shadow set, while a head mesh never added to this list
+ *  puts a shadow terminator across the face. `applyFaceMaterial`'s exactly-once check does not catch
+ *  either: it only inspects the names already in this list, so it warns solely when one of *those*
+ *  names is absent from the model or duplicated — neither of which is the shape of the two failures
+ *  above. Updating this list correctly on a character swap is on the person doing the swap; nothing
+ *  here verifies it for them.
  *
  *  Two consumers share this list on purpose: `knight.ts` gives these meshes their own face material,
  *  and `knightReceivesShadow` below excludes them from receiving shadows. One definition means the

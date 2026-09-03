@@ -86,8 +86,9 @@ as `0` instead of omitting them, and at least three of them ship this way.** `ex
 `KHR_materials_emissive_strength`, and the material's `pbrMetallicRoughness`/`extensions` blocks read:
 
 - `normalTexture: {"index": 1, "scale": 0}` — the base commit's GLB had no `scale` key at all (the
-  glTF spec default, 1); `0` zeroes out the armour's normal map entirely (`knight.ts`'s `applyBodyPbr`
-  corrects it at load time — see `source.bumpTexture.level` there — and warns when it has to).
+  glTF spec default, 1); `0` zeroes out the armour's normal map entirely (`knight.ts`'s
+  `correctSharedNormalScale` corrects it at load time, before `applyBodyPbr`/`applyFaceMaterial` ever
+  run — see `source.bumpTexture.level` there — and warns when it has to).
 - `extensions.KHR_materials_emissive_strength.emissiveStrength: 0` (spec default 1) — Babylon maps
   this straight to `emissiveIntensity = 0`, which trips `swapHeadMaterial`'s guard in `knight.ts` on
   every load and would zero `FACE_EMISSIVE` if that guard did not pin it back to 1.

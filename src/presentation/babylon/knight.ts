@@ -192,12 +192,25 @@ const BODY_DIRECT_INTENSITY = 1.6;
  * clone time. Correct the source here, before that clone exists, and the clone inherits the fix for
  * free. Correcting it only in {@link applyBodyPbr} instead — which runs after the split, and only
  * touches the body's copy of the material — would leave the head's four meshes, including `Mesh_1`
- * (the 9232-vertex hair), on the shipped `level: 0`: the unperturbed geometric normal (see
- * `applyBodyPbr`'s doc for the `perturbNormalBase`/`NORMALXYSCALE` mechanism this feeds).
+ * (the 9232-vertex hair), on the shipped `level: 0`. Babylon's loader copies `normalTexture.scale`
+ * straight into `bumpTexture.level` (`glTFLoader.pure.js`), and PBR materials compile with
+ * `NORMALXYSCALE` defined, so `perturbNormalBase` evaluates `normalize(n * vec3(scale, scale, 1.0))`
+ * with `scale = 0` — the unperturbed geometric normal, i.e. a dead normal map on whichever mesh never
+ * gets corrected.
  *
  * The base commit's GLB had no `scale` key at all (the glTF spec default of 1), so the head had a
  * live normal map before this PR swapped in a GLB that ships `scale: 0`; leaving this uncorrected
  * would be a regression this PR introduces, not a pre-existing defect.
+ *
+ * If a re-export ever puts the head on one material and the body on another — the most likely way
+ * the "everything shares one material" assumption breaks, and exactly the split
+ * {@link swapHeadMaterial} performs by hand today — that is caught HERE, not downstream. Neither
+ * `applyFaceMaterial`'s nor `applyBodyPbr`'s own "shares one material" guard would catch it: each
+ * only compares materials *within* its own slice (all-head, or all-body), and a head/body split
+ * still leaves every mesh agreeing with the others in its own slice, so both guards pass silently.
+ * The correction has to run per distinct material for the same reason: guessing "the" material and
+ * skipping the rest would leave whichever material is not `source` on the shipped `level: 0` with no
+ * warning anywhere — the one silent failure path in a file where every other guard warns.
  *
  * Warn-and-skip, like every other guard in this file: this runs inside `loadKnight`, which `hubScene`
  * awaits before `loadTrees` and `runRenderLoop`, so nothing here may throw.
@@ -205,20 +218,23 @@ const BODY_DIRECT_INTENSITY = 1.6;
 function correctSharedNormalScale(meshes: readonly AbstractMesh[]): void {
   const withMaterial = meshes.filter((m) => m.material);
   if (withMaterial.length === 0) return;
-  const source = withMaterial[0].material as PBRMaterial;
-  if (withMaterial.some((m) => m.material !== source)) {
-    // Every mesh is expected to still share one material here — nothing has split it yet on this
-    // GLB. If that assumption is already false this early, `applyFaceMaterial`'s and
-    // `applyBodyPbr`'s own "shares one material" guards will each report it from their own slice a
-    // moment later; skip quietly here rather than guess which material to correct.
-    return;
-  }
-  if (source.getClassName() !== 'PBRMaterial') return; // applyBodyPbr's own guard reports this case.
-  if (source.bumpTexture && source.bumpTexture.level !== 1) {
+  const materials = [...new Set(withMaterial.map((m) => m.material))] as PBRMaterial[];
+  if (materials.length > 1) {
+    // Not the expected shape — nothing should have split the material yet on this GLB — but correct
+    // every distinct material anyway rather than guessing which one to fix and leaving the rest on
+    // the shipped `level: 0`. See the doc above for why neither downstream guard reports this split.
     console.warn(
-      `[knight] '${source.name}' shipped normalTexture.scale ${source.bumpTexture.level} — reset to 1, before face lighting clones this material, so both body and head pick up the armour's normal map. Re-export should fix this at the source; see the README.`,
+      `[knight] meshes do not share one material before any clone has run (${materials.length} distinct: ${materials.map((m) => m?.name ?? 'none').join(', ')}) — correcting normalTexture.scale on each rather than skipping.`,
     );
-    source.bumpTexture.level = 1;
+  }
+  for (const source of materials) {
+    if (source.getClassName() !== 'PBRMaterial') continue; // applyBodyPbr's/applyFaceMaterial's own guards report a non-PBR material from their own slice.
+    if (source.bumpTexture && source.bumpTexture.level !== 1) {
+      console.warn(
+        `[knight] '${source.name}' shipped normalTexture.scale ${source.bumpTexture.level} — reset to 1, before face lighting clones this material, so both body and head pick up the armour's normal map. Re-export should fix this at the source; see the README.`,
+      );
+      source.bumpTexture.level = 1;
+    }
   }
 }
 
