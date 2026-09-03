@@ -5,7 +5,8 @@
 /** The head group, by mesh name. `Mesh_0` is the whole head — face, hair and neck collar, 242k of the
  *  character's ~320k vertices — and `Mesh_32`/`Mesh_33` are the two eyeballs. Identified from bind-pose
  *  bounding boxes against the `Head` and `CC_Base_*_Eye` bones, then confirmed by rendering `Mesh_0`
- *  alone. The other 31 meshes (`tripo_part_*`) are body and armour and are deliberately untouched.
+ *  alone. The other 31 meshes (`tripo_part_*`) are body and armour; `knightReceivesShadow` below marks
+ *  all 31 of them as shadow receivers.
  *
  *  Two consumers share this list on purpose: `knight.ts` gives these meshes their own face material,
  *  and `knightReceivesShadow` below excludes them from receiving shadows. One definition means the

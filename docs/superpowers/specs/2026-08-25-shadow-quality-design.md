@@ -481,10 +481,13 @@ is actually visible.
 
 **What survives.** Throttling changes *when* a frame is produced, never *what* it contains, so every
 pixel- and image-based measurement in this document is unaffected and stands as recorded: the
-bias/normalBias grid (§7 Task 3), the acne readings (0 px at all 20 cells), the receiver decomposition
-(220 / 408 / 1212 px, §7 Task 4), the ambient tint luma sweep (§7 Task 5), and the ground-detail caster
-comparisons (§7 Task 7, below). All of these carry zero-valued reproducibility and/or restore controls,
-which a throttled clock cannot forge — the controls bound *pixel* differences, not frame timing.
+bias/normalBias grid (§7 Task 3), the receiver decomposition (220 / 408 / 1212 px, §7 Task 4), the
+ambient tint luma sweep (§7 Task 5), the ground-detail caster comparisons (§7 Task 7, below), and the
+re-measured acne readings (360 px, 1.0% of the pedestal-top ROI, at the shipped `normalBias = 0.04`,
+§7 Task 8). Task 3's original acne reading (0 px at all 20 cells) is not on this list — it measured
+nothing and must not be cited as evidence; see Task 3 above. All of the readings that are listed carry
+zero-valued reproducibility and/or restore controls, which a throttled clock cannot forge — the
+controls bound *pixel* differences, not frame timing.
 
 **Perf must be re-measured before it is trusted or acted on**, on a machine where the Browser pane is
 actually visible (`document.hidden === false`) — a hidden pane silently invalidates every timing number

@@ -142,11 +142,11 @@ window.__fpsAB = (rounds = 20, framesPer = 40, warmup = 10) => {
 | # | Check | Threshold |
 |---|---|---|
 | 1 | Knight ground shadow present | ~~`shadowPixels` ≥ 2000~~ — invented, unphysical; retracted and replaced with reproducibility-based criteria (spec §5b) |
-| 2 | No shadow acne | `shadowPixels` < 922 (0.1% of frame) when aimed at open ground with no caster in view |
+| 2 | No shadow acne | ~~`shadowPixels` < 922 (0.1% of frame) when aimed at open ground with no caster in view~~ — structurally invalid; acne requires a surface that both casts and receives, which "no caster in view" rules out by construction. Replaced by spec §7 Task 8: pedestal-top pixels differing from an over-biased reference, 360 px (1.0% of the 34 850 px ROI) at the shipped `normalBias = 0.04` |
 | 3 | Tint did not brighten the scene | `frame.mean` within ±5% of the pre-change value; `frame.crushedPct` not higher |
 | 4 | Perf | ~~`costMs` < 1.5~~ — unmeasured, not passed; every sample on this branch was taken through a hidden, GPU-throttled Browser pane (spec §7, "Task 6 — performance") |
 
-Thresholds 1 and 4 are shown struck through as originally scoped; both were retracted during implementation rather than met. See spec §5b and §7 for the corrected criteria and the full measured record.
+Thresholds 1, 2 and 4 are shown struck through as originally scoped; all three were retracted during implementation rather than met as originally written. See spec §5b and §7 for the corrected criteria and the full measured record.
 
 ---
 
@@ -244,7 +244,7 @@ Leave every existing *use* of `HEAD_MESHES` (lines ~123, ~160, ~165, ~172) untou
 - [ ] **Step 6: Verify nothing broke**
 
 Run: `pnpm typecheck && pnpm test`
-Expected: tsc clean; 132 tests pass (128 existing + 4 new).
+Expected: tsc clean; 131 tests pass (128 existing + 3 new).
 
 - [ ] **Step 7: Commit**
 
@@ -490,7 +490,7 @@ Delete the now-duplicated `playerRoot` / `follow` / `scene.activeCamera` / `crea
 - [ ] **Step 6: Typecheck and test**
 
 Run: `pnpm typecheck && pnpm test`
-Expected: tsc clean; 132 tests pass.
+Expected: tsc clean; 131 tests pass.
 
 - [ ] **Step 7: Verify shadows now exist**
 
@@ -632,7 +632,7 @@ In `src/presentation/babylon/knight.ts`, add `import { knightReceivesShadow } fr
 - [ ] **Step 5: Typecheck and test**
 
 Run: `pnpm typecheck && pnpm test`
-Expected: tsc clean; 132 tests pass.
+Expected: tsc clean; 131 tests pass.
 
 - [ ] **Step 6: Judge the hypothesis**
 
@@ -699,7 +699,7 @@ Capture the knight in shadow, side-on, and share it. `DARKNESS` (0.15) and `AMBI
 - [ ] **Step 5: Typecheck**
 
 Run: `pnpm typecheck && pnpm test`
-Expected: tsc clean; 132 tests pass.
+Expected: tsc clean; 131 tests pass.
 
 - [ ] **Step 6: Record and commit**
 
@@ -756,7 +756,7 @@ Add the `__fpsAB` output to §7 and mark the four acceptance thresholds pass/fai
 - [ ] **Step 4: Final verification**
 
 Run: `pnpm typecheck && pnpm test`
-Expected: tsc clean; 132 tests pass.
+Expected: tsc clean; 131 tests pass.
 
 - [ ] **Step 5: Commit**
 

@@ -97,13 +97,12 @@ pnpm tauri dev          # native desktop app (needs Rust)
     lighting, and the shadow on it looks bad" — **not** cel banding or outlines, neither of which was
     asked for. **That "shadow" is not a shadow:** `receiveShadows` is `false` on the three `HEAD_MESHES`
     (`Mesh_0`, `Mesh_32`, `Mesh_33`) — the shadow-quality PR makes the other 31 `tripo_part_*` body
-    meshes receive, but the face stays excluded — so nothing is cast onto the face; the dark band is the
-    **N·L terminator**, the diffuse
-    falloff on the side turned away from the sun, which is why the fix is an emissive floor rather than
-    anything to do with the shadow generator. And **do not convert the knight to
-    StandardMaterial** — that was tried on the theory that the trees' PBR-vs-gamma problem applied here
-    too, and it does not (the knight sits ~5 units from the camera where fog is 0.14 %). The conversion
-    made it markedly worse: near-black hair, grey face, dull armour.
+    meshes receive, but the face stays excluded — so nothing is cast onto the face; the dark band
+    is the **N·L terminator**, the diffuse falloff on the side turned away from the sun, which is
+    why the fix is an emissive floor rather than anything to do with the shadow generator. And **do
+    not convert the knight to StandardMaterial** — that was tried on the theory that the trees'
+    PBR-vs-gamma problem applied here too, and it does not (the knight sits ~5 units from the camera
+    where fog is 0.14 %). The conversion made it markedly worse: near-black hair, grey face, dull armour.
   - **P3 water & landmarks:** a wadeable **pond** — a `StandardMaterial` disc at (−15, −0.95, −5),
     radius 12, procedural scrolling ripple normals, opacity Fresnel, **no collider** so the player
     wades the terrain underneath — and a **stone colonnade** as the hub's destination: eight pillars
