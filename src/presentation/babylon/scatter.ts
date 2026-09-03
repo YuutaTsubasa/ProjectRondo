@@ -16,22 +16,12 @@ import { PhysicsShapeType } from '@babylonjs/core/Physics/v2/IPhysicsEnginePlugi
 import { terrainHeight, EDGE_RADIUS, BARRIER_TOP } from './terrainHeight';
 import { ROCK_DIFFUSE_RGB } from './rockColors';
 import { applyWind } from './wind';
+import { rng } from '../../domain/math/rng';
 
 // Cosmetic scatter covers the walkable interior AND the grassy barrier slope, up to the barrier top
 // (a bare barrier looks wrong); colliders, though, only go where the player can reach — see below.
 const EXTENT = BARRIER_TOP;
 const ROCK_BASE_RADIUS = 0.4; // rock icosphere radius — shared by the mesh and its collider
-
-/** Deterministic 0..1 PRNG (mulberry32) so each scatter layout is identical every run. */
-function rng(seed: number): () => number {
-  let a = seed;
-  return () => {
-    a |= 0; a = (a + 0x6d2b79f5) | 0;
-    let t = Math.imul(a ^ (a >>> 15), 1 | a);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
 
 interface ScatterOpts { count: number; seed: number; y: number; minScale: number; maxScale: number; extent?: number; }
 interface Placement { x: number; y: number; z: number; s: number; }
