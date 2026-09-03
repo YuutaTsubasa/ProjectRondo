@@ -368,7 +368,7 @@ This is the task that makes shadows exist. It is one task because a half-wired s
 **Files:**
 - Create: `src/presentation/babylon/shadows.ts`
 - Modify: `src/presentation/babylon/environment.ts:6-8,17-20,74,99-103`
-- Modify: `src/presentation/babylon/hubScene.ts:47,53-59,70,77`
+- Modify: `src/presentation/babylon/hubScene.ts:47,54-62,70,77`
 - Modify: `src/presentation/babylon/terrain.ts:125`
 - Modify: `src/presentation/babylon/knight.ts:372-390`
 - Modify: `src/presentation/babylon/trees.ts:97,127-128`

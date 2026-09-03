@@ -101,8 +101,15 @@ showed up as a difference. The diff image was pure silhouette outline with nothi
 
 Chosen from three options. A player-following tight ortho box (~±15 units) would have made the
 knight sharp for free but dropped distant tree shadows entirely; a larger single map (2048²/4096²)
-keeps whole-map coverage but reaches only ~48 texels/unit at 4096² while costing ~64 MB. Cascaded
+keeps whole-map coverage but reaches only ~48 texels/unit at 4096² while costing **~134 MB**. Cascaded
 shadow maps give sharp near *and* far coverage, and Babylon ships `CascadedShadowGenerator`.
+
+The two memory figures are on the same basis, which is not obvious: `CascadedShadowGenerator` defaults
+`useRedTextureType` to **true**, so its cascades are single-channel R16F — 1024² × 2 B × 4 = 8 MB (§4e).
+A plain `ShadowGenerator` leaves that argument undefined, i.e. **false**, so it allocates RGBA, and its
+`_textureType` prefers half-float wherever the engine supports it: 4096 × 4096 × 4 × 2 = ~134 MB, before
+the depth-stencil attachment. Comparing 8 MB against a 4096² map costed as if it were single-channel
+would understate the rejected option by roughly half.
 
 `CascadedShadowGenerator` extends `ShadowGenerator`, so the existing type flows through every
 call site unchanged and the WebGL1 fallback is the same type.
@@ -272,10 +279,23 @@ Task 8 pedestal-top ROI method, measured against the shipped configuration; by t
 
 ### 5c. Bias tuning procedure
 
-Sweep `bias ∈ {0, 1e-4, 2.5e-4, 5e-4, 1e-3}` against `normalBias ∈ {0, 0.01, 0.02, 0.04}`. Take the
-smallest pair satisfying both threshold 1 and threshold 2. Record the resulting table in §7 the way
-the P3 spec recorded its measurements. The `ambient` scale factor of §4g is settled the same way,
-against threshold 3.
+> **Partly superseded.** The sweep ranges below still stand, but the acceptance rule does not: it named
+> thresholds 1 and 2 as originally written, and §5b retracts threshold 1 as invented and unphysical and
+> replaces threshold 2's method wholesale. Use the corrected rule stated here.
+
+Sweep `bias ∈ {0, 1e-4, 2.5e-4, 5e-4, 1e-3}` against `normalBias ∈ {0, 0.01, 0.02, 0.04}` — and widen
+the `normalBias` range if the acne curve has not flattened by its top, as it had not at 0.04. Record the
+resulting table in §7 the way the P3 spec recorded its measurements.
+
+Take the smallest pair that satisfies both of:
+
+- the knight's ground shadow is non-zero and reproducible, with a zero restore-control (threshold 1's
+  replacement — the original ≥2000 px criterion is retracted, see §5b); and
+- acne measured by the **Task 8 ROI method** — a pedestal-top region diffed against a deliberately
+  over-biased reference, with the caster list intact — is at the curve's floor. Emptying the caster list
+  forces 0 px and certifies nothing.
+
+The `ambient` scale factor of §4g is settled the same way, against threshold 3, which is unretracted.
 
 ## 6. Automated tests
 
