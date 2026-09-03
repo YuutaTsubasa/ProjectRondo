@@ -28,7 +28,7 @@
     margin: 0;
     font-size: 20px;
     line-height: 2;
-    color: #f2f3f5;
+    color: var(--c-ink);
     text-wrap: pretty;
   }
 </style>

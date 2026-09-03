@@ -93,7 +93,7 @@
     inset: 0;
     z-index: 10;
     pointer-events: none; /* let clicks fall through to the 3D canvas except on the panels below */
-    font-family: 'Noto Sans TC', system-ui, sans-serif;
+    font-family: var(--font-body);
   }
   /* Bottom-anchored dialogue dock, matching the design's inset panels. */
   .dock {
@@ -114,24 +114,26 @@
     display: flex;
     flex-direction: column;
     box-sizing: border-box;
-    background: rgba(10, 10, 12, 0.55);
-    backdrop-filter: blur(28px) saturate(140%);
-    -webkit-backdrop-filter: blur(28px) saturate(140%);
-    border: 1px solid rgba(255, 255, 255, 0.14);
-    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.45);
+    background: var(--surface-glass);
+    backdrop-filter: var(--surface-blur);
+    -webkit-backdrop-filter: var(--surface-blur);
+    border: 1px solid var(--surface-border);
+    /* Lighter than the 0.45 this carried as a dark panel — that alpha reads as grime under pale. */
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.25);
     padding: 22px 26px;
     pointer-events: auto;
   }
   .hit { flex: 1; cursor: pointer; outline: none; }
-  .hit:focus-visible { outline: 1px solid rgba(216, 255, 0, 0.6); outline-offset: 4px; }
+  /* Was lime at 0.6 alpha: about 1.2:1 on a light panel, i.e. an invisible focus ring. */
+  .hit:focus-visible { outline: 1px solid var(--c-blue); outline-offset: 4px; }
   .footer { display: flex; align-items: center; gap: 12px; margin-top: auto; min-height: 3px; }
-  .mark { width: 20px; height: 3px; background: rgba(255, 255, 255, 0.22); display: block; }
-  .mark.on { background: #d8ff00; }
+  .mark { width: 20px; height: 3px; background: rgba(var(--c-ink-rgb), 0.22); display: block; }
+  .mark.on { background: var(--c-lime); }
   .hint {
     margin-left: auto;
-    font-family: 'Archivo', system-ui, sans-serif;
+    font-family: var(--font-ui);
     font-size: 12px;
     letter-spacing: 0.16em;
-    color: #d8ff00;
+    color: var(--c-blue);
   }
 </style>
