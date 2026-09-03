@@ -76,8 +76,12 @@ window.__shadowProbe = async ({ x = 0, z = 0 } = {}) => {
   });
   // Babylon 9 keys shadow generators by camera; ours is registered under the follow camera, so the
   // no-arg getShadowGenerator() returns null. Prefer the stable dev handle hubScene.ts exposes
-  // (window.shadows); fall back to the camera-keyed lookup if that handle isn't there.
-  const sun = scene.lights.find((l) => l.getShadowGenerator);
+  // (window.shadows); fall back to the camera-keyed lookup if that handle isn't there. The fallback
+  // must select the sun explicitly: `getShadowGenerator` is declared on Light.prototype, so
+  // `find(l => l.getShadowGenerator)` is truthy for every light, and environment.ts constructs the
+  // `ambient` HemisphericLight before the `sun` DirectionalLight, so that predicate silently binds to
+  // `ambient` (whose getShadowGenerator returns null) instead of falling back correctly.
+  const sun = scene.lights.find((l) => l.name === 'sun');
   const sg = window.shadows?.generator ?? sun.getShadowGenerator(scene.activeCamera);
   const canvas = engine.getRenderingCanvas(), W = canvas.width, H = canvas.height, gl = engine._gl;
   const grab = () => {
@@ -116,7 +120,9 @@ window.__fpsAB = (rounds = 20, framesPer = 40, warmup = 10) => {
   // performance", method 1). Hold every define fixed and pair shadowMap.refreshRate 1
   // (re-render the map every frame) against 0 (render once, never again) instead.
   const { engine, scene } = window.hub;
-  const sun = scene.lights.find((l) => l.getShadowGenerator);
+  // Match by name, not by `getShadowGenerator` presence — see the harness's __shadowProbe comment
+  // above for why that predicate binds to `ambient` instead of `sun`.
+  const sun = scene.lights.find((l) => l.name === 'sun');
   const sg = window.shadows?.generator ?? sun.getShadowGenerator(scene.activeCamera);
   const shadowMap = sg.getShadowMap();
   const run = () => {
@@ -645,15 +651,24 @@ With the harness loaded, run the knight-present case at the origin:
 ```js
 (async () => {
   // getShadowGenerator() with no argument returns null — Babylon 9 keys generators by camera, and
-  // ours is registered under the follow camera. Prefer the stable window.shadows dev handle.
+  // ours is registered under the follow camera. Prefer the stable window.shadows dev handle; if it
+  // isn't there, match the light by name rather than by `getShadowGenerator` presence — that method
+  // is declared on Light.prototype, so it is truthy for every light, and environment.ts constructs
+  // `ambient` before `sun`, so a presence check silently binds to `ambient` (getShadowGenerator ->
+  // null) instead of `sun`.
   const { scene } = window.hub;
-  const sun = scene.lights.find(l => l.getShadowGenerator);
+  const sun = scene.lights.find(l => l.name === 'sun');
   const sg = window.shadows?.generator ?? sun.getShadowGenerator(scene.activeCamera);
+  // Use the knight-isolated probe, not __shadowProbe's whole-frame darkness A/B: the whole-frame
+  // reading is dominated by tree and pillar shadows (14 640 px, against the knight's own 222 px — see
+  // the __probeSetup comment above), so it cannot resolve what this grid is tuning. __probeSetup()
+  // must have been run once already; it pins the camera at the origin.
   const rows = [];
   for (const b of [0, 1e-4, 2.5e-4, 5e-4, 1e-3])
     for (const nb of [0, 0.01, 0.02, 0.04]) {
       sg.bias = b; sg.normalBias = nb;
-      rows.push({ bias: b, normalBias: nb, px: (await window.__shadowProbe()).shadowPixels });
+      const { px, restore } = window.__knightShadow();
+      rows.push({ bias: b, normalBias: nb, px, restore });
     }
   return rows;
 })()
@@ -685,7 +700,14 @@ Task 3 and Task 8 for the measured tables.
 
 - [ ] **Step 4: Re-verify against the edited source**
 
-Reload the page (the dev server forces a full reload on any source change) and run `await window.__shadowProbe()` once more. Confirm thresholds 1 and 2 both hold with the values now in the file, not just in the console.
+Reload the page (the dev server forces a full reload on any source change) and run ~~`await window.__shadowProbe()` once more. Confirm thresholds 1 and 2 both hold with the values now in the file, not just in the console.~~
+
+Superseded by Step 3's note above: thresholds 1 and 2 as originally defined are retracted, and
+`__shadowProbe` cannot check either replacement. Re-verify threshold 1's replacement with
+`window.__knightShadow()` (non-zero `px`, `restore` 0). Threshold 2's replacement is the Task 8
+pedestal-top ROI diff — reload, frame the plaza (the camera pose in the `__acne` setup comment above),
+run `window.__probeSetup()`, then `window.__acne()` — this cannot be done from this step's origin
+framing.
 
 - [ ] **Step 5: Record both tables in the spec**
 

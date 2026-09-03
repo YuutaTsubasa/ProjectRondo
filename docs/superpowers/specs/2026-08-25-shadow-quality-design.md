@@ -195,7 +195,7 @@ Four cascades of 1024² — a texture array, ~8 MB.
 | `numCascades` | 4 | Babylon default; cascade 0 lands a few units wide, where the knight is |
 | `lambda` | 0.8 | Logarithmic splits, concentrating resolution near the camera |
 | `shadowMaxZ` | 120 | Beyond this, fog at density 0.0076 has taken ~60% of the contrast |
-| `stabilizeCascades` | `true` | Costs effective resolution but kills shimmer; the camera always moves |
+| `stabilizeCascades` | `true` | Costs effective resolution (cascade 3 drops to 4.6 texels/unit at 1024 — see §7 Task 3's cascade geometry table) but kills shimmer; the camera always moves |
 | `cascadeBlendPercentage` | 0.1 (default) | Hides cascade seams; first knob to drop to 0 if frame time is needed |
 | `autoCalcDepthBounds` | `false` | Better precision but adds a min/max reducer pass; not until measurement asks |
 | filtering | PCF, `QUALITY_MEDIUM` | Keeps the current soft look; HIGH is a wider kernel we don't need at 4 cascades |
@@ -360,17 +360,36 @@ Chosen: **bias 1e-4, normalBias 0.01** — the smallest non-zero of each. Both g
 246, which Task 5's darkness tuning dwarfs. Any cell in the grid is defensible; the grid is recorded so
 the choice can be revisited in one edit.
 
-### Cascade geometry — resolution is not the limiting factor
+### Cascade geometry — resolution is not the limiting factor, but the margin is thin
 
-| cascade | world range | frustum width | texels/unit at 1024 |
-|---|---|---|---|
-| 0 | 0.05 – 6.29 | 6.24 | 164 |
-| 1 | 6.29 – 13.96 | 7.68 | **133** |
-| 2 | 13.96 – 31.72 | 17.75 | 58 |
-| 3 | 31.72 – 120 | 88.28 | 12 |
+An earlier pass in this section reported "frustum width" as each cascade's depth range (e.g. 13.96 −
+6.29 = 7.68 for cascade 1) and derived texels/unit from that — wrong, because with
+`stabilizeCascades = true` (§4e), `_computeCascadeFrustum` sizes each cascade's ortho box to
+`2 × sphereRadius`, the sphere bounding the slice's eight corners, which is substantially larger than
+the slice's depth. Re-measured at commit `d5283d2` by reading the ortho scale terms straight out of
+`getCascadeTransformMatrix(i)` (an ortho projection's x/y scale is `2/width`), camera at `TargetCamera`
+defaults fov 0.8 / aspect 1.778 / minZ 0.05:
 
-The camera sits 13.05 units from the knight, i.e. in cascade 1 at 133 texels/unit — resolution is not
-what's limiting the visible shadow area.
+| cascade | world range | depth range | actual ortho box | texels/unit at 1024 |
+|---|---|---|---|---|
+| 0 | 0.05 – 6.29 | 6.24 | 12.50 | 81.9 |
+| 1 | 6.29 – 13.96 | 7.68 | 25.25 | 40.6 |
+| 2 | 13.96 – 31.72 | 17.75 | 57.50 | 17.8 |
+| 3 | 31.72 – 120 | 88.28 | 224.75 | **4.6** |
+
+The depth-range column is kept so the two are not conflated again; it is not the map's footprint.
+
+The camera sits 13.05 units from the knight, i.e. in cascade 1 at **40.6** texels/unit, not 133 — the
+knight's ~0.6-unit silhouette is ~24 texels, not ~80. That is not starved, and the 220→1212 px gains
+recorded in Task 4 below came from receivers and self-shadow, not from resolution, so the conclusion
+that resolution is not what limits the knight's ground shadow still holds — but the margin is thin,
+not comfortable, and should not be read as such.
+
+Newly visible, and worth recording: cascade 3 is **4.6 texels/unit**, coarser than the ~12/unit of the
+single auto-extended map this branch replaced (§3). Distant shadows are lower-resolution than before
+`stabilizeCascades` was enabled; fog has largely taken their contrast by 120 units (`shadowMaxZ`, §4e),
+which is why the loss is not visible on screen. This is the cost §4e's `stabilizeCascades` row alludes
+to ("costs effective resolution").
 
 ### Task 4 — ground-detail receivers (spec 1b: confirmed, but smaller than claimed)
 
