@@ -1,0 +1,44 @@
+/*
+ * Design tokens — the single source of truth for colour, type, and surface treatment.
+ * Imported once from main.ts; consumed as var(--...) inside components' scoped <style> blocks.
+ * tests/presentation/dialogueTokens.test.ts fails if a hex literal reappears in
+ * src/presentation/dialogue/. Palette and type follow the "BLUE HORIZON" style sheet; see
+ * docs/superpowers/specs/2026-09-04-ui-token-system-design.md.
+ */
+:root {
+  --c-blue: #145BFF;
+  --c-lime: #B6FF00;
+  --c-pale: #E8F1FF;
+  --c-white: #FFFFFF;
+  --c-ink: #0b1020;
+
+  /* Defined for palette completeness; nothing consumes it. The style sheet colours an unknown
+     speaker yellow, but the dialogue domain has no unknown-speaker state — Speaker is a branded
+     string (src/domain/dialogue/speaker.ts) and an empty speaker is a parse error — so that
+     distinction is not implementable as a re-skin. The first component to use this token is what
+     decides what it means. */
+  --c-yellow: #FFF200;
+
+  /* --c-ink and --c-white as bare channels, so a component can write rgba(var(--c-ink-rgb), .6)
+     for secondary text, or rgba(var(--c-white-rgb), .85) for a hover, without restating the
+     colour. tests/app/tokens.test.ts asserts each pair stays in sync with its hex. */
+  --c-ink-rgb: 11, 16, 32;
+  --c-white-rgb: 255, 255, 255;
+
+  /* Poppins and JetBrains Mono have no CJK coverage and speaker names are Chinese, so Noto Sans TC
+     sits in both fallback stacks rather than letting CJK drop to system-ui. */
+  --font-headline: 'Poppins', 'Noto Sans TC', system-ui, sans-serif;
+  --font-body: 'Noto Sans TC', system-ui, sans-serif;
+  --font-ui: 'JetBrains Mono', 'Noto Sans TC', ui-monospace, monospace;
+
+  /* One set of glass values for every panel. Before this file there were five unrelated sets
+     (blur 12/18/26/28/30px, saturate 120/140/160%, alpha .55/.60/.62/.72) — see the design doc 1a.
+     The alpha starts at .72, the one value that already shipped on a light surface (Controls).
+     It is the knob the contrast measurement turns; see the design doc 5b.
+     The modal scrims in Choices and Backlog are deliberately NOT tokenised: a scrim's job is to
+     push the 3D scene back behind a modal, so it stays dark even though the panels above it
+     are light. */
+  --surface-glass: rgba(var(--c-white-rgb), 0.72);
+  --surface-blur: blur(24px) saturate(140%);
+  --surface-border: rgba(20, 91, 255, 0.22);
+}
