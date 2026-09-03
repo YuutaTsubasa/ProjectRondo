@@ -143,8 +143,12 @@ Required imports, each commented, because tree-shaken deep imports fail silently
 ```ts
 import { ShadowGenerator } from '@babylonjs/core/Lights/Shadows/shadowGenerator';
 import { CascadedShadowGenerator } from '@babylonjs/core/Lights/Shadows/cascadedShadowGenerator';
-// Side-effect: registers the shadow-map render component. Without it either generator
-// produces no shadows at all — silently.
+// Side-effect: registers the shadow-map render component. Verified inert against the pinned
+// @babylonjs/core 9.21.0 — ShadowGenerator's own constructor now calls
+// RegisterShadowGeneratorSceneComponent itself, so both generators register with or without this
+// import. Kept anyway: Babylon ships this non-pure entry point for exactly this purpose, and if a
+// future version moves registration back out of the constructor, losing this import would fail
+// the same way as a missing StandardMaterial shader import — silently.
 import '@babylonjs/core/Lights/Shadows/shadowGeneratorSceneComponent';
 ```
 

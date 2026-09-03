@@ -3,8 +3,15 @@ import type { AbstractMesh } from '@babylonjs/core/Meshes/abstractMesh';
 import type { DirectionalLight } from '@babylonjs/core/Lights/directionalLight';
 import { ShadowGenerator } from '@babylonjs/core/Lights/Shadows/shadowGenerator';
 import { CascadedShadowGenerator } from '@babylonjs/core/Lights/Shadows/cascadedShadowGenerator';
-// Side-effect: registers the shadow-map render component. Without it BOTH generators below produce
-// no shadows at all, silently — the same class of failure as the StandardMaterial shader import.
+// Side-effect: registers the shadow-map render component. Verified against the pinned
+// @babylonjs/core 9.21.0: this import is currently inert. `shadowGeneratorSceneComponent.js` is
+// only `export * from "./shadowGeneratorSceneComponent.pure.js"` and its own header says
+// registration is called from ShadowGenerator's constructor (which it is —
+// `_createInstance()` calls `RegisterShadowGeneratorSceneComponent(ShadowGenerator)`), so both
+// generators below register themselves regardless of this import. It is kept anyway: Babylon
+// ships this non-pure entry point specifically for callers who want the side effect made
+// explicit, and if a future version moves registration back out of the constructor, losing this
+// import would fail the same way the StandardMaterial shader import does — silently.
 import '@babylonjs/core/Lights/Shadows/shadowGeneratorSceneComponent';
 
 /** Per-cascade resolution. Four of these is roughly an 8 MB half-float texture array. */
@@ -41,7 +48,15 @@ const BIAS = 0.0001;
 const NORMAL_BIAS = 0.04;
 /** 0 is an opaque black shadow, 1 is no shadow. Lifted slightly so shadows are not crushed. */
 const DARKNESS = 0.15;
-/** Single-map fallback resolution when cascades are unavailable (WebGL1). */
+/**
+ * Single-map fallback resolution when cascades are unavailable (WebGL1). Unlike `MAP_SIZE`, this
+ * generator is a plain `ShadowGenerator` with `useRedTextureType` left undefined (false), so it
+ * allocates RGBA rather than single-channel — and `_textureType` still prefers half-float where
+ * the engine reports support. 2048² x 4 channels x 2 B ≈ 33.5 MB, roughly 4x `MAP_SIZE`'s 8 MB
+ * for the same reason spec §3 flags when costing the rejected 4096² single map: comparing texel
+ * counts across different pixel formats understates the wider one by about half per doubled
+ * channel count. This lands on the WebGL1 hardware least able to pay for it.
+ */
 const FALLBACK_MAP_SIZE = 2048;
 
 export interface Shadows {

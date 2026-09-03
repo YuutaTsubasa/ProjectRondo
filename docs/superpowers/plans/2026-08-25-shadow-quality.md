@@ -14,7 +14,7 @@
 
 ## Global Constraints
 
-- **Babylon deep imports fail silently.** Every side-effect import gets a comment naming what breaks without it. Missing `shadowGeneratorSceneComponent` produces no shadows and no error.
+- **Babylon deep imports fail silently.** Every side-effect import gets a comment naming what breaks without it. (`shadowGeneratorSceneComponent` turned out not to be an example of this — see the shipped comment in `shadows.ts`, which was corrected after review: on the pinned @babylonjs/core 9.21.0, `ShadowGenerator`'s own constructor registers the scene component itself, so the import is currently inert and kept only against a future Babylon version moving that registration back out.)
 - **`verbatimModuleSyntax: true`** — type-only imports MUST use `import type`.
 - **`strict: true`** — no implicit `any`, no unchecked nulls.
 - **Tests run in `environment: 'node'`** ([`vite.config.ts`](../../../vite.config.ts)). A module that imports Babylon cannot be unit-tested. Only Babylon-free modules get tests.
@@ -667,11 +667,21 @@ Teleport the knight to open ground with no tree in frame and repeat, so the same
 window.charController.setPosition(new (window.charController.getPosition().constructor)(20, 5, 20));
 ```
 
-Then re-run the Step 1 loop with `await window.__shadowProbe({ x: 20, z: 20 })`. Here `shadowPixels` is the acne count and must come in **under 922**.
+Then re-run the Step 1 loop with `await window.__shadowProbe({ x: 20, z: 20 })`. Here `shadowPixels` is the acne count and ~~must come in **under 922**~~ — still worth recording as raw sweep data, but this pass/fail bar is retracted (see below).
 
 - [ ] **Step 3: Pick the pair and edit the constants**
 
-Choose the smallest `(bias, normalBias)` satisfying threshold 1 (≥ 2000 px, knight case) and threshold 2 (< 922 px, open-ground case). Update `BIAS` and `NORMAL_BIAS` in `shadows.ts`. If no pair satisfies both, stop and report — that means `stabilizeCascades` or `numCascades` needs revisiting, which is a design change, not a tuning one.
+~~Choose the smallest `(bias, normalBias)` satisfying threshold 1 (≥ 2000 px, knight case) and threshold 2 (< 922 px, open-ground case). Update `BIAS` and `NORMAL_BIAS` in `shadows.ts`. If no pair satisfies both, stop and report — that means `stabilizeCascades` or `numCascades` needs revisiting, which is a design change, not a tuning one.`~~
+
+Superseded by what shipped: both criteria above are the same retracted thresholds struck through in
+the Task 3 preamble's table (rows 1 and 2). No `(bias, normalBias)` pair reaches 2000 px at this
+geometry — this is not a sign the design is broken, and reaching the "stop and report" sentence
+above is not a signal to revisit `stabilizeCascades`/`numCascades`. Use spec §5c's corrected rule
+instead: take the smallest pair where the knight's ground shadow is non-zero and reproducible with a
+zero restore-control (replacing threshold 1), and where the Task 8 pedestal-top ROI acne diff — not
+the empty-caster-list reading Step 2 above produces — is at the curve's floor (replacing threshold 2).
+The shipped values, `BIAS = 0.0001` and `NORMAL_BIAS = 0.04`, were picked by that rule; see spec §7
+Task 3 and Task 8 for the measured tables.
 
 - [ ] **Step 4: Re-verify against the edited source**
 
@@ -865,6 +875,17 @@ Append to §7 of `docs/HANDOFF.md`:
   the sun — the sun travels toward -X-Z, so a camera on the +X+Z side hides the shadow behind its own
   caster. The harness is in the plan: `docs/superpowers/plans/2026-08-25-shadow-quality.md`.
 ```
+
+Superseded by what shipped: "pause every `AnimationGroup`" turned out not to be enough by itself —
+`driveKnightAnimation` re-plays and re-weights the groups every frame regardless of their paused
+state, so a 0-vs-0 control that should have read 0 read 169 with only the pause applied. The
+`__probeSetup` harness earlier in this file already carries the fix, and the shipped
+`docs/HANDOFF.md` §7 bullet ("Verifying shadows: freeze the whole frame, not just the animation")
+states the corrected three-part freeze: `scene.animationsEnabled = false` (the mechanism that
+actually stops the knight — pausing groups alone does not), `scene.physicsEnabled = false` (physics
+stepping alone accounted for 59 of 64 stray control pixels), and pinning the water ripple, which
+scrolls independently of `animationGroups` on its own `onBeforeRenderObservable` in `water.ts`. Use
+the shipped HANDOFF text, not the block above.
 
 - [ ] **Step 3: Fill in the spec's perf row**
 
