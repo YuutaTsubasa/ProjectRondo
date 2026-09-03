@@ -19,6 +19,8 @@
 {/if}
 
 <style>
+  /* The scrim is deliberately NOT on the surface tokens: it dims the 3D scene behind the modal,
+     so it stays dark even though the choices above it are light. */
   .scrim {
     position: fixed;
     inset: 0;
@@ -42,28 +44,29 @@
     align-items: center;
     gap: 10px;
     margin-bottom: 4px;
-    font-family: 'Archivo', system-ui, sans-serif;
+    font-family: var(--font-ui);
     font-size: 11px;
     letter-spacing: 0.22em;
-    color: rgba(255, 255, 255, 0.6);
+    color: rgba(var(--c-ink-rgb), 0.6);
   }
-  .head .mark { width: 14px; height: 3px; background: #d8ff00; display: block; }
+  .head .mark { width: 14px; height: 3px; background: var(--c-lime); display: block; }
   .choice {
     display: flex;
     align-items: stretch;
     width: 100%;
     text-align: left;
     padding: 0;
-    background: rgba(10, 10, 12, 0.62);
-    backdrop-filter: blur(26px) saturate(140%);
-    -webkit-backdrop-filter: blur(26px) saturate(140%);
-    border: 1px solid rgba(255, 255, 255, 0.14);
-    color: #f2f3f5;
+    background: var(--surface-glass);
+    backdrop-filter: var(--surface-blur);
+    -webkit-backdrop-filter: var(--surface-blur);
+    border: 1px solid var(--surface-border);
+    color: var(--c-ink);
     cursor: pointer;
     transition: background 0.12s ease;
   }
-  .choice .rail { width: 8px; background: #0000ff; display: block; flex: none; transition: background 0.12s ease; }
+  .choice .rail { width: 8px; background: var(--c-blue); display: block; flex: none; transition: background 0.12s ease; }
   .choice .label { padding: 16px 20px; font-size: 16px; }
-  .choice:hover, .choice:focus-visible { background: rgba(24, 24, 28, 0.7); outline: none; }
-  .choice:hover .rail, .choice:focus-visible .rail { background: #d8ff00; }
+  /* Hover brightens toward white now; as a dark panel it brightened toward dark. */
+  .choice:hover, .choice:focus-visible { background: rgba(var(--c-white-rgb), 0.85); outline: none; }
+  .choice:hover .rail, .choice:focus-visible .rail { background: var(--c-lime); }
 </style>

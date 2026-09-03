@@ -30,4 +30,7 @@ describe('dialogue components use tokens, not hex literals', () => {
   it('Line.svelte', () => {
     expect(hexLiteralsIn('Line.svelte')).toEqual([]);
   });
+  it('Choices.svelte', () => {
+    expect(hexLiteralsIn('Choices.svelte')).toEqual([]);
+  });
 });
