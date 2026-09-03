@@ -109,6 +109,11 @@ Roles:
 - `--c-ink` — text on light surfaces. It takes over `#f2f3f5`'s two sites as well, because
   those are text on panels that flip light (see 4e).
 
+Two of these get a bare-channel companion, `--c-ink-rgb` and `--c-white-rgb`, because secondary
+text and hover states need the same colour at a different alpha and `rgba()` cannot take a hex
+custom property. A companion that drifts from its hex would silently mis-colour every `rgba()`
+built from it, so a test asserts the pairs stay equal.
+
 ### 4b. Font tokens
 
 ```
