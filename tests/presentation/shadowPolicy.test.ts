@@ -7,12 +7,15 @@ describe('knightReceivesShadow', () => {
   });
 
   it('includes body meshes', () => {
-    expect(knightReceivesShadow('tripo_part_1')).toBe(true);
-    expect(knightReceivesShadow('tripo_part_17')).toBe(true);
+    // Names are not a contiguous 0..46 range — the set contains Mesh_122/222/322/422 and no
+    // Mesh_12/22/32/42 — which is exactly why the prefix test below matters.
+    expect(knightReceivesShadow('Mesh_0')).toBe(true);
+    expect(knightReceivesShadow('Mesh_122')).toBe(true);
   });
 
   it('matches whole names, not prefixes', () => {
-    // 'Mesh_3' must not be swallowed by the 'Mesh_33' entry.
-    expect(knightReceivesShadow('Mesh_3')).toBe(true);
+    // 'Mesh_4' must not be swallowed by the 'Mesh_43'/'Mesh_46' entries, nor 'Mesh_2' by 'Mesh_20'.
+    expect(knightReceivesShadow('Mesh_4')).toBe(true);
+    expect(knightReceivesShadow('Mesh_2')).toBe(true);
   });
 });

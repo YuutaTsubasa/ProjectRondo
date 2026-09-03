@@ -45,6 +45,12 @@ const CASCADE_BLEND = 0.1;
  * visible as radial moiré and vertical banding); `0.04` clears it to 1.0% (360 px, near the ~0.3% floor
  * of legitimate difference from the acne-free reference), at no measurable cost to the knight's ground
  * shadow (1190 px vs 1145 px at 0.01 — marginally better, not worse). See spec §7 Task 8.
+ *
+ * That 62 was the count when this validation ran. The medieval-knight character swap (`knight.ts`,
+ * `shadowPolicy.ts`) takes the knight's receiving body from 31 meshes to 43, so the shipped
+ * casting-and-receiving count is now 74, not 62 — this validation has not been re-run at 74 and no
+ * longer describes the shipped configuration. See `knight.ts`'s `applyBodyPbr` doc, near its
+ * `NORMAL_BIAS` mention, for the same note from the other side.
  */
 const BIAS = 0.0001;
 const NORMAL_BIAS = 0.04;
@@ -127,7 +133,10 @@ export function createShadows(sun: DirectionalLight, camera: Camera): Shadows {
     // world-space offset along the vertex normal that does not scale with the light frustum at
     // all — so, unlike BIAS, it *does* carry between generators unchanged. That means Task 8's
     // acne validation (normalBias = 0.04 against the 62-mesh shipped config, spec §7) is direct
-    // evidence for this branch too, not just the CascadedShadowGenerator one it was measured on.
+    // evidence for this branch too, not just the CascadedShadowGenerator one it was measured on —
+    // except that "62-mesh shipped config" is itself stale: the medieval-knight character swap
+    // takes the knight's receiving body from 31 meshes to 43, so the shipped
+    // casting-and-receiving count is now 74. Task 8 was never re-run at 74, on either branch.
     //
     // Net: this path is still unexercised end-to-end and cannot be measured on this machine (no
     // WebGL1 device to test against). Do not change either value without measuring this branch

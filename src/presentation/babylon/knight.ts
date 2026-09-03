@@ -3,6 +3,8 @@ import type { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 import type { AnimationGroup } from '@babylonjs/core/Animations/animationGroup';
 import type { Shadows } from './shadows';
 import { ImportMeshAsync } from '@babylonjs/core/Loading/sceneLoader';
+import { Texture } from '@babylonjs/core/Materials/Textures/texture';
+import type { PBRMaterial } from '@babylonjs/core/Materials/PBR/pbrMaterial';
 import { Quaternion, Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { Color3 } from '@babylonjs/core/Maths/math.color';
 import type { AbstractMesh } from '@babylonjs/core/Meshes/abstractMesh';
@@ -103,10 +105,359 @@ const IDLE_SWAY_KEEP = 0.2;
  * disagreed because each used a differently hand-placed box with the idle animation *running*, so the
  * head sat at a different angle in each; both are superseded by the table above.
  *
- * Known and accepted: `Mesh_0` carries the hair too, so the hair lifts from near-black to a warm brown.
- * Isolating the skin would need a mask texture or a Blender split, and the lift reads as an improvement.
+ * **This table is from the previous character** (whose head was `Mesh_0` + `Mesh_32`/`Mesh_33` — see
+ * `HEAD_MESHES` in `shadowPolicy.ts`), not the current four-mesh head this file swaps in
+ * (`Mesh_1`/`Mesh_20`/`Mesh_43`/`Mesh_46`), and has not been retaken since. A different head mesh with
+ * a different face texture in a different frame composition will not reproduce these figures. Left
+ * here because `FACE_EMISSIVE` below was *tuned* against this table, so the constant's provenance is
+ * this measurement even though the measurement no longer describes what ships — re-measure on the
+ * current head before trusting the numbers, and note the constant itself may want retuning once that's
+ * done.
+ *
+ * Previously described here as inseparable from the hair — that was wrong. `shadowPolicy.ts` (`HEAD_MESHES`)
+ * establishes that `Mesh_1` is hair only (no face, no neck, no skin) and `Mesh_20` is the face/head
+ * skin: they are already separate meshes, both listed separately in `HEAD_MESHES`, both put on the
+ * same emissive clone by `swapHeadMaterial` below. So the hair lift (near-black to a warm brown) and
+ * the face lift are two separate meshes on one shared material, not one mesh carrying both — they
+ * could be tuned independently (e.g. a second, hair-only material) if that were ever wanted. Left as
+ * one shared `FACE_EMISSIVE` for now; the lift on the hair reads as an improvement, not a defect.
  */
 const FACE_EMISSIVE = 0.45;
+
+/** Cache-buster for the packed metallic/roughness map; bump when the map is rebuilt. */
+const BODY_MR_URL = '/models/knight_mr.webp?v=1';
+
+/**
+ * How metallic the armour is allowed to read, deliberately below the physically-correct 1.
+ *
+ * A metal has no diffuse — its albedo becomes the specular F0 — so it can only show what it reflects.
+ * This scene has no environment texture (`scene.environmentTexture` is null; nothing in `src/` ever
+ * sets one), so at `metallic = 1` the ~36% of texels the packed map flags as metal have nothing to
+ * reflect but the sun's specular lobe and render near-black. The armour's own albedo is dark to begin
+ * with — mean luma 71.8/255, 39.5% of its texels below 32 — so there is little headroom to lose.
+ *
+ * Holding some diffuse back is the concession that buys the plate its shape without an IBL. Measured
+ * over the armour's own pixels (mask taken by hiding the body and diffing, 50 850 px), scene frozen,
+ * zero reproducibility and restore controls, at `BODY_DIRECT_INTENSITY`:
+ *
+ * | metallic | mean luma | pixels below 30 |
+ * | --- | --- | --- |
+ * | 1.0 | 34.0 | 66.6% |
+ * | 0.8 | 46.4 | 42.4% |
+ * | **0.6** | **56.0** | **35.3%** |
+ * | 0.4 | 64.1 | 32.5% |
+ *
+ * 0.4 is brighter still but the steel starts reading as plastic, losing the dark-to-light contrast
+ * that makes it look like metal. If an environment texture is ever added, raise this back toward 1
+ * and re-measure — the correct fix is the IBL, not this number.
+ *
+ * This table, `BODY_DIRECT_INTENSITY`'s below, and the "~36%" metal-texel figure above were all
+ * measured through the *lossy* `knight_mr.webp` that ships today (its header is `VP8 `, not
+ * `VP8L` — see the README's regeneration recipe). Lossy WebP chroma-subsamples and cross-contaminates
+ * the G/B channels this map packs roughness and metallic into, so re-packing losslessly per that
+ * recipe changes the inputs these numbers came from and invalidates this table; re-measure after
+ * re-packing rather than trusting these figures against the new map.
+ */
+const BODY_METALLIC = 0.6;
+
+/**
+ * Direct-light multiplier for the armour, compensating for the same missing IBL.
+ *
+ * `directIntensity` scales only this material's response to the scene's lights, so it lifts the
+ * armour without touching the terrain, foliage or the toon face (which is its own material). Measured
+ * at `BODY_METALLIC`, same mask and controls: 1.0 -> 43.5, 1.3 -> 50.1, **1.6 -> 56.0**, 2.0 -> 63.2.
+ *
+ * Together with `BODY_METALLIC` this takes the armour from **27.6 mean luma with 72.2% of its pixels
+ * below 30** to **56.0 with 35.3%** — roughly double the brightness, with the near-black half of the
+ * surface halved. That was the reported problem: the plate read as a flat silhouette, and its shapes
+ * merged into one another rather than looking see-through.
+ *
+ * Like `BODY_METALLIC`'s table, this was measured through the *lossy* `knight_mr.webp` that ships
+ * today; re-packing losslessly per the README's recipe changes the G/B inputs and invalidates these
+ * figures too — re-measure after re-packing.
+ */
+const BODY_DIRECT_INTENSITY = 1.6;
+
+/**
+ * Corrects the GLB-shipped `normalTexture.scale: 0` on the knight's material while every mesh —
+ * head included — still shares that one material object, so the correction is in place before
+ * anything clones it.
+ *
+ * Must run before {@link applyFaceMaterial}. Every one of the knight's 47 meshes ships sharing a
+ * single glTF material at the point `loadKnight` calls this; `swapHeadMaterial` (inside
+ * `applyFaceMaterial`, called right after) is what first splits the head onto its own clone via
+ * `Material.clone()`. `Material.clone()` runs every texture slot through `SerializationHelper.Clone`,
+ * which calls `sourceProperty.clone()` — and `level` is a `@serialize()` field on `BaseTexture` — so
+ * the clone ends up with its own `bumpTexture` *wrapper*, carrying whatever `level` the source had at
+ * clone time. Correct the source here, before that clone exists, and the clone inherits the fix for
+ * free. Correcting it only in {@link applyBodyPbr} instead — which runs after the split, and only
+ * touches the body's copy of the material — would leave the head's four meshes, including `Mesh_1`
+ * (the 9232-vertex hair), on the shipped `level: 0`. Babylon's loader copies `normalTexture.scale`
+ * straight into `bumpTexture.level` (`glTFLoader.pure.js`), and PBR materials compile with
+ * `NORMALXYSCALE` defined, so `perturbNormalBase` evaluates `normalize(n * vec3(scale, scale, 1.0))`
+ * with `scale = 0` — the unperturbed geometric normal, i.e. a dead normal map on whichever mesh never
+ * gets corrected.
+ *
+ * The base commit's GLB had no `scale` key at all (the glTF spec default of 1), so the head had a
+ * live normal map before this PR swapped in a GLB that ships `scale: 0`; leaving this uncorrected
+ * would be a regression this PR introduces, not a pre-existing defect.
+ *
+ * If a re-export ever puts the head on one material and the body on another — the most likely way
+ * the "everything shares one material" assumption breaks, and exactly the split
+ * {@link swapHeadMaterial} performs by hand today — that is caught HERE, not downstream. Neither
+ * `applyFaceMaterial`'s nor `applyBodyPbr`'s own "shares one material" guard would catch it: each
+ * only compares materials *within* its own slice (all-head, or all-body), and a head/body split
+ * still leaves every mesh agreeing with the others in its own slice, so both guards pass silently.
+ * The correction has to run per distinct material for the same reason: guessing "the" material and
+ * skipping the rest would leave whichever material is not `source` on the shipped `level: 0` with no
+ * warning anywhere — the one silent failure path in a file where every other guard warns.
+ *
+ * Warn-and-skip, like every other guard in this file: this runs inside `loadKnight`, which `hubScene`
+ * awaits before `loadTrees` and `runRenderLoop`, so nothing here may throw.
+ */
+function correctSharedNormalScale(meshes: readonly AbstractMesh[]): void {
+  const withMaterial = meshes.filter((m) => m.material);
+  if (withMaterial.length === 0) return;
+  const materials = [...new Set(withMaterial.map((m) => m.material))] as PBRMaterial[];
+  if (materials.length > 1) {
+    // Not the expected shape — nothing should have split the material yet on this GLB — but correct
+    // every distinct material anyway rather than guessing which one to fix and leaving the rest on
+    // the shipped `level: 0`. See the doc above for why neither downstream guard reports this split.
+    console.warn(
+      `[knight] meshes do not share one material before any clone has run (${materials.length} distinct: ${materials.map((m) => m?.name ?? 'none').join(', ')}) — correcting normalTexture.scale on each rather than skipping.`,
+    );
+  }
+  for (const source of materials) {
+    if (source.getClassName() !== 'PBRMaterial') continue; // applyBodyPbr's/applyFaceMaterial's own guards report a non-PBR material from their own slice.
+    if (source.bumpTexture && source.bumpTexture.level !== 1) {
+      console.warn(
+        `[knight] '${source.name}' shipped normalTexture.scale ${source.bumpTexture.level} — reset to 1, before face lighting clones this material, so both body and head pick up the armour's normal map. Re-export should fix this at the source; see the README.`,
+      );
+      source.bumpTexture.level = 1;
+    }
+  }
+}
+
+/**
+ * Gives the armour a metallic/roughness map so the plate catches light as metal instead of reading as
+ * flat matte, and — synchronously, before any of that map's fetch has even started — closes a seam:
+ * the `backFaceCulling`/`twoSidedLighting` pair that closes up the armour's single-sided shells at
+ * their see-through seams. This GLB is legitimately not `doubleSided`, so the loader correctly never
+ * set `twoSidedLighting`, and dropping culling is a deliberate art call, not a correction (see the
+ * comments above those two assignments below).
+ *
+ * The other export-side defect this material ships with — `normalTexture.scale: 0` — is corrected
+ * earlier, by {@link correctSharedNormalScale}, *before* {@link applyFaceMaterial} clones this
+ * material for the head. Fixing it here instead, after the clone already exists, would leave the
+ * clone (and so all four head meshes) on the shipped, uncorrected `level`; see that function's doc.
+ *
+ * Runs *after* {@link applyFaceMaterial}, so the head's toon clone — cloned before this — keeps a
+ * non-metallic, unlit face. The whole body shares one material, so setting it once covers every mesh.
+ *
+ * **The map is fire-and-forget; the corrections above it are not.** `backFaceCulling` and
+ * `twoSidedLighting` are both written to `source` before this function returns — see the comments
+ * above each assignment for why they cannot wait. Only `metallicTexture` and its sampler flags are
+ * deferred into the loaded texture's `onLoad` callback below, which fires at an unbounded later time —
+ * after `loadKnight` has already resolved and `hubScene`'s render loop has already started. Unlike
+ * {@link applyFaceMaterial}, `loadKnight` does not await this call, so a caller cannot observe the
+ * map's arrival by awaiting `loadKnight`: until `onLoad` fires, the armour renders with the seam fix
+ * already applied, but without the metallic/roughness map.
+ *
+ * Deliberately has no {@link FACE_COMPILE_TIMEOUT_MS}-style ceiling on that wait. The face path needs
+ * one because `loadKnight` awaits it — an unbounded hang there would block scene startup entirely, with
+ * no render loop, no trees, no input. This path is awaited by nothing, so a slow or hung fetch costs
+ * only a late texture: the model keeps rendering in its already-corrected pre-map state in the
+ * meantime, a stuck `onLoad` never fires and never blocks anything else, and a failed fetch still
+ * surfaces via `onError`'s warning below rather than failing silently. There is no caller-visible hang
+ * here for a timeout to bound.
+ *
+ * That head/body split only holds while `applyFaceMaterial` actually swapped the clone in.
+ * `applyFaceMaterial` is deliberately warn-and-skip and returns without swapping from several guard
+ * points, and this function excludes the head only *by name* — so on any of those paths the head
+ * meshes are still sitting on the very material this function is about to make metallic and
+ * light-tracking. Detected below and skipped rather than silently making the face metallic.
+ */
+function applyBodyPbr(meshes: readonly AbstractMesh[], scene: Scene): void {
+  const body = meshes.filter((m) => !HEAD_MESHES.includes(m.name) && m.material);
+  if (body.length === 0) {
+    console.warn('[knight] no body material found — PBR skipped, armour stays matte.');
+    return;
+  }
+  const source = body[0].material as PBRMaterial;
+  // "The whole body shares one material" only means anything while the body actually shares one.
+  // `swapHeadMaterial` below guards the identical assumption for the head explicitly, and for the same
+  // reason: a re-export splitting the armour across two materials (belt, cloth, plate) would otherwise
+  // leave the second one matte, non-metallic and at `directIntensity` 1, next to a body lifted to
+  // `BODY_DIRECT_INTENSITY`, with no warning. Skip loudly instead of half-applying it.
+  if (body.some((m) => m.material !== source)) {
+    // Dedupe by material *identity*, not name: glTF does not require unique material names and the
+    // loader does not dedupe them (the same reasoning `swapHeadMaterial` below spells out for mesh
+    // names), so two distinct materials sharing a name would otherwise collapse into "1 distinct" —
+    // a message that contradicts itself in exactly the case this guard exists to report.
+    const distinct = [...new Set(body.map((m) => m.material))];
+    const names = distinct.map((m) => m?.name ?? 'none');
+    console.warn(
+      `[knight] body meshes do not share one material (${distinct.length} distinct: ${names.join(', ')}) — PBR skipped rather than painting one of them across the rest.`,
+    );
+    return;
+  }
+  // `metallicTexture`, `useRoughnessFromMetallicTextureGreen`, `useMetallnessFromMetallicTextureBlue`,
+  // `useRoughnessFromMetallicTextureAlpha`, `metallic` and `roughness` exist only on `PBRMaterial`; on
+  // any other material class every one of the writes below lands as an inert own-property and the
+  // armour silently stays matte. Check before touching, the way the head path checks `albedoTexture`.
+  if (source.getClassName() !== 'PBRMaterial') {
+    console.warn(
+      `[knight] body material '${source.name}' is a ${source.getClassName()}, not a PBRMaterial — PBR skipped, armour stays matte.`,
+    );
+    return;
+  }
+  // `body` was filtered by name, which only proves the head *meshes* aren't in it — not that the head
+  // is off `source`. `applyFaceMaterial` warn-and-skips from seven different guard points (name-count
+  // mismatch, no material, split head materials, no albedoTexture, `clone()` returning null, a clone
+  // without an albedoTexture, or a compile failure that rolls the head back to `source`), and on every
+  // one of them the head meshes are still on this exact material object. Applying `metallic = 0.6`,
+  // `directIntensity = 1.6` and unculled two-sided lighting to it would make the face metallic and
+  // light-tracking — a worse outcome than the matte face `applyFaceMaterial`'s own doc promises when it
+  // skips. Detect that by identity, not by name, and skip loudly instead.
+  if (meshes.some((m) => HEAD_MESHES.includes(m.name) && m.material === source)) {
+    console.warn(
+      `[knight] head meshes are still on '${source.name}' — face lighting must not have swapped its clone in. PBR skipped rather than making the face metallic too.`,
+    );
+    return;
+  }
+  // The normal-scale defect this material ships with (`normalTexture.scale: 0`) is corrected earlier,
+  // on `source` itself, by `correctSharedNormalScale` — before this function ever runs and before
+  // `applyFaceMaterial` clones the material for the head. By the time `source` is read here it should
+  // already be 1; this function does not re-correct it (see `correctSharedNormalScale`'s doc for why
+  // the correction has to happen before the clone, not after).
+  //
+  // The armour is a stack of single-sided shells that do not quite meet — most visibly where the
+  // upper arm passes the torso. Back-face culling removes the far shell's inward-facing triangles,
+  // so those seams showed the scene straight through the character rather than the armour's inside.
+  // Measured against the knight's true silhouette (taken with culling off, so gaps are inside it,
+  // scene frozen, zero reproducibility control): 107 of 53 245 silhouette pixels read as background
+  // with culling on, 0 with it off, and every camera angle tried showed the same (241-497 px on,
+  // 0 off). Only the body needs this — leaving the face culled measures identically at 0, and the
+  // head is a closed mesh that gains nothing from the extra fragments.
+  //
+  // This also reaches the shadow map, not just the camera pass: `ShadowGenerator._renderSubMeshForShadowMap`
+  // passes the material's own `backFaceCulling` straight through, so turning it off here turns
+  // culling off for all four CSM cascade renders too, and these 43 meshes both cast and receive.
+  // Measured the consequence directly (same frozen frame, 70 436 knight pixels, zero
+  // reproducibility control), body culled vs. unculled:
+  //
+  // | | body culled | body unculled | delta |
+  // | --- | --- | --- | --- |
+  // | `scene.shadowsEnabled = true` | 53.5 mean luma, 30.68% below 20 | 51.9, 30.73% | **−1.6** |
+  // | `scene.shadowsEnabled = false` | 63.1, 29.81% | 63.1, 29.81% | **0.00** |
+  //
+  // With shadows off the change is aggregate-neutral, as expected — the seam pixels are a small
+  // fraction of the body. With shadows on, the back faces write depth into the same cascades these
+  // meshes sample, and that darkens the knight by ~1.6 luma (~3%). The near-black fraction barely
+  // moves (30.68% -> 30.73%), so this is a mild uniform darkening, not new acne — accepted, and it
+  // slightly offsets `BODY_METALLIC`/`BODY_DIRECT_INTENSITY` above. `NORMAL_BIAS = 0.04` in
+  // `shadows.ts` (Task 8) was validated against this material CULLED, so that validation no longer
+  // describes what ships — but the table above shows no acne increase with it unculled, so this is
+  // recorded rather than re-tuned. The extra fragment cost across four cascades is real and
+  // unmeasured; timing cannot be measured through a hidden browser pane on this machine.
+  //
+  // A second, independent way this PR invalidates that same Task 8 validation: it was measured at
+  // 62 meshes casting-and-receiving (31 `tripo_part_*` knight-body meshes + 31 environment meshes,
+  // spec §7). This PR takes the knight's receiving body from 31 meshes to 43 (see `HEAD_MESHES` /
+  // `knightReceivesShadow` in `shadowPolicy.ts`), so the shipped casting-and-receiving count is now
+  // 74, not 62. `NORMAL_BIAS = 0.04`'s acne validation was never re-run at 74 — it is recorded here
+  // rather than re-tuned, same as the culled/unculled point above, and both are noted at
+  // `shadows.ts`'s `NORMAL_BIAS` declaration and its WebGL1-fallback comment.
+  //
+  // Applied here, unconditionally and synchronously — NOT deferred into the metallic/roughness map's
+  // `onLoad` below. It has no dependency on that map, and deferring it there was a bug: on a failed
+  // fetch `onLoad` never fires, so the seam fix never applied either, and the armour was not merely
+  // matte in that state but see-through (the 107/53245-pixel gap above, reopened). Setting it here
+  // means the seams stay closed regardless of whether the map ever arrives.
+  source.backFaceCulling = false;
+  // Babylon gates the back-face normal flip in `pbrBlockNormalFinal` on
+  // `!backFaceCulling && twoSidedLighting` (see `trees.ts`'s identical pairing for the doubleSided
+  // glTF case). This GLB is not `doubleSided`, so the loader never set `twoSidedLighting`, and without
+  // it every back face `backFaceCulling = false` newly rasterises would shade with its outward normal
+  // instead of the flipped one. Set it explicitly for the correct pairing on a double-sided material.
+  //
+  // Measured rather than assumed load-bearing: over the 5431 px that back faces actually fill (pixels
+  // differing between the culled and unculled renders), toggling this changed 1 pixel. Seam mean luma
+  // was 60.4 with 0% near-black either way — brighter than the armour's own mean, not the unlit black
+  // the wrong-normal mechanism predicts — because the hemispheric ambient already lights these seams
+  // adequately. So this is not what is holding the seams up today; it is the correct flag for a
+  // double-sided material and cheap insurance against future geometry or lighting changes that would
+  // make the wrong-normal shading visible.
+  source.twoSidedLighting = true;
+  // Every mutation below is applied together, and only once BODY_MR_URL has actually finished
+  // loading — inside the `onLoad` callback. The previous shape of this function set
+  // `metallic`/`roughness`/the sampler eagerly, before the fetch could possibly have completed, on
+  // the theory that non-blocking would leave the body rendering on "the shared material's current
+  // state (matte)" in the meantime. That is not what actually happens: Babylon's `_setTexture`
+  // substitutes its zero-filled `emptyTexture` for any sampler that is not ready, and
+  // `pbrBlockReflectivity` then computes `metallicRoughness.r *= map.b` and `.g *= map.g` against
+  // that all-zero texture, so both resolve to 0 — fully dielectric at roughness 0, a hard
+  // pinpoint-specular "plastic" look, the opposite end of the range from matte. The same substitution
+  // is also what a *failed* fetch leaves in place forever, silently. Measured on the knight's own
+  // pixels by pointing this texture at a URL that 404s:
+  //
+  // | state | mean luma | pixels above 150 |
+  // | --- | --- | --- |
+  // | map loaded | 85.0 | 1.32% |
+  // | failed fetch (emptyTexture) | 104.2 | 31.17% |
+  //
+  // A 24-fold jump in bright pixels — the pinpoint-specular signature. Deferring every write here to
+  // `onLoad` makes the pre-load state and a permanently-failed fetch identical: the body simply stays
+  // on the shared material's current GLB state (today, flat matte) until the map is actually ready —
+  // which is what "armour appears as it was, then gains its map" requires. `onError` also warns now,
+  // in the same voice as every other guard in this function, instead of leaving the plastic look
+  // permanent and silent.
+  const mr = new Texture(BODY_MR_URL, scene, {
+    noMipmap: false,
+    invertY: false,
+    onLoad: () => {
+      // The GLB's own metallicTexture/metallic/roughness are overwritten here with no fallback.
+      // Today's GLB ships flat factors and no metallicTexture, so nothing is lost. `knight.fbx` itself
+      // carries no metallic or roughness source either — verified against the file: its only texture
+      // references are `Material_Diffuse.jpg` and `Material_Normal.jpg`, its bytes contain no
+      // occurrence of `metal`/`Metal`/`roughness`/`Roughness`, and the committed `knight.fbm/` folder
+      // holds exactly those two JPEGs (the README's regeneration recipe says the same: no metallic or
+      // roughness source is committed). So getting them into the GLB directly is not on the table for
+      // *this* pipeline without a new source asset. This guard is kept anyway, for whatever eventually
+      // supplies one: the day a metallic/roughness-carrying GLB does ship, this would silently paint
+      // the separately-versioned `knight_mr.webp` sidecar over a correct, co-versioned map. Warn, in
+      // the same spirit as the head path's emissiveFactor/emissiveTexture/emissiveIntensity guards.
+      if (source.metallicTexture) {
+        console.warn(
+          `[knight] '${source.name}' already ships a metallicTexture. It is discarded: applyBodyPbr replaces it with ${BODY_MR_URL}.`,
+        );
+      }
+      source.metallicTexture = mr;
+      source.useRoughnessFromMetallicTextureGreen = true;
+      source.useMetallnessFromMetallicTextureBlue = true;
+      // Babylon reads roughness from the metallic texture's ALPHA channel by default, and alpha takes
+      // precedence over green — so setting Green alone does nothing. The packed map is fully opaque
+      // (alpha 255 everywhere, verified by reading it back), which pinned roughness at 1.0 and discarded
+      // the 0.25-0.6 the G channel actually carries. Turning this off is what lets the packing take effect.
+      source.useRoughnessFromMetallicTextureAlpha = false;
+      source.metallic = BODY_METALLIC;
+      source.roughness = 1;
+      source.directIntensity = BODY_DIRECT_INTENSITY;
+    },
+    onError: (message, exception) => {
+      // Nothing above ever ran — `source` is untouched, so the armour stays on the shared material's
+      // current GLB state (today, flat matte) rather than silently freezing into the pinpoint-specular
+      // look the table above measures. That is the *right* fallback, but a permanent one with no
+      // explanation, so say so. The seam fix (`backFaceCulling`/`twoSidedLighting` above this texture)
+      // does not depend on this map and is unaffected — it is applied unconditionally, so a failed
+      // fetch here costs only the metallic look, not the closed seams.
+      console.warn(
+        `[knight] failed to load ${BODY_MR_URL} — armour stays on the shared material's current (matte) state, permanently:`,
+        message ?? exception,
+      );
+    },
+  });
+}
 
 /** Ceiling on waiting for the face shader. `Material.forceCompilation`'s `checkReady` re-arms itself
  *  every 16 ms and only exits on ready-or-compile-error, so a blocking albedo texture that never
@@ -122,7 +473,7 @@ const FACE_COMPILE_TIMEOUT_MS = 10_000;
 /**
  * Gives the head its own material so the face can be lit differently from the armour.
  *
- * Every one of the knight's 34 meshes ships sharing a single glTF material, so the head needs a clone
+ * Every one of the knight's 47 meshes ships sharing a single glTF material, so the head needs a clone
  * before anything can be changed about it in isolation.
  *
  * `forceCompilationAsync` is not optional: swapping the material on a 101-bone skinned mesh triggers an
@@ -148,14 +499,14 @@ async function applyFaceMaterial(meshes: readonly AbstractMesh[]): Promise<void>
 }
 
 /**
- * Guards, clones, puts the clone on the three head meshes, awaits its compile, and rolls the meshes
+ * Guards, clones, puts the clone on the four head meshes, awaits its compile, and rolls the meshes
  * back if that fails. Split out from {@link applyFaceMaterial} so the try/catch there covers all of it.
  */
 async function swapHeadMaterial(meshes: readonly AbstractMesh[]): Promise<void> {
   const head = meshes.filter((m) => HEAD_MESHES.includes(m.name));
   // Each expected name must appear exactly once. Counting `head.length` would not establish that:
   // glTF does not require unique node names and the loader does not dedupe them, so a GLB with two
-  // `Mesh_0`s and no `Mesh_33` still totals three — and the face would be applied to part of the head
+  // `Mesh_1`s and no `Mesh_46` still totals four — and the face would be applied to part of the head
   // with an eyeball left on the dark shared material.
   const wrongCount = HEAD_MESHES.map((name) => ({ name, n: meshes.filter((m) => m.name === name).length })).filter(
     (x) => x.n !== 1,
@@ -260,9 +611,11 @@ async function swapHeadMaterial(meshes: readonly AbstractMesh[]): Promise<void> 
   facePbr.emissiveTexture = facePbr.albedoTexture;
   facePbr.emissiveColor = new Color3(FACE_EMISSIVE, FACE_EMISSIVE, FACE_EMISSIVE);
   // The clone also inherits `emissiveIntensity`, which the shader folds into the emissive term as
-  // `vLightingIntensity.y` — so an asset shipping KHR_materials_emissive_strength would multiply
-  // FACE_EMISSIVE by it and the measured table above would stop describing what renders. Pin it to 1
-  // so the constant means what it says, and report the discard like the other two channels.
+  // `vLightingIntensity.y` — and the shipped GLB does carry KHR_materials_emissive_strength with
+  // emissiveStrength 0 (see the README's GLB regeneration recipe), so this guard fires on every load
+  // of today's asset, not hypothetically: left unpinned, that 0 would multiply FACE_EMISSIVE to black
+  // and the measured table above would stop describing what renders. Pin it to 1 so the constant means
+  // what it says, and report the discard like the other two channels.
   if (pbr.emissiveIntensity !== undefined && pbr.emissiveIntensity !== 1) {
     console.warn(
       `[knight] '${source.name}' has emissiveIntensity ${pbr.emissiveIntensity}. It is reset to 1: FACE_EMISSIVE is calibrated against unscaled emissive.`,
@@ -371,7 +724,7 @@ export async function loadKnight(
 ): Promise<Knight> {
   // ?v bust: the browser aggressively caches the GLB, so a plain reload keeps serving an old copy.
   // Bump this whenever knight_web.glb is rebuilt so clients refetch it.
-  const result = await ImportMeshAsync('/models/knight_web.glb?v=4', scene);
+  const result = await ImportMeshAsync('/models/knight_web.glb?v=5', scene);
   const root = result.meshes[0] as TransformNode;
   root.parent = parent;
   root.position.setAll(0);
@@ -386,7 +739,9 @@ export async function loadKnight(
   shadows.cast(...result.meshes);
   shadows.receive(...result.meshes.filter((m) => knightReceivesShadow(m.name)));
 
+  correctSharedNormalScale(result.meshes);
   await applyFaceMaterial(result.meshes);
+  applyBodyPbr(result.meshes, scene);
 
   const raw = root.getHierarchyBoundingVectors(true);
   const rawHeight = raw.max.y - raw.min.y;
