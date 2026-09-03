@@ -1,0 +1,24 @@
+import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+
+// fileURLToPath, not URL.pathname — on Windows the latter yields "/C:/..." and breaks reads.
+const DIR = fileURLToPath(new URL('../../src/presentation/dialogue/', import.meta.url));
+
+/**
+ * Every hex colour literal in one component. Colours belong in src/app/tokens.css; a hex here
+ * means a value that nothing names and nothing else can share.
+ *
+ * Svelte control blocks are not matched: {#if} and {#each} have a letter after the '#', and the
+ * pattern requires a hex digit. rgba() values are not matched either and are allowed on purpose —
+ * box-shadows and the two modal scrims stay rgba (see the design doc, 4e).
+ */
+export function hexLiteralsIn(file: string): string[] {
+  return readFileSync(DIR + file, 'utf8').match(/#[0-9a-fA-F]{3,8}\b/g) ?? [];
+}
+
+describe('dialogue components use tokens, not hex literals', () => {
+  it('Nameplate.svelte', () => {
+    expect(hexLiteralsIn('Nameplate.svelte')).toEqual([]);
+  });
+});
