@@ -179,26 +179,73 @@ const BODY_METALLIC = 0.6;
 const BODY_DIRECT_INTENSITY = 1.6;
 
 /**
+ * Corrects the GLB-shipped `normalTexture.scale: 0` on the knight's material while every mesh —
+ * head included — still shares that one material object, so the correction is in place before
+ * anything clones it.
+ *
+ * Must run before {@link applyFaceMaterial}. Every one of the knight's 47 meshes ships sharing a
+ * single glTF material at the point `loadKnight` calls this; `swapHeadMaterial` (inside
+ * `applyFaceMaterial`, called right after) is what first splits the head onto its own clone via
+ * `Material.clone()`. `Material.clone()` runs every texture slot through `SerializationHelper.Clone`,
+ * which calls `sourceProperty.clone()` — and `level` is a `@serialize()` field on `BaseTexture` — so
+ * the clone ends up with its own `bumpTexture` *wrapper*, carrying whatever `level` the source had at
+ * clone time. Correct the source here, before that clone exists, and the clone inherits the fix for
+ * free. Correcting it only in {@link applyBodyPbr} instead — which runs after the split, and only
+ * touches the body's copy of the material — would leave the head's four meshes, including `Mesh_1`
+ * (the 9232-vertex hair), on the shipped `level: 0`: the unperturbed geometric normal (see
+ * `applyBodyPbr`'s doc for the `perturbNormalBase`/`NORMALXYSCALE` mechanism this feeds).
+ *
+ * The base commit's GLB had no `scale` key at all (the glTF spec default of 1), so the head had a
+ * live normal map before this PR swapped in a GLB that ships `scale: 0`; leaving this uncorrected
+ * would be a regression this PR introduces, not a pre-existing defect.
+ *
+ * Warn-and-skip, like every other guard in this file: this runs inside `loadKnight`, which `hubScene`
+ * awaits before `loadTrees` and `runRenderLoop`, so nothing here may throw.
+ */
+function correctSharedNormalScale(meshes: readonly AbstractMesh[]): void {
+  const withMaterial = meshes.filter((m) => m.material);
+  if (withMaterial.length === 0) return;
+  const source = withMaterial[0].material as PBRMaterial;
+  if (withMaterial.some((m) => m.material !== source)) {
+    // Every mesh is expected to still share one material here — nothing has split it yet on this
+    // GLB. If that assumption is already false this early, `applyFaceMaterial`'s and
+    // `applyBodyPbr`'s own "shares one material" guards will each report it from their own slice a
+    // moment later; skip quietly here rather than guess which material to correct.
+    return;
+  }
+  if (source.getClassName() !== 'PBRMaterial') return; // applyBodyPbr's own guard reports this case.
+  if (source.bumpTexture && source.bumpTexture.level !== 1) {
+    console.warn(
+      `[knight] '${source.name}' shipped normalTexture.scale ${source.bumpTexture.level} — reset to 1, before face lighting clones this material, so both body and head pick up the armour's normal map. Re-export should fix this at the source; see the README.`,
+    );
+    source.bumpTexture.level = 1;
+  }
+}
+
+/**
  * Gives the armour a metallic/roughness map so the plate catches light as metal instead of reading as
- * flat matte, and — synchronously, before any of that map's fetch has even started — corrects one
- * export-side defect in the shared body material and closes a seam: the shipped `normalTexture.scale`
- * of 0 (see `source.bumpTexture.level` below) is the export-side defect; the `backFaceCulling`/
- * `twoSidedLighting` pair that closes up the armour's single-sided shells at their see-through seams is
- * not one — this GLB is legitimately not `doubleSided`, so the loader correctly never set
- * `twoSidedLighting`, and dropping culling is a deliberate art call, not a correction (see the comments
- * above those two assignments below).
+ * flat matte, and — synchronously, before any of that map's fetch has even started — closes a seam:
+ * the `backFaceCulling`/`twoSidedLighting` pair that closes up the armour's single-sided shells at
+ * their see-through seams. This GLB is legitimately not `doubleSided`, so the loader correctly never
+ * set `twoSidedLighting`, and dropping culling is a deliberate art call, not a correction (see the
+ * comments above those two assignments below).
+ *
+ * The other export-side defect this material ships with — `normalTexture.scale: 0` — is corrected
+ * earlier, by {@link correctSharedNormalScale}, *before* {@link applyFaceMaterial} clones this
+ * material for the head. Fixing it here instead, after the clone already exists, would leave the
+ * clone (and so all four head meshes) on the shipped, uncorrected `level`; see that function's doc.
  *
  * Runs *after* {@link applyFaceMaterial}, so the head's toon clone — cloned before this — keeps a
  * non-metallic, unlit face. The whole body shares one material, so setting it once covers every mesh.
  *
- * **The map is fire-and-forget; the corrections above it are not.** The normal-scale fix,
- * `backFaceCulling` and `twoSidedLighting` are all written to `source` before this function returns —
- * see the comments above each assignment for why they cannot wait. Only `metallicTexture` and its
- * sampler flags are deferred into the loaded texture's `onLoad` callback below, which fires at an
- * unbounded later time — after `loadKnight` has already resolved and `hubScene`'s render loop has
- * already started. Unlike {@link applyFaceMaterial}, `loadKnight` does not await this call, so a
- * caller cannot observe the map's arrival by awaiting `loadKnight`: until `onLoad` fires, the armour
- * renders with the normal-map and seam fixes already applied, but without the metallic/roughness map.
+ * **The map is fire-and-forget; the corrections above it are not.** `backFaceCulling` and
+ * `twoSidedLighting` are both written to `source` before this function returns — see the comments
+ * above each assignment for why they cannot wait. Only `metallicTexture` and its sampler flags are
+ * deferred into the loaded texture's `onLoad` callback below, which fires at an unbounded later time —
+ * after `loadKnight` has already resolved and `hubScene`'s render loop has already started. Unlike
+ * {@link applyFaceMaterial}, `loadKnight` does not await this call, so a caller cannot observe the
+ * map's arrival by awaiting `loadKnight`: until `onLoad` fires, the armour renders with the seam fix
+ * already applied, but without the metallic/roughness map.
  *
  * Deliberately has no {@link FACE_COMPILE_TIMEOUT_MS}-style ceiling on that wait. The face path needs
  * one because `loadKnight` awaits it — an unbounded hang there would block scene startup entirely, with
@@ -262,21 +309,12 @@ function applyBodyPbr(meshes: readonly AbstractMesh[], scene: Scene): void {
     );
     return;
   }
-  // The shipped GLB carries `normalTexture.scale: 0` (the base commit's GLB had no `scale` at all —
-  // the glTF spec default of 1). Babylon's loader copies that straight into `bumpTexture.level`
-  // (`glTFLoader.pure.js`), and PBR materials compile with `NORMALXYSCALE` defined, so
-  // `perturbNormalBase` evaluates `normalize(n * vec3(scale, scale, 1.0))` with `scale = 0` — the
-  // unperturbed geometric normal. Every mutation below tunes how the armour catches light on top of
-  // that map, so a `level` of 0 leaves it tuning flat geometry: the plate relief this function exists
-  // to reveal would be entirely absent from what ships. Pin it back to 1, the same way the head path
-  // pins a GLB-shipped `emissiveIntensity` back to 1, and warn: this is a load-time correction for an
-  // export-side defect (see the README's GLB regeneration recipe), not the intended source of truth.
-  if (source.bumpTexture && source.bumpTexture.level !== 1) {
-    console.warn(
-      `[knight] '${source.name}' shipped normalTexture.scale ${source.bumpTexture.level} — reset to 1 so the armour's normal map actually contributes. Re-export should fix this at the source; see the README.`,
-    );
-    source.bumpTexture.level = 1;
-  }
+  // The normal-scale defect this material ships with (`normalTexture.scale: 0`) is corrected earlier,
+  // on `source` itself, by `correctSharedNormalScale` — before this function ever runs and before
+  // `applyFaceMaterial` clones the material for the head. By the time `source` is read here it should
+  // already be 1; this function does not re-correct it (see `correctSharedNormalScale`'s doc for why
+  // the correction has to happen before the clone, not after).
+  //
   // The armour is a stack of single-sided shells that do not quite meet — most visibly where the
   // upper arm passes the torso. Back-face culling removes the far shell's inward-facing triangles,
   // so those seams showed the scene straight through the character rather than the armour's inside.
@@ -306,6 +344,14 @@ function applyBodyPbr(meshes: readonly AbstractMesh[], scene: Scene): void {
   // describes what ships — but the table above shows no acne increase with it unculled, so this is
   // recorded rather than re-tuned. The extra fragment cost across four cascades is real and
   // unmeasured; timing cannot be measured through a hidden browser pane on this machine.
+  //
+  // A second, independent way this PR invalidates that same Task 8 validation: it was measured at
+  // 62 meshes casting-and-receiving (31 `tripo_part_*` knight-body meshes + 31 environment meshes,
+  // spec §7). This PR takes the knight's receiving body from 31 meshes to 43 (see `HEAD_MESHES` /
+  // `knightReceivesShadow` in `shadowPolicy.ts`), so the shipped casting-and-receiving count is now
+  // 74, not 62. `NORMAL_BIAS = 0.04`'s acne validation was never re-run at 74 — it is recorded here
+  // rather than re-tuned, same as the culled/unculled point above, and both are noted at
+  // `shadows.ts`'s `NORMAL_BIAS` declaration and its WebGL1-fallback comment.
   //
   // Applied here, unconditionally and synchronously — NOT deferred into the metallic/roughness map's
   // `onLoad` below. It has no dependency on that map, and deferring it there was a bug: on a failed
@@ -677,6 +723,7 @@ export async function loadKnight(
   shadows.cast(...result.meshes);
   shadows.receive(...result.meshes.filter((m) => knightReceivesShadow(m.name)));
 
+  correctSharedNormalScale(result.meshes);
   await applyFaceMaterial(result.meshes);
   applyBodyPbr(result.meshes, scene);
 
