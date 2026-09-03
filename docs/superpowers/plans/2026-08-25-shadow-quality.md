@@ -245,13 +245,16 @@ window.__probeSetup = () => {
       return n;
     };
     const bias0 = sg.bias, nb0 = sg.normalBias;
+    settle();
+    const preRun = window.__grab();                    // pre-run frame, for the restore control
     sg.bias = 0.005; sg.normalBias = 0.4; settle();
     const reference = window.__grab();                 // cannot have acne
     sg.bias = bias0; sg.normalBias = nb0; settle();
     const candidate = window.__grab();
     const roiPixels = (roi.x1 - roi.x0) * (roi.yTop1 - roi.yTop0);
     const px = roiDiff(reference, candidate);
-    return { acnePx: px, roiPixels, sharePct: +(100 * px / roiPixels).toFixed(2) };
+    const restore = roiDiff(preRun, candidate);         // restore MUST be 0
+    return { acnePx: px, roiPixels, sharePct: +(100 * px / roiPixels).toFixed(2), restore };
   };
 
   window.__pinCamera(0, 0);
@@ -272,7 +275,7 @@ compiling. Re-run `__probeSetup` after any change to `receiveShadows`, and settl
 |---|---|---|
 | 1 | Knight ground shadow present | ~~`shadowPixels` ≥ 2000~~ — invented, unphysical; retracted and replaced with reproducibility-based criteria (spec §5b) |
 | 2 | No shadow acne | ~~`shadowPixels` < 922 (0.1% of frame) when aimed at open ground with no caster in view~~ — structurally invalid; acne requires a surface that both casts and receives, which "no caster in view" rules out by construction. Replaced by spec §7 Task 8: pedestal-top pixels differing from an over-biased reference, 360 px (1.0% of the 34 850 px ROI) at the shipped `normalBias = 0.04` — converted to the original criterion's own denominator that is 360 / 921 600 = 0.039% of frame, under the < 0.1%-of-frame bar. The replacement passes. |
-| 3 | Tint did not brighten the scene | `frame.mean` within ±5% of the pre-change value; `frame.crushedPct` not higher |
+| 3 | Tint did not brighten the scene | in-page-state `frame.mean` within ±5% of the branch's own untinted reading (114.11, at commit `3320e30`); `frame.crushedPct` not higher |
 | 4 | Perf | ~~`costMs` < 1.5~~ — unmeasured, not passed; every sample on this branch was taken through a hidden, GPU-throttled Browser pane (spec §7, "Task 6 — performance") |
 
 Thresholds 1, 2 and 4 are shown struck through as originally scoped; all three were retracted during implementation rather than met as originally written. See spec §5b and §7 for the corrected criteria and the full measured record.

@@ -87,13 +87,16 @@ export interface Shadows {
  * What actually matters, and lasts for the life of the scene rather than just at construction time:
  * the generator is registered under `camera`, and both `PrepareDefinesForLight`
  * (`materialHelper.functions.js`) and `Light._bindLight` (`light.js`) resolve it every frame as
- * `light.getShadowGenerator(scene.activeCamera) ?? light.getShadowGenerator()`. The no-arg fallback
- * looks up the `null` key, which nothing is ever registered under, so that `??` only saves you if
- * `scene.activeCamera === camera`. `hubScene.ts` passes `follow.camera` here right after setting it
- * as `scene.activeCamera`, so this holds today — but it is an ongoing invariant, not a one-time
- * ordering requirement. Repoint `scene.activeCamera` at a different camera later (a cutscene or AVG
- * camera) without updating the generator and every shadow stops rendering silently, no error, no
- * console warning — see `docs/HANDOFF.md` §7.
+ * `light.getShadowGenerator(scene.activeCamera) ?? light.getShadowGenerator()`. On the cascaded branch
+ * below, the no-arg fallback looks up the `null` key, which nothing on that branch registers under,
+ * so that `??` only saves you if `scene.activeCamera === camera`. (The WebGL1 fallback branch is
+ * different: `new ShadowGenerator(FALLBACK_MAP_SIZE, sun)` is passed no camera, so its constructor
+ * stores `camera ?? null` and registers itself under that same `null` key — on that path the no-arg
+ * fallback resolves it regardless of `scene.activeCamera`.) `hubScene.ts` passes `follow.camera` here
+ * right after setting it as `scene.activeCamera`, so the cascaded branch holds today — but it is an
+ * ongoing invariant, not a one-time ordering requirement. Repoint `scene.activeCamera` at a different
+ * camera later (a cutscene or AVG camera) without updating the generator and, on the cascaded branch,
+ * every shadow stops rendering silently, no error, no console warning — see `docs/HANDOFF.md` §7.
  */
 export function createShadows(sun: DirectionalLight, camera: Camera): Shadows {
   let generator: ShadowGenerator;

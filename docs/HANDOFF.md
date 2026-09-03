@@ -348,17 +348,22 @@ These are hard-won; several cost a debugging session each.
 - **`ShadowGenerator`s are keyed by camera in Babylon 9.** Ours is constructed with the follow
   camera, so the no-arg `sun.getShadowGenerator()` misses and returns `null`. Call
   `sun.getShadowGenerator(scene.activeCamera)`.
-- **That keying is a live invariant, not a one-time setup detail — watch it if a second camera is
-  ever added.** `createShadows(sun, camera)` (`shadows.ts`) registers the generator under `camera`,
-  and Babylon looks it up every frame as `light.getShadowGenerator(scene.activeCamera) ??
-  light.getShadowGenerator()` (`materialHelper.functions.js`, `light.js`) — the no-arg fallback reads
-  the `null` key, which nothing is ever registered under. `hubScene.ts` keeps this true today only
-  because it sets `scene.activeCamera = follow.camera` immediately before calling `createShadows`
-  with that same camera, and never repoints `scene.activeCamera` afterwards. This project already has
-  an AVG overlay path; the day a cutscene or AVG camera becomes `scene.activeCamera` without also
-  becoming the shadow generator's camera, every shadow stops rendering with no error and no console
-  warning. Either re-create the generator for the new camera or keep `scene.activeCamera` pointed at
-  the camera the generator was built with.
+- **That keying is a live invariant on the cascaded branch, not a one-time setup detail — watch it if
+  a second camera is ever added.** `createShadows(sun, camera)` (`shadows.ts`) registers the cascaded
+  generator under `camera`, and Babylon looks it up every frame as
+  `light.getShadowGenerator(scene.activeCamera) ?? light.getShadowGenerator()`
+  (`materialHelper.functions.js`, `light.js`). On that branch the no-arg fallback reads the `null`
+  key, which nothing on that branch registers under, so the lookup only succeeds because
+  `scene.activeCamera === camera`. (The WebGL1 fallback is different: `ShadowGenerator`'s constructor
+  stores `camera ?? null`, so `new ShadowGenerator(FALLBACK_MAP_SIZE, sun)` — passed no camera —
+  registers itself under that same `null` key, and the no-arg fallback resolves it regardless of
+  `scene.activeCamera`; see `shadowGenerator.js:633,646`.) `hubScene.ts` keeps the cascaded-branch
+  invariant true today only because it sets `scene.activeCamera = follow.camera` immediately before
+  calling `createShadows` with that same camera, and never repoints `scene.activeCamera` afterwards.
+  This project already has an AVG overlay path; the day a cutscene or AVG camera becomes
+  `scene.activeCamera` without also becoming the shadow generator's camera, every shadow on the
+  cascaded branch stops rendering with no error and no console warning. Either re-create the generator
+  for the new camera or keep `scene.activeCamera` pointed at the camera the generator was built with.
 - **Performance cannot be measured through a hidden Browser pane.** A pane that is open but not
   visible still renders, but the page is GPU-throttled: eight back-to-back samples of one identical
   config came back 47.7–128.0 ms, a 2.7x spread with a monotonic upward drift as the throttle ramps.

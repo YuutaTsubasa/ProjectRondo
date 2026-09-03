@@ -268,12 +268,15 @@ option available and tends toward speckle noise.
 |---|---|---|---|
 | 1 | Knight ground shadow present | ≥ 2 000 px darkened at 1280×720, side-on camera | **Invented, unphysical, replaced.** No camera framing at this geometry reaches 2 000 px unoccluded — see below. Replaced by: a non-zero, reproducible knight-only ground shadow with a zero restore-control, plus a measurable increase when ground-detail receivers are enabled. Both hold. |
 | 2 | No shadow acne | darkened pixels on open unoccluded ground < 0.1% of frame | **Original method structurally invalid — replaced (Task 8); the replacement passes.** The Task 3 reading (0 px, recorded as PASS) was taken with an empty caster list, so 0 px was forced by the configuration, not produced by the swept values: acne requires a surface that both casts and receives, which nothing did at that point, so it certified nothing. Replaced by the Task 8 pedestal-top ROI method, measured against the shipped configuration (the first with any casting+receiving meshes — 62 of them). At `normalBias = 0.01` (the Task 3 pick) that method reads severe acne — 75.4% of the 34 850-px pedestal-top ROI. Raising `normalBias` to 0.04 brings it to 360 px, 1.0% of the ROI — converted to the original criterion's own denominator (921 600 px at 1280×720), 360 / 921 600 = 0.039% of frame, under the < 0.1%-of-frame bar. See §7 Task 8. |
-| 3 | Ambient tint did not brighten the scene | whole-frame mean luma within ±5% of `main`; crushed-black % not increased | **PASS** — +4.83% (scale 0.30); crushed % rises 0 → 0.001, treated as noise floor, not a regression |
+| 3 | Ambient tint did not brighten the scene | in-page-state whole-frame mean luma within ±5% of the branch's own untinted reading (`frame.mean` = 114.11, measured at commit `3320e30` with shadows already enabled); crushed-black % not increased | **PASS** — +4.83% (scale 0.30) against the 114.11 baseline; crushed % rises 0 → 0.001, treated as noise floor, not a regression |
 | 4 | Perf | within-session round-robin median against `main`; cost < 1.5 ms of the 16.7 ms budget | **unmeasured — requires a visible window.** Every timing figure this session was taken with the Browser pane hidden (`document.hidden === true`), which GPU-throttles the page; eight samples of an identical config spread 2.7x with a monotonic upward drift. There is no valid measurement to judge this threshold against. See §7's Task 6 write-up. |
 
 Threshold 3 uses the whole-frame protocol because P2's tree-emissive regression came from measuring
-only lit points. Threshold 4 is a within-session delta because HANDOFF §5 records that P2's and P3's
-absolute numbers came from different machines.
+only lit points, and its baseline is the branch's own untinted, in-page-state reading (114.11 at
+commit `3320e30`) rather than a cross-commit comparison against `main` — no measurement against `main`
+was taken; see §7 Task 5 for why the cross-commit/cross-reload method was tried and retracted.
+Threshold 4 is a within-session delta because HANDOFF §5 records that P2's and P3's absolute numbers
+came from different machines.
 
 Final outcome: threshold 1 was invented rather than derived from any real constraint of this scene and
 came apart under measurement, and was replaced with criteria that actually test correctness. Threshold
