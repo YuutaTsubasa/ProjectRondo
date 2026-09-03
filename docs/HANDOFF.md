@@ -30,16 +30,18 @@ functional core, reactive UI**, plus the project's **18 code-quality principles*
 | `docs/engineering-principles.md` | The 18 principles (canonical). |
 | `docs/superpowers/specs/2026-08-18-refined-hub-world-roadmap.md` | **The roadmap** — current milestone + what's next. |
 | `__prototype__/` | Original Godot 4.7.1 (mono/C#) project — parity reference; also holds the GLB export tools (`tools/export_web_glb.gd`). |
-| `public/` | Assets: `models/knight_web.glb`, `models/tree.glb`, `textures/grass.jpg`, `portraits/`, `fonts/`. |
+| `public/` | Assets: `models/knight_web.glb`, `models/knight_mr.webp`, `models/tree.glb`, `textures/grass.jpg`, `portraits/`, `fonts/`. |
 | `src-tauri/` | Tauri v2 desktop shell (Rust). |
 
 ## 3. Setup on a new machine
 
 **Prerequisites**
 - **Node** (v24 used here) + **pnpm** (v11). `corepack enable` or install pnpm directly.
-- **Git LFS** — REQUIRED. `.glb`/`.fbx`/`.blend`/`.vrm` are LFS-tracked (see `.gitattributes`). After
-  cloning: `git lfs install && git lfs pull`, or the knight/tree models are just pointer files and the
-  scene loads empty. (`.png`/`.jpg`/fonts are normal binaries and clone fine.)
+- **Git LFS** — REQUIRED. `.glb`/`.fbx`/`.blend`/`.vrm`/`.webp` are LFS-tracked (see `.gitattributes`).
+  After cloning: `git lfs install && git lfs pull`, or the knight/tree models (and `knight_mr.webp`, the
+  armour's metallic/roughness map) are just pointer files — the scene loads with the knight's armour
+  stuck matte and a console warning instead of empty, since only that one texture fetch fails. (`.png`/
+  `.jpg`/fonts are normal binaries and clone fine.)
 - **Rust toolchain** — only needed for `pnpm tauri` desktop builds. Not needed to run in the browser.
 - **Godot 4.7.1 (mono)** — only needed to *regenerate* the knight/tree GLBs from the prototype (rare).
   On the old machine it was at `/Applications/Godot_mono.app`; install wherever on the new one.
@@ -403,7 +405,8 @@ machine gives the next Claude session full continuity.
 
 ## 9. Quick "am I set up right?" checklist
 
-- `git lfs pull` done, and `public/models/knight_web.glb` starts with `glTF` (not `version https://…`).
+- `git lfs pull` done, and `public/models/knight_web.glb` and `public/models/knight_mr.webp` both start
+  with their real binary headers (`glTF` and `RIFF` respectively), not `version https://…`.
 - `pnpm test` → all green.
 - `pnpm exec tsc --noEmit` → clean.
 - `pnpm dev`, open the URL → hub loads: the knight stands on rolling grass, an AVG intro plays, WASD

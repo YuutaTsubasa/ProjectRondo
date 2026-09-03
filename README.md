@@ -20,7 +20,7 @@ Engineering approach: **TDD + DDD + Functional + Reactive**.
 | `src/presentation/babylon/` | babylon.js scene: hub, follow camera, Havok character controller, glTF knight. Reads input → calls the domain → applies the result to the physics body. |
 | `src/app/` | Svelte entry + full-window canvas. |
 | `tests/` | Vitest specs (mirror the domain's former xUnit tests). |
-| `public/models/` | `knight_web.glb` (baked Idle/Walk, texture-only optimized). |
+| `public/models/` | `knight_web.glb` (baked Idle/Walk, texture-only optimized), `knight_mr.webp` (packed metallic/roughness map). |
 | `src-tauri/` | Tauri v2 shell (desktop/mobile packaging). |
 | `__prototype__/` | The original Godot 4.7.1 (mono/C#) project, kept as a parity reference. |
 

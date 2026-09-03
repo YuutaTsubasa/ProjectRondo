@@ -184,6 +184,21 @@ const BODY_DIRECT_INTENSITY = 1.6;
  * Runs *after* {@link applyFaceMaterial}, so the head's toon clone — cloned before this — keeps a
  * non-metallic, unlit face. The whole body shares one material, so setting it once covers every mesh.
  *
+ * **Fire-and-forget, not synchronous.** This function returns having applied nothing: every mutation
+ * to `source` is deferred into the loaded texture's `onLoad` callback below, which fires at an
+ * unbounded later time — after `loadKnight` has already resolved and `hubScene`'s render loop has
+ * already started. Unlike {@link applyFaceMaterial}, `loadKnight` does not await this call, so a
+ * caller cannot observe the armour's final state by awaiting `loadKnight`; the armour keeps rendering
+ * in the GLB's own shipped state (today, flat matte) until the map arrives.
+ *
+ * Deliberately has no {@link FACE_COMPILE_TIMEOUT_MS}-style ceiling on that wait. The face path needs
+ * one because `loadKnight` awaits it — an unbounded hang there would block scene startup entirely, with
+ * no render loop, no trees, no input. This path is awaited by nothing, so a slow or hung fetch costs
+ * only a late texture: the model keeps rendering in its pre-load state in the meantime, a stuck
+ * `onLoad` never fires and never blocks anything else, and a failed fetch still surfaces via `onError`'s
+ * warning below rather than failing silently. There is no caller-visible hang here for a timeout to
+ * bound.
+ *
  * That head/body split only holds while `applyFaceMaterial` actually swapped the clone in.
  * `applyFaceMaterial` is deliberately warn-and-skip and returns without swapping from several guard
  * points, and this function excludes the head only *by name* — so on any of those paths the head
@@ -203,9 +218,14 @@ function applyBodyPbr(meshes: readonly AbstractMesh[], scene: Scene): void {
   // leave the second one matte, non-metallic and at `directIntensity` 1, next to a body lifted to
   // `BODY_DIRECT_INTENSITY`, with no warning. Skip loudly instead of half-applying it.
   if (body.some((m) => m.material !== source)) {
-    const names = [...new Set(body.map((m) => m.material?.name ?? 'none'))];
+    // Dedupe by material *identity*, not name: glTF does not require unique material names and the
+    // loader does not dedupe them (the same reasoning `swapHeadMaterial` below spells out for mesh
+    // names), so two distinct materials sharing a name would otherwise collapse into "1 distinct" —
+    // a message that contradicts itself in exactly the case this guard exists to report.
+    const distinct = [...new Set(body.map((m) => m.material))];
+    const names = distinct.map((m) => m?.name ?? 'none');
     console.warn(
-      `[knight] body meshes do not share one material (${names.length} distinct: ${names.join(', ')}) — PBR skipped rather than painting one of them across the rest.`,
+      `[knight] body meshes do not share one material (${distinct.length} distinct: ${names.join(', ')}) — PBR skipped rather than painting one of them across the rest.`,
     );
     return;
   }

@@ -54,8 +54,11 @@ func _initialize():
 
 func _adduct(anim: Animation, track_path: String, sign: float) -> void:
 	var ti := anim.find_track(NodePath(track_path), Animation.TYPE_ROTATION_3D)
-	if ti < 0:
-		return
+	# Same invariant as the Skeleton3D path assert in _initialize(): the very re-import that would
+	# change this prefix out from under `_adduct` is the case that assert exists to catch loudly. A
+	# silent `return` here would drop the -5° A-stance correction from all four clips while
+	# `_initialize` still prints "added … tracks=…" and "SAVED err=0", with no other signal.
+	assert(ti >= 0, "expected a ROTATION_3D track at %s to apply the A-stance correction; got none" % track_path)
 	var dq := Quaternion(_adduct_axis, deg_to_rad(ADDUCT_DEG) * sign)
 	for k in anim.track_get_key_count(ti):
 		var q: Quaternion = anim.track_get_key_value(ti, k)
