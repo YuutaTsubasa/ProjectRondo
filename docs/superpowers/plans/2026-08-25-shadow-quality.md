@@ -58,7 +58,7 @@
 
 ## Measurement Harness
 
-Tasks 3–6 all use these probes. Run them with the Browser pane's `javascript_tool` against the dev server. `__shadowProbe` is the whole-frame darkness A/B; `__knightShadow` is the knight-isolated metric the headline figures (the Task 3 grid, Task 4's 220/408/1212 decomposition, Task 8's 1145/1190/1615 px) actually use; `__acne` is threshold 2; `__fpsAB` is timing.
+Tasks 3–6 all use these probes. Run them with the Browser pane's `javascript_tool` against the dev server. `__shadowProbe` is the whole-frame darkness A/B; `__knightShadow` is the knight-isolated metric the headline figures (the Task 3 grid, Task 4's 220/408/1212 decomposition, Task 8's 1145/1190/1615 px) actually use; `__acne` is threshold 2 — not a darkness A/B, a pedestal-top ROI diffed against a deliberately over-biased reference, and it requires the plaza framing (the ROI is the pedestal top at 1280×720, only valid from that camera position); `__fpsAB` is timing.
 
 The five numbered comments correspond to the spec's §5a steps — none of them are optional. Skipping (1) produced the false positive recorded in spec §1d.
 
@@ -201,16 +201,38 @@ window.__probeSetup = () => {
     return { px: window.__diff(a, b), restore: window.__diff(a, c) };  // restore MUST be 0
   };
 
-  // Acne = darkening that survives when nothing casts. Requires a surface that both casts and
-  // receives, so it can only be observed in a configuration that has one.
-  window.__acne = () => {
-    for (const m of all) sg.removeShadowCaster(m);
-    const d = sg.getDarkness();
-    sg.setDarkness(0); window.__grab(); const a = window.__grab();
-    sg.setDarkness(1); const b = window.__grab();
-    sg.setDarkness(d);
-    for (const m of all) sg.addShadowCaster(m);
-    return window.__diff(a, b);
+  // Threshold 2. Acne requires a surface that BOTH casts and receives, so it can only be observed with
+  // the caster list intact — emptying it (as an earlier version of this probe did) forces 0 px at any
+  // bias and certifies nothing. Instead, hold the scene fixed and compare the candidate against a
+  // deliberately over-biased reference, which cannot exhibit acne by construction. Whatever differs is
+  // acne plus a small floor of legitimate self-shadow the big bias also removed; the floor is visible
+  // as the point where the curve plateaus.
+  //
+  // Frame the plaza first: the pedestal and pillars are curved stone that both casts and receives, the
+  // geometry most prone to acne in this scene.
+  //   window.hub.follow.camera.position.set(-1.5, 3.0, 27.5);
+  //   window.hub.follow.camera.setTarget(new V3(-6, 2.2, 32));
+  // The ROI below is the pedestal top at 1280x720 in that framing. Re-derive it if you move the camera.
+  window.__acne = (roi = { x0: 440, x1: 850, yTop0: 385, yTop1: 470 }) => {
+    const settle = () => { for (let i = 0; i < 12; i++) window.__grab(); };
+    const roiDiff = (a, b) => {
+      const W = canvas.width, H = canvas.height;
+      let n = 0;
+      for (let yTop = roi.yTop0; yTop < roi.yTop1; yTop++)
+        for (let x = roi.x0; x < roi.x1; x++) {
+          const k = ((H - 1 - yTop) * W + x) * 4;      // readPixels is bottom-up
+          if (Math.abs(b[k] - a[k]) > 4) n++;
+        }
+      return n;
+    };
+    const bias0 = sg.bias, nb0 = sg.normalBias;
+    sg.bias = 0.005; sg.normalBias = 0.4; settle();
+    const reference = window.__grab();                 // cannot have acne
+    sg.bias = bias0; sg.normalBias = nb0; settle();
+    const candidate = window.__grab();
+    const roiPixels = (roi.x1 - roi.x0) * (roi.yTop1 - roi.yTop0);
+    const px = roiDiff(reference, candidate);
+    return { acnePx: px, roiPixels, sharePct: +(100 * px / roiPixels).toFixed(2) };
   };
 
   window.__pinCamera(0, 0);
