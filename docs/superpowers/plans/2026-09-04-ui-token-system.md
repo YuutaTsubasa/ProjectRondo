@@ -847,7 +847,8 @@ cat >> $F <<'CSSEOF'
     font-family: var(--font-ui);
     font-size: 11px;
     letter-spacing: 0.22em;
-    color: rgba(var(--c-ink-rgb), 0.6);
+    /* NOT ink: .panel has no background, so this label sits on the dark scrim, not on a panel. */
+    color: rgba(var(--c-white-rgb), 0.6);
   }
   .head .mark { width: 14px; height: 3px; background: var(--c-lime); display: block; }
   .choice {

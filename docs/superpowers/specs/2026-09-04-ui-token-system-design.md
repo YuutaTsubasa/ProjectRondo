@@ -160,6 +160,11 @@ dark. A scrim's job is to push the 3D scene back behind a modal; a light scrim o
 outdoor scene would raise the background luminance rather than lower it, and the knight would
 wash out. This is an intentional exception and is commented as one in `tokens.css`.
 
+It follows that anything drawn **on** a scrim rather than on a panel keeps light text. `Choices`
+`.head` is the one such element: `.panel` has no background, so that label sits directly on the
+scrim. Flipping it to ink would make it dark-on-dark — the same defect 4d fixes for lime-on-white,
+in the opposite direction.
+
 ### 4f. `--c-yellow` is defined and unused, on purpose
 
 The style sheet's backlog renders `REI` in blue and `???` in yellow-green, which reads as a
@@ -180,7 +185,7 @@ so, and says that the first component to use it is what fixes its meaning.
 |---|---|---|
 | `DialogueOverlay` | `.box` glass -> surface tokens; `.mark.on` -> `--c-lime`; `.hint` -> `--c-blue` + `--font-ui`; `.overlay` font -> `--font-body`; `.mark` dim -> ink alpha | yes |
 | `Line` | `#f2f3f5` -> `--c-ink` | yes |
-| `Choices` | `.choice` glass -> surface tokens; text -> `--c-ink`; `.rail` -> `--c-blue`; hover rail and `.head .mark` -> `--c-lime`; `.head` text -> ink alpha; `'Archivo'` -> `--font-ui` | yes |
+| `Choices` | `.choice` glass -> surface tokens; text -> `--c-ink`; `.rail` -> `--c-blue`; hover rail and `.head .mark` -> `--c-lime`; `.head` text stays light — it sits on the scrim, not a panel; `'Archivo'` -> `--font-ui` | yes |
 | `Backlog` | `.log` glass -> surface tokens; header gradient -> `--c-lime` / `--c-pale`; `.rail` -> `--c-blue`; `.title` -> `--font-headline`; `.who` -> `--c-blue`; `.text` -> ink alpha | yes |
 | `Nameplate` | rail and tick -> `--c-blue`; cut corner -> `--c-lime`; board -> `--c-pale`; text -> `--c-ink`; `'Chakra Petch'` -> `--font-headline` | already light |
 | `Controls` | glass -> surface tokens; text -> `--c-ink`; `.active .mark` -> `--c-lime`; `'Archivo'` -> `--font-ui` | already light |
