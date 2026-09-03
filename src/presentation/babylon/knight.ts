@@ -118,15 +118,24 @@ const BODY_MR_URL = '/models/knight_mr.webp?v=1';
  *
  * A metal has no diffuse — its albedo becomes the specular F0 — so it can only show what it reflects.
  * This scene has no environment texture (`scene.environmentTexture` is null; nothing in `src/` ever
- * sets one), so at `metallic = 1` the ~36% of texels the packed map flags as metal had nothing to
- * reflect but the sun's specular lobe and rendered near-black. Measured over the armour's pixels:
- * mean luma 32.4/255 with 49.9% of them below 30.
+ * sets one), so at `metallic = 1` the ~36% of texels the packed map flags as metal have nothing to
+ * reflect but the sun's specular lobe and render near-black. The armour's own albedo is dark to begin
+ * with — mean luma 71.8/255, 39.5% of its texels below 32 — so there is little headroom to lose.
  *
  * Holding some diffuse back is the concession that buys the plate its shape without an IBL. Measured
- * at the same framing, frozen scene, zero reproducibility control: 0.8 -> 29.0, **0.6 -> 36.0**,
- * 0.4 -> 42.3. 0.4 is brighter still but the steel starts reading as plastic, losing the dark-to-light
- * contrast that makes it look like metal. If an environment texture is ever added, raise this back
- * toward 1 and re-measure — the correct fix is the IBL, not this number.
+ * over the armour's own pixels (mask taken by hiding the body and diffing, 50 850 px), scene frozen,
+ * zero reproducibility and restore controls, at `BODY_DIRECT_INTENSITY`:
+ *
+ * | metallic | mean luma | pixels below 30 |
+ * | --- | --- | --- |
+ * | 1.0 | 34.0 | 66.6% |
+ * | 0.8 | 46.4 | 42.4% |
+ * | **0.6** | **56.0** | **35.3%** |
+ * | 0.4 | 64.1 | 32.5% |
+ *
+ * 0.4 is brighter still but the steel starts reading as plastic, losing the dark-to-light contrast
+ * that makes it look like metal. If an environment texture is ever added, raise this back toward 1
+ * and re-measure — the correct fix is the IBL, not this number.
  */
 const BODY_METALLIC = 0.6;
 
@@ -135,8 +144,12 @@ const BODY_METALLIC = 0.6;
  *
  * `directIntensity` scales only this material's response to the scene's lights, so it lifts the
  * armour without touching the terrain, foliage or the toon face (which is its own material). Measured
- * at `BODY_METALLIC`: 1.0 -> 36.0, 1.3 -> 42.6, **1.6 -> 48.6**, 2.0 -> 55.8. 1.6 lands the armour at
- * roughly half the frame's own mean luma, which reads as lit steel rather than a silhouette.
+ * at `BODY_METALLIC`, same mask and controls: 1.0 -> 43.5, 1.3 -> 50.1, **1.6 -> 56.0**, 2.0 -> 63.2.
+ *
+ * Together with `BODY_METALLIC` this takes the armour from **27.6 mean luma with 72.2% of its pixels
+ * below 30** to **56.0 with 35.3%** — roughly double the brightness, with the near-black half of the
+ * surface halved. That was the reported problem: the plate read as a flat silhouette, and its shapes
+ * merged into one another rather than looking see-through.
  */
 const BODY_DIRECT_INTENSITY = 1.6;
 
