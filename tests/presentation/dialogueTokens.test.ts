@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 // fileURLToPath, not URL.pathname — on Windows the latter yields "/C:/..." and breaks reads.
@@ -18,22 +18,15 @@ export function hexLiteralsIn(file: string): string[] {
 }
 
 describe('dialogue components use tokens, not hex literals', () => {
-  it('Nameplate.svelte', () => {
-    expect(hexLiteralsIn('Nameplate.svelte')).toEqual([]);
+  const files = readdirSync(DIR).filter((f) => f.endsWith('.svelte'));
+
+  // A glob that matches nothing passes every assertion below while guarding nothing.
+  it('actually scans the components', () => {
+    expect(files.length).toBeGreaterThanOrEqual(7);
   });
-  it('Controls.svelte', () => {
-    expect(hexLiteralsIn('Controls.svelte')).toEqual([]);
-  });
-  it('DialogueOverlay.svelte', () => {
-    expect(hexLiteralsIn('DialogueOverlay.svelte')).toEqual([]);
-  });
-  it('Line.svelte', () => {
-    expect(hexLiteralsIn('Line.svelte')).toEqual([]);
-  });
-  it('Choices.svelte', () => {
-    expect(hexLiteralsIn('Choices.svelte')).toEqual([]);
-  });
-  it('Backlog.svelte', () => {
-    expect(hexLiteralsIn('Backlog.svelte')).toEqual([]);
+
+  it('finds no hex literal in any of them', () => {
+    const offenders = files.flatMap((f) => hexLiteralsIn(f).map((hex) => `${f}: ${hex}`));
+    expect(offenders).toEqual([]);
   });
 });
