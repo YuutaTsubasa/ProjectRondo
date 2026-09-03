@@ -97,7 +97,7 @@ pnpm tauri dev          # native desktop app (needs Rust)
     shared glTF material, with the albedo added back as emissive so the face stays bright and flat
     instead of tracking the sun. Head region mean luma 35.6 → 68.8 at the shipped 0.45 (0.25 gives
     57.1), with the rest of the frame flat at 114.3 as a control — which is what says the body meshes
-    are untouched. **That table is from the previous character's two-mesh head (`Mesh_0` +
+    are untouched. **That table is from the previous character's three-mesh head (`Mesh_0` +
     `Mesh_32`/`Mesh_33`), not the current four-mesh head above, and has not been retaken** — a
     different head mesh with a different face texture in a different frame composition cannot
     reproduce it. `FACE_EMISSIVE` was tuned against those numbers, so the constant is inherited and

@@ -180,24 +180,30 @@ const BODY_DIRECT_INTENSITY = 1.6;
 
 /**
  * Gives the armour a metallic/roughness map so the plate catches light as metal instead of reading as
- * flat matte. The map is packed glTF-style (roughness in G, metallic in B) from the source PBR set.
- * Runs *after* {@link applyFaceMaterial}, so the head's toon clone — cloned before this — keeps a
- * non-metallic, unlit face. The whole body shares one material, so setting it once covers every mesh.
+ * flat matte, and — synchronously, before any of that map's fetch has even started — corrects two
+ * export-side defects in the shared body material and closes a seam: the shipped
+ * `normalTexture.scale` of 0 (see `source.bumpTexture.level` below) and the missing
+ * `backFaceCulling`/`twoSidedLighting` pair that left the armour's single-sided shells see-through at
+ * their seams. Runs *after* {@link applyFaceMaterial}, so the head's toon clone — cloned before this —
+ * keeps a non-metallic, unlit face. The whole body shares one material, so setting it once covers every
+ * mesh.
  *
- * **Fire-and-forget, not synchronous.** This function returns having applied nothing: every mutation
- * to `source` is deferred into the loaded texture's `onLoad` callback below, which fires at an
+ * **The map is fire-and-forget; the corrections above it are not.** The normal-scale fix,
+ * `backFaceCulling` and `twoSidedLighting` are all written to `source` before this function returns —
+ * see the comments above each assignment for why they cannot wait. Only `metallicTexture` and its
+ * sampler flags are deferred into the loaded texture's `onLoad` callback below, which fires at an
  * unbounded later time — after `loadKnight` has already resolved and `hubScene`'s render loop has
  * already started. Unlike {@link applyFaceMaterial}, `loadKnight` does not await this call, so a
- * caller cannot observe the armour's final state by awaiting `loadKnight`; the armour keeps rendering
- * in the GLB's own shipped state (today, flat matte) until the map arrives.
+ * caller cannot observe the map's arrival by awaiting `loadKnight`: until `onLoad` fires, the armour
+ * renders with the normal-map and seam fixes already applied, but without the metallic/roughness map.
  *
  * Deliberately has no {@link FACE_COMPILE_TIMEOUT_MS}-style ceiling on that wait. The face path needs
  * one because `loadKnight` awaits it — an unbounded hang there would block scene startup entirely, with
  * no render loop, no trees, no input. This path is awaited by nothing, so a slow or hung fetch costs
- * only a late texture: the model keeps rendering in its pre-load state in the meantime, a stuck
- * `onLoad` never fires and never blocks anything else, and a failed fetch still surfaces via `onError`'s
- * warning below rather than failing silently. There is no caller-visible hang here for a timeout to
- * bound.
+ * only a late texture: the model keeps rendering in its already-corrected pre-map state in the
+ * meantime, a stuck `onLoad` never fires and never blocks anything else, and a failed fetch still
+ * surfaces via `onError`'s warning below rather than failing silently. There is no caller-visible hang
+ * here for a timeout to bound.
  *
  * That head/body split only holds while `applyFaceMaterial` actually swapped the clone in.
  * `applyFaceMaterial` is deliberately warn-and-skip and returns without swapping from several guard
@@ -540,9 +546,11 @@ async function swapHeadMaterial(meshes: readonly AbstractMesh[]): Promise<void> 
   facePbr.emissiveTexture = facePbr.albedoTexture;
   facePbr.emissiveColor = new Color3(FACE_EMISSIVE, FACE_EMISSIVE, FACE_EMISSIVE);
   // The clone also inherits `emissiveIntensity`, which the shader folds into the emissive term as
-  // `vLightingIntensity.y` — so an asset shipping KHR_materials_emissive_strength would multiply
-  // FACE_EMISSIVE by it and the measured table above would stop describing what renders. Pin it to 1
-  // so the constant means what it says, and report the discard like the other two channels.
+  // `vLightingIntensity.y` — and the shipped GLB does carry KHR_materials_emissive_strength with
+  // emissiveStrength 0 (see the README's GLB regeneration recipe), so this guard fires on every load
+  // of today's asset, not hypothetically: left unpinned, that 0 would multiply FACE_EMISSIVE to black
+  // and the measured table above would stop describing what renders. Pin it to 1 so the constant means
+  // what it says, and report the discard like the other two channels.
   if (pbr.emissiveIntensity !== undefined && pbr.emissiveIntensity !== 1) {
     console.warn(
       `[knight] '${source.name}' has emissiveIntensity ${pbr.emissiveIntensity}. It is reset to 1: FACE_EMISSIVE is calibrated against unscaled emissive.`,

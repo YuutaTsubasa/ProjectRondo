@@ -78,18 +78,31 @@ gltf-transform webp /tmp/k.glb public/models/knight_web.glb --quality 80
 ```
 
 Bump the `?v=N` query on the GLB URL in `src/presentation/babylon/knight.ts` after rebuilding so
-browsers refetch it. Then delete the ~90 MB `__prototype__/knight_web.glb` intermediate and the
+browsers refetch it. Then delete the 68 MB `__prototype__/knight_web.glb` intermediate and the
 `knight_web*.png` / `.import` side files Godot's next scan drops next to it.
 
-**Known defect in the currently shipped GLB: `normalTexture.scale` is `0`.** The base commit's GLB had
-no `scale` key at all (the glTF spec default, 1); today's has `{"index": 1, "scale": 0}`, which zeroes
-out the armour's normal map entirely (`knight.ts`'s `applyBodyPbr` corrects it at load time — see
-`source.bumpTexture.level` there — and warns when it has to). Neither `export_web_glb.gd` nor
-`knight.fbx.import` sets a normal scale anywhere, so the value is coming from somewhere in step 1 or 2
-above that has not been isolated (Godot's glTF exporter, or the `gltf-transform` pass). Check the
-`normalTexture` block of the freshly exported GLB's JSON chunk against this before shipping a
-regeneration, and drop the load-time correction in `knight.ts` once a regenerated file ships `scale: 1`
-(or no `scale` key) on its own.
+**Known defect in the currently shipped GLB: the `gltf-transform` pass writes default-valued scalars
+as `0` instead of omitting them, and at least three of them ship this way.** `extensionsUsed` includes
+`KHR_materials_emissive_strength`, and the material's `pbrMetallicRoughness`/`extensions` blocks read:
+
+- `normalTexture: {"index": 1, "scale": 0}` — the base commit's GLB had no `scale` key at all (the
+  glTF spec default, 1); `0` zeroes out the armour's normal map entirely (`knight.ts`'s `applyBodyPbr`
+  corrects it at load time — see `source.bumpTexture.level` there — and warns when it has to).
+- `extensions.KHR_materials_emissive_strength.emissiveStrength: 0` (spec default 1) — Babylon maps
+  this straight to `emissiveIntensity = 0`, which trips `swapHeadMaterial`'s guard in `knight.ts` on
+  every load and would zero `FACE_EMISSIVE` if that guard did not pin it back to 1.
+- `pbrMetallicRoughness.metallicFactor: 0` (spec default 1) — currently inert only because
+  `applyBodyPbr` overwrites `metallic` unconditionally; it is the same defect and would surface the
+  moment that overwrite stopped happening.
+
+Because this is a systematic property of the export pass and not three coincidences, **no scalar in
+this GLB should be trusted without checking it against the glTF spec default** — do not stop at
+`normalTexture` when regenerating. Neither `export_web_glb.gd` nor `knight.fbx.import` sets any of
+these anywhere, so the values are coming from somewhere in step 1 or 2 above that has not been isolated
+(Godot's glTF exporter, or the `gltf-transform` pass itself). Check every scalar in the freshly
+exported GLB's JSON chunk against its spec default before shipping a regeneration, and drop the
+corresponding load-time correction in `knight.ts` once a regenerated file ships the correct defaults
+(or no key at all) on its own.
 
 ### Regenerating the knight's metallic/roughness map
 
