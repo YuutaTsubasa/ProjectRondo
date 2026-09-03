@@ -120,6 +120,33 @@ const FACE_EMISSIVE = 0.45;
 const BODY_MR_URL = '/models/knight_mr.webp?v=1';
 
 /**
+ * How metallic the armour is allowed to read, deliberately below the physically-correct 1.
+ *
+ * A metal has no diffuse — its albedo becomes the specular F0 — so it can only show what it reflects.
+ * This scene has no environment texture (`scene.environmentTexture` is null; nothing in `src/` ever
+ * sets one), so at `metallic = 1` the ~36% of texels the packed map flags as metal had nothing to
+ * reflect but the sun's specular lobe and rendered near-black. Measured over the armour's pixels:
+ * mean luma 32.4/255 with 49.9% of them below 30.
+ *
+ * Holding some diffuse back is the concession that buys the plate its shape without an IBL. Measured
+ * at the same framing, frozen scene, zero reproducibility control: 0.8 -> 29.0, **0.6 -> 36.0**,
+ * 0.4 -> 42.3. 0.4 is brighter still but the steel starts reading as plastic, losing the dark-to-light
+ * contrast that makes it look like metal. If an environment texture is ever added, raise this back
+ * toward 1 and re-measure — the correct fix is the IBL, not this number.
+ */
+const BODY_METALLIC = 0.6;
+
+/**
+ * Direct-light multiplier for the armour, compensating for the same missing IBL.
+ *
+ * `directIntensity` scales only this material's response to the scene's lights, so it lifts the
+ * armour without touching the terrain, foliage or the toon face (which is its own material). Measured
+ * at `BODY_METALLIC`: 1.0 -> 36.0, 1.3 -> 42.6, **1.6 -> 48.6**, 2.0 -> 55.8. 1.6 lands the armour at
+ * roughly half the frame's own mean luma, which reads as lit steel rather than a silhouette.
+ */
+const BODY_DIRECT_INTENSITY = 1.6;
+
+/**
  * Gives the armour a metallic/roughness map so the plate catches light as metal instead of reading as
  * flat matte. The map is packed glTF-style (roughness in G, metallic in B) from the source PBR set.
  * Runs *after* {@link applyFaceMaterial}, so the head's toon clone — cloned before this — keeps a
@@ -135,8 +162,14 @@ function applyBodyPbr(meshes: readonly AbstractMesh[], scene: Scene): void {
   mat.metallicTexture = mr;
   mat.useRoughnessFromMetallicTextureGreen = true;
   mat.useMetallnessFromMetallicTextureBlue = true;
-  mat.metallic = 1;
+  // Babylon reads roughness from the metallic texture's ALPHA channel by default, and alpha takes
+  // precedence over green — so setting Green alone does nothing. The packed map is fully opaque
+  // (alpha 255 everywhere, verified by reading it back), which pinned roughness at 1.0 and discarded
+  // the 0.25-0.6 the G channel actually carries. Turning this off is what lets the packing take effect.
+  mat.useRoughnessFromMetallicTextureAlpha = false;
+  mat.metallic = BODY_METALLIC;
   mat.roughness = 1;
+  mat.directIntensity = BODY_DIRECT_INTENSITY;
 }
 
 /** Ceiling on waiting for the face shader. `Material.forceCompilation`'s `checkReady` re-arms itself
