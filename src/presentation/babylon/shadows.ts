@@ -72,14 +72,24 @@ export function createShadows(sun: DirectionalLight, camera: Camera): Shadows {
     generator = csm;
   } else {
     console.warn('[shadows] cascaded shadow maps unavailable — falling back to a single shadow map.');
-    // BIAS/NORMAL_BIAS below were measured (Task 3) only for the CascadedShadowGenerator branch, not
-    // for this plain ShadowGenerator. A plain generator's world-space bias scales with its own light
-    // frustum, not a per-cascade one — the constants' own comment already says the safe value does
-    // not carry between generators — and `autoUpdateExtends` here spans the whole hub, the exact
-    // configuration §1a's original bug lived in. These values are ~20x smaller than the 0.002 that
-    // broke everything there, so they are likely fine, but this path is unexercised and unmeasured:
-    // it cannot be measured on this machine (no WebGL1 device to test against). Do not change the
-    // values without measuring this branch specifically.
+    // BIAS below was measured (Task 3) only for the CascadedShadowGenerator branch, not for this
+    // plain ShadowGenerator. `bias` offsets the light's *normalized* depth metric (see
+    // shadowMapVertexMetric: `vDepthMetricSM += biasAndScaleSM.x`), so its world-space size scales
+    // with the light frustum's depth — and this plain generator's frustum is a single box spanning
+    // the whole hub (`autoUpdateExtends`), the exact configuration §1a's original bug lived in.
+    // BIAS = 0.0001 is ~20x smaller than the 0.002 that broke everything there, so it is likely
+    // fine, but this specific frustum/bias combination is unmeasured.
+    //
+    // NORMAL_BIAS is a different mechanism and does not share that risk. Babylon applies it in
+    // shadowMapVertexNormalBias as `worldPos.xyz -= vNormalW * (biasAndScaleSM.y * sinNLSM)`, a
+    // world-space offset along the vertex normal that does not scale with the light frustum at
+    // all — so, unlike BIAS, it *does* carry between generators unchanged. That means Task 8's
+    // acne validation (normalBias = 0.04 against the 62-mesh shipped config, spec §7) is direct
+    // evidence for this branch too, not just the CascadedShadowGenerator one it was measured on.
+    //
+    // Net: this path is still unexercised end-to-end and cannot be measured on this machine (no
+    // WebGL1 device to test against). Do not change either value without measuring this branch
+    // specifically.
     generator = new ShadowGenerator(FALLBACK_MAP_SIZE, sun);
   }
 

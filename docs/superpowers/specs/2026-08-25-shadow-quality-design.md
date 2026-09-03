@@ -494,7 +494,10 @@ controls bound *pixel* differences, not frame timing.
 **Perf must be re-measured before it is trusted or acted on**, on a machine where the Browser pane is
 actually visible (`document.hidden === false`) — a hidden pane silently invalidates every timing number
 taken through it, with no error and no visible symptom other than the drift documented above. Until
-then, treat P4's frame-budget headroom (HANDOFF §5) as unknown rather than "~11 ms of 16.7 ms."
+then, treat P4's frame-budget headroom as unknown — not the "~11 ms of 16.7 ms" once claimed here. That
+figure came from this session's retracted throttled measurements (above), not from HANDOFF §5, which
+states only "roughly 8x headroom against the 16.7 ms vsync budget" and itself flags that 8x figure as
+predating this branch and no longer holding.
 
 ### Task 7 — rocks and bushes cast
 
