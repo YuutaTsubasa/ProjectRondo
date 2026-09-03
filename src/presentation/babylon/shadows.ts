@@ -133,8 +133,17 @@ export function createShadows(sun: DirectionalLight, camera: Camera): Shadows {
     generator = new ShadowGenerator(FALLBACK_MAP_SIZE, sun);
   }
 
-  // CascadedShadowGenerator accepts only FILTER_NONE, FILTER_PCF and FILTER_PCSS; anything else is
-  // logged as an error and silently downgraded to FILTER_NONE.
+  // Two silent downgrades live in these two lines, one per branch.
+  //
+  // Cascaded branch: CascadedShadowGenerator accepts only FILTER_NONE, FILTER_PCF and FILTER_PCSS;
+  // anything else is logged as an error and silently downgraded to FILTER_NONE.
+  //
+  // WebGL1 fallback branch: this is NOT PCF. ShadowGenerator's `filter` setter turns PCF/PCSS into
+  // `usePoissonSampling = true` whenever `_features.supportShadowSamplers` is false
+  // (shadowGenerator.js:169-173), and thinEngine derives both `supportShadowSamplers` and
+  // `supportCSM` from the same `_webGLVersion !== 1` test (thinEngine.pure.js:622,627). So every
+  // engine that can reach the `else` above lands on FILTER_POISSONSAMPLING, and the
+  // `filteringQuality` below is inert there — it is only read for PCF and PCSS.
   generator.usePercentageCloserFiltering = true;
   generator.filteringQuality = ShadowGenerator.QUALITY_MEDIUM;
   generator.bias = BIAS;
