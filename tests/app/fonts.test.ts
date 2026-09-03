@@ -25,4 +25,14 @@ describe('fonts.css', () => {
     const orphans = readdirSync(DIR).filter((f) => f.endsWith('.woff2') && !referenced.includes(f));
     expect(orphans).toEqual([]);
   });
+
+  // Losing unicode-range on the two Noto Sans TC Latin faces is a megabyte-scale regression:
+  // ASCII would resolve to the ~1 MB Traditional-Chinese file instead of the 13 KB Latin one.
+  it('keeps unicode-range on both Noto Sans TC Latin faces', () => {
+    const latinBlocks = [...css.matchAll(/@font-face\s*\{[^}]*noto-sans-tc-latin-[^}]*\}/g)].map((m) => m[0]);
+    expect(latinBlocks).toHaveLength(2);
+    for (const block of latinBlocks) {
+      expect(block).toMatch(/unicode-range\s*:/);
+    }
+  });
 });

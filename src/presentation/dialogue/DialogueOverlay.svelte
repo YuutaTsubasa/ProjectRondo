@@ -124,8 +124,10 @@
     pointer-events: auto;
   }
   .hit { flex: 1; cursor: pointer; outline: none; }
-  /* Was lime at 0.6 alpha: about 1.2:1 on a light panel, i.e. an invisible focus ring. */
-  .hit:focus-visible { outline: 1px solid var(--c-blue); outline-offset: 4px; }
+  /* Was lime at 0.6 alpha: about 1.2:1 on a light panel, i.e. an invisible focus ring.
+     --c-blue itself is 2.65:1 at the floor, under the 3:1 non-text-UI threshold, so this uses
+     the deep variant instead. */
+  .hit:focus-visible { outline: 1px solid var(--c-blue-deep); outline-offset: 4px; }
   .footer { display: flex; align-items: center; gap: 12px; margin-top: auto; min-height: 3px; }
   .mark { width: 20px; height: 3px; background: rgba(var(--c-ink-rgb), 0.22); display: block; }
   .mark.on { background: var(--c-lime); }
@@ -134,6 +136,9 @@
     font-family: var(--font-ui);
     font-size: 12px;
     letter-spacing: 0.16em;
-    color: var(--c-blue);
+    /* --c-blue is 2.65:1 as text against the darkest panel the glass can produce, under the
+       4.5:1 threshold. Ink is the established pattern for secondary UI labels (Controls,
+       Backlog .text). */
+    color: var(--c-ink);
   }
 </style>

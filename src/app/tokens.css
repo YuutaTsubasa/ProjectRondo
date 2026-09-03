@@ -7,6 +7,11 @@
  */
 :root {
   --c-blue: #145BFF;
+  /* Blue is structure, and as a fill it is fine. As TEXT on --surface-glass it is not: #145BFF
+     lands at 2.65:1 against the darkest panel the glass can produce and 4.11:1 over lit grass,
+     both under the 4.5:1 threshold. This darker blue clears it everywhere (5.66:1 at the floor)
+     while keeping the style sheet's blue speaker names. Measured in the design doc, section 6. */
+  --c-blue-deep: #0A2E99;
   --c-lime: #B6FF00;
   --c-pale: #E8F1FF;
   --c-white: #FFFFFF;
@@ -24,6 +29,7 @@
      colour. tests/app/tokens.test.ts asserts each pair stays in sync with its hex. */
   --c-ink-rgb: 11, 16, 32;
   --c-white-rgb: 255, 255, 255;
+  --c-blue-rgb: 20, 91, 255;
 
   /* Poppins and JetBrains Mono have no CJK coverage and speaker names are Chinese, so Noto Sans TC
      sits in both fallback stacks rather than letting CJK drop to system-ui. */
@@ -40,5 +46,5 @@
      are light. */
   --surface-glass: rgba(var(--c-white-rgb), 0.72);
   --surface-blur: blur(24px) saturate(140%);
-  --surface-border: rgba(20, 91, 255, 0.22);
+  --surface-border: rgba(var(--c-blue-rgb), 0.22);
 }

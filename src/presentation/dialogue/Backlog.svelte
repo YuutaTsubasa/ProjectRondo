@@ -63,7 +63,9 @@
   li { display: flex; align-items: baseline; gap: 10px; font-size: 14px; line-height: 1.8; }
   .mark { width: 18px; height: 3px; background: var(--c-lime); display: block; flex: none; transform: translateY(-4px); }
   /* Was lime, which is ~1.2:1 on a pale panel. Blue for every speaker: the style sheet's yellow
-     "unknown speaker" has no state behind it in this codebase (see the design doc, 4f). */
-  .who { color: var(--c-blue); font-weight: 700; flex: none; }
+     "unknown speaker" has no state behind it in this codebase (see the design doc, 4f).
+     --c-blue itself is 2.65:1 as text against the darkest panel the glass can produce, under
+     the 4.5:1 threshold, so this uses the deep variant instead. */
+  .who { color: var(--c-blue-deep); font-weight: 700; flex: none; }
   .text { color: rgba(var(--c-ink-rgb), 0.85); }
 </style>
