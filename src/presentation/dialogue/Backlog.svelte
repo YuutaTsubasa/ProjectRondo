@@ -19,6 +19,7 @@
 </div>
 
 <style>
+  /* Like Choices' scrim, deliberately off the surface tokens — it dims the scene behind the modal. */
   .scrim {
     position: absolute;
     inset: 0;
@@ -34,11 +35,12 @@
     max-height: calc(100% - 140px);
     display: flex;
     flex-direction: column;
-    background: rgba(10, 10, 12, 0.6);
-    backdrop-filter: blur(30px) saturate(140%);
-    -webkit-backdrop-filter: blur(30px) saturate(140%);
-    border: 1px solid rgba(255, 255, 255, 0.14);
-    box-shadow: 0 30px 70px rgba(0, 0, 0, 0.5);
+    background: var(--surface-glass);
+    backdrop-filter: var(--surface-blur);
+    -webkit-backdrop-filter: var(--surface-blur);
+    border: 1px solid var(--surface-border);
+    /* Lowered from 0.5 with the flip to a pale panel. */
+    box-shadow: 0 30px 70px rgba(0, 0, 0, 0.28);
     padding: 0 24px 20px;
   }
   header {
@@ -47,19 +49,21 @@
     gap: 14px;
     margin: 0 -24px 14px;
     padding: 10px 24px;
-    background: linear-gradient(315deg, #d8ff00 0 10px, transparent 10px 14px, #eef0f2 14px);
+    background: linear-gradient(315deg, var(--c-lime) 0 10px, transparent 10px 14px, var(--c-pale) 14px);
   }
-  header .rail { width: 9px; align-self: stretch; margin: -10px 0 -10px -24px; background: #0000ff; display: block; flex: none; }
+  header .rail { width: 9px; align-self: stretch; margin: -10px 0 -10px -24px; background: var(--c-blue); display: block; flex: none; }
   .title {
-    font-family: 'Chakra Petch', 'Noto Sans TC', system-ui, sans-serif;
+    font-family: var(--font-headline);
     font-weight: 700;
-    color: #0b0b0d;
+    color: var(--c-ink);
     letter-spacing: 0.04em;
   }
-  .close { margin-left: auto; background: none; border: none; color: #0b0b0d; font-size: 20px; line-height: 1; cursor: pointer; }
+  .close { margin-left: auto; background: none; border: none; color: var(--c-ink); font-size: 20px; line-height: 1; cursor: pointer; }
   ol { list-style: none; margin: 0; padding: 0; overflow: auto; display: flex; flex-direction: column; gap: 12px; }
   li { display: flex; align-items: baseline; gap: 10px; font-size: 14px; line-height: 1.8; }
-  .mark { width: 18px; height: 3px; background: #d8ff00; display: block; flex: none; transform: translateY(-4px); }
-  .who { color: #d8ff00; font-weight: 700; flex: none; }
-  .text { color: rgba(238, 240, 242, 0.85); }
+  .mark { width: 18px; height: 3px; background: var(--c-lime); display: block; flex: none; transform: translateY(-4px); }
+  /* Was lime, which is ~1.2:1 on a pale panel. Blue for every speaker: the style sheet's yellow
+     "unknown speaker" has no state behind it in this codebase (see the design doc, 4f). */
+  .who { color: var(--c-blue); font-weight: 700; flex: none; }
+  .text { color: rgba(var(--c-ink-rgb), 0.85); }
 </style>
