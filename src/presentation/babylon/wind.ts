@@ -4,9 +4,12 @@ import type { UniformBuffer } from '@babylonjs/core/Materials/uniformBuffer';
 import { MaterialPluginBase } from '@babylonjs/core/Materials/materialPluginBase';
 
 /**
- * Wind direction in the XZ plane, unit length — (0.8, 0.6) is exactly 1. Exported because the clouds
- * (`clouds.ts`) and the butterflies (`butterfly.ts`) read it too: three effects drifting in three
- * directions reads as three unrelated bugs rather than as weather.
+ * The hub's one wind direction, in the XZ plane, unit length — (0.8, 0.6) is exactly 1. Module-private:
+ * nothing here is exported. The other two effects in this phase are meant to agree with it, but neither
+ * imports it: the clouds (`clouds.ts`) agree by a visual check of their drift direction against this
+ * one, and the butterflies agree via a deliberately hand-kept copy of these two values in
+ * `src/domain/hub/butterfly.ts`, which may not import from the presentation layer. A copy kept in step
+ * by hand is a maintenance hazard — changing the direction here means changing it there too.
  */
 const WIND_DIR_X = 0.8;
 const WIND_DIR_Z = 0.6;
