@@ -70,7 +70,11 @@ window.__shadowProbe = async ({ x = 0, z = 0 } = {}) => {
     follow.camera.position.set(x + 9, 4.5, z - 9);
     follow.camera.setTarget(new V3(x - 1.5, 1.0, z + 1.5));
   });
-  const sg = scene.lights.find((l) => l.getShadowGenerator?.()).getShadowGenerator();
+  // Babylon 9 keys shadow generators by camera; ours is registered under the follow camera, so the
+  // no-arg getShadowGenerator() returns null. Prefer the stable dev handle hubScene.ts exposes
+  // (window.shadows); fall back to the camera-keyed lookup if that handle isn't there.
+  const sun = scene.lights.find((l) => l.getShadowGenerator);
+  const sg = window.shadows?.generator ?? sun.getShadowGenerator(scene.activeCamera);
   const canvas = engine.getRenderingCanvas(), W = canvas.width, H = canvas.height, gl = engine._gl;
   const grab = () => {
     for (let i = 0; i < 8; i++) { engine.beginFrame(); scene.render(); engine.endFrame(); }
@@ -102,19 +106,27 @@ window.__shadowProbe = async ({ x = 0, z = 0 } = {}) => {
   };
 };
 
-window.__fpsAB = (rounds = 6, framesPer = 120) => {
+window.__fpsAB = (rounds = 20, framesPer = 40, warmup = 10) => {
+  // Never toggle scene.shadowsEnabled for this A/B: it changes material defines and forces shader
+  // recompilation, so the "cost" it measures is recompilation, not shadow rendering (measurements.md,
+  // "Two bad methods, discarded"). Hold every define fixed and pair shadowMap.refreshRate 1
+  // (re-render the map every frame) against 0 (render once, never again) instead.
   const { engine, scene } = window.hub;
+  const sun = scene.lights.find((l) => l.getShadowGenerator);
+  const sg = window.shadows?.generator ?? sun.getShadowGenerator(scene.activeCamera);
+  const shadowMap = sg.getShadowMap();
   const run = () => {
+    for (let i = 0; i < warmup; i++) { engine.beginFrame(); scene.render(); engine.endFrame(); }
     const t0 = performance.now();
     for (let i = 0; i < framesPer; i++) { engine.beginFrame(); scene.render(); engine.endFrame(); }
     return (performance.now() - t0) / framesPer;
   };
   const on = [], off = [];
   for (let r = 0; r < rounds; r++) {                        // round-robin, not two blocks
-    scene.shadowsEnabled = true;  run(); on.push(run());    // discard one warm-up run each side
-    scene.shadowsEnabled = false; run(); off.push(run());
+    shadowMap.refreshRate = 1; on.push(run());
+    shadowMap.refreshRate = 0; off.push(run());
   }
-  scene.shadowsEnabled = true;
+  shadowMap.refreshRate = 1;
   const med = (a) => a.slice().sort((x, y) => x - y)[Math.floor(a.length / 2)];
   return { msWithShadows: +med(on).toFixed(3), msWithout: +med(off).toFixed(3), costMs: +(med(on) - med(off)).toFixed(3) };
 };
@@ -509,7 +521,11 @@ With the harness loaded, run the knight-present case at the origin:
 
 ```js
 (async () => {
-  const sg = window.hub.scene.lights.find(l => l.getShadowGenerator?.()).getShadowGenerator();
+  // getShadowGenerator() with no argument returns null — Babylon 9 keys generators by camera, and
+  // ours is registered under the follow camera. Prefer the stable window.shadows dev handle.
+  const { scene } = window.hub;
+  const sun = scene.lights.find(l => l.getShadowGenerator);
+  const sg = window.shadows?.generator ?? sun.getShadowGenerator(scene.activeCamera);
   const rows = [];
   for (const b of [0, 1e-4, 2.5e-4, 5e-4, 1e-3])
     for (const nb of [0, 0.01, 0.02, 0.04]) {
@@ -696,7 +712,7 @@ git commit -m "feat(shadows): lift shadows off black and tint them toward the sk
 
 - [ ] **Step 1: Measure the cost**
 
-Run `window.__fpsAB()`. Threshold 4 is `costMs < 1.5`. Note that this measures shadows on vs `scene.shadowsEnabled = false` within one session — a within-session delta, because HANDOFF §5 records that P2's and P3's absolute figures came from different machines and are not comparable.
+Run `window.__fpsAB()`. Threshold 4 is `costMs < 1.5`. This pairs `shadowMap.refreshRate` 1 against 0 with every define held fixed — never `scene.shadowsEnabled`, which forces shader recompilation and times that instead of shadow rendering. It is still a within-session delta, because HANDOFF §5 records that P2's and P3's absolute figures came from different machines and are not comparable. Run it only with the Browser pane visible — a hidden/backgrounded pane GPU-throttles the page and invalidates every sample (see measurements.md's CORRECTION section).
 
 If `costMs` exceeds 1.5, the ordered knobs are `cascadeBlendPercentage` → 0, then `numCascades` → 3, then `MAP_SIZE` → 512. Apply the smallest change that lands under budget and record what was tried.
 

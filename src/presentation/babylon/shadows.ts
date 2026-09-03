@@ -65,6 +65,14 @@ export function createShadows(sun: DirectionalLight, camera: Camera): Shadows {
     generator = csm;
   } else {
     console.warn('[shadows] cascaded shadow maps unavailable — falling back to a single shadow map.');
+    // BIAS/NORMAL_BIAS below were measured (Task 3) only for the CascadedShadowGenerator branch, not
+    // for this plain ShadowGenerator. A plain generator's world-space bias scales with its own light
+    // frustum, not a per-cascade one — the constants' own comment already says the safe value does
+    // not carry between generators — and `autoUpdateExtends` here spans the whole hub, the exact
+    // configuration §1a's original bug lived in. These values are ~20x smaller than the 0.002 that
+    // broke everything there, so they are likely fine, but this path is unexercised and unmeasured:
+    // it cannot be measured on this machine (no WebGL1 device to test against). Do not change the
+    // values without measuring this branch specifically.
     generator = new ShadowGenerator(FALLBACK_MAP_SIZE, sun);
   }
 

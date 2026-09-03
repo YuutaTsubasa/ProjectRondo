@@ -60,9 +60,10 @@ blades.
 
 **Verdict: confirmed.** Measured against the implemented source, `receiveShadows` on grassTuft /
 wildflower / rock / bush moves the knight-isolated ground shadow from 220 px to **408 px** — real,
-worth doing, but not the dominant factor. The shipped configuration (ground detail and the
-knight's body both receiving) reaches **1212 px**, and the knight's own body self-shadow supplies
-most of that gain, not the grass — see §7's Task 4 write-up for the full three-way decomposition.
+worth doing, but not the dominant factor. The configuration measured in Task 4 (ground detail and
+the knight's body both receiving, as of commit `3320e30` — before Task 7 added rock/bush casting)
+reaches **1212 px**, and the knight's own body self-shadow supplies most of that gain, not the
+grass — see §7's Task 4 write-up for the full three-way decomposition.
 A first reading of 4530 px was a false signal: an async shader recompile landed between frames,
 caught because the restore-control read 4526 instead of 0 — flipping `receiveShadows` needs settle
 frames before the next measurement is trustworthy.
@@ -117,8 +118,11 @@ export interface Shadows {
   receive(...meshes: readonly AbstractMesh[]): void;
 }
 
-export function createShadows(scene: Scene, sun: DirectionalLight, camera: Camera): Shadows;
+export function createShadows(sun: DirectionalLight, camera: Camera): Shadows;
 ```
+
+Shipped as `createShadows(sun, camera)` — `scene` is never used (the generator reaches the
+scene through the light) and was dropped; see the plan's "Deviations from the spec" note.
 
 `cast()` and `receive()` skip meshes with zero vertices — the scene carries `bound_*` walls and
 collider proxies that would otherwise enter the shadow render list.
@@ -147,7 +151,7 @@ and `scene.activeCamera` is not set until line 63. The camera is hoisted above t
 createEnvironment(scene) → { sun }
 physics
 playerRoot + createFollowCamera + scene.activeCamera     ← hoisted
-shadows = createShadows(scene, sun, follow.camera)       ← new
+shadows = createShadows(sun, follow.camera)              ← new
 createTerrain / createGroundScatter / createWater / createLandmark(scene, shadows)
 createAtmosphere(scene, follow.camera)
 input / player / loadKnight(…, shadows) / loadTrees(…, shadows)
@@ -187,13 +191,14 @@ number is a much smaller world offset and the whole curve shifts. §5 defines th
 ### 4g. Shadow tint
 
 - `generator.setDarkness(0.15)` — lifts shadows off pure black.
-- `ambient.groundColor = HORIZON × 0.35`, reusing `HORIZON_HEX` from
+- `ambient.groundColor = HORIZON × 0.30`, reusing `HORIZON_HEX` from
   [`atmosphereColors.ts`](../../../src/presentation/babylon/atmosphereColors.ts).
 
 The scale factor matters. `HemisphericLight.groundColor` defaults to black, so setting it to the full
 `#dcecf7` would nearly double the ambient term on every downward-facing surface and brighten the
-whole scene rather than just tinting the shadows. `0.35` is a starting value that acceptance
-threshold 3 decides.
+whole scene rather than just tinting the shadows. `0.30` is the measured value (`environment.ts:19`):
+`0.35` was written first and failed threshold 3 at +5.63%; `0.30` passes at +4.83%. See §7's Task 5
+write-up for the full sweep.
 
 ### 4h. Cast / receive policy
 
@@ -312,7 +317,10 @@ what's limiting the visible shadow area.
 
 ### Task 4 — ground-detail receivers (spec 1b: confirmed, but smaller than claimed)
 
-Measured against the implemented source (not a runtime toggle): five consecutive
+Measured against the configuration as of commit `3320e30` (implemented source, not a runtime
+toggle) — before Task 7 added rock/bush casting, so the figures below describe that
+point-in-time state, not the final one. The verdicts still stand: both are in-state deltas,
+unaffected by what Task 7 later added. Five consecutive
 `__knightShadow()` runs returned 1212 px with a zero restore-control, so the figures below are
 stable, not sampled. Policy verified live: grassTuft/wildflower/rock/bush all `receiveShadows =
 true`; all 31 `tripo_part_*` body meshes `true`; `Mesh_0`/`Mesh_32`/`Mesh_33` (the face) all
@@ -326,7 +334,7 @@ configurations, not one:
 |---|---|---|
 | A — neither ground detail nor body receives | 220 | baseline |
 | B — ground detail receives, body does not | 408 | +188 from grass (+85%) |
-| C — ground detail AND body receive (shipped) | **1212** | +804 from self-shadow |
+| C — ground detail AND body receive (as of `3320e30`) | **1212** | +804 from self-shadow |
 
 Restoring to C reproduced 1212 exactly. Total improvement over the pre-task baseline: **220 to
 1212 px, 5.5x.**
@@ -350,7 +358,7 @@ Geometry: the sun direction (-0.5, -1, -0.5) puts the sun at 54.7 deg elevation,
 casts a ground shadow about 1.27 units long by ~0.5 wide. At 13 units from the camera with a ~15 deg
 depression angle, that patch projects to roughly 2000 px *if nothing occluded it* — but the knight's own
 body covers much of it from this angle, and grass blades cover more. 408 px of visible shadow (1212 px
-for the shipped configuration, once the knight's own body also receives — see the Task 4 write-up
+for the Task 4 configuration, once the knight's own body also receives — see the Task 4 write-up
 below) is consistent with correct behaviour, not with a defect.
 
 Threshold 1 is therefore replaced (Ruling 9) by two criteria that actually test correctness:
@@ -359,6 +367,12 @@ Threshold 1 is therefore replaced (Ruling 9) by two criteria that actually test 
 Both hold. Whether the shadow is *strong enough* is an art-direction question, settled in Task 5.
 
 ### Task 5 — shadow lift and sky tint
+
+Measured against the configuration as of commit `3320e30`, before Task 7 added rock/bush casting —
+the `frame.mean` figures below (including the adopted-scale reading of 119.62) describe that
+point-in-time state, not the final one. The threshold-3 verdict still stands: it is judged on an
+in-page-state delta (tinted vs untinted, at the same commit), not on an absolute compared across
+commits.
 
 **The cross-reload comparison method was discarded.** An earlier pass measured a "before" reading
 (groundColor black, via a page reload) and an "after" reading (groundColor tinted) and both
@@ -370,8 +384,8 @@ control — which gives coherent, monotonic numbers. The correct pre-change figu
 `frame.mean` = **114.11**, `frame.crushedPct` = **0**.
 
 `ambient.intensity` 0.45 and `sun.intensity` 1.1 (pre-existing, from the original hub lighting) and
-shadow `darkness` 0.15 (set in Task 2) held constant throughout. Threshold 3 allows the post-change `frame.mean` to move by at most ±5% of the
-pre-change, in-page-state figure.
+shadow `darkness` 0.15 (set in Task 2) held constant throughout. Threshold 3 allows the
+post-change `frame.mean` to move by at most ±5% of the pre-change, in-page-state figure.
 
 Frame mean by `AMBIENT_GROUND_SCALE` (`HORIZON_HEX` `#dcecf7` scaled), single page state, 6 settle
 frames each:

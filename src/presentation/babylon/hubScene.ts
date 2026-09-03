@@ -60,6 +60,10 @@ export async function createHubScene(canvas: HTMLCanvasElement): Promise<HubScen
   const follow = createFollowCamera(scene, playerRoot, canvas);
   scene.activeCamera = follow.camera;
   const shadows = createShadows(sun, follow.camera);
+  // Babylon 9 keys shadow generators by camera, so the console's usual
+  // `scene.lights.find(...).getShadowGenerator()` (no-arg) returns null. Expose a stable handle
+  // instead, the same way playerController exposes moveConfig/charController.
+  if (import.meta.env.DEV) (window as unknown as { shadows: unknown }).shadows = shadows;
 
   const terrain = createTerrain(scene);
   shadows.receive(terrain);

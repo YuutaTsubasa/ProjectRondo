@@ -142,7 +142,12 @@ scheduled additions). Sequence from here:
    already-loaded scene (roadmap §7): the fps headroom the earlier phases left is what P4 spends. P2
    measured its own cost at **0.3 ms** and P3 at **0.09–0.26 ms**, so there is still roughly 8x
    headroom against the 16.7 ms vsync budget. Note P3's numbers were taken on a different machine
-   from P2's, so compare *within-session deltas*, never the absolutes (P3 spec §9d).
+   from P2's, so compare *within-session deltas*, never the absolutes (P3 spec §9d). **That 8x figure
+   predates the shadow-quality branch and no longer holds** — it adds four 1024² cascades plus ~360
+   newly-casting thin instances (rock/bush) whose cost is *unmeasured*: the only session that tried
+   to time it ran with the Browser pane hidden, which GPU-throttles the page and invalidated every
+   timing sample taken (see `.superpowers/sdd/2026-08-25-shadow-quality/measurements.md`). Re-measure
+   frame cost with a visible window before P4 spends the remainder.
    P3 left `WaterBody` (`src/domain/hub/waterBody.ts`) as the shape P4's shallow-water feedback —
    splashes, slowdown, wet shading — should read, and the plaza's eight pillars are where the
    mode-entrances attach.
