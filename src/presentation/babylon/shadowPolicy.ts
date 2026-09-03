@@ -2,12 +2,19 @@
 // `environment: 'node'`). knight.ts imports HEAD_MESHES from here rather than declaring its own, so
 // the face-material list and the shadow-receiver list cannot drift apart.
 
-/** The head group of the medieval knight, by mesh name. `Mesh_1` is the face + hair, `Mesh_20` the
- *  inner head (mouth/brows), and `Mesh_43`/`Mesh_46` are the two eyeballs — the top-of-body cluster by
- *  world height, confirmed by rendering them alone (a clean floating head, both eyes present). Both
+/** The head group of the medieval knight, by mesh name. Rendered each mesh alone to confirm what it
+ *  actually is (previous comment here mis-described both, see `docs/HANDOFF.md`'s note on the same
+ *  mistake): `Mesh_1` (9232 verts, world Y 1.592-1.900) is HAIR ONLY — no face, no neck, no skin.
+ *  `Mesh_20` (1948 verts, Y 1.568-1.764) is the face/head skin, and it reaches *below* `Mesh_1`'s
+ *  bottom (1.568 vs 1.592) — down past the neckline into the collar region (the body tops out at
+ *  1.595) — so `Mesh_20`, not `Mesh_1`, carries the neck. `Mesh_43` (204 verts) and `Mesh_46` (153
+ *  verts) are the two eyeballs. All four together are the top-of-body cluster by world height. Both
  *  eyeballs must be listed or the uncovered one keeps the lit shared material and reads dark against
  *  the bright face. The other 43 meshes are body and armour; `knightReceivesShadow` below marks all
  *  43 of them as shadow receivers.
+ *
+ *  Because `Mesh_20` reaches into the collar region, the collar does not receive shadows either —
+ *  the same coupling `FACE_EMISSIVE` already lives with (see `knight.ts`).
  *
  *  These names are model-specific and they changed once already: the previous character's head was
  *  `Mesh_0` + `Mesh_32`/`Mesh_33`. **Any character swap must update this list**, and the failure is

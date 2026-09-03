@@ -85,8 +85,10 @@ pnpm tauri dev          # native desktop app (needs Rust)
     `docs/superpowers/specs/2026-08-21-lighting-atmosphere-design.md` (§11–§12 are the measured record).
     **Deferred:** the mountain ridge still keeps a visible edge against the sky; the only remaining lever
     is `terrain.ts`'s `haze` colour, which is a human art-direction call (§11a).
-  - **Knight face lighting:** the head — `Mesh_1` (face + hair + neck), `Mesh_20` (inner head:
-    mouth/brows), and the eyeballs `Mesh_43` / `Mesh_46` — gets its own material cloned off the single
+  - **Knight face lighting:** the head — `Mesh_1` (hair only — no face, no neck, no skin), `Mesh_20`
+    (the face/head skin, reaching below `Mesh_1`'s bottom into the collar region — see
+    `HEAD_MESHES` in `shadowPolicy.ts` for the per-mesh vertex counts and Y-extents that settled
+    this), and the eyeballs `Mesh_43` / `Mesh_46` — gets its own material cloned off the single
     shared glTF material, with the albedo added back as emissive so the face stays bright and flat
     instead of tracking the sun. Head region mean luma 35.6 → 68.8 at the shipped 0.45 (0.25 gives
     57.1), with the rest of the frame flat at 114.3 as a control — which is what says the body meshes

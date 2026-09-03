@@ -146,6 +146,13 @@ const BODY_MR_URL = '/models/knight_mr.webp?v=1';
  * 0.4 is brighter still but the steel starts reading as plastic, losing the dark-to-light contrast
  * that makes it look like metal. If an environment texture is ever added, raise this back toward 1
  * and re-measure — the correct fix is the IBL, not this number.
+ *
+ * This table, `BODY_DIRECT_INTENSITY`'s below, and the "~36%" metal-texel figure above were all
+ * measured through the *lossy* `knight_mr.webp` that ships today (its header is `VP8 `, not
+ * `VP8L` — see the README's regeneration recipe). Lossy WebP chroma-subsamples and cross-contaminates
+ * the G/B channels this map packs roughness and metallic into, so re-packing losslessly per that
+ * recipe changes the inputs these numbers came from and invalidates this table; re-measure after
+ * re-packing rather than trusting these figures against the new map.
  */
 const BODY_METALLIC = 0.6;
 
@@ -160,6 +167,10 @@ const BODY_METALLIC = 0.6;
  * below 30** to **56.0 with 35.3%** — roughly double the brightness, with the near-black half of the
  * surface halved. That was the reported problem: the plate read as a flat silhouette, and its shapes
  * merged into one another rather than looking see-through.
+ *
+ * Like `BODY_METALLIC`'s table, this was measured through the *lossy* `knight_mr.webp` that ships
+ * today; re-packing losslessly per the README's recipe changes the G/B inputs and invalidates these
+ * figures too — re-measure after re-packing.
  */
 const BODY_DIRECT_INTENSITY = 1.6;
 
@@ -235,6 +246,27 @@ function applyBodyPbr(meshes: readonly AbstractMesh[], scene: Scene): void {
   // with culling on, 0 with it off, and every camera angle tried showed the same (241-497 px on,
   // 0 off). Only the body needs this — leaving the face culled measures identically at 0, and the
   // head is a closed mesh that gains nothing from the extra fragments.
+  //
+  // This also reaches the shadow map, not just the camera pass: `ShadowGenerator._renderSubMeshForShadowMap`
+  // passes the material's own `backFaceCulling` straight through, so turning it off here turns
+  // culling off for all four CSM cascade renders too, and these 43 meshes both cast and receive.
+  // Measured the consequence directly (same frozen frame, 70 436 knight pixels, zero
+  // reproducibility control), body culled vs. unculled:
+  //
+  // | | body culled | body unculled | delta |
+  // | --- | --- | --- | --- |
+  // | `scene.shadowsEnabled = true` | 53.5 mean luma, 30.68% below 20 | 51.9, 30.73% | **−1.6** |
+  // | `scene.shadowsEnabled = false` | 63.1, 29.81% | 63.1, 29.81% | **0.00** |
+  //
+  // With shadows off the change is aggregate-neutral, as expected — the seam pixels are a small
+  // fraction of the body. With shadows on, the back faces write depth into the same cascades these
+  // meshes sample, and that darkens the knight by ~1.6 luma (~3%). The near-black fraction barely
+  // moves (30.68% -> 30.73%), so this is a mild uniform darkening, not new acne — accepted, and it
+  // slightly offsets `BODY_METALLIC`/`BODY_DIRECT_INTENSITY` above. `NORMAL_BIAS = 0.04` in
+  // `shadows.ts` (Task 8) was validated against this material CULLED, so that validation no longer
+  // describes what ships — but the table above shows no acne increase with it unculled, so this is
+  // recorded rather than re-tuned. The extra fragment cost across four cascades is real and
+  // unmeasured; timing cannot be measured through a hidden browser pane on this machine.
   source.backFaceCulling = false;
   // Babylon gates the back-face normal flip in `pbrBlockNormalFinal` on
   // `!backFaceCulling && twoSidedLighting` (see `trees.ts`'s identical pairing for the doubleSided

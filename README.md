@@ -111,6 +111,17 @@ Promise.all(
       `expected greyscale (1 channel) sources, got roughness=${rough.info.channels} metallic=${metal.info.channels} — strip alpha first`,
     );
   }
+  // Same reasoning as the channel guard above: `metal.data[i]` below is indexed against
+  // `rough.info`'s width/height with nothing checking the two sources agree. A smaller metallic
+  // source reads `undefined` past its end, which a `Buffer` write coerces to 0 — the tail of the
+  // armour would silently read as fully dielectric. A different width at the same byte count
+  // offsets every row of B against G with no error either. Fail loudly instead of packing a
+  // silently-scrambled buffer.
+  if (rough.info.width !== metal.info.width || rough.info.height !== metal.info.height) {
+    throw new Error(
+      `expected roughness and metallic sources at the same resolution, got roughness=${rough.info.width}x${rough.info.height} metallic=${metal.info.width}x${metal.info.height}`,
+    );
+  }
   const { width, height } = rough.info;
   const rgba = Buffer.alloc(width * height * 4, 255); // alpha stays opaque
   for (let i = 0; i < width * height; i++) {
@@ -135,6 +146,11 @@ recipe** (its header is `RIFF … WEBP VP8 ` — lossy, not `VP8L`), before this
 `lossless: true`. It should be re-packed once the roughness/metallic source textures are to hand; they
 are not in this repo (that gap is why the recipe above has to be a reconstruction), so it cannot be
 regenerated in this PR.
+
+Re-packing changes the G (roughness) and B (metallic) values this map carries, which invalidates
+`BODY_METALLIC` and `BODY_DIRECT_INTENSITY` in `knight.ts` — both, and the "~36% of texels the packed
+map flags as metal" figure quoted in `BODY_METALLIC`'s comment, were measured through today's lossy
+map. Re-measure both constants against the re-packed map before trusting them.
 
 **Adding an animation:** drop the FBX in `__prototype__/Assets/Animations/` (LFS-tracked), run step 0
 once so Godot writes a default `.import`, copy the `_subresources` bone_map block out of
