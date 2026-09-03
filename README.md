@@ -81,6 +81,43 @@ Bump the `?v=N` query on the GLB URL in `src/presentation/babylon/knight.ts` aft
 browsers refetch it. Then delete the ~90 MB `__prototype__/knight_web.glb` intermediate and the
 `knight_web*.png` / `.import` side files Godot's next scan drops next to it.
 
+### Regenerating the knight's metallic/roughness map
+
+`public/models/knight_mr.webp` packs the armour's roughness and metallic channels glTF-style
+(roughness → G, metallic → B, alpha left opaque at 255 — Babylon reads roughness off metallic
+texture's alpha by default, and `applyBodyPbr` in `knight.ts` turns that off precisely because this
+map has none). **This recipe is a reconstruction, not a transcript of what actually produced the
+shipped file** — no metallic or roughness source texture is committed alongside
+`Material_Diffuse.jpg` / `Material_Normal.jpg` in
+`__prototype__/Assets/Characters/MedievalKnight/knight.fbm/`, so there is nothing in the repo to
+recover the original invocation from. Given the source roughness and metallic textures (same UV
+layout, same resolution as each other), pack and encode them with the `sharp` already pinned above:
+
+```js
+// pack-mr.js: node pack-mr.js roughness.png metallic.png public/models/knight_mr.webp
+const sharp = require('sharp');
+const [roughPath, metalPath, outPath] = process.argv.slice(2);
+
+Promise.all(
+  [roughPath, metalPath].map((p) =>
+    sharp(p).toColourspace('b-w').raw().toBuffer({ resolveWithObject: true }),
+  ),
+).then(([rough, metal]) => {
+  const { width, height } = rough.info;
+  const rgba = Buffer.alloc(width * height * 4, 255); // alpha stays opaque
+  for (let i = 0; i < width * height; i++) {
+    rgba[i * 4 + 1] = rough.data[i]; // roughness -> G
+    rgba[i * 4 + 2] = metal.data[i]; // metallic  -> B
+  }
+  return sharp(rgba, { raw: { width, height, channels: 4 } })
+    .webp({ quality: 80 })
+    .toFile(outPath);
+});
+```
+
+Bump `BODY_MR_URL`'s `?v=N` in `knight.ts` after rebuilding, for the same cache-busting reason as the
+GLB above.
+
 **Adding an animation:** drop the FBX in `__prototype__/Assets/Animations/` (LFS-tracked), run step 0
 once so Godot writes a default `.import`, copy the `_subresources` bone_map block out of
 `Walking.fbx.import` into it, add the clip to `SRC` in `tools/extract_anims.gd` (and to `NON_LOOPING`

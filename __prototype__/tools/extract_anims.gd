@@ -9,8 +9,6 @@ const SRC := {
 # Jump is a one-shot arc (crouch, launch, land); looping it would snap the knight
 # back to the crouch mid-air. Every other clip is a cycle.
 const NON_LOOPING := ["Jump"]
-const FROM := "Skeleton3D:"
-const TO := "Skeleton3D:"
 # Inward thigh correction to counter the model's wide A-stance rest pose.
 const ADDUCT_DEG := -5.0
 const L_THIGH := "Skeleton3D:LeftUpperLeg"
@@ -22,6 +20,16 @@ var _adduct_axis := Vector3(0, 0, 1)
 func _initialize():
 	var knight: Node = load("res://Assets/Characters/MedievalKnight/knight.fbx").instantiate()
 	var ksk := _find(knight, "Skeleton3D") as Skeleton3D
+	# `export_web_glb.gd` parents the baked AnimationPlayer directly on this same knight root, so every
+	# track path below ("Skeleton3D:...", used verbatim from the source clips — see the loop) resolves
+	# relative to `knight` at export time. That only holds if the skeleton really sits there; `_find`
+	# locates *a* Skeleton3D anywhere in the tree, and would accept one nested under an Armature node
+	# just as readily. Assert the path directly rather than assume it, so a future re-import that nests
+	# the skeleton fails loudly here instead of exporting a GLB whose animations silently drive no bones.
+	assert(
+		String(knight.get_path_to(ksk)) == "Skeleton3D",
+		"expected Skeleton3D directly under the knight root (export_web_glb.gd parents the AnimationPlayer there); got %s" % knight.get_path_to(ksk),
+	)
 	var pelvis := ksk.find_bone("CC_Base_Pelvis")
 	var parent_basis: Basis = ksk.get_bone_global_rest(pelvis).basis if pelvis >= 0 else Basis()
 	_adduct_axis = (parent_basis.inverse() * Vector3(0, 0, 1)).normalized()
@@ -33,10 +41,8 @@ func _initialize():
 		var ap := _find(scene, "AnimationPlayer") as AnimationPlayer
 		var src_name: String = ap.get_animation_list()[0]
 		var anim: Animation = ap.get_animation(src_name).duplicate()
-		for i in anim.get_track_count():
-			var p := String(anim.track_get_path(i))
-			if p.begins_with(FROM):
-				anim.track_set_path(i, NodePath(TO + p.substr(FROM.length())))
+		# Track paths in the source clips already read "Skeleton3D:...", which is exactly the path
+		# asserted above for the export target — nothing to rewrite.
 		anim.loop_mode = Animation.LOOP_NONE if name in NON_LOOPING else Animation.LOOP_LINEAR
 		_adduct(anim, L_THIGH, 1.0)
 		_adduct(anim, R_THIGH, -1.0)

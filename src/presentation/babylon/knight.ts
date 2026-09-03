@@ -105,7 +105,7 @@ const IDLE_SWAY_KEEP = 0.2;
  * disagreed because each used a differently hand-placed box with the idle animation *running*, so the
  * head sat at a different angle in each; both are superseded by the table above.
  *
- * Known and accepted: `Mesh_0` carries the hair too, so the hair lifts from near-black to a warm brown.
+ * Known and accepted: `Mesh_1` carries the hair too, so the hair lifts from near-black to a warm brown.
  * Isolating the skin would need a mask texture or a Blender split, and the lift reads as an improvement.
  */
 const FACE_EMISSIVE = 0.45;
@@ -160,12 +160,42 @@ const BODY_DIRECT_INTENSITY = 1.6;
  * non-metallic, unlit face. The whole body shares one material, so setting it once covers every mesh.
  */
 function applyBodyPbr(meshes: readonly AbstractMesh[], scene: Scene): void {
-  const mat = meshes.find((m) => !HEAD_MESHES.includes(m.name) && m.material)?.material as PBRMaterial | undefined;
-  if (!mat) {
+  const body = meshes.filter((m) => !HEAD_MESHES.includes(m.name) && m.material);
+  if (body.length === 0) {
     console.warn('[knight] no body material found — PBR skipped, armour stays matte.');
     return;
   }
+  const source = body[0].material as PBRMaterial;
+  // "The whole body shares one material" only means anything while the body actually shares one.
+  // `swapHeadMaterial` below guards the identical assumption for the head explicitly, and for the same
+  // reason: a re-export splitting the armour across two materials (belt, cloth, plate) would otherwise
+  // leave the second one matte, non-metallic and at `directIntensity` 1, next to a body lifted to
+  // `BODY_DIRECT_INTENSITY`, with no warning. Skip loudly instead of half-applying it.
+  if (body.some((m) => m.material !== source)) {
+    const names = [...new Set(body.map((m) => m.material?.name ?? 'none'))];
+    console.warn(
+      `[knight] body meshes do not share one material (${names.length} distinct: ${names.join(', ')}) — PBR skipped rather than painting one of them across the rest.`,
+    );
+    return;
+  }
+  // `metallicTexture`, `useRoughnessFromMetallicTextureGreen`, `useMetallnessFromMetallicTextureBlue`,
+  // `useRoughnessFromMetallicTextureAlpha`, `metallic` and `roughness` exist only on `PBRMaterial`; on
+  // any other material class every one of the writes below lands as an inert own-property and the
+  // armour silently stays matte. Check before touching, the way the head path checks `albedoTexture`.
+  if (source.getClassName() !== 'PBRMaterial') {
+    console.warn(
+      `[knight] body material '${source.name}' is a ${source.getClassName()}, not a PBRMaterial — PBR skipped, armour stays matte.`,
+    );
+    return;
+  }
+  const mat = source;
   const mr = new Texture(BODY_MR_URL, scene, false, false);
+  // `Texture` defaults to `isBlocking = true`, which makes `PBRBaseMaterial.isReadyForSubMesh` return
+  // false — and every body submesh skipped by `Mesh.render` — for as long as this webp is still
+  // downloading, so the knight would render as a floating head until it lands. Non-blocking lets the
+  // body render on the shared material's current state (matte) immediately and pick up the map once it
+  // arrives, the same "never render as nothing" guarantee `FACE_COMPILE_TIMEOUT_MS` protects on the head.
+  mr.isBlocking = false;
   mat.metallicTexture = mr;
   mat.useRoughnessFromMetallicTextureGreen = true;
   mat.useMetallnessFromMetallicTextureBlue = true;
@@ -202,7 +232,7 @@ const FACE_COMPILE_TIMEOUT_MS = 10_000;
 /**
  * Gives the head its own material so the face can be lit differently from the armour.
  *
- * Every one of the knight's 34 meshes ships sharing a single glTF material, so the head needs a clone
+ * Every one of the knight's 47 meshes ships sharing a single glTF material, so the head needs a clone
  * before anything can be changed about it in isolation.
  *
  * `forceCompilationAsync` is not optional: swapping the material on a 101-bone skinned mesh triggers an
@@ -228,14 +258,14 @@ async function applyFaceMaterial(meshes: readonly AbstractMesh[]): Promise<void>
 }
 
 /**
- * Guards, clones, puts the clone on the three head meshes, awaits its compile, and rolls the meshes
+ * Guards, clones, puts the clone on the four head meshes, awaits its compile, and rolls the meshes
  * back if that fails. Split out from {@link applyFaceMaterial} so the try/catch there covers all of it.
  */
 async function swapHeadMaterial(meshes: readonly AbstractMesh[]): Promise<void> {
   const head = meshes.filter((m) => HEAD_MESHES.includes(m.name));
   // Each expected name must appear exactly once. Counting `head.length` would not establish that:
   // glTF does not require unique node names and the loader does not dedupe them, so a GLB with two
-  // `Mesh_0`s and no `Mesh_33` still totals three — and the face would be applied to part of the head
+  // `Mesh_1`s and no `Mesh_46` still totals four — and the face would be applied to part of the head
   // with an eyeball left on the dark shared material.
   const wrongCount = HEAD_MESHES.map((name) => ({ name, n: meshes.filter((m) => m.name === name).length })).filter(
     (x) => x.n !== 1,

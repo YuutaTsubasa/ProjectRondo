@@ -85,18 +85,28 @@ pnpm tauri dev          # native desktop app (needs Rust)
     `docs/superpowers/specs/2026-08-21-lighting-atmosphere-design.md` (§11–§12 are the measured record).
     **Deferred:** the mountain ridge still keeps a visible edge against the sky; the only remaining lever
     is `terrain.ts`'s `haze` colour, which is a human art-direction call (§11a).
-  - **Knight face lighting:** the head — `Mesh_0` (face + hair + neck) plus the eyeballs `Mesh_32` /
-    `Mesh_33` — gets its own material cloned off the single shared `Material_001`, with the albedo added
-    back as emissive so the face stays bright and flat instead of tracking the sun. Head region mean
-    luma 35.6 → 68.8 at the shipped 0.45 (0.25 gives 57.1), with the rest of the frame flat at 114.3 as
-    a control — which is what says the 31 `tripo_part_*` armour meshes are untouched. Measure it with
-    the idle animation paused and the head region located by which pixels the change touches, not by a
-    hand-placed box; see `FACE_EMISSIVE` for why.
+  - **Knight face lighting:** the head — `Mesh_1` (face + hair + neck), `Mesh_20` (inner head:
+    mouth/brows), and the eyeballs `Mesh_43` / `Mesh_46` — gets its own material cloned off the single
+    shared glTF material, with the albedo added back as emissive so the face stays bright and flat
+    instead of tracking the sun. Head region mean luma 35.6 → 68.8 at the shipped 0.45 (0.25 gives
+    57.1), with the rest of the frame flat at 114.3 as a control — which is what says the 43 body
+    meshes are untouched. Measure it with the idle animation paused and the head region located by
+    which pixels the change touches, not by a hand-placed box; see `FACE_EMISSIVE` for why.
+
+    **Body PBR (medieval-knight swap):** the armour, previously baseColor+normal only, now also gets a
+    packed metallic/roughness map (`public/models/knight_mr.webp`, glTF-style: roughness → G, metallic
+    → B), applied by `applyBodyPbr` in `knight.ts` after the face clone so the two never fight over the
+    shared material. `BODY_METALLIC` is deliberately held at 0.6 rather than the physically-correct 1
+    — this scene has no environment texture, so a fully metallic surface has nothing to reflect and
+    renders near-black — and `BODY_DIRECT_INTENSITY` (1.6) compensates the armour's direct-light
+    response for that same missing IBL. `backFaceCulling` is off on the body only, closing see-through
+    seams where the armour's single-sided shells don't quite meet. All three are measured constants;
+    see their doc comments in `knight.ts` for the tables, and re-measure before changing any of them.
 
     Three things not to re-derive. The complaint was "the face is too dark, too affected by scene
     lighting, and the shadow on it looks bad" — **not** cel banding or outlines, neither of which was
-    asked for. **That "shadow" is not a shadow:** `receiveShadows` is `false` on the three `HEAD_MESHES`
-    (`Mesh_0`, `Mesh_32`, `Mesh_33`) — the shadow-quality PR makes the other 31 `tripo_part_*` body
+    asked for. **That "shadow" is not a shadow:** `receiveShadows` is `false` on the four `HEAD_MESHES`
+    (`Mesh_1`, `Mesh_20`, `Mesh_43`, `Mesh_46`) — the shadow-quality PR makes the other 43 body
     meshes receive, but the face stays excluded — so nothing is cast onto the face; the dark band
     is the **N·L terminator**, the diffuse falloff on the side turned away from the sun, which is
     why the fix is an emissive floor rather than anything to do with the shadow generator. And **do
@@ -137,8 +147,11 @@ scheduled additions). Sequence from here:
    block and the 101-bone skinning explicitly. Either way `mesh.renderOutline` is built into `core`
    and is the cheap way to get the outline.
 
-   Note `Mesh_0` is 242k of the character's ~320k verts — the GLB was texture-optimised but never
-   decimated, which is a separate job.
+   Note: the previous character's `Mesh_0` was 242k of its ~320k verts — that measurement is from the
+   character this repo no longer ships (`Mesh_0` is a body mesh on the current knight, not the head)
+   and has not been retaken. The current GLB was texture-optimised but never decimated either, which
+   is still a separate job; re-measure per-mesh vertex counts on the current model before picking a
+   decimation target.
 2. **P4 — life & motion** (wind sway, drifting clouds, ambient creatures). Budget against the
    already-loaded scene (roadmap §7): the fps headroom the earlier phases left is what P4 spends. P2
    measured its own cost at **0.3 ms** and P3 at **0.09–0.26 ms**, so there is still roughly 8x
