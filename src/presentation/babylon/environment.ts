@@ -90,9 +90,15 @@ export function createEnvironment(scene: Scene): Environment {
   const ambient = new HemisphericLight('ambient', new Vector3(0, 1, 0), scene);
   ambient.intensity = 0.45;
   // Shadowed surfaces are lit by ambient alone, so tinting the ground half of the hemisphere toward
-  // the sky colour is what makes shadows read as sky-blue rather than dead grey. Scaled well below
-  // full because groundColor defaults to BLACK: the undimmed #dcecf7 would nearly double the ambient
-  // term on every downward-facing surface and brighten the whole scene, not just the shadows.
+  // the sky colour is what makes shadows read as sky-blue rather than dead grey. Babylon's hemispheric
+  // term is mix(groundColor, diffuseColor, ndl) with ndl = dot(N, lightDir)*0.5 + 0.5 and lightDir
+  // (0,1,0), so groundColor's weight is (1 - ndl): it goes to zero for a normal facing straight up and
+  // is strongest for a normal facing straight down, scaling with everything in between. The terrain —
+  // this scene's principal shadow receiver — has its normals explicitly flipped skyward (terrain.ts),
+  // so it takes essentially none of this tint; what it actually tints is the grass/flower cards and any
+  // surface not facing straight up. Scaled well below full because groundColor defaults to BLACK: the
+  // undimmed #dcecf7 would nearly double the ambient term on those surfaces and brighten them well
+  // beyond a subtle tint.
   ambient.groundColor = Color3.FromHexString(HORIZON_HEX).scale(AMBIENT_GROUND_SCALE);
 
   // Sun: an angled directional light that casts shadows.

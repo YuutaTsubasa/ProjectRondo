@@ -124,8 +124,11 @@ export function createShadows(sun: DirectionalLight, camera: Camera): Shadows;
 Shipped as `createShadows(sun, camera)` — `scene` is never used (the generator reaches the
 scene through the light) and was dropped; see the plan's "Deviations from the spec" note.
 
-`cast()` and `receive()` skip meshes with zero vertices — the scene carries `bound_*` walls and
-collider proxies that would otherwise enter the shadow render list.
+`cast()` and `receive()` skip meshes with zero vertices — glTF `__root__` nodes and other empty
+transform nodes that would otherwise enter the shadow render list as a free draw call per cascade.
+This does **not** filter out invisible collider geometry: `bound_*` walls (`CreateBox`) and rock
+collider proxies (`CreateSphere`) both carry vertices; they stay out of the shadow render list only
+because no call site ever passes them to `cast()`/`receive()`, not because of this guard.
 
 Required imports, each commented, because tree-shaken deep imports fail silently in this project:
 
@@ -197,11 +200,16 @@ number is a much smaller world offset and the whole curve shifts. §5 defines th
 - `ambient.groundColor = HORIZON × 0.30`, reusing `HORIZON_HEX` from
   [`atmosphereColors.ts`](../../../src/presentation/babylon/atmosphereColors.ts).
 
-The scale factor matters. `HemisphericLight.groundColor` defaults to black, so setting it to the full
-`#dcecf7` would nearly double the ambient term on every downward-facing surface and brighten the
-whole scene rather than just tinting the shadows. `0.30` is the measured value (`environment.ts:19`):
-`0.35` was written first and failed threshold 3 at +5.63%; `0.30` passes at +4.83%. See §7's Task 5
-write-up for the full sweep.
+The scale factor matters. Babylon's hemispheric term is `mix(groundColor, diffuseColor, ndl)` with
+`ndl = dot(N, lightDir)*0.5 + 0.5` and this light's direction `(0,1,0)`, so `groundColor`'s weight is
+`(1 - ndl)`: zero for a normal facing straight up, strongest facing straight down, and everything in
+between for the rest. The terrain — the scene's principal shadow receiver — has its normals flipped
+skyward (`terrain.ts`), so it takes essentially none of this tint; what it actually tints is the
+grass/flower cards and any other surface not facing straight up. `HemisphericLight.groundColor`
+defaults to black, so setting it to the full `#dcecf7` would nearly double the ambient term on those
+surfaces and brighten them well beyond a subtle tint. `0.30` is the measured value
+(`environment.ts:19`): `0.35` was written first and failed threshold 3 at +5.63%; `0.30` passes at
++4.83%. See §7's Task 5 write-up for the full sweep.
 
 ### 4h. Cast / receive policy
 
@@ -241,7 +249,7 @@ option available and tends toward speckle noise.
 | # | Check | Threshold | Outcome |
 |---|---|---|---|
 | 1 | Knight ground shadow present | ≥ 2 000 px darkened at 1280×720, side-on camera | **Invented, unphysical, replaced.** No camera framing at this geometry reaches 2 000 px unoccluded — see below. Replaced (Ruling 9) by: a non-zero, reproducible knight-only ground shadow with a zero restore-control, plus a measurable increase when ground-detail receivers are enabled. Both hold. |
-| 2 | No shadow acne | darkened pixels on open unoccluded ground < 0.1% of frame | **PASS** — 0 px |
+| 2 | No shadow acne | darkened pixels on open unoccluded ground < 0.1% of frame | **Originally recorded PASS at 0 px — invalid; re-measured (Task 8).** The Task 3 reading was taken with an empty caster list, so 0 px was forced by the configuration, not produced by the swept values: acne requires a surface that both casts and receives, which nothing did at that point. The shipped configuration is the first with any (62 such meshes). Re-measured against it, `normalBias = 0.01` (the Task 3 pick) has severe acne — 75.4% of the pedestal-top ROI. Fixed by raising `normalBias` to 0.04 (1.0% of ROI, at no cost to the knight's ground shadow). See §7 Task 8. |
 | 3 | Ambient tint did not brighten the scene | whole-frame mean luma within ±5% of `main`; crushed-black % not increased | **PASS** — +4.83% (scale 0.30); crushed % rises 0 → 0.001, treated as noise floor, not a regression |
 | 4 | Perf | within-session round-robin median against `main`; cost < 1.5 ms of the 16.7 ms budget | **unmeasured — requires a visible window.** Every timing figure this session was taken with the Browser pane hidden (`document.hidden === true`), which GPU-throttles the page; eight samples of an identical config spread 2.7x with a monotonic upward drift. There is no valid measurement to judge this threshold against. See §7's Task 6 write-up. |
 
@@ -254,8 +262,10 @@ came apart under measurement, and was replaced with criteria that actually test 
 4's own 1.5 ms figure was also invented, but its verdict never got that far — every timing number this
 session was taken with the Browser pane hidden and GPU-throttled, so threshold 4 is unmeasured, not
 failed, with an explicit instruction to re-measure on a machine with the pane actually visible before
-spending the remaining frame-budget headroom. Thresholds 2 and 3 held up as originally written and
-pass.
+spending the remaining frame-budget headroom. Threshold 3 held up as originally written and passes.
+Threshold 2's original PASS did not hold up: it was measured with an empty caster list, where acne
+was structurally impossible, so it certified nothing. Re-measured against the shipped configuration
+(Task 8) it failed at `normalBias = 0.01` and now passes at `normalBias = 0.04`, which is shipped.
 
 ### 5c. Bias tuning procedure
 
@@ -288,8 +298,18 @@ plainly rather than papered over with tests that would not exercise the renderin
 ### Task 3 — bias/normalBias sweep
 
 Knight-only ground shadow, px, measured with the harness's caster-list swap (Ruling 7), physics and
-animations frozen, water ripple pinned, camera pinned side-on, 12 warm-up frames. Acne (zero casters in
-the map) was **0 px in all 20 cells**:
+animations frozen, water ripple pinned, camera pinned side-on, 12 warm-up frames. An "acne" column was
+also recorded here and read **0 px in all 20 cells — but this measured nothing.** It was taken with an
+empty caster list: with no occluder depth in the shadow map, no receiver can be darkened at any bias,
+so 0 px is forced by the configuration itself, not produced by the swept values (which is also why it
+was identical in all 20 cells). Acne is self-shadowing — it requires a surface that is simultaneously a
+caster and a receiver — and at this point in the work the terrain was a receiver only and the knight the
+sole caster, so acne was structurally impossible regardless of bias. This reading is not evidence that
+threshold 2 was met; it is superseded by the real measurement in Task 8, taken against the shipped
+configuration where 62 meshes both cast and receive.
+
+The knight-only ground-shadow table below remains valid for what it measured — it used the harness's
+normal caster-list swap, not an empty one — and is unaffected by the acne correction above.
 
 | bias \ normalBias | 0 | 0.01 | 0.02 | 0.04 |
 |---|---|---|---|---|
@@ -486,6 +506,54 @@ B is the change shipped: rocks and bushes gain contact shadows and stop looking 
 ground. C was measured to confirm the grass/flower exclusion is deliberate rather than an oversight —
 most of that additional 16.4% is speckle from 17 600 alpha-tested cross cards redrawn per cascade, not
 legible shadow, so grass and flowers stay cast-off.
+
+### Task 8 — threshold 2 re-measured
+
+The round-2 reviewer was right: Task 3's original 0 px could not have been anything else. It was taken
+with an empty caster list, and at that point in the work the terrain was a receiver only and the knight
+the sole caster — acne requires a surface that both casts and receives, so it was structurally
+impossible to observe. The shipped configuration is the first in which it can occur: **62 meshes both
+cast and receive** (knight body ×31, trees ×20, 8 pillars, pedestal, rock, bush).
+
+Re-measured at commit `b6b493e`, 1280×720, animations and physics frozen, water ripple pinned, camera
+framed on the plaza pedestal and pillars (curved stone that both casts and receives — the geometry most
+prone to acne). Reproducibility control 0 px; restore control 0 px.
+
+Method: diff each candidate against a deliberately over-biased reference (`bias` 0.005 / `normalBias`
+0.4) which cannot exhibit acne. ROI = the pedestal top, 34 850 px.
+
+| `normalBias` | pedestal-top px differing from the acne-free reference | share of ROI |
+|---|---|---|
+| **0.01 (Task 3's pick, shipped before this task)** | **26 278** | **75.4%** |
+| 0.02 | 12 558 | 36.0% |
+| **0.04 (shipped)** | **360** | **1.0%** |
+| 0.08 | 231 | 0.7% |
+| 0.12 | 197 | 0.6% |
+| 0.20 | 125 | 0.4% |
+| 0.30 | 101 | 0.3% |
+
+**Verdict: `normalBias = 0.01` has severe acne — three quarters of the pedestal top.** It is visible as
+radial moiré on the pedestal and vertical banding on the pillars. The curve has a sharp knee at **0.04**,
+which drops it to 1.0% (the floor is ~0.3%, i.e. legitimate difference from the over-biased reference).
+
+Cost to the knight's ground shadow — none. Knight-isolated metric, side-on camera, restore control 0:
+
+| `normalBias` | knight ground shadow |
+|---|---|
+| 0.01 | 1145 px |
+| 0.02 | 1105 px |
+| **0.04** | **1190 px** |
+| 0.08 | 1615 px |
+
+0.04 is marginally *better* than 0.01 for the knight's own shadow. Screenshots confirm the pedestal
+moiré is gone at 0.04.
+
+**Fix shipped: `NORMAL_BIAS` 0.01 → 0.04** (`shadows.ts`). `BIAS` stays `1e-4`.
+
+Note for the record: the Task 3 sweep grid remains valid for what it measured — it showed `bias` is
+irrelevant across [0, 1e-3] on the knight-only ground shadow — but its acne reading measured nothing
+and must not be cited as evidence that threshold 2 was met; see the correction in Task 3 above and in
+§5b.
 
 ## 8. Follow-ups deliberately left out
 

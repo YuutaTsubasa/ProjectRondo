@@ -23,15 +23,22 @@ const CASCADE_BLEND = 0.1;
  * came back identical, because each CSM cascade's depth range is small enough that even 1e-3 normalized
  * is a negligible world offset. That is the exact opposite of the single-map case, where 0.002 over an
  * auto-extended 83.7-unit ortho box was ~0.2 world units and destroyed every shadow: with cascades the
- * same normalized value stays harmless. `normalBias` moved the result by at most 12%, non-monotonically,
- * i.e. noise. Chosen: the smallest non-zero of each, keeping both guards active against geometry the
- * scene does not have yet, at a measured cost of 26 of 246 px.
+ * same normalized value stays harmless. That sweep's acne column was measured with zero casters in the
+ * map (structurally 0 px, not evidence of anything), so it could not and did not validate `normalBias`
+ * against acne.
  *
  * `bias` is an offset in the light's NORMALIZED depth range, not in world units, so its world-space
  * size scales with the light frustum's depth.
+ *
+ * Task 8 re-measured acne against the shipped configuration, where 62 meshes both cast and receive
+ * (knight body, trees, pillars, pedestal, rock, bush) — the first configuration in which acne is even
+ * possible. `normalBias = 0.01` left **75.4%** of the pedestal-top ROI acne-ridden (26 278 / 34 850 px,
+ * visible as radial moiré and vertical banding); `0.04` clears it to 1.0% (360 px, near the ~0.3% floor
+ * of legitimate difference from the acne-free reference), at no measurable cost to the knight's ground
+ * shadow (1190 px vs 1145 px at 0.01 — marginally better, not worse). See spec §7 Task 8.
  */
 const BIAS = 0.0001;
-const NORMAL_BIAS = 0.01;
+const NORMAL_BIAS = 0.04;
 /** 0 is an opaque black shadow, 1 is no shadow. Lifted slightly so shadows are not crushed. */
 const DARKNESS = 0.15;
 /** Single-map fallback resolution when cascades are unavailable (WebGL1). */
@@ -84,8 +91,11 @@ export function createShadows(sun: DirectionalLight, camera: Camera): Shadows {
   generator.normalBias = NORMAL_BIAS;
   generator.setDarkness(DARKNESS);
 
-  // Zero-vertex meshes are collider proxies and glTF __root__ nodes. They would render nothing
-  // into the map but still cost a draw call per cascade.
+  // Zero-vertex meshes are glTF __root__ nodes and other empty transform nodes. They would render
+  // nothing into the map but still cost a draw call per cascade. This does NOT filter out invisible
+  // collider geometry — `bound_*` walls (CreateBox) and rock collider proxies (CreateSphere) both
+  // carry vertices; they are kept out of the shadow render list only by never being passed to
+  // cast()/receive() in the first place, not by this guard.
   const hasGeometry = (mesh: AbstractMesh) => mesh.getTotalVertices() > 0;
 
   return {

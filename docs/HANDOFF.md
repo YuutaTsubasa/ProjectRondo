@@ -95,8 +95,10 @@ pnpm tauri dev          # native desktop app (needs Rust)
 
     Three things not to re-derive. The complaint was "the face is too dark, too affected by scene
     lighting, and the shadow on it looks bad" — **not** cel banding or outlines, neither of which was
-    asked for. **That "shadow" is not a shadow:** `receiveShadows` is already `false` on all 34 skinned
-    meshes, so nothing is cast onto the face; the dark band is the **N·L terminator**, the diffuse
+    asked for. **That "shadow" is not a shadow:** `receiveShadows` is `false` on the three `HEAD_MESHES`
+    (`Mesh_0`, `Mesh_32`, `Mesh_33`) — the shadow-quality PR makes the other 31 `tripo_part_*` body
+    meshes receive, but the face stays excluded — so nothing is cast onto the face; the dark band is the
+    **N·L terminator**, the diffuse
     falloff on the side turned away from the sun, which is why the fix is an emissive floor rather than
     anything to do with the shadow generator. And **do not convert the knight to
     StandardMaterial** — that was tried on the theory that the trees' PBR-vs-gamma problem applied here
