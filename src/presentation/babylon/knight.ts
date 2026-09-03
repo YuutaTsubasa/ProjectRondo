@@ -1,7 +1,7 @@
 import type { Scene } from '@babylonjs/core/scene';
 import type { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 import type { AnimationGroup } from '@babylonjs/core/Animations/animationGroup';
-import type { ShadowGenerator } from '@babylonjs/core/Lights/Shadows/shadowGenerator';
+import type { Shadows } from './shadows';
 import { ImportMeshAsync } from '@babylonjs/core/Loading/sceneLoader';
 import { Texture } from '@babylonjs/core/Materials/Textures/texture';
 import type { PBRMaterial } from '@babylonjs/core/Materials/PBR/pbrMaterial';
@@ -13,6 +13,7 @@ import type { PhysicsEngine as PhysicsEngineV2 } from '@babylonjs/core/Physics/v
 // Side-effect: registers the glTF loader plugin (with KHR_mesh_quantization / webp support).
 import '@babylonjs/loaders/glTF';
 import { CAPSULE_HALF } from './capsule';
+import { HEAD_MESHES, knightReceivesShadow } from './shadowPolicy';
 import { terrainHeight } from './terrainHeight';
 import { moveToward } from '../../domain/math/scalar';
 import { emissiveFactorOf, type GltfPbrMaterial } from './gltfMaterial';
@@ -75,13 +76,6 @@ const GROUND_PROBE_BELOW = 1;
 const TARGET_HEIGHT = 1.9;
 /** Fraction of the idle animation's motion to keep (0 = frozen, 1 = full sway). Kills the side rock. */
 const IDLE_SWAY_KEEP = 0.2;
-
-/** The head group, by mesh name. `Mesh_1` is the face + hair, `Mesh_20` the inner head (mouth/brows),
- *  and `Mesh_43`/`Mesh_46` are the two eyeballs — the top-of-body cluster by world height, confirmed by
- *  rendering them alone (a clean floating head, both eyes present). Both eyeballs must be included or the
- *  uncovered one keeps the lit shared material and reads dark against the bright face. The other 43
- *  meshes are body and armour and are deliberately untouched. */
-const HEAD_MESHES: readonly string[] = ['Mesh_1', 'Mesh_20', 'Mesh_43', 'Mesh_46'];
 
 /**
  * How much of the albedo to add back as unlit light on the face.
@@ -431,7 +425,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
 export async function loadKnight(
   scene: Scene,
   parent: TransformNode,
-  shadowGenerator?: ShadowGenerator,
+  shadows: Shadows,
 ): Promise<Knight> {
   // ?v bust: the browser aggressively caches the GLB, so a plain reload keeps serving an old copy.
   // Bump this whenever knight_web.glb is rebuilt so clients refetch it.
@@ -445,8 +439,10 @@ export async function loadKnight(
   // meshes to always render — it's one character, the cull savings don't matter.
   for (const mesh of result.meshes) mesh.alwaysSelectAsActiveMesh = true;
 
-  // The knight casts the sun's shadow onto the grass.
-  if (shadowGenerator) for (const mesh of result.meshes) shadowGenerator.addShadowCaster(mesh);
+  // The whole knight casts — including the head, so its shadow lands on the ground and the
+  // shoulders. Only the body receives; a shadow edge across the face reads badly.
+  shadows.cast(...result.meshes);
+  shadows.receive(...result.meshes.filter((m) => knightReceivesShadow(m.name)));
 
   await applyFaceMaterial(result.meshes);
   applyBodyPbr(result.meshes, scene);
