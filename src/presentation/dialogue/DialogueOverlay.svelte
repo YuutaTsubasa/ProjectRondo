@@ -54,11 +54,8 @@
 
 <!-- Transparent layer over the live 3D hub — only the panels are opaque, so the scene shows through. -->
 <div class="overlay">
-  <!-- Kit: a blue wash and scanlines over the scene. The kit uses mix-blend-mode: multiply, which
-       cannot reach the canvas from here — .overlay's z-index creates a stacking context, so a blend
-       mode inside it composites against .overlay's own transparent backdrop and does nothing. Plain
-       alpha is used instead: it darkens slightly less but actually renders. -->
-  <div class="tint" aria-hidden="true"></div>
+  <!-- Scanlines only. The kit also washes the scene in blue, but that reads as a filter over the
+       whole game rather than UI, so it is left off. -->
   <div class="scanlines" aria-hidden="true"></div>
 
   <!-- Standing character 立繪, behind the dialogue box and over the live 3D hub. -->
@@ -108,12 +105,6 @@
     pointer-events: none; /* let clicks fall through to the 3D canvas except on the panels below */
     font-family: var(--font-body);
     color: var(--c-ink);
-  }
-  .tint {
-    position: absolute;
-    inset: 0;
-    background: rgba(31, 69, 255, 0.16);
-    pointer-events: none;
   }
   .scanlines {
     position: absolute;
