@@ -6,7 +6,17 @@
   // Same as the backlog: this modal cannot be dismissed and must be answered, so it takes focus
   // rather than leaving it on whatever inert has just switched off behind the scrim.
   let panel: HTMLDivElement | undefined = $state();
-  $effect(() => { (panel?.querySelector('button') as HTMLElement | null)?.focus(); });
+  // Deferred by a task, not a frame. Svelte effects run in the microtask after the DOM update, which
+  // is still inside the click that opened this -- and Chrome then re-resolves focus for a click
+  // target that inert has just switched off, undoing the focus set here. A task runs after that
+  // fixup. requestAnimationFrame would too, except that a hidden page never paints, so a modal
+  // opening in a backgrounded tab would never take focus at all.
+  $effect(() => {
+    const first = panel?.querySelector('button') as HTMLElement | null;
+    if (!first) return;
+    const id = setTimeout(() => first.focus());
+    return () => clearTimeout(id);
+  });
 </script>
 
 {#if choices.length > 0}
@@ -20,7 +30,7 @@
       {#each choices as choice, i}
         <!-- Kit: a 1px frame with 4px padding around an inner block, and a caret prefix. -->
         <button class="choice" onclick={() => onSelect(i)}>
-          <span class="inner"><span class="caret">❯</span><span>{choice.label}</span></span>
+          <span class="inner"><span class="caret" aria-hidden="true">❯</span><span>{choice.label}</span></span>
         </button>
       {/each}
     </div>

@@ -5,7 +5,15 @@
   // A modal has to take focus, or it opens with focus parked on the control that opened it -- which
   // inert has just made non-interactive. Nothing else would announce that a full-screen panel arrived.
   let closeButton: HTMLButtonElement | undefined = $state();
-  $effect(() => { closeButton?.focus(); });
+  // Deferred by a task, for the same reason as Choices: LOG lives inside .scene-ui, so the click
+  // that opens this panel targets an element inert switches off in the same flush. A task rather
+  // than a frame, because a hidden page never paints.
+  $effect(() => {
+    const button = closeButton;
+    if (!button) return;
+    const id = setTimeout(() => button.focus());
+    return () => clearTimeout(id);
+  });
 </script>
 
 <!-- A full-screen opaque panel must be dismissable from the keyboard, not only by finding its

@@ -319,3 +319,30 @@ The fix has two halves, and the first was missing entirely:
 
 Verified end to end in Chrome: focus starts on LOG, moves to the close button inside the panel on
 open (`closest('[inert]')` null), and returns to LOG after Escape.
+
+## 17. Two ways focus still escaped, and why `requestAnimationFrame` was the wrong tool
+
+Round 9 found the section-16 fix incomplete in two places.
+
+**The choices modal opened with nothing focused, but only on the click path.** Svelte effects run in
+the microtask after the DOM update, which is still inside the click that opened the modal; Chrome
+then re-resolves focus for a click target `inert` has just switched off, landing on `<body>` and
+undoing the focus the effect had just set. Opening the same modal via AUTO or SKIP worked, which is
+why it survived a round — the failing path is the one a player uses.
+
+The focus call is now deferred by a **task**, not a frame. `requestAnimationFrame` would also run
+after the fixup, and was the first thing tried, but a hidden page never paints and so never fires
+one: a modal opening in a backgrounded tab would never take focus at all. That is not a testing
+artifact — it was found because the Browser pane was hidden and the rAF callback never ran, but it
+describes a real user with the tab in the background.
+
+**The `<canvas>` is a tab stop outside the overlay.** `.scene-ui`'s `inert` covers only the
+overlay's own subtree, and the canvas is a sibling of `<DialogueOverlay>` in `App.svelte`. So Tab
+walked out of both modals onto an element hidden behind an opaque panel that paints no focus
+indicator. All game input is bound on `window` (`presentation/babylon/input.ts`), so the canvas never
+needed to be focusable; it is now `tabIndex = -1`. The attribute alone is not enough — babylon sets
+`tabIndex` itself during engine construction, so it is set again after `createHubScene` resolves.
+
+Also: the `❯` in each choice is decorative but was not `aria-hidden`, so it was part of the
+accessible name of every option — the one decorative glyph in the branch that reached an interactive
+control's name.
