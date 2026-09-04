@@ -24,6 +24,9 @@
       // already 'playing' with no overlay left to ever call suspendInput(false) again — an
       // unconditional suspend here would soft-lock input forever.
       hub.suspendInput(session !== undefined && !gameMode.isPlaying);
+      // The mode is already known by the time the scene finishes loading — SKIP can beat it — so ask
+      // for the track that matches the current mode rather than assuming the intro is still running.
+      hub.audio.setMusicScene(gameMode.isPlaying ? 'playing' : 'intro');
       if (import.meta.env.DEV) (window as unknown as { hub: unknown }).hub = h;
     });
     return () => {
@@ -35,6 +38,7 @@
   function finishIntro() {
     gameMode.toPlaying();
     hub?.suspendInput(false);                     // hand control back to gameplay
+    hub?.audio.setMusicScene('playing');
   }
 </script>
 
