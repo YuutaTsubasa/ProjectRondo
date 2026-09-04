@@ -743,7 +743,8 @@ Create `src/presentation/audio/audioEngine.ts`:
 
 ```ts
 import { CreateAudioEngineAsync } from '@babylonjs/core/AudioV2/webAudio/webAudioEngine';
-import { CreateAudioBusAsync } from '@babylonjs/core/AudioV2/abstractAudio/audioBus';
+// The Create*Async factories all live in audioEngineV2, not beside the types they return.
+import { CreateAudioBusAsync } from '@babylonjs/core/AudioV2/abstractAudio/audioEngineV2';
 import type { AudioBus } from '@babylonjs/core/AudioV2/abstractAudio/audioBus';
 import type { AudioEngineV2 } from '@babylonjs/core/AudioV2/abstractAudio/audioEngineV2';
 
@@ -905,8 +906,8 @@ export const MANIFEST: Record<SoundCue, CueSpec> = {
 Create `src/presentation/audio/soundBank.ts`:
 
 ```ts
-import { CreateSoundAsync } from '@babylonjs/core/AudioV2/abstractAudio/staticSound';
-import { CreateStreamingSoundAsync } from '@babylonjs/core/AudioV2/abstractAudio/streamingSound';
+// The Create*Async factories all live in audioEngineV2, not beside the types they return.
+import { CreateSoundAsync, CreateStreamingSoundAsync } from '@babylonjs/core/AudioV2/abstractAudio/audioEngineV2';
 import type { StaticSound } from '@babylonjs/core/AudioV2/abstractAudio/staticSound';
 import type { StreamingSound } from '@babylonjs/core/AudioV2/abstractAudio/streamingSound';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
@@ -1001,7 +1002,7 @@ export async function loadSoundBank(audio: GameAudio): Promise<SoundBank> {
       const sound = pick(cue, options.variant);
       if (!sound) return;
       const spec = MANIFEST[cue];
-      if (options.position && 'spatial' in sound) sound.spatial.position = options.position;
+      if (options.position) sound.spatial.position = options.position;
       if (options.playbackRate !== undefined && 'playbackRate' in sound)
         (sound as StaticSound).playbackRate = options.playbackRate;
       sound.play({ volume: spec.volume * (options.gain ?? 1) });
@@ -1049,6 +1050,7 @@ git commit -m "feat(audio): add the cue manifest and a missing-asset-tolerant so
 **Files:**
 - Create: `src/presentation/audio/hubAudio.ts`
 - Modify: `src/presentation/babylon/hubScene.ts` (one import, one construction, one dispose line, one interface field)
+- Modify: `src/presentation/babylon/knight.ts` (export `WALK_THRESHOLD`, one keyword)
 
 **Interfaces:**
 - Consumes: everything from Tasks 1–6; `Player` from `playerController`, `Knight` from `knight`, `POND` from `src/domain/hub/waterBody`.
@@ -1059,6 +1061,7 @@ git commit -m "feat(audio): add the cue manifest and a missing-asset-tolerant so
 Create `src/presentation/audio/hubAudio.ts`:
 
 ```ts
+import type { AnimationGroup } from '@babylonjs/core/Animations/animationGroup';
 import type { Camera } from '@babylonjs/core/Cameras/camera';
 import type { Scene } from '@babylonjs/core/scene';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
@@ -1067,30 +1070,28 @@ import { createFootstepCadence, type Gait } from '../../domain/audio/footstepCad
 import { musicChange, type MusicScene } from '../../domain/audio/musicDirector';
 import { surfaceCue, type SoundCue } from '../../domain/audio/soundCue';
 import { POND } from '../../domain/hub/waterBody';
-import type { Knight } from '../babylon/knight';
+import { WALK_THRESHOLD, type Knight } from '../babylon/knight';
 import type { Player } from '../babylon/playerController';
 import { createGameAudio } from './audioEngine';
 import { loadSoundBank, type LoopHandle } from './soundBank';
-
-/**
- * Speed below which the knight is idle, matching `driveKnightAnimation`'s own threshold: the gait the
- * cadence is told about has to be the gait that is on screen.
- */
-const WALK_THRESHOLD = 0.1;
 
 export interface HubAudio {
   setMusicScene(scene: MusicScene): void;
   dispose(): void;
 }
 
-/** The dominant locomotion clip's phase in [0, 1), or `null` when it is not playing. */
-const phaseOf = (group: { isPlaying: boolean; from: number; to: number; animatables: { masterFrame: number }[] }): number | null => {
+/** A clip's playback position in [0, 1), or `null` when it is not playing. */
+const phaseOf = (group: AnimationGroup): number | null => {
   if (!group.isPlaying || group.animatables.length === 0) return null;
   const span = group.to - group.from;
   if (span <= 0) return null;
   const p = (group.animatables[0].masterFrame - group.from) / span;
   return ((p % 1) + 1) % 1;
 };
+
+/** How much of the pose this clip is contributing right now. Zero when it is not playing at all. */
+const weightOf = (group: AnimationGroup): number =>
+  group.isPlaying && group.animatables.length > 0 ? group.animatables[0].weight : 0;
 
 /**
  * Connects the scene to the audio.
@@ -1138,12 +1139,13 @@ export async function createHubAudio(
     const v = player.motion.velocity;
     const speed = Math.hypot(v.x, v.z);
     const { walk, run } = knight.animations;
-    const runPhase = phaseOf(run);
-    const walkPhase = phaseOf(walk);
-    // Whichever clip is actually driving the pose. Run wins when it is playing at all, because the
-    // blend only starts it past walking speed.
-    const gait: Gait = speed <= WALK_THRESHOLD ? 'idle' : runPhase !== null ? 'run' : 'walk';
-    const phase = gait === 'run' ? runPhase : walkPhase;
+    // The clip that is actually driving the pose, by blend weight. "Run is playing at all" is not
+    // the same question: the cross-fade starts the run clip the moment speed passes walking, so for
+    // the whole handover it is playing while the walk pose is still what is on screen — and the two
+    // clips' phases are unrelated, so reading the wrong one puts the sound anywhere in the cycle.
+    const running = weightOf(run) > weightOf(walk);
+    const gait: Gait = speed <= WALK_THRESHOLD ? 'idle' : running ? 'run' : 'walk';
+    const phase = running ? phaseOf(run) : phaseOf(walk);
     if (phase === null) {
       cadence.step({ gait: 'idle', phase: 0, airborne, elapsed });
       return;
@@ -1183,7 +1185,20 @@ export async function createHubAudio(
 }
 ```
 
-- [ ] **Step 2: Wire it into the scene**
+- [ ] **Step 2: Export the walk threshold from `knight.ts`**
+
+`hubAudio` has to classify the gait with the *same* threshold `driveKnightAnimation` uses, or the
+cadence is told "walking" on a frame the animation still calls idle. Export the existing constant
+rather than copying its value — in `src/presentation/babylon/knight.ts`, line 876:
+
+```ts
+/** Planar speed above which the knight is at least walking (mirrors Godot's WalkAnimationThreshold). */
+export const WALK_THRESHOLD = 0.6;
+```
+
+Change only the `export` keyword. The value stays 0.6.
+
+- [ ] **Step 3: Wire it into the scene**
 
 In `src/presentation/babylon/hubScene.ts`, add the import beside the other presentation imports:
 
@@ -1216,7 +1231,7 @@ And add `audio` to the returned object:
   return { engine, scene, follow, player, knight, audio, suspendInput, dispose };
 ```
 
-- [ ] **Step 3: Typecheck and run the suite**
+- [ ] **Step 4: Typecheck and run the suite**
 
 ```bash
 pnpm typecheck
@@ -1225,10 +1240,10 @@ pnpm test
 
 Expected: both green. No new tests here — this file is wiring, verified in-scene in Task 9.
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 5: Commit**
 
 ```bash
-git add src/presentation/audio/hubAudio.ts src/presentation/babylon/hubScene.ts
+git add src/presentation/audio/hubAudio.ts src/presentation/babylon/hubScene.ts src/presentation/babylon/knight.ts
 git commit -m "feat(audio): wire footsteps, jumps and ambience into the hub"
 ```
 
@@ -1336,7 +1351,7 @@ Audio is not a GPU cost, but the per-frame wiring must not allocate. In the cons
 window.hub.scene.getEngine().getFps().toFixed(1);
 ```
 
-Compare against the same reading with `git stash`-free main behaviour is not needed — instead confirm the number is still at the vsync cap (~59–60) while walking. A drop here would point at an allocation in the `onBeforeRenderObservable` callback.
+Confirm the number is still at the vsync cap (~59–60) while walking and running. A drop here points at an allocation in the `onBeforeRenderObservable` callback — the `Vector3` for the pond emitter is built once at setup, and nothing in the per-frame path should allocate.
 
 - [ ] **Step 8: Record the results in the spec**
 
@@ -1375,7 +1390,7 @@ Then open the PR against `main` with `gh` (full path: `C:\Program Files\GitHub C
 
 - [ ] **Step 1: Expose the bank to the UI**
 
-The dialogue components are not passed the scene. Add to `src/presentation/audio/hubAudio.ts`, at module scope:
+The dialogue components are not passed the scene. Add `SoundBank` to hubAudio's existing `soundBank` import (it currently imports only `loadSoundBank` and `LoopHandle`), then add at module scope:
 
 ```ts
 /**
