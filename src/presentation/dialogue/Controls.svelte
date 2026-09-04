@@ -61,9 +61,9 @@
      outline beyond their border box has no fixed backdrop to be measured against. */
   .controls button:focus-visible {
     color: var(--c-blue-deep);
-    outline: 2px solid var(--c-ink);
-    outline-offset: 3px;
-    box-shadow: 0 0 0 7px rgba(var(--c-white-rgb), 0.92);
+    outline: var(--focus-ring);
+    outline-offset: var(--focus-ring-offset);
+    box-shadow: var(--focus-halo);
   }
   /* AUTO's lit state. The dialogue box carries no AUTO indicator in the kit, so this button is the
      only place the mode is visible -- it reads as a filled tile rather than a colour shift. */

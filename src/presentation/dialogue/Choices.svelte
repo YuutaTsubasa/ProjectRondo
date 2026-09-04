@@ -19,8 +19,11 @@
 {/if}
 
 <style>
-  /* The kit's takeover ground: a blue-soft wash rather than a dark scrim. Its menu and save/load
-     screens use the same treatment, and unlike a dark scrim it keeps the UI in one light key. */
+  /* The kit's takeover ground, and opaque rather than a wash. At 0.55 over the live scene the
+     ground's floor was rgb(67,88,140), where .head's ink is 2.54:1 -- the scene decided whether the
+     heading was readable. Solid --c-blue-soft is the light lavender the kit's menu and save/load
+     screens show, and it puts ink at 6.99:1 regardless of the camera. Nothing needs to be seen
+     through a modal that has taken the whole screen. */
   .scrim {
     position: fixed;
     inset: 0;
@@ -28,9 +31,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background: rgba(var(--c-blue-soft-rgb), 0.55);
-    backdrop-filter: var(--surface-blur);
-    -webkit-backdrop-filter: var(--surface-blur);
+    background: var(--c-blue-soft);
     pointer-events: auto;
   }
   .panel {
@@ -70,7 +71,9 @@
     font-size: 14px;
     transition: background 0.12s ease, color 0.12s ease;
   }
-  .caret { color: var(--c-blue); }
+  /* --c-blue-deep, not --c-blue: this is a glyph, and on the inner glass --c-blue is 4.52:1 even
+     over the opaque ground -- too close to the 4.5 line to rest on. --c-blue-deep is 10.66:1. */
+  .caret { color: var(--c-blue-deep); }
   /* Hover fills the inner block and cuts its bottom-right corner. White on a solid --c-blue block
      is 6.26:1; blue text on the glass would be 2.34:1, so the fill carries the colour. */
   .choice:hover .inner,
@@ -82,5 +85,12 @@
   }
   .choice:hover .caret,
   .choice:focus-visible .caret { color: rgb(var(--c-white-rgb)); }
-  .choice:focus-visible { outline: none; }
+  /* Hover and focus share the fill, so focus needs an indicator of its own -- otherwise a keyboard
+     user whose pointer rests on another row sees two rows in the same state, and forced-colors
+     mode overrides the fill while still honouring outline: none. */
+  .choice:focus-visible {
+    outline: var(--focus-ring);
+    outline-offset: var(--focus-ring-offset);
+    box-shadow: var(--focus-halo);
+  }
 </style>

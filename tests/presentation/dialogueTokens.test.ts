@@ -9,11 +9,16 @@ const DIR = fileURLToPath(new URL('../../src/presentation/dialogue/', import.met
  * Every hex colour literal in one component. Colours belong in src/app/tokens.css; a hex here
  * means a value that nothing names and nothing else can share.
  *
- * Svelte control blocks are not matched: {#if} and {#each} have a letter after the '#', and the
- * pattern requires a hex digit. rgba() values are not matched either and are allowed on purpose —
- * box-shadows and the two modal scrims stay rgba (see the design doc, 4e).
+ * Svelte control blocks are not matched, though not for the reason it first looks like: {#each}
+ * does open with hex digits, since e, a and c all are. What rejects it is the trailing word
+ * boundary. The pattern consumes "#eac", then needs a boundary, and the next character "h" is a
+ * word character, so there is none. The {3,8} bound and that boundary hold the guard together;
+ * neither is incidental.
+ *
+ * rgba() values are not matched either, and are allowed on purpose: box-shadows and the two modal
+ * scrims stay rgba (see the design doc, 4e).
  */
-export function hexLiteralsIn(file: string): string[] {
+function hexLiteralsIn(file: string): string[] {
   return readFileSync(DIR + file, 'utf8').match(/#[0-9a-fA-F]{3,8}\b/g) ?? [];
 }
 

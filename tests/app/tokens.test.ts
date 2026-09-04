@@ -11,6 +11,7 @@ const EXPECTED = [
   '--c-blue', '--c-blue-deep', '--c-blue-soft', '--c-pale', '--c-white', '--c-ink',
   '--c-white-rgb', '--c-blue-soft-rgb', '--rail-dash',
   '--font-headline', '--font-body', '--font-display',
+  '--focus-ring', '--focus-ring-offset', '--focus-halo',
   '--surface-glass', '--surface-blur',
 ];
 

@@ -82,12 +82,16 @@
       <div class="ring" aria-hidden="true"></div>
       <!-- Five markers, static. The kit shows three filled and two hollow; nothing in the dialogue
            domain maps to them, so they are decoration rather than an invented progress readout. -->
-      <div class="marks" aria-hidden="true">
-        <span class="on"></span><span class="on"></span><span class="on"></span><span></span><span></span>
+      <!-- Positioned, so it paints above .pane. In-flow content would not: a positioned sibling
+           with z-index auto paints after non-positioned content, so the glass would cover the text. -->
+      <div class="content">
+        <div class="marks" aria-hidden="true">
+          <span class="on"></span><span class="on"></span><span class="on"></span><span></span><span></span>
+        </div>
+        {#key session.line}
+          <Line bind:this={lineRef} text={session.line} onDone={() => (lineDone = true)} />
+        {/key}
       </div>
-      {#key session.line}
-        <Line bind:this={lineRef} text={session.line} onDone={() => (lineDone = true)} />
-      {/key}
       <svg class="advance" width="30" height="18" viewBox="0 0 30 18" fill="none" aria-hidden="true"><path d="M0 9h26M20 3l6 6-6 6" /></svg>
       <div class="rail" aria-hidden="true"></div>
     </div>
@@ -149,6 +153,7 @@
     background: var(--c-blue);
     clip-path: polygon(evenodd, 18px 0, calc(100% - 18px) 0, 100% 18px, 100% calc(100% - 18px), calc(100% - 18px) 100%, 18px 100%, 0 calc(100% - 18px), 0 18px, 18px 0, 20px 2px, calc(100% - 20px) 2px, calc(100% - 2px) 20px, calc(100% - 2px) calc(100% - 20px), calc(100% - 20px) calc(100% - 2px), 20px calc(100% - 2px), 2px calc(100% - 20px), 2px 20px, 20px 2px);
   }
+  .content { position: relative; }
   .marks {
     display: flex;
     gap: 5px;
@@ -168,9 +173,9 @@
      backdrop that changes with the camera. The halo fixes that: the ring's adjacent colour is the
      white band it sits inside, not the scene, so the indicator carries its own contrast. */
   .box:focus-visible {
-    outline: 2px solid var(--c-ink);
-    outline-offset: 3px;
-    box-shadow: 0 0 0 7px rgba(var(--c-white-rgb), 0.92);
+    outline: var(--focus-ring);
+    outline-offset: var(--focus-ring-offset);
+    box-shadow: var(--focus-halo);
   }
   .advance {
     position: absolute;

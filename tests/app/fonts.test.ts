@@ -20,7 +20,10 @@ describe('fonts.css', () => {
   // system-ui in silence. This reads the tokens and closes that direction.
   it('every family a --font-* token asks for is declared here', () => {
     const tokens = readFileSync(TOKENS, 'utf8');
-    const wanted = [...tokens.matchAll(/--font-[a-z-]+:[ ]*'([^']+)'/g)].map((m) => m[1]);
+    // Every quoted family in each stack, not only the first: a fallback face with no @font-face
+    // falls back exactly as silently as a primary one would.
+    const stacks = [...tokens.matchAll(/--font-[a-z-]+:([^;]+);/g)].map((m) => m[1]);
+    const wanted = stacks.flatMap((s) => [...s.matchAll(/'([^']+)'/g)].map((m) => m[1]));
     expect(wanted.length).toBeGreaterThan(0);
     expect(wanted.filter((f) => !families.includes(f))).toEqual([]);
   });

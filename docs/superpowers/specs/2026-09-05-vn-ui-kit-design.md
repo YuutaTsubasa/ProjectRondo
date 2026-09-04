@@ -245,3 +245,33 @@ pinned by two tests, while nothing in `src/` used it — the rule it was added f
 superseded token plan. Removed. And the kit's dashed rail was written out twice, identically, in
 `DialogueOverlay` and `Backlog`: only its colour was tokenised, so the dash rhythm was two hand-kept
 copies that no guard here could see drift. It is now `--rail-dash`, defined once.
+
+## 14. The glass was painting over the text
+
+Round 5 found the dialogue line was invisible. `.pane`, added in section 12 to carry the clip, is
+`position: absolute`; `.marks` and `<Line>`'s paragraph are static in-flow siblings after it. Within
+a stacking context, positioned descendants paint after non-positioned content — so the glass and its
+`backdrop-filter` were drawn *over* the text, not behind it.
+
+This is the most instructive failure in the branch. Every check was green: 143 tests, `tsc`,
+`svelte-check`, and my own screenshots — I had looked at the box and read the empty panel as "no
+dialogue on screen yet" rather than as the defect. It also made every contrast figure here a claim
+about a composite that did not exist, since `--c-ink` was under the glass rather than on it. The
+content now sits in a positioned `.content` wrapper.
+
+Four other things from the round, each real:
+
+- **The choices scrim had no opacity floor.** At `rgba(--c-blue-soft, 0.55)` over the live scene its
+  darkest composite is `rgb(67,88,140)`, where `.head`'s ink is **2.54:1** — the camera decided
+  whether the heading was legible. It is now solid `--c-blue-soft` (ink at 6.99:1), which is also
+  what the kit's own menu and save/load screens show. Nothing needs to be seen through a modal that
+  has taken the whole screen.
+- **The `❯` glyph was `--c-blue`** — the fill-only rule broken a third time. Even over the opaque
+  ground it is 4.52:1, too close to the line to rest on; `--c-blue-deep` is 10.66:1.
+- **Choices' focus state was byte-identical to its hover state**, with `outline: none`. Two rows
+  could read as chosen at once, and forced-colors mode would have left no indicator at all.
+- **The focus recipe and the fonts check were both too narrow.** The halo's three parts interlock —
+  the spread must exceed offset plus width — so they are now `--focus-ring`, `--focus-ring-offset`
+  and `--focus-halo`, defined once. And `tests/app/fonts.test.ts` only read the *first* family in
+  each stack, so a fallback face with no `@font-face` passed unseen; it now reads every quoted
+  family, proven against a planted one in second position.
