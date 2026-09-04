@@ -291,138 +291,128 @@ Not a TDD task — a measurement, like the stride table in `2026-08-20-run-jump-
 - Consumes: nothing.
 - Produces: `WALK_CONTACTS: readonly [number, number]`, `RUN_CONTACTS: readonly [number, number]` — phases in `[0, 1)`, index 0 = left foot, index 1 = right foot.
 
-- [ ] **Step 1: Pull the LFS assets, start the dev server, and hand input back to gameplay**
+The clips are sampled directly, **not** by playing the game and recording frames. The first cut of
+this task did the latter and could not run: the Browser pane is hidden in this environment, and a
+hidden pane starves `requestAnimationFrame` *and* `setTimeout`, so the render loop never advances and
+a per-frame sampler collects nothing (0 renders in 5.8 s, measured). Sampling the clip directly is
+better anyway — it is deterministic, samples every phase evenly instead of however many frames
+happened to land in each bin, needs no input driving, and because the render loop is stopped the
+character is frozen, so the animation phase is the *only* thing moving the toes.
+
+- [ ] **Step 1: Pull the LFS assets and start the dev server**
 
 ```bash
 git lfs pull
 ```
 
 Then start the preview with the `Claude_Browser` preview tool (`preview_start` with the name in
-`.claude/launch.json`) — not with a raw `pnpm dev` in a Bash call. **Keep the Browser pane visible
-for the whole measurement**: the render loop is driven by `requestAnimationFrame`, which a hidden
-tab throttles, and `input.ts` clears every held key on `visibilitychange` and `blur`.
+`.claude/launch.json`). The Browser pane being hidden is fine here, and the scene still builds:
+`createHubScene` awaits Havok and the glTF loads, which are promise-driven, not frame-driven.
 
-The scene opens with the AVG intro, during which `App.svelte` has called `hub.suspendInput(true)` and
-every key handler is inert. Hand input back without dismissing the overlay:
+**Every snippet below must be fully synchronous** — no `await`, no `setTimeout`, no promise. Timers
+are starved while the pane is hidden, so an asynchronous snippet times out instead of returning.
+
+- [ ] **Step 2: Confirm the toe bones**
 
 ```js
-window.hub.suspendInput(false);
+window.hub.scene.skeletons[0].bones.map((b) => b.name).filter((n) => /toe|foot/i.test(n));
 ```
 
-- [ ] **Step 2: Find the toe bone names**
+Expect a long list. The two to sample are **`LeftToes`** and **`RightToes`**: they are parented to
+`LeftFoot`/`RightFoot` and are themselves the parent of the individual toe bones
+(`CC_Base_L_BigToe1` and friends), which makes them the toe-base/ball-of-foot joint — the part that
+stays on the ground through the whole stance phase, so its height has a flat, unambiguous minimum.
+Do not use `LeftFoot`/`RightFoot` (those are the ankles) or `CC_Base_L/R_ToeBaseShareBone` (leaf
+skin-weight helpers with no children). If this list ever comes back without `LeftToes`/`RightToes`,
+the model changed — re-derive by walking `getParent()`/`children` and say so in your report.
 
-The knight came through a Mixamo → Character-Creator retarget, so the bone names are the CC set (`knight.ts` already refers to `RL_BoneRoot`). Do not assume a spelling — list them. In the browser console via `javascript_tool`:
+- [ ] **Step 3: Sample both clips across their phase**
+
+This plays each group only to create its animatables, pauses it immediately, then walks the phase
+with `goToFrame`, forcing the toe nodes' world matrices each time. Heights are read off the
+`TransformNode` the glTF loader links to each bone.
 
 ```js
-window.hub.scene.skeletons[0].bones.map((b) => b.name).filter((n) => /toe|foot|ball/i.test(n));
+(() => {
+  const hub = window.hub;
+  const skel = hub.scene.skeletons[0];
+  const node = (n) => skel.bones.find((b) => b.name === n).getTransformNode();
+  const L = node('LeftToes');
+  const R = node('RightToes');
+  const BINS = 100;
+  const sample = (g) => {
+    g.play(true);
+    g.pause();
+    const rows = [];
+    for (let i = 0; i < BINS; i++) {
+      g.goToFrame(g.from + (i / BINS) * (g.to - g.from));
+      L.computeWorldMatrix(true);
+      R.computeWorldMatrix(true);
+      rows.push([L.absolutePosition.y, R.absolutePosition.y]);
+    }
+    g.stop();
+    return rows;
+  };
+  window.__curves = {
+    walk: sample(hub.knight.animations.walk),
+    run: sample(hub.knight.animations.run),
+  };
+  return Object.fromEntries(
+    Object.entries(window.__curves).map(([k, v]) => [k, v.length]),
+  );
+})()
 ```
 
-Record the two names you get. If more than two match, prefer the toe/ball bones over the ankle: the toe is what is still on the ground through the whole stance phase, so its height has a flat, unambiguous minimum.
+Expect `{ walk: 100, run: 100 }`.
 
-- [ ] **Step 3: Install the sampler**
-
-Paste this into `javascript_tool`. It records, every frame, the walk and run clips' normalised phase alongside both toe heights **relative to the player root**, so the terrain's own slope does not contaminate the signal.
+- [ ] **Step 4: Reduce the curves to contact phases**
 
 ```js
-window.__samples = [];
-const hub = window.hub;
-const skel = hub.scene.skeletons[0];
-const L = skel.bones.find((b) => b.name === 'PASTE_LEFT_TOE_NAME');
-const R = skel.bones.find((b) => b.name === 'PASTE_RIGHT_TOE_NAME');
-const root = hub.scene.getTransformNodeByName('player');
-const phase = (g) => {
-  if (!g.isPlaying || !g.animatables.length) return null;
-  return (g.animatables[0].masterFrame - g.from) / (g.to - g.from);
-};
-window.__stop = hub.scene.onAfterRenderObservable.add(() => {
-  const { walk, run } = hub.knight.animations;
-  window.__samples.push({
-    walk: phase(walk),
-    run: phase(run),
-    wWalk: walk.isPlaying ? walk.animatables[0].weight : 0,
-    wRun: run.isPlaying ? run.animatables[0].weight : 0,
-    l: L.getAbsolutePosition().y - root.position.y,
-    r: R.getAbsolutePosition().y - root.position.y,
-  });
-});
-'sampler installed';
-```
-
-- [ ] **Step 4: Collect a walk and a run**
-
-Drive the movement with **synthetic keyboard events**, not with the `computer` tool: `input.ts`
-listens on `window` for `keydown`/`keyup` and reads `e.key.toLowerCase()`, and there is no way to
-express "hold a key for six seconds" through a click-and-type interface.
-
-Run this in `javascript_tool`. It walks for 6 s (≥ 5 walk cycles at 1.033 s), pauses, then runs for
-6 s (≥ 9 run cycles at 0.633 s), and releases everything:
-
-```js
-const key = (type, k) => window.dispatchEvent(new KeyboardEvent(type, { key: k }));
-const wait = (ms) => new Promise((r) => setTimeout(r, ms));
-key('keydown', 'w');
-await wait(6000);
-key('keyup', 'w');
-await wait(500);
-key('keydown', 'Shift');
-key('keydown', 'w');
-await wait(6000);
-key('keyup', 'w');
-key('keyup', 'Shift');
-'collected ' + window.__samples.length + ' frames';
-```
-
-The knight walks in a straight line from spawn, which is flat open ground away from the pond — a
-slope tilts the character and adds a slow drift to both toe heights. If the frame count comes back
-near zero, the pane was hidden and `requestAnimationFrame` was throttled: make it visible and redo
-Steps 3 and 4.
-
-- [ ] **Step 5: Reduce the samples to contact phases**
-
-```js
-const bins = (key, footKey, weightKey) => {
-  const n = 100;
-  const sum = new Float64Array(n), count = new Int32Array(n);
-  for (const s of window.__samples) {
-    // Only frames where this clip actually dominates the blend: during the walk↔run handover both
-    // clips are playing and neither pose is the one on screen.
-    if (s[key] === null || s[weightKey] < 0.9) continue;
-    const b = Math.min(n - 1, Math.floor(s[key] * n));
-    sum[b] += s[footKey];
-    count[b]++;
+(() => {
+  const report = {};
+  for (const [gait, rows] of Object.entries(window.__curves))
+    for (const [foot, col] of [['left', 0], ['right', 1]]) {
+      const ys = rows.map((r) => r[col]);
+      let bi = 0;
+      for (let i = 1; i < ys.length; i++) if (ys[i] < ys[bi]) bi = i;
+      const min = ys[bi];
+      const max = Math.max(...ys);
+      report[gait + '.' + foot] = {
+        phase: +(bi / ys.length).toFixed(3),
+        minY: +min.toFixed(4),
+        maxY: +max.toFixed(4),
+        lift: +(max - min).toFixed(4),
+      };
+    }
+  // How far apart the two feet land, as a fraction of the cycle, measured the short way round.
+  for (const gait of ['walk', 'run']) {
+    const d = Math.abs(report[gait + '.left'].phase - report[gait + '.right'].phase);
+    report[gait + '.separation'] = +Math.min(d, 1 - d).toFixed(3);
   }
-  return Array.from({ length: n }, (_, i) => (count[i] ? sum[i] / count[i] : NaN));
-};
-const argmin = (a) => {
-  let bi = -1, bv = Infinity;
-  for (let i = 0; i < a.length; i++) if (!Number.isNaN(a[i]) && a[i] < bv) { bv = a[i]; bi = i; }
-  return { phase: bi / a.length, y: bv };
-};
-const report = {};
-for (const [gait, key, wKey] of [['walk', 'walk', 'wWalk'], ['run', 'run', 'wRun']])
-  for (const [foot, footKey] of [['left', 'l'], ['right', 'r']]) {
-    const curve = bins(key, footKey, wKey);
-    const min = argmin(curve);
-    const max = Math.max(...curve.filter((v) => !Number.isNaN(v)));
-    report[`${gait}.${foot}`] = {
-      phase: +min.phase.toFixed(3),
-      minY: +min.y.toFixed(4),
-      maxY: +max.toFixed(4),
-      lift: +(max - min.y).toFixed(4),
-      frames: window.__samples.filter((s) => s[key] !== null && s[wKey] >= 0.9).length,
-    };
-  }
-report;
+  return report;
+})()
 ```
 
-Record the whole table. **Sanity checks before trusting it:** each gait needs a few hundred contributing frames; `lift` (how far the toe rises above its lowest point) must be clearly non-zero, or the minimum is noise rather than a footfall; and the two feet of one gait should land roughly half a cycle apart. If left and right come out within 0.15 of each other, the sampler picked two bones on the same leg — go back to Step 2.
+Record the whole table.
 
-- [ ] **Step 6: Remove the sampler**
+- [ ] **Step 5: Apply the sanity checks**
+
+State each result explicitly in your report. **If any fails, stop and report rather than shipping the
+number** — a fabricated constant here is worse than no constant, because nothing downstream reveals
+it as fabricated.
+
+1. **`lift` is clearly non-zero** for all four curves (expect on the order of 0.1+ world units). A
+   near-flat curve means the minimum is noise, not a footfall.
+2. **The two feet of one gait land roughly half a cycle apart** — `separation` near 0.5, and in any
+   case **not below 0.15**. Below that, the two nodes are on the same leg: go back to Step 2.
+3. **The two gaits disagree with each other.** Walk and run are different clips; identical phases to
+   three decimals would mean the same clip was sampled twice.
+
+- [ ] **Step 6: Clean up**
 
 ```js
-window.hub.scene.onAfterRenderObservable.remove(window.__stop);
-delete window.__samples;
-'removed';
+delete window.__curves;
+'cleared';
 ```
 
 - [ ] **Step 7: Write the constants with their measurement**
@@ -440,17 +430,20 @@ Create `src/domain/audio/footContact.ts`, substituting the measured numbers and 
  * travelled would drift out of phase with the feet within a stride. Locking to the clip's phase is
  * what keeps sound and picture together.
  *
- * Measured in-scene from the toe bones `<LEFT>` / `<RIGHT>`, sampled every frame while walking and
- * running in a straight line on flat ground, heights taken relative to the `player` root so terrain
- * slope does not contaminate them, binned into 100 phase bins, and only from frames where the clip's
- * blend weight was ≥ 0.9 so the walk↔run handover contributes to neither:
+ * Measured from the shipped GLB by stepping each clip through 100 evenly spaced phases with
+ * `goToFrame` and reading the world height of the toe-base joints `LeftToes` / `RightToes`, with the
+ * render loop stopped so the character is frozen and the animation phase is the only thing moving
+ * them. The contact is the phase at which a toe is lowest; `lift` is how far it rises above that,
+ * which is what says the minimum is a footfall and not a flat curve:
  *
- * | Clip | Foot | contact phase | toe lift above contact | frames |
- * | --- | --- | --- | --- | --- |
- * | Walk | left | <PHASE> | <LIFT> | <N> |
- * | Walk | right | <PHASE> | <LIFT> | <N> |
- * | Run | left | <PHASE> | <LIFT> | <N> |
- * | Run | right | <PHASE> | <LIFT> | <N> |
+ * | Clip | Foot | contact phase | toe lift above contact |
+ * | --- | --- | --- | --- |
+ * | Walk | left | <PHASE> | <LIFT> |
+ * | Walk | right | <PHASE> | <LIFT> |
+ * | Run | left | <PHASE> | <LIFT> |
+ * | Run | right | <PHASE> | <LIFT> |
+ *
+ * The two feet of a gait land <WALK_SEP> (walk) and <RUN_SEP> (run) of a cycle apart.
  *
  * Re-measure whenever the clips are re-exported: these are properties of the animation data, not of
  * the character, and the GLB pipeline has already changed once (see the README's regeneration notes).
