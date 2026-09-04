@@ -3,38 +3,48 @@
     { auto: boolean; onToggleAuto: () => void; onSkip: () => void; onToggleLog: () => void } = $props();
 </script>
 
+<!-- Kit: 72x72 glass squares, top-right. The kit's HUD block is icon-over-label, but it ships the
+     icons as {{ h.icon }} placeholders with no paths, so these are label-only until icons arrive. -->
 <div class="controls">
-  <button class:active={auto} aria-pressed={auto} onclick={onToggleAuto}><span class="mark"></span>AUTO</button>
-  <button onclick={onSkip}><span class="mark"></span>SKIP</button>
-  <button onclick={onToggleLog}><span class="mark"></span>LOG</button>
+  <button class:active={auto} aria-pressed={auto} onclick={onToggleAuto}>AUTO</button>
+  <button onclick={onSkip}>SKIP</button>
+  <button onclick={onToggleLog}>LOG</button>
 </div>
 
 <style>
   .controls {
     position: absolute;
-    top: 28px;
-    right: 28px;
+    top: 18px;
+    right: 18px;
     display: flex;
-    gap: 6px;
+    gap: 10px;
     pointer-events: auto;
   }
   .controls button {
+    width: 72px;
+    height: 72px;
     display: flex;
     align-items: center;
-    gap: 8px;
+    justify-content: center;
     background: var(--surface-glass);
     backdrop-filter: var(--surface-blur);
     -webkit-backdrop-filter: var(--surface-blur);
-    border: 1px solid var(--surface-border);
-    padding: 8px 14px;
-    font-family: var(--font-ui);
-    font-weight: 800;
-    font-size: 11px;
-    letter-spacing: 0.16em;
+    border: none;
+    font-family: var(--font-headline);
+    font-weight: 700;
+    font-size: 15px;
+    line-height: 1;
+    letter-spacing: 1px;
     color: var(--c-ink);
     cursor: pointer;
+    transition: color 0.12s ease;
   }
-  .controls .mark { width: 14px; height: 3px; background: rgba(var(--c-ink-rgb), 0.2); display: block; }
-  .controls button.active .mark { background: var(--c-lime); }
-  .controls button:hover { background: rgba(var(--c-white-rgb), 0.85); }
+  .controls button:hover,
+  .controls button:focus-visible { color: var(--c-blue); outline: none; }
+  /* AUTO's lit state. The dialogue box carries no AUTO indicator in the kit, so this button is the
+     only place the mode is visible -- it reads as a filled tile rather than a colour shift. */
+  .controls button.active {
+    background: var(--c-blue);
+    color: rgb(var(--c-white-rgb));
+  }
 </style>

@@ -11,7 +11,7 @@ const families = [...new Set([...css.matchAll(/font-family:\s*'([^']+)'/g)].map(
 
 describe('fonts.css', () => {
   it('declares exactly the three families the tokens name', () => {
-    expect(families.slice().sort()).toEqual(['JetBrains Mono', 'Noto Sans TC', 'Poppins']);
+    expect(families.slice().sort()).toEqual(['Archivo Black', 'Chakra Petch', 'Noto Sans TC']);
   });
 
   it('every referenced file exists on disk', () => {

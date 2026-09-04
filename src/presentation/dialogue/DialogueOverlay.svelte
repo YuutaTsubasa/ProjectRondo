@@ -54,6 +54,13 @@
 
 <!-- Transparent layer over the live 3D hub — only the panels are opaque, so the scene shows through. -->
 <div class="overlay">
+  <!-- Kit: a blue wash and scanlines over the scene. The kit uses mix-blend-mode: multiply, which
+       cannot reach the canvas from here — .overlay's z-index creates a stacking context, so a blend
+       mode inside it composites against .overlay's own transparent backdrop and does nothing. Plain
+       alpha is used instead: it darkens slightly less but actually renders. -->
+  <div class="tint" aria-hidden="true"></div>
+  <div class="scanlines" aria-hidden="true"></div>
+
   <!-- Standing character 立繪, behind the dialogue box and over the live 3D hub. -->
   <Portrait portrait={session.portrait} />
 
@@ -65,6 +72,14 @@
   <div class="dock">
     <Nameplate speaker={session.speaker} />
     <div class="box">
+      <!-- The 2px inset ring, drawn as an evenodd clip-path over a solid fill: the outer octagon
+           minus an octagon inset by 2px leaves the ring between them. -->
+      <div class="ring" aria-hidden="true"></div>
+      <!-- Five markers, static. The kit shows three filled and two hollow; nothing in the dialogue
+           domain maps to them, so they are decoration rather than an invented progress readout. -->
+      <div class="marks" aria-hidden="true">
+        <span class="on"></span><span class="on"></span><span class="on"></span><span></span><span></span>
+      </div>
       <div
         class="hit"
         role="button"
@@ -77,10 +92,8 @@
           <Line bind:this={lineRef} text={session.line} onDone={() => (lineDone = true)} />
         {/key}
       </div>
-      <div class="footer">
-        <span class="mark" class:on={auto}></span>
-        {#if auto}<span class="hint">AUTO</span>{/if}
-      </div>
+      <svg class="advance" width="30" height="18" viewBox="0 0 30 18" fill="none" aria-hidden="true"><path d="M0 9h26M20 3l6 6-6 6" /></svg>
+      <div class="rail" aria-hidden="true"></div>
     </div>
   </div>
 
@@ -94,51 +107,83 @@
     z-index: 10;
     pointer-events: none; /* let clicks fall through to the 3D canvas except on the panels below */
     font-family: var(--font-body);
+    color: var(--c-ink);
   }
-  /* Bottom-anchored dialogue dock, matching the design's inset panels. */
+  .tint {
+    position: absolute;
+    inset: 0;
+    background: rgba(31, 69, 255, 0.16);
+    pointer-events: none;
+  }
+  .scanlines {
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient(to bottom, rgba(var(--c-ink-rgb), 0.1) 0 1px, transparent 1px 3px);
+    pointer-events: none;
+  }
+  /* Bottom-anchored dialogue dock. Left inset clears the standing portrait, as in the kit's
+     composition (box at left:140 of 960; the portrait stands to its left). */
   .dock {
     position: absolute;
-    left: 28px;
-    right: 28px;
+    left: 14.6%;
+    right: 3.5%;
     bottom: 28px;
     display: flex;
     flex-direction: column;
     align-items: flex-start;
-    gap: 10px;
     pointer-events: none;
   }
   .box {
     align-self: stretch;
-    /* Fixed, taller VN textbox: consistent height regardless of line length. */
-    height: clamp(180px, 24vh, 240px);
-    display: flex;
-    flex-direction: column;
+    position: relative;
     box-sizing: border-box;
+    min-height: clamp(150px, 20vh, 200px);
+    padding: 20px 24px 28px;
     background: var(--surface-glass);
     backdrop-filter: var(--surface-blur);
     -webkit-backdrop-filter: var(--surface-blur);
-    border: 1px solid var(--surface-border);
-    /* Lighter than the 0.45 this carried as a dark panel — that alpha reads as grime under pale. */
-    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.25);
-    padding: 22px 26px;
+    clip-path: polygon(18px 0, calc(100% - 18px) 0, 100% 18px, 100% calc(100% - 18px), calc(100% - 18px) 100%, 18px 100%, 0 calc(100% - 18px), 0 18px);
     pointer-events: auto;
   }
-  .hit { flex: 1; cursor: pointer; outline: none; }
-  /* Was lime at 0.6 alpha: about 1.2:1 on a light panel, i.e. an invisible focus ring.
-     --c-blue itself is 2.65:1 at the floor, under the 3:1 non-text-UI threshold, so this uses
-     the deep variant instead. */
-  .hit:focus-visible { outline: 1px solid var(--c-blue-deep); outline-offset: 4px; }
-  .footer { display: flex; align-items: center; gap: 12px; margin-top: auto; min-height: 3px; }
-  .mark { width: 20px; height: 3px; background: rgba(var(--c-ink-rgb), 0.22); display: block; }
-  .mark.on { background: var(--c-lime); }
-  .hint {
-    margin-left: auto;
-    font-family: var(--font-ui);
-    font-size: 12px;
-    letter-spacing: 0.16em;
-    /* --c-blue is 2.65:1 as text against the darkest panel the glass can produce, under the
-       4.5:1 threshold. Ink is the established pattern for secondary UI labels (Controls,
-       Backlog .text). */
-    color: var(--c-ink);
+  .ring {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: var(--c-blue);
+    clip-path: polygon(evenodd, 18px 0, calc(100% - 18px) 0, 100% 18px, 100% calc(100% - 18px), calc(100% - 18px) 100%, 18px 100%, 0 calc(100% - 18px), 0 18px, 18px 0, 20px 2px, calc(100% - 20px) 2px, calc(100% - 2px) 20px, calc(100% - 2px) calc(100% - 20px), calc(100% - 20px) calc(100% - 2px), 20px calc(100% - 2px), 2px calc(100% - 20px), 2px 20px, 20px 2px);
+  }
+  .marks {
+    display: flex;
+    gap: 5px;
+    margin-bottom: 12px;
+  }
+  .marks span {
+    width: 8px;
+    height: 8px;
+    background: var(--c-ink);
+    transform: rotate(45deg);
+    display: block;
+  }
+  .marks span.on { background: var(--c-blue); }
+  .hit { cursor: pointer; outline: none; }
+  .hit:focus-visible { outline: 2px solid var(--c-blue); outline-offset: 4px; }
+  .advance {
+    position: absolute;
+    right: 26px;
+    bottom: 16px;
+    stroke: var(--c-ink);
+    stroke-width: 1.6;
+    pointer-events: none;
+  }
+  /* The kit's dashed rail down the right edge. */
+  .rail {
+    position: absolute;
+    right: 8px;
+    top: 12px;
+    bottom: 12px;
+    width: 11px;
+    border: 1px solid var(--c-blue);
+    background: repeating-linear-gradient(to bottom, var(--c-blue) 0 3px, transparent 3px 6px);
+    pointer-events: none;
   }
 </style>

@@ -4,68 +4,140 @@
 </script>
 
 <div class="scrim">
-  <div class="log">
+  <section class="log" aria-label="dialogue backlog">
     <header>
-      <span class="rail"></span>
-      <span class="title">對話回顧</span>
-      <button class="close" onclick={onClose} aria-label="close log">×</button>
+      <span class="title">BACKLOG</span>
+      <button class="close" onclick={onClose} aria-label="close log">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M4 4l16 16M20 4L4 20" /></svg>
+      </button>
     </header>
+    <!-- The kit's stroked display word, sitting behind the list. -->
+    <span class="stamp" aria-hidden="true">LOG</span>
     <ol>
       {#each entries as e}
-        <li><span class="mark"></span><span class="who">{e.speaker}</span><span class="text">{e.line}</span></li>
+        <li>
+          <span class="node" aria-hidden="true"></span>
+          <span class="who">{e.speaker}</span>
+          <p class="text">{e.line}</p>
+        </li>
       {/each}
     </ol>
-  </div>
+    <span class="rail" aria-hidden="true"></span>
+  </section>
 </div>
 
 <style>
-  /* Like Choices' scrim, deliberately off the surface tokens — it dims the scene behind the modal. */
   .scrim {
     position: absolute;
     inset: 0;
     z-index: 11;
     display: flex;
-    align-items: center;
-    justify-content: center;
-    background: rgba(6, 7, 10, 0.45);
     pointer-events: auto;
   }
+  /* Opaque, not glass. The kit draws this panel on the same 0.62 glass as everything else, but a
+     full-screen log has nothing to gain from showing the scene through it -- and on glass the kit's
+     own blue speaker names fall to 2.34:1 over a dark scene. On solid --c-pale they are 5.60:1, so
+     going opaque is what makes the kit's colour choice work rather than a departure from it. */
   .log {
-    width: min(940px, 88vw);
-    max-height: calc(100% - 140px);
+    position: relative;
+    flex: 1;
+    box-sizing: border-box;
+    padding: 20px 24px;
+    background: var(--c-pale);
+    border: 1px solid var(--c-blue);
     display: flex;
     flex-direction: column;
-    background: var(--surface-glass);
-    backdrop-filter: var(--surface-blur);
-    -webkit-backdrop-filter: var(--surface-blur);
-    border: 1px solid var(--surface-border);
-    /* Lowered from 0.5 with the flip to a pale panel. */
-    box-shadow: 0 30px 70px rgba(0, 0, 0, 0.28);
-    padding: 0 24px 20px;
+    overflow: hidden;
   }
   header {
     display: flex;
     align-items: center;
-    gap: 14px;
-    margin: 0 -24px 14px;
-    padding: 10px 24px;
-    background: linear-gradient(315deg, var(--c-lime) 0 10px, transparent 10px 14px, var(--c-pale) 14px);
-  }
-  header .rail { width: 9px; align-self: stretch; margin: -10px 0 -10px -24px; background: var(--c-blue); display: block; flex: none; }
-  .title {
+    justify-content: space-between;
     font-family: var(--font-headline);
     font-weight: 700;
-    color: var(--c-ink);
-    letter-spacing: 0.04em;
+    font-size: 17px;
+    letter-spacing: 3px;
+    color: var(--c-blue);
   }
-  .close { margin-left: auto; background: none; border: none; color: var(--c-ink); font-size: 20px; line-height: 1; cursor: pointer; }
-  ol { list-style: none; margin: 0; padding: 0; overflow: auto; display: flex; flex-direction: column; gap: 12px; }
-  li { display: flex; align-items: baseline; gap: 10px; font-size: 14px; line-height: 1.8; }
-  .mark { width: 18px; height: 3px; background: var(--c-lime); display: block; flex: none; transform: translateY(-4px); }
-  /* Was lime, which is ~1.2:1 on a pale panel. Blue for every speaker: the style sheet's yellow
-     "unknown speaker" has no state behind it in this codebase (see the design doc, 4f).
-     --c-blue itself is 2.65:1 as text against the darkest panel the glass can produce, under
-     the 4.5:1 threshold, so this uses the deep variant instead. */
-  .who { color: var(--c-blue-deep); font-weight: 700; flex: none; }
-  .text { color: rgba(var(--c-ink-rgb), 0.85); }
+  .close {
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    display: flex;
+    stroke: var(--c-blue);
+    stroke-width: 1.8;
+  }
+  .stamp {
+    position: absolute;
+    left: 150px;
+    top: 24px;
+    font-family: var(--font-display);
+    font-size: 120px;
+    line-height: 0.9;
+    color: transparent;
+    -webkit-text-stroke: 2px var(--c-blue);
+    pointer-events: none;
+    user-select: none;
+  }
+  /* Timeline: a hairline spine with a node per entry. The spine lives on each li rather than as a
+     border on the scrolling ol, so it scrolls with the content and the nodes need no negative
+     offset -- a node at a negative left would be clipped by the ol's own overflow. */
+  ol {
+    list-style: none;
+    margin: 104px 0 0;
+    padding: 0;
+    overflow: auto;
+    flex: 1;
+  }
+  li {
+    position: relative;
+    padding: 9px 8px 10px 26px;
+    border-bottom: 1px solid rgba(var(--c-blue-soft-rgb), 0.35);
+  }
+  li::before {
+    content: '';
+    position: absolute;
+    left: 5px;
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background: var(--c-blue-soft);
+  }
+  .node {
+    position: absolute;
+    left: 0;
+    top: 18px;
+    width: 11px;
+    height: 11px;
+    box-sizing: border-box;
+    border-radius: 50%;
+    border: 1px solid var(--c-blue);
+    background: var(--c-pale);
+  }
+  .who {
+    font-family: var(--font-headline);
+    font-weight: 700;
+    font-size: 17px;
+    letter-spacing: 2px;
+    color: var(--c-blue);
+  }
+  .text {
+    margin: 3px 0 0;
+    font-family: var(--font-body);
+    font-size: 15px;
+    line-height: 1.6;
+    color: var(--c-ink);
+    white-space: pre-line;
+  }
+  .rail {
+    position: absolute;
+    right: 10px;
+    top: 120px;
+    width: 12px;
+    height: 180px;
+    border: 1px solid var(--c-blue);
+    background: repeating-linear-gradient(to bottom, var(--c-blue) 0 3px, transparent 3px 6px);
+    pointer-events: none;
+  }
 </style>

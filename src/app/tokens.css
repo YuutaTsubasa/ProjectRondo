@@ -2,49 +2,38 @@
  * Design tokens — the single source of truth for colour, type, and surface treatment.
  * Imported once from main.ts; consumed as var(--...) inside components' scoped <style> blocks.
  * tests/presentation/dialogueTokens.test.ts fails if a hex literal reappears in
- * src/presentation/dialogue/. Palette and type follow the "BLUE HORIZON" style sheet; see
- * docs/superpowers/specs/2026-09-04-ui-token-system-design.md.
+ * src/presentation/dialogue/; tests/app/tokens.test.ts pins this list and checks the -rgb
+ * companions against their hex. Values come from the VN UI Kit (Light); see
+ * docs/superpowers/specs/2026-09-05-vn-ui-kit-design.md.
  */
 :root {
-  --c-blue: #145BFF;
-  /* Blue is structure, and as a fill it is fine. As TEXT on --surface-glass it is not: #145BFF
-     lands at 2.65:1 against the darkest panel the glass can produce and 4.11:1 over lit grass,
-     both under the 4.5:1 threshold. This darker blue clears it everywhere (5.66:1 at the floor)
-     while keeping the style sheet's blue speaker names. Measured in the design doc, section 6. */
-  --c-blue-deep: #0A2E99;
-  --c-lime: #B6FF00;
-  --c-pale: #E8F1FF;
-  --c-white: #FFFFFF;
-  --c-ink: #0b1020;
+  --c-blue: #1f45ff;
+  --c-ink: #0a1440;
+  --c-blue-soft: #7aa0ff;
+  --c-pale: #eef2ff;
+  /* Kept as the checked source for --c-white-rgb below; white reaches the UI through that
+     companion (white text on blue fills, and the glass), never as a bare var(--c-white). */
+  --c-white: #ffffff;
 
-  /* Defined for palette completeness; nothing consumes it. The style sheet colours an unknown
-     speaker yellow, but the dialogue domain has no unknown-speaker state — Speaker is a branded
-     string (src/domain/dialogue/speaker.ts) and an empty speaker is a parse error — so that
-     distinction is not implementable as a re-skin. The first component to use this token is what
-     decides what it means. */
-  --c-yellow: #FFF200;
-
-  /* --c-ink and --c-white as bare channels, so a component can write rgba(var(--c-ink-rgb), .6)
-     for secondary text, or rgba(var(--c-white-rgb), .85) for a hover, without restating the
-     colour. tests/app/tokens.test.ts asserts each pair stays in sync with its hex. */
-  --c-ink-rgb: 11, 16, 32;
+  /* --c-ink and white as bare channels, so a component can write rgba(var(--c-ink-rgb), .5) for a
+     hairline or rgba(var(--c-white-rgb), .62) for glass without restating the colour.
+     tests/app/tokens.test.ts asserts each pair stays in sync with its hex. */
+  --c-ink-rgb: 10, 20, 64;
   --c-white-rgb: 255, 255, 255;
-  --c-blue-rgb: 20, 91, 255;
+  --c-blue-soft-rgb: 122, 160, 255;
 
-  /* Poppins and JetBrains Mono have no CJK coverage and speaker names are Chinese, so Noto Sans TC
-     sits in both fallback stacks rather than letting CJK drop to system-ui. */
-  --font-headline: 'Poppins', 'Noto Sans TC', system-ui, sans-serif;
+  /* Chakra Petch carries the kit's UI voice (name tag, HUD labels, panel headers) and is used at
+     700 only. Noto Sans TC carries dialogue and choice text. Both self-hosted; the kit's own
+     Google Fonts link would be blocked by the app's CSP. */
+  --font-headline: 'Chakra Petch', 'Noto Sans TC', system-ui, sans-serif;
   --font-body: 'Noto Sans TC', system-ui, sans-serif;
-  --font-ui: 'JetBrains Mono', 'Noto Sans TC', ui-monospace, monospace;
+  /* Outlined display face, used stroked rather than filled (see Backlog). */
+  --font-display: 'Archivo Black', 'Noto Sans TC', system-ui, sans-serif;
 
-  /* One set of glass values for every panel. Before this file there were five unrelated sets
-     (blur 12/18/26/28/30px, saturate 120/140/160%, alpha .55/.60/.62/.72) — see the design doc 1a.
-     The alpha starts at .72, the one value that already shipped on a light surface (Controls).
-     It is the knob the contrast measurement turns; see the design doc 5b.
-     The modal scrims in Choices and Backlog are deliberately NOT tokenised: a scrim's job is to
-     push the 3D scene back behind a modal, so it stays dark even though the panels above it
-     are light. */
-  --surface-glass: rgba(var(--c-white-rgb), 0.72);
-  --surface-blur: blur(24px) saturate(140%);
-  --surface-border: rgba(var(--c-blue-rgb), 0.22);
+  /* One glass value throughout the kit. The alpha is load-bearing: --c-ink clears 4.5:1 against the
+     darkest panel this produces at 6.61:1, with no room to weaken it further (see the design doc,
+     section 8). --c-blue is 2.34:1 as text on the same panel, so blue is a FILL only — rails, the
+     inset ring, the name tag's background, the diamonds. Text on blue is white on a blue block. */
+  --surface-glass: rgba(var(--c-white-rgb), 0.62);
+  --surface-blur: blur(12px);
 }

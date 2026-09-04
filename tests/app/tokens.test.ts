@@ -8,10 +8,10 @@ const TOKENS = fileURLToPath(new URL('../../src/app/tokens.css', import.meta.url
 const SRC_DIR = fileURLToPath(new URL('../../src/', import.meta.url));
 
 const EXPECTED = [
-  '--c-blue', '--c-blue-deep', '--c-lime', '--c-pale', '--c-white', '--c-yellow', '--c-ink',
-  '--c-ink-rgb', '--c-white-rgb', '--c-blue-rgb',
-  '--font-headline', '--font-body', '--font-ui',
-  '--surface-glass', '--surface-blur', '--surface-border',
+  '--c-blue', '--c-blue-soft', '--c-pale', '--c-white', '--c-ink',
+  '--c-ink-rgb', '--c-white-rgb', '--c-blue-soft-rgb',
+  '--font-headline', '--font-body', '--font-display',
+  '--surface-glass', '--surface-blur',
 ];
 
 // Recursively collect .svelte and .css files under a directory.
@@ -45,7 +45,7 @@ describe('tokens.css', () => {
     (src.split('\n').find((l) => l.trim().startsWith(`--c-${token}:`)) ?? '')
       .split(':')[1]?.trim().replace(';', '') ?? '';
 
-  it.each(['ink', 'white', 'blue'])('keeps --c-%s-rgb in sync with --c-%s', (name) => {
+  it.each(['ink', 'white', 'blue-soft'])('keeps --c-%s-rgb in sync with --c-%s', (name) => {
     const hex = valueOf(name).replace('#', '');
     const rgb = valueOf(`${name}-rgb`).split(',').map((n) => Number(n.trim()));
     expect(hex).toHaveLength(6);

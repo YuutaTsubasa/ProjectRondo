@@ -59,9 +59,12 @@ the 0.72/24px this branch's predecessor settled on.
 Poppins and JetBrains Mono are removed: nothing in the kit uses them, and a shipped font nothing
 references is what `tests/app/fonts.test.ts` exists to catch.
 
-**Archivo Black is deliberately not added.** The kit uses it for the big outlined display title and
-the main-menu headings — both deferred (see 5), and neither has data behind it. Adding it now would
-ship a face nothing references.
+- `--font-display` — **Archivo Black 400**. The backlog's stroked LOG title.
+
+An earlier draft of this spec said Archivo Black was deliberately not added, on the grounds that it
+appeared only in deferred work. That was wrong: it was written after reading the dialogue screen
+only. The backlog screen (`backlog_full`) uses it for a stroked 120px LOG, and the backlog is in
+scope, so the face is needed and is shipped.
 
 ## 4. Geometry
 
@@ -132,3 +135,27 @@ Two conclusions bind the implementation:
   This is the same trap the previous branch fell into and had to fix at final review. Blue is a fill
   only: rails, the ring, the name tag's background, the diamonds. Where the kit puts text on blue it
   is *white on a blue block* (6.26:1), which is the safe direction and is what the choice hover does.
+
+## 9. Where the build departed from the kit, and why
+
+Three deliberate deviations, each measured or reasoned rather than preferred:
+
+- **The backlog panel is opaque `--c-pale`, not 0.62 glass.** The kit draws it on the same glass as
+  everything else, but the kit's mock sits on a light checkerboard while the app sits on a live 3D
+  scene. On glass over a dark scene the kit's own blue speaker names fall to 2.34:1; on solid
+  `--c-pale` they are **5.60:1**. Going opaque is what makes the kit's colour choice work. A
+  full-screen log has nothing to gain from showing the scene through it.
+- **The scene tint uses plain alpha, not `mix-blend-mode: multiply`.** The kit multiplies a blue
+  wash over the scene art. In the app the wash lives inside `.overlay`, whose `z-index: 10` creates
+  a stacking context — a blend mode there composites against `.overlay`'s own transparent backdrop
+  and does nothing at all. Plain `rgba(31, 69, 255, 0.16)` darkens slightly less but actually
+  renders.
+- **The HUD buttons are label-only.** The kit's HUD and system-icon blocks carry `{{ h.icon }}`
+  placeholders with no paths, so there are no icons to use. Inventing an icon vocabulary is design
+  work the handoff did not include. The 72x72 squares and their Chakra Petch labels are built; the
+  icons slot in above the label when they arrive.
+
+One bug found by looking rather than by testing: the timeline node circles were clipped by the
+scrolling list's `overflow`, because a node at a negative `left` falls outside its scroll container.
+The spine moved from a border on the list to a pseudo-element on each entry, which also makes it
+scroll with the content.
