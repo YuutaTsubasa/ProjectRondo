@@ -63,11 +63,15 @@ export function windTime(): number {
  * - grass (`scatter.ts`, 0.5-unit card): 0.06 — peak ~0.09, ~18% of the card's height (~26% on the
  *   smallest 0.7-scaled tufts).
  * - wildflowers (`scatter.ts`, 0.22-unit card): 0.06 — peak ~0.09, ~41% of the card's height.
- * - trees (`trees.ts`, ~6-unit canopy): 0.6 — a STARTING value, not a tuned one. It puts the peak
- *   displacement at ~0.9, ~15% of tree height, in the same proportional range as the grass, chosen
- *   because trees are the one surface the DoD names by name ("grass and trees sway with wind") and a
- *   world-space constant here would have left them at ~1.5% and effectively still. The browser pass
- *   must tune all three; grass and flowers keep today's 0.06 so nothing about their motion changes.
+ * - trees (`trees.ts`, ~6-unit canopy): 0.2 — peak ~0.30, ~5% of tree height. Observed, not derived;
+ *   see TREE_WIND_AMPLITUDE for the two sightings that bracket it.
+ *
+ * **Do not tune the trees by matching the grass's proportional lean.** That was tried — 0.6, putting
+ * the canopy at ~15% against the grass's ~18% — and the project owner reported it as visibly too much.
+ * The reasoning was wrong, not just the number: it treats a tree as a giant blade of grass. A grass
+ * card is uniformly flexible along its whole length, whereas a tree's trunk is rigid and only the
+ * crown gives, so a real tree in a breeze deflects a few percent of its height where grass bends tens
+ * of percent. Matching the two proportions guarantees a tree that looks like it is in a gale.
  *
  * NOT replicated into the shadow map, and it cannot be: `shadowMap.vertex` exposes only
  * `CUSTOM_VERTEX_DEFINITIONS` — there is no injection point between `positionUpdated` and `worldPos`

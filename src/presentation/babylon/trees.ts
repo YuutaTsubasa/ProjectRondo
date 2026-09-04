@@ -73,11 +73,29 @@ const TREE_EMISSIVE = new Color3(0.141, 0.24, 0.085);
 const TRUNK_RADIUS = 0.5;
 const TRUNK_HEIGHT = 4;
 
-/** Wind amplitude for tree canopies, in WORLD units — see `applyWind`'s doc comment. A STARTING value
- *  scaled for the tree's ~6-unit world height (BASE_SCALE), not a tuned one: it puts the canopy's
- *  proportional lean in the same range as the grass instead of the ~1.5% a shared grass-scale constant
- *  would give a tree. The browser pass must tune this. */
-const TREE_WIND_AMPLITUDE = 0.6;
+/**
+ * Wind amplitude for tree canopies, in WORLD units — see `applyWind`'s doc comment for what the number
+ * means (it is the per-sine scale; peak displacement is ~1.5x it, because the gust envelope
+ * `sin(x) + 0.5*sin(2.3x + 1.7)` peaks at ~1.4999).
+ *
+ * Bracketed by two sightings rather than derived, and neither of them is mine — I have never had a
+ * working Browser pane on this branch:
+ *
+ * - **0.06** (peak ~0.09, ~1.5% of a ~6-unit tree): a reviewer's judgement that the canopy would not
+ *   read as moving at all. Never seen on screen by anyone.
+ * - **0.6** (peak ~0.90, ~15%): **seen and reported as visibly too much** by the project owner. This
+ *   is the only datum here that came from looking at the actual render.
+ *
+ * 0.2 sits between them at peak ~0.30, ~5% of tree height. Chosen as roughly a third of the value that
+ * was too much, not as a midpoint — the failure at 0.6 was a reasoning error (matching grass's
+ * proportional lean, see `applyWind`) and the correction is toward the few-percent crown deflection a
+ * real tree shows, not toward the arithmetic middle of two guesses.
+ *
+ * **Still unverified**: nobody has looked at 0.2. To move it, the mapping is
+ * `peak = amplitude * 1.5`, `proportional lean = peak / 6`:
+ * 0.12 -> ~3%, 0.2 -> ~5%, 0.3 -> ~7.5%, 0.4 -> ~10%.
+ */
+const TREE_WIND_AMPLITUDE = 0.2;
 
 /** Fixed scatter: [x, z, yawRadians, scale]. Spread across the enlarged 100×100 field (out to ±36);
  *  the centre (~radius 5) is left clear so no tree spawns on the player's spawn point. */
