@@ -257,8 +257,9 @@ const TRACKS: Record<MusicScene, SoundCue> = {
  * Returns `null` when nothing should change, which is the whole point: the caller polls this every
  * time the game state might have moved and only acts on a non-null answer, so it cannot restart a
  * track that is already playing or fire a second crossfade into the one it just started. AudioV2
- * throws if a volume ramp is requested while another is in progress, so "ask for nothing" has to be
- * a first-class answer rather than something the caller filters out afterwards.
+ * replaces an in-flight volume ramp rather than blending with it, so "ask for nothing" has to be a
+ * first-class answer rather than something the caller filters out afterwards — a redundant call would
+ * cancel a fade that is halfway through and restart it from wherever it had reached.
  */
 export const musicChange = (playing: SoundCue | null, scene: MusicScene): MusicChange | null => {
   const track = TRACKS[scene];
@@ -1048,7 +1049,7 @@ export async function loadSoundBank(audio: GameAudio): Promise<SoundBank> {
       sound.play({ loop: true, volume: spec.volume * (options.gain ?? 1) });
       return {
         setVolume: (value, fadeSeconds = 0) => {
-          // AudioV2 throws when a ramp is requested while one is already in progress. A zero-length
+          // AudioV2 replaces an in-flight ramp rather than blending with it. A zero-length
           // change is therefore set outright rather than ramped over the default 10 ms, and the
           // catch covers the other half of the same hazard: two fades landing on one sound inside
           // each other's window. Snapping to the value is the right degradation — a volume change
@@ -1428,9 +1429,10 @@ findings, and do not try to fix them.
 })()
 ```
 
-Expected: `'no throw'`. This exercises the volume-ramp path that AudioV2 throws on when a ramp is
-already running, and the second identical call proves the director's null result is actually acted on.
-It does **not** prove anything about how the crossfade sounds.
+Expected: `'no throw'`. This exercises the volume-ramp path and the crossfade branch, and the second
+identical call proves the director's null result is actually acted on. It does **not** prove anything
+about how the crossfade sounds — and note it would not have thrown in any case: in the pinned
+babylon, an overlapping ramp is cancelled and replaced rather than rejected.
 
 - [ ] **Step 4: Prove the missing-asset policy**
 
