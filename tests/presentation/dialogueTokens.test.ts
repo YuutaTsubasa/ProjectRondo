@@ -15,8 +15,9 @@ const DIR = fileURLToPath(new URL('../../src/presentation/dialogue/', import.met
  * word character, so there is none. The {3,8} bound and that boundary hold the guard together;
  * neither is incidental.
  *
- * rgba() values are not matched either, and are allowed on purpose: box-shadows and the two modal
- * scrims stay rgba (see the design doc, 4e).
+ * rgba() is not matched either, and is allowed on purpose — but only two sites now use it, and
+ * neither is a colour decision: Backlog's entry rule tints --c-blue-soft, and Portrait's drop-shadow
+ * is plain black. Everything else that once needed rgba here became a token.
  */
 function hexLiteralsIn(file: string): string[] {
   return readFileSync(DIR + file, 'utf8').match(/#[0-9a-fA-F]{3,8}\b/g) ?? [];

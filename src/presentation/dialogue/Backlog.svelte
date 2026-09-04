@@ -3,6 +3,10 @@
   let { entries, onClose }: { entries: readonly BacklogEntry[]; onClose: () => void } = $props();
 </script>
 
+<!-- A full-screen opaque panel must be dismissable from the keyboard, not only by finding its
+     close button again. -->
+<svelte:window onkeydown={(e) => { if (e.key === 'Escape') onClose(); }} />
+
 <div class="scrim">
   <section class="log" aria-label="dialogue backlog">
     <header>

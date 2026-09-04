@@ -275,3 +275,26 @@ Four other things from the round, each real:
   and `--focus-halo`, defined once. And `tests/app/fonts.test.ts` only read the *first* family in
   each stack, so a fallback face with no `@font-face` passed unseen; it now reads every quoted
   family, proven against a planted one in second position.
+
+## 15. Opaque panels have to take focus with them
+
+Round 6: with the backlog open, Tab walked out of it onto the AUTO/SKIP/LOG tiles and the dialogue
+box — all painted underneath an opaque full-screen panel — and Enter on the box advanced the session
+behind the panel the reader was looking at. The only visible effect was a new row appearing in the
+list they were reading. There was no Escape either, so the sole exit was to find the close button
+again.
+
+This is a regression the branch created rather than inherited. Before it, the backlog was a centred
+panel over a 0.45 scrim and the box behind stayed visible, which made the wandering focus an oddity
+rather than a silent state change; going full-bleed and opaque is what turned it into one. Section
+14's opaque choices scrim has the same shape.
+
+The scene UI now sits in a `.scene-ui` wrapper carrying `inert` whenever a modal is open — the
+wrapper is geometrically identical to `.overlay`, so it exists only to hold that attribute — and the
+backlog closes on Escape. Verified: with the log open, all four scene controls report
+`closest('[inert]')`, only the close button is reachable, and Escape both closes the panel and lifts
+the inert.
+
+Worth recording separately: while fixing this I broke the markup mid-edit, and `svelte-check`
+reported zero errors over the broken file while Vite's compiler rejected it. `vite build` is the
+check that told the truth.

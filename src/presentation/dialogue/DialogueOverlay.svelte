@@ -17,6 +17,9 @@
   let showLog = $state(false);
   let lineDone = $state(false);
 
+  // A modal is open, so the scene UI behind it must neither take focus nor act on Enter.
+  const modalOpen = $derived(showLog || session.choices.length > 0);
+
   function advance() {
     session.advance();
     if (session.isFinished) { finish(); }
@@ -54,15 +57,16 @@
 
 <!-- Transparent layer over the live 3D hub — only the panels are opaque, so the scene shows through. -->
 <div class="overlay">
-  <!-- Standing character 立繪, behind the dialogue box and over the live 3D hub. -->
-  <Portrait portrait={session.portrait} />
+  <!-- Everything the two modals cover. Both are opaque full-screen panels, so without inert a Tab
+       walks straight out of them onto controls nobody can see -- and Enter on the dialogue box would
+       advance the session behind the panel the user is reading. -->
+  <div class="scene-ui" inert={modalOpen}>
+    <!-- Standing character 立繪, behind the dialogue box and over the live 3D hub. -->
+    <Portrait portrait={session.portrait} />
 
-  <Controls {auto} onToggleAuto={() => (auto = !auto)} onSkip={skip} onToggleLog={() => (showLog = !showLog)} />
+    <Controls {auto} onToggleAuto={() => (auto = !auto)} onSkip={skip} onToggleLog={() => (showLog = !showLog)} />
 
-  <!-- Choices take over screen-centre with a full-screen frosted scrim (see Choices.svelte). -->
-  <Choices choices={session.choices} onSelect={onSelect} />
-
-  <div class="dock">
+    <div class="dock">
     <Nameplate speaker={session.speaker} />
     <!-- The whole box is the advance target, not an inner element: the arrow sits in the box's
          bottom padding, which a flex child cannot reach. -->
@@ -80,11 +84,11 @@
       <!-- The 2px inset ring, drawn as an evenodd clip-path over a solid fill: the outer octagon
            minus an octagon inset by 2px leaves the ring between them. -->
       <div class="ring" aria-hidden="true"></div>
-      <!-- Five markers, static. The kit shows three filled and two hollow; nothing in the dialogue
-           domain maps to them, so they are decoration rather than an invented progress readout. -->
       <!-- Positioned, so it paints above .pane. In-flow content would not: a positioned sibling
            with z-index auto paints after non-positioned content, so the glass would cover the text. -->
       <div class="content">
+        <!-- Five markers, static. The kit shows three filled and two hollow; nothing in the dialogue
+             domain maps to them, so they are decoration rather than an invented progress readout. -->
         <div class="marks" aria-hidden="true">
           <span class="on"></span><span class="on"></span><span class="on"></span><span></span><span></span>
         </div>
@@ -96,7 +100,10 @@
       <div class="rail" aria-hidden="true"></div>
     </div>
   </div>
+  </div>
 
+  <!-- Both modals sit outside the inert wrapper, so they keep their own focus. -->
+  <Choices choices={session.choices} onSelect={onSelect} />
   {#if showLog}<Backlog entries={session.backlog} onClose={() => (showLog = false)} />{/if}
 </div>
 
@@ -109,6 +116,9 @@
     font-family: var(--font-body);
     color: var(--c-ink);
   }
+  /* Geometrically identical to .overlay, so the absolutely positioned children inside it resolve
+     against the same box. It exists only to carry inert. */
+  .scene-ui { position: absolute; inset: 0; pointer-events: none; }
   /* Bottom-anchored dialogue dock, centred. The kit insets the box at left:140 right:34 of 960 to
      leave room for the standing portrait, but that 11-point asymmetry reads as a right-shift at
      other aspect ratios. These insets keep the kit's box WIDTH -- 786 of 960, ~82% -- and centre
