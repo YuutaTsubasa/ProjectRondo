@@ -1,5 +1,12 @@
 # UI token system — design
 
+> **Superseded** by `docs/superpowers/specs/2026-09-05-vn-ui-kit-design.md` and the branch that
+> implements it. Kept for the reasoning and the measurements, which still hold; the *decisions* do
+> not. This document's palette, fonts and tokens are all gone — `--c-lime`, `--c-yellow`,
+> `--c-ink-rgb`, `--surface-border` and `--font-ui` are no longer declared, Poppins and JetBrains
+> Mono were replaced by Chakra Petch and Archivo Black, and its "no layout or behavioural change"
+> constraint is the opposite of what the VN UI Kit rebuild does. Read it as history, not as a plan.
+
 Establish a design-token layer for ProjectRondo's UI and re-skin the existing AVG/dialogue
 components onto it, following the "BLUE HORIZON — AVG UI SYSTEM" style sheet the user supplied.
 

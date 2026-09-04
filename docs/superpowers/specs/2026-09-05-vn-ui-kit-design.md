@@ -346,3 +346,24 @@ needed to be focusable; it is now `tabIndex = -1`. The attribute alone is not en
 Also: the `❯` in each choice is decorative but was not `aria-hidden`, so it was part of the
 accessible name of every option — the one decorative glyph in the branch that reached an interactive
 control's name.
+
+## 18. The choices modal was visible, not announced
+
+Round 10: the takeover was a plain `<div>` — no `role="dialog"`, no `aria-modal`, no accessible name
+or description. Focus moved to the first option, so the *only* thing announced on open was that
+option's label. `SELECT AN ACTION` and the prompt sat outside any labelled container and were never
+read at all.
+
+Which means section 14's fix — adding the prompt because "the player is answering a question they
+cannot see" — was only half a fix. It solved the problem for people looking at the screen and left it
+exactly in place for everyone else. The panel is now `role="dialog" aria-modal="true"` with
+`aria-labelledby` on the heading and `aria-describedby` on the prompt, and `.head` is an `<h2>` so
+browse mode has something to land on. Verified: both references resolve, and the description reads
+back as the question itself.
+
+Two smaller ones. The focus effect depended only on `panel`, which changes once when the `{#if}`
+mounts — but a choice whose target *also* branches keeps `choices.length` above zero, so the block
+never remounts; with an unkeyed `{#each}`, a shorter next list destroys the focused button and drops
+focus to `<body>` while `inert` is still on. It now depends on `choices` as well. And the 09-04 plan
+and spec are marked superseded: they described tokens this branch deleted and carried a "no layout
+or behavioural change" constraint that is the opposite of what it does.

@@ -1,5 +1,12 @@
 # UI Token System Implementation Plan
 
+> **Superseded** by `docs/superpowers/specs/2026-09-05-vn-ui-kit-design.md` and the branch that
+> implements it. Kept for the reasoning and the measurements, which still hold; the *decisions* do
+> not. This document's palette, fonts and tokens are all gone — `--c-lime`, `--c-yellow`,
+> `--c-ink-rgb`, `--surface-border` and `--font-ui` are no longer declared, Poppins and JetBrains
+> Mono were replaced by Chakra Petch and Archivo Black, and its "no layout or behavioural change"
+> constraint is the opposite of what the VN UI Kit rebuild does. Read it as history, not as a plan.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Give ProjectRondo's UI one named source of truth for colour, type, and surface treatment, and re-skin the AVG dialogue components onto it.

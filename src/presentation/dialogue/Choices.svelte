@@ -12,7 +12,11 @@
   // fixup. requestAnimationFrame would too, except that a hidden page never paints, so a modal
   // opening in a backgrounded tab would never take focus at all.
   $effect(() => {
-    const first = panel?.querySelector('button') as HTMLElement | null;
+    // Depends on choices, not only on panel: a choice whose target also branches keeps
+    // choices.length above zero, so the {#if} never remounts and panel never changes — and the
+    // unkeyed {#each} can destroy the focused button, dropping focus to <body> while inert is on.
+    choices;
+    const first = panel?.querySelector('button');
     if (!first) return;
     const id = setTimeout(() => first.focus());
     return () => clearTimeout(id);
@@ -22,11 +26,18 @@
 {#if choices.length > 0}
   <!-- Full-screen takeover; the option list sits in the centre of the screen. -->
   <div class="scrim">
-    <div class="panel" bind:this={panel}>
-      <div class="head">SELECT AN ACTION</div>
+    <div
+      class="panel"
+      bind:this={panel}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="choices-head"
+      aria-describedby="choices-prompt"
+    >
+      <h2 class="head" id="choices-head">SELECT AN ACTION</h2>
       <!-- The line that poses the question. The scrim is opaque, so the dialogue box is not readable
            behind it -- without this the player is answering a question they cannot see. -->
-      <p class="prompt">{prompt}</p>
+      <p class="prompt" id="choices-prompt">{prompt}</p>
       {#each choices as choice, i}
         <!-- Kit: a 1px frame with 4px padding around an inner block, and a caret prefix. -->
         <button class="choice" onclick={() => onSelect(i)}>
@@ -60,12 +71,14 @@
     gap: 10px;
   }
   .head {
+    /* An h2 so browse-mode has something to land on; its UA margins and size are overridden here so
+       the change is semantic only. */
+    margin: 0 0 4px;
     font-family: var(--font-headline);
     font-weight: 700;
     font-size: 17px;
     letter-spacing: 3px;
     color: var(--c-ink);
-    margin-bottom: 4px;
   }
   .prompt {
     margin: 0 0 6px;
