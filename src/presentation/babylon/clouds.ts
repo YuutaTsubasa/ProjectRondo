@@ -20,12 +20,53 @@ const DOME_DIAMETER = 900;
  *  the browser (Step 7); small values matter because clouds that visibly race read as a timelapse. */
 const DRIFT_RATE = 0.025;
 
-/** Peak alpha of a single blob's centre. NOT the layer's ceiling: 40 blobs are drawn `source-over`
- *  into one canvas, so two overlapping centres already composite to 0.55 + 0.55*(1-0.55) = 0.80, and
- *  denser clusters go higher still. Above ~0.7 in the composited result the layer stops reading as
- *  cloud and starts reading as a painted ceiling — 0.55 keeps a single blob well under that, but says
- *  nothing about what clusters do. */
-const CLOUD_ALPHA = 0.55;
+/**
+ * Where the cloud band sits on the texture, as a fraction of canvas height.
+ *
+ * **The v axis is INVERTED relative to the obvious reading, and getting this wrong is why the first
+ * shipped version of this file put every cloud underground.** Measured 2026-09-05 by painting a single
+ * full-alpha stripe at a known canvas fraction and finding its elevation with a wide-FOV probe camera
+ * pointed at the zenith (a stripe becomes a ring; ring radius gives the angle from the view axis):
+ *
+ * | canvas fraction f | 0.1 | 0.7 | 0.9 |
+ * | elevation         | not visible at all | 36 deg | 72 deg |
+ *
+ * so **elevation ≈ f * 180 - 90**: f = 1 is the ZENITH, f = 0.5 the horizon, f = 0 the nadir. This is
+ * the same trap `environment.ts` documents for the skydome's gradient, whose stop 1.0 also renders at
+ * the zenith rather than where the stop names suggest — that comment was already in the repo when this
+ * file was written, and this file assumed the naive mapping anyway.
+ *
+ * The original band was `0.05 + rand() * 0.45`, commented "keeps the band above the horizon". Under
+ * the real mapping that is elevation **-81 to 0 degrees** — at and below the horizon, buried under the
+ * world, which is why the layer was invisible in play.
+ *
+ * 0.55..0.75 is elevation 9..45 degrees. The gameplay camera sits at about -1.8 degrees of pitch with
+ * a 0.8 rad vertical FOV, so it frames sky from roughly 10 to 23 degrees, and the mountain ring
+ * occludes the bottom of that. Measured coverage of the shipped values, as the percentage of each
+ * elevation ring carrying any cloud (and the mean summed RGB delta against a cloudless render, where
+ * ~300 would be opaque white over dark sky):
+ *
+ * | elevation | 15 | 20 | 25 | 30 | 35 | 40 | 45 |
+ * | coverage  | 5% | 33% | 40% | 34% | 36% | 29% | 20% |
+ * | strength  | 1  | 19 | 30 | 26 | 27 | 24 | 14 |
+ *
+ * Re-measure with that probe after touching any constant here; do not reason about the mapping.
+ */
+const CLOUD_BAND_TOP = 0.55;
+const CLOUD_BAND_SPAN = 0.2;
+
+/** Blob count and radii, in pixels of the 512-tall canvas. Tuned together with CLOUD_ALPHA against the
+ *  coverage table above: the target was scattered cloud in the camera's strip, not an overcast lid.
+ *  The first version's 40 blobs at radius 40..130 gave 100% coverage wherever they landed. */
+const BLOB_COUNT = 20;
+const BLOB_MIN_RADIUS = 16;
+const BLOB_RADIUS_SPREAD = 30;
+
+/** Peak alpha of a single blob's centre. NOT the layer's ceiling: blobs are drawn `source-over` into
+ *  one canvas, so two overlapping centres composite to `a + a*(1-a)` — 0.40 gives 0.64 for a pair and
+ *  0.78 for a triple. Above ~0.7 composited the layer stops reading as cloud and starts reading as a
+ *  painted ceiling, so the blob count above matters as much as this number does. */
+const CLOUD_ALPHA = 0.4;
 
 /**
  * A drifting cloud layer: a second inward-facing dome carrying a procedurally drawn alpha texture,
@@ -81,12 +122,12 @@ function cloudTexture(scene: Scene): DynamicTexture {
   const ctx = tex.getContext() as unknown as CanvasRenderingContext2D;
   ctx.clearRect(0, 0, width, height);
   const rand = rng(11);
-  for (let i = 0; i < 40; i++) {
+  for (let i = 0; i < BLOB_COUNT; i++) {
     const cx = rand() * width;
-    // v 0.05..0.5 keeps the band above the horizon; clouds sitting on the skyline would cut through
-    // the mountain ring that `terrain.ts` draws there.
-    const cy = height * (0.05 + rand() * 0.45);
-    const r = 40 + rand() * 90;
+    // See CLOUD_BAND_TOP: canvas fraction maps to elevation as f * 180 - 90, so LARGER f is HIGHER in
+    // the sky. This is inverted from the obvious reading and is what the first version got wrong.
+    const cy = height * (CLOUD_BAND_TOP + rand() * CLOUD_BAND_SPAN);
+    const r = BLOB_MIN_RADIUS + rand() * BLOB_RADIUS_SPREAD;
     for (const dx of [-width, 0, width]) {
       const g = ctx.createRadialGradient(cx + dx, cy, 0, cx + dx, cy, r);
       g.addColorStop(0, `rgba(255,255,255,${CLOUD_ALPHA})`);
