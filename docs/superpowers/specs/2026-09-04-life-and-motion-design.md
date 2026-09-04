@@ -235,6 +235,7 @@ because the shader's phase and amplitude both scale with its length.
 | `src/domain/hub/windDirection.ts` | new | The one wind direction, read by the wind shader |
 | `src/domain/math/rng.ts` | new | The mulberry32 PRNG, moved out of `scatter.ts` so `clouds.ts` can share it |
 | `tests/domain/math/rng.test.ts` | new | Pins `rng`'s exact output sequence |
+| `tests/domain/hub/windDirection.test.ts` | new | Pins the wind direction unit-length (§5, §7 item 1) |
 | `src/presentation/babylon/scatter.ts` | edit | Its private PRNG moved to `rng.ts`; one `applyWind` call added for grass and flowers |
 | `src/presentation/babylon/trees.ts` | edit | One `applyWind` call, `bendHeight` from the bounding box |
 | `src/presentation/babylon/hubScene.ts` | edit | Wire `createWind` and `createClouds` |

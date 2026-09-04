@@ -30,8 +30,13 @@ const SPEED = 1.1;
  * in visible stair-steps; by ~24 h the step is about one ULP and the wind quantises into a stall.
  * Wrapping holds the bound value under 63, where a ULP is ~4e-6 rad, for any uptime.
  *
- * Change the 2.3 in the shader and this constant is wrong. `clouds.ts` reads the same clock but scales
- * it by 0.004 into a texture offset, so it needs no equivalent and has none.
+ * Change the 2.3 in the shader and this constant is wrong.
+ *
+ * `clouds.ts` reads the same clock and takes its own wrap, `% 1` on the texture offset. It is not
+ * exempt and the scale factor is no reason to think it would be: the step-to-ULP ratio is
+ * `(V / 2^exponent) * 2^23 * dt / t`, which the constant drops out of, so 0.004 buys nothing. At the
+ * 8 h above its offset steps 3.6 ULP against this phase's 3.9 — the same stair-stepping at the same
+ * hour. An earlier version of this comment claimed the scaling excused it; it does not.
  */
 const GUST_PERIOD = 20 * Math.PI;
 
@@ -89,6 +94,12 @@ export function windTime(): number {
  * and this boundary is what covers it. The thin-instance matrix and any parent scaling are applied
  * later in `finalWorld`, so one value per material is correct across instances of different sizes.
  *
+ * `amplitude` is checked HERE too, and for the reason given above verbatim: a non-finite value makes
+ * `windBend.x` NaN, `worldPos.xz` NaN and the geometry vanish — the same failure as a NaN `bendHeight`,
+ * reached by the same route of a call site passing a module constant that nothing else screens. Only
+ * finiteness is required, unlike `bendHeight`: 0 is a legitimate "this material does not move", and a
+ * negative value is just the gust in antiphase, neither of which is an invalid state.
+ *
  * `amplitude` is the per-sine scale fed into the shader's gust envelope, in WORLD units — NOT the peak
  * displacement. The envelope `sin(x) + 0.5*sin(2.3x + 1.7)` peaks at ~1.4999, so a fully-bent tip moves
  * about 1.5x `amplitude`. It is a per-material argument rather than one shared constant because wind is
@@ -115,6 +126,9 @@ export function windTime(): number {
 export function applyWind(material: Material, bendHeight: number, amplitude: number): void {
   if (!(bendHeight > 0) || !Number.isFinite(bendHeight)) {
     throw new RangeError(`applyWind: bendHeight must be finite and > 0 (material '${material.name}' got ${bendHeight})`);
+  }
+  if (!Number.isFinite(amplitude)) {
+    throw new RangeError(`applyWind: amplitude must be finite (material '${material.name}' got ${amplitude})`);
   }
   new WindPlugin(material, bendHeight, amplitude);
 }

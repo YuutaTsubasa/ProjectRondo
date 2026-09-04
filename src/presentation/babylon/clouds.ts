@@ -27,7 +27,15 @@ const DOME_DIAMETER = 900;
 const DRIFT_SPEED = 0.004;
 
 /**
- * Where the cloud band sits on the texture, as a fraction of canvas height.
+ * Where the cloud band sits on the texture: `BASE_F` is the band's LOWEST elevation and `SPAN_F` the
+ * height it covers, both as fractions of canvas height (hence the `_F` — they are the `f` of the
+ * mapping below). The band is f 0.55..0.75, elevation 9..45 degrees.
+ *
+ * These were `CLOUD_BAND_TOP` and `CLOUD_BAND_SPAN`. "TOP" was only correct read as a canvas row
+ * index — under the mapping below, larger f is HIGHER, so the smaller of the two bounds is the band's
+ * bottom — and reading a canvas direction as a sky direction is the exact mistake that put every cloud
+ * underground the first time. A constant that has to be read the wrong way round to make sense of its
+ * own name is not one to leave in this file.
  *
  * **The v axis is INVERTED relative to the obvious reading, and getting this wrong is why the first
  * shipped version of this file put every cloud underground.** Measured 2026-09-05 by painting a single
@@ -62,14 +70,14 @@ const DRIFT_SPEED = 0.004;
  *
  * Re-measure with that probe after touching any constant here; do not reason about the mapping.
  */
-const CLOUD_BAND_TOP = 0.55;
-const CLOUD_BAND_SPAN = 0.2;
+const CLOUD_BAND_BASE_F = 0.55;
+const CLOUD_BAND_SPAN_F = 0.2;
 
 /** The cloud texture's size in pixels. Not incidental to `cloudTexture`, which is why it is out here:
  *  {@link BLOB_MIN_RADIUS} and {@link BLOB_RADIUS_SPREAD} are pixel radii, so their angular size on the
- *  dome — and with it {@link CLOUD_BAND_TOP}'s measured coverage table — is set by CANVAS_HEIGHT, and
+ *  dome — and with it {@link CLOUD_BAND_BASE_F}'s measured coverage table — is set by CANVAS_HEIGHT, and
  *  {@link cloudTexture}'s seamless u-tiling draws each blob at ±CANVAS_WIDTH. Change either and the
- *  coverage table must be re-measured with the probe {@link CLOUD_BAND_TOP} describes; halving the
+ *  coverage table must be re-measured with the probe {@link CLOUD_BAND_BASE_F} describes; halving the
  *  height alone doubles every blob's angular radius. */
 const CANVAS_WIDTH = 1024;
 const CANVAS_HEIGHT = 512;
@@ -94,7 +102,7 @@ const CLOUD_ALPHA = 0.4;
  *
  * **Why the drift is a u scroll and not a directional one.** Scrolling u is a rotation of the pattern
  * about +Y, and that is the only rotation a band on a dome survives. The band is an annulus about +Y
- * at elevation 9..45 degrees ({@link CLOUD_BAND_TOP}); under a rotation by theta about a horizontal
+ * at elevation 9..45 degrees ({@link CLOUD_BAND_BASE_F}); under a rotation by theta about a horizontal
  * axis `(ax, 0, az)` a point `(px, y, pz)`'s height becomes `y*cos(theta) - (ax*px + az*pz)*sin(theta)`,
  * which at theta = pi is just `-y` — every cloud below the horizon. That version shipped, about the axis
  * perpendicular to the wind so that every point of the dome travelled along the wind's bearing from
@@ -107,7 +115,7 @@ const CLOUD_ALPHA = 0.4;
  * The same sampler over the shipped scroll, at all 72 points of the 250 s loop: **100% above the
  * horizon at every one**, with the band's elevation extremes exactly 9 and 45 throughout. That is
  * invariant by construction rather than by luck — u is the sphere's azimuth, so the scroll moves each
- * texel along its own elevation ring — which is also why {@link CLOUD_BAND_TOP}'s coverage table holds
+ * texel along its own elevation ring — which is also why {@link CLOUD_BAND_BASE_F}'s coverage table holds
  * for the whole loop instead of only for the first frame.
  *
  * The cost, stated so nobody re-attempts the fix: an azimuthal drift reads as travelling along the
@@ -144,10 +152,21 @@ export function createClouds(scene: Scene): void {
   dome.material = mat;
 
   // Set from the shared clock rather than accumulated here, so the clouds and the grass cannot drift
-  // out of step across a scene teardown. `uOffset` is in texture widths and wraps naturally, as long
-  // as the texture tiles in u — which `cloudTexture` is drawn to do.
+  // out of step across a scene teardown.
+  //
+  // `% 1` for the same reason `wind.ts` wraps its phase by GUST_PERIOD, and it is an identity for the
+  // same kind of reason: `uOffset` is in texture widths and `cloudTexture` tiles in u, so subtracting
+  // a whole number of widths cannot change a single sampled texel. It is not cosmetic. `uOffset`
+  // reaches the GPU through `Texture.getTextureMatrix`, i.e. as a translation entry of a float32
+  // `mat4`, and the DRIFT_SPEED scale cancels out of that failure mode — the step-to-ULP ratio is
+  // `(V / 2^exponent) * 2^23 * dt / t`, which depends on elapsed time and frame time only. Unwrapped,
+  // at 144 Hz: 8 h gives offset 115.2, ULP 7.6e-6 against a 2.8e-5 step (3.6 ULP, so the drift already
+  // moves in stair-steps) and 24 h gives 345.6, ULP 3.05e-5 against the same 2.8e-5 step — under one
+  // ULP, where the drift stalls outright. Those are the wind's own numbers to within 8% (3.9 and 1.0
+  // ULP at the same two times), because the ratio never saw the constant. Wrapped, the offset stays
+  // under 1 and a ULP is ~6e-8 for any uptime.
   scene.onBeforeRenderObservable.add(() => {
-    tex.uOffset = windTime() * DRIFT_SPEED;
+    tex.uOffset = (windTime() * DRIFT_SPEED) % 1;
   });
 }
 
@@ -168,9 +187,9 @@ function cloudTexture(scene: Scene): DynamicTexture {
   const rand = rng(11);
   for (let i = 0; i < BLOB_COUNT; i++) {
     const cx = rand() * width;
-    // See CLOUD_BAND_TOP: canvas fraction maps to elevation as f * 180 - 90, so LARGER f is HIGHER in
+    // See CLOUD_BAND_BASE_F: canvas fraction maps to elevation as f * 180 - 90, so LARGER f is HIGHER in
     // the sky. This is inverted from the obvious reading and is what the first version got wrong.
-    const cy = height * (CLOUD_BAND_TOP + rand() * CLOUD_BAND_SPAN);
+    const cy = height * (CLOUD_BAND_BASE_F + rand() * CLOUD_BAND_SPAN_F);
     const r = BLOB_MIN_RADIUS + rand() * BLOB_RADIUS_SPREAD;
     for (const dx of [-width, 0, width]) {
       const g = ctx.createRadialGradient(cx + dx, cy, 0, cx + dx, cy, r);
@@ -184,9 +203,10 @@ function cloudTexture(scene: Scene): DynamicTexture {
   }
   tex.update(true);
   tex.hasAlpha = true;
-  // `uOffset` grows without bound, so u is sampled far outside [0, 1): WRAP is what makes the loop a
-  // loop. CLAMP on v because nothing ever samples outside the band vertically, and wrapping there
-  // would fold the horizon's edge into the zenith.
+  // `uOffset` sweeps the whole of [0, 1), so u is sampled across [0, 2): WRAP is what makes the loop a
+  // loop, and it is also what lets `createClouds` take that `% 1` for free. CLAMP on v because nothing
+  // ever samples outside the band vertically, and wrapping there would fold the horizon's edge into
+  // the zenith.
   tex.wrapU = Texture.WRAP_ADDRESSMODE;
   tex.wrapV = Texture.CLAMP_ADDRESSMODE;
   return tex;
