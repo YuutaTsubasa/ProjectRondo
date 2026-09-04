@@ -20,9 +20,10 @@ const DOME_DIAMETER = 900;
  *  running scene, not by arithmetic, and note that one loop is four minutes — a few seconds of
  *  watching says nothing about the seam (see {@link cloudTexture}).
  *
- *  Its SIGN decides which way the sky travels. Whether that agrees with the way the grass leans is a
- *  property of how the sphere's UVs wrap, not something to derive on paper: if the clouds cross the
- *  field's lean, negate this. */
+ *  Its SIGN decides which way the sky rotates about +Y. Per {@link createClouds}'s doc this can never
+ *  fully agree with the wind's bearing: an azimuthal drift agrees at only two viewing azimuths and
+ *  runs crosswise at the two at right angles to them, for either sign — negating this only swaps which
+ *  pair of azimuths agrees, it does not fix the crosswise ones. Don't chase agreement here. */
 const DRIFT_SPEED = 0.004;
 
 /**

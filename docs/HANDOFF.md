@@ -60,7 +60,7 @@ pnpm build              # static bundle → dist/
 pnpm tauri dev          # native desktop app (needs Rust)
 ```
 
-## 4. Current state (M1–M3 and M4/P1–P3 all merged to `main`; M4/P4 is the only phase left)
+## 4. Current state (M1–M3 and M4/P1–P4 merged to `main`; P4's in-browser verification is the only thing left before M4 closes)
 
 - **M1 — hub web parity:** third-person mouse-look knight (WASD/Space), pure-domain movement, Havok
   capsule, Idle/Walk animation blend.
@@ -141,6 +141,19 @@ pnpm tauri dev          # native desktop app (needs Rust)
     1.843 on a 1.717 top while the model's lowest vertex sat at 1.167 — exactly the terrain height,
     0.55 low. Now planted against a downward physics raycast, falling back to `terrainHeight` on a
     miss. This is not a P3 bug; P3 was just the first thing built that the player stands *on*.
+  - **P4 life & motion:** a shared wind field (`wind.ts`, a `MaterialPluginBase`) bends grass, flowers
+    and trees (`scatter.ts` / `trees.ts`, one `applyWind` call each) along the single direction in
+    `windDirection.ts`; a second inward-facing dome (`clouds.ts`) carries a procedurally drawn,
+    seamlessly u-tiling alpha texture that drifts in sync with the same clock; both wired into
+    `hubScene.ts` via `createWind`/`createClouds`. The ambient-creature layer in the original DoD
+    (butterflies) was built and then cut by the owner on 2026-09-04 — see roadmap §4 P4 and
+    `docs/superpowers/specs/2026-09-04-life-and-motion-design.md` §5 — and struck from the DoD rather
+    than silently dropped. **Verification is incomplete:** per that spec's §7, nobody has yet watched
+    the field's motion in a running scene, looked at a tree canopy against its own shadow for the
+    mismatch §3e records as a known limitation, or measured P4's frame cost against the budget in
+    §2/§5 below. Only the cloud band's placement was checked (the probe measurement in `clouds.ts`);
+    the drift itself and the full-loop seam are unwatched. M4 does not close until those are done and
+    the roadmap's §6 "world done" checklist is walked (spec §8).
 
 ## 5. What's next (the plan)
 
@@ -164,12 +177,15 @@ scheduled additions). Sequence from here:
    and has not been retaken. The current GLB was texture-optimised but never decimated either, which
    is still a separate job; re-measure per-mesh vertex counts on the current model before picking a
    decimation target.
-2. **P4 — life & motion** (wind sway, drifting clouds; the ambient-creature layer was built and then
-   **cut on 2026-09-04** by the owner — roadmap §4 P4 and
-   `docs/superpowers/specs/2026-09-04-life-and-motion-design.md` §5). Budget against the
-   already-loaded scene (roadmap §7): the fps headroom the earlier phases left is what P4 spends. P2
-   measured its own cost at **0.3 ms** and P3 at **0.09–0.26 ms**. Note P3's numbers were taken on a
-   different machine from P2's, so compare *within-session deltas*, never the absolutes (P3 spec §9d).
+2. **P4 — life & motion: finish the verification.** The code shipped (§4 above): wind sway, drifting
+   clouds, the ambient-creature layer built and then **cut on 2026-09-04** by the owner — roadmap §4
+   P4 and `docs/superpowers/specs/2026-09-04-life-and-motion-design.md` §5. What's left is what that
+   spec's §7 records as **not performed**: watch the field actually move in a running scene, look at a
+   tree canopy against its own shadow for the §3e mismatch, and measure P4's frame cost against the
+   budget below. Budget against the already-loaded scene (roadmap §7): the fps headroom the earlier
+   phases left is what P4 spends. P2 measured its own cost at **0.3 ms** and P3 at **0.09–0.26 ms**.
+   Note P3's numbers were taken on a different machine from P2's, so compare *within-session deltas*,
+   never the absolutes (P3 spec §9d).
 
    **The budget was re-measured on 2026-09-04, on a visible pane, and the old "roughly 8x headroom"
    figure is superseded.** Full record:

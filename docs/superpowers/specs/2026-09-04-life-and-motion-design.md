@@ -233,14 +233,17 @@ because the shader's phase and amplitude both scale with its length.
 | `src/presentation/babylon/wind.ts` | new | The plugin, the shared wind field, `createWind(scene)` |
 | `src/presentation/babylon/clouds.ts` | new | Drifting cloud dome |
 | `src/domain/hub/windDirection.ts` | new | The one wind direction, read by the wind shader |
-| `src/presentation/babylon/scatter.ts` | edit | One `applyWind` call for grass and flowers |
+| `src/domain/math/rng.ts` | new | The mulberry32 PRNG, moved out of `scatter.ts` so `clouds.ts` can share it |
+| `tests/domain/math/rng.test.ts` | new | Pins `rng`'s exact output sequence |
+| `src/presentation/babylon/scatter.ts` | edit | Its private PRNG moved to `rng.ts`; one `applyWind` call added for grass and flowers |
 | `src/presentation/babylon/trees.ts` | edit | One `applyWind` call, `bendHeight` from the bounding box |
 | `src/presentation/babylon/hubScene.ts` | edit | Wire `createWind` and `createClouds` |
 | `src/domain/hub/waterBody.ts` | edit | Drop the "P4 will read this" claim (§1) |
 | `docs/HANDOFF.md` | edit | Same correction |
 
-Each new module has one purpose and no knowledge of the others' internals. The only shared thing is the
-accumulated wind time, and `wind.ts` owns it.
+Each new module has one purpose and no knowledge of the others' internals, with two things shared
+across them: the accumulated wind time, owned by `wind.ts`, and the PRNG in `rng.ts`, shared by
+`scatter.ts` and `clouds.ts` so the two cannot drift apart.
 
 ## 7. Verification
 
