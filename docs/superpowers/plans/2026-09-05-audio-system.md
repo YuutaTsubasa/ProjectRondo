@@ -1125,14 +1125,38 @@ const phaseOf = (group: AnimationGroup): number | null => {
 const weightOf = (group: AnimationGroup): number =>
   group.isPlaying && group.animatables.length > 0 ? group.animatables[0].weight : 0;
 
+/** Stands in when the audio graph could not be built at all. Every entry point is a no-op. */
+const SILENT: HubAudio = { setMusicScene: () => {}, dispose: () => {} };
+
 /**
  * Connects the scene to the audio.
  *
  * The only file that touches both, on purpose: `hubScene.ts` gains one construction and one dispose
  * call, which keeps this feature's footprint on a file another branch is also editing down to
  * something a rebase resolves on sight.
+ *
+ * **This can never fail the scene.** `createHubScene` awaits it, and `App.svelte` calls
+ * `createHubScene(canvas).then(...)` with no `.catch` — so a rejection here would surface as an
+ * unhandled rejection and a blank canvas. That is the same failure an unpulled knight GLB already
+ * causes (`docs/HANDOFF.md` §3), and the reason `soundBank` tolerates missing files at all; it would
+ * be absurd to be careful about one missing .ogg and then let a browser that refuses to open an
+ * AudioContext take the whole game down. A failure here means a silent game, not a broken one.
  */
 export async function createHubAudio(
+  scene: Scene,
+  camera: Camera,
+  player: Player,
+  knight: Knight,
+): Promise<HubAudio> {
+  try {
+    return await buildHubAudio(scene, camera, player, knight);
+  } catch (error) {
+    console.warn('[audio] could not start; the game will be silent:', error);
+    return SILENT;
+  }
+}
+
+async function buildHubAudio(
   scene: Scene,
   camera: Camera,
   player: Player,
@@ -1271,6 +1295,10 @@ pnpm test
 ```
 
 Expected: both green. No new tests here — this file is wiring, verified in-scene in Task 9.
+
+Read `createHubAudio` once more before committing and satisfy yourself that **no path through it can
+reject**: everything that awaits is inside the `try`, and the `catch` returns rather than rethrows.
+That property is the whole reason the function is split in two, and it is not covered by any test.
 
 - [ ] **Step 5: Commit**
 
