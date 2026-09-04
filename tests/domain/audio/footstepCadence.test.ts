@@ -103,7 +103,9 @@ describe('createFootstepCadence', () => {
     const c = fixed();
     c.step({ gait: 'walk', phase: 0.0, airborne: false, elapsed: 0.016 });
     const fall = c.step({ gait: 'walk', phase: 0.99, airborne: false, elapsed: 5 });
-    // Left is checked first, so the earlier contact of the two is the one that sounds.
+    // `findIndex` returns whichever contact is listed first in the array (left), not whichever the
+    // phase crossed first in time — the two happen to coincide here only because
+    // WALK_CONTACTS[0] < WALK_CONTACTS[1].
     expect(fall?.foot).toBe('left');
     // The crossing that was not paid out is discarded, not remembered.
     expect(c.step({ gait: 'walk', phase: 0.995, airborne: false, elapsed: 0.016 })).toBeNull();

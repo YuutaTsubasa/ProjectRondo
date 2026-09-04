@@ -21,9 +21,12 @@ const TRACKS: Record<MusicScene, SoundCue> = {
  *
  * Returns `null` when nothing should change, which is the whole point: the caller polls this every
  * time the game state might have moved and only acts on a non-null answer, so it cannot restart a
- * track that is already playing or fire a second crossfade into the one it just started. AudioV2
- * throws if a volume ramp is requested while another is in progress, so "ask for nothing" has to be
- * a first-class answer rather than something the caller filters out afterwards.
+ * track that is already playing or fire a second crossfade into the one it just started. AudioV2 does
+ * *not* throw if a volume ramp is requested while another is in progress — it silently cancels the
+ * in-flight ramp and replaces it (see `soundBank.ts`'s `LoopHandle.setVolume`) — so a crash was never
+ * the risk. The risk `null` avoids is restarting an already-playing track from its beginning and
+ * racing a freshly-started fade against one that was already running, which is audible even though
+ * neither half of it throws.
  */
 export const musicChange = (playing: SoundCue | null, scene: MusicScene): MusicChange | null => {
   const track = TRACKS[scene];

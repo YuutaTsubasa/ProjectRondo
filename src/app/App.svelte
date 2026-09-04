@@ -22,11 +22,13 @@
       // Gate rather than unconditionally suspending: SKIP (or a parse failure leaving no session)
       // can finish the intro before this async scene load resolves, in which case gameMode is
       // already 'playing' with no overlay left to ever call suspendInput(false) again — an
-      // unconditional suspend here would soft-lock input forever.
-      hub.suspendInput(session !== undefined && !gameMode.isPlaying);
-      // The mode is already known by the time the scene finishes loading — SKIP can beat it — so ask
-      // for the track that matches the current mode rather than assuming the intro is still running.
-      hub.audio.setMusicScene(gameMode.isPlaying ? 'playing' : 'intro');
+      // unconditional suspend here would soft-lock input forever. The same predicate decides the
+      // music: `session === undefined` (a dialogue parse failure) means no overlay ever renders and
+      // `finishIntro` never runs, so if the music scene were keyed on `gameMode.isPlaying` alone the
+      // AVG theme would play over gameplay forever.
+      const introRunning = session !== undefined && !gameMode.isPlaying;
+      hub.suspendInput(introRunning);
+      hub.audio.setMusicScene(introRunning ? 'intro' : 'playing');
       if (import.meta.env.DEV) (window as unknown as { hub: unknown }).hub = h;
     });
     return () => {

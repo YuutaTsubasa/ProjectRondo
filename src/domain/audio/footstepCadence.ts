@@ -27,11 +27,12 @@ export interface FootstepCadence {
 /**
  * The shortest gap between two footsteps.
  *
- * Run's cycle is 0.633 s, so its two footfalls are 0.317 s apart — this sits comfortably below that
- * and so never suppresses a real step. What it does suppress is the walk↔run handover: for the few
- * hundred milliseconds where the blend crosses over, the machine re-seeds onto the new clip at
- * whatever phase that clip happens to be at, which can land just before one of its contacts and
- * produce a second step within a few frames of the last one.
+ * Run's cycle is 0.633 s, and its two footfalls sit 0.42 of a cycle apart (`RUN_CONTACTS`, not the
+ * 0.5 an evenly-spaced gait would give), so the real gap between them is 0.266 s — this sits
+ * comfortably below that and so never suppresses a real step. What it does suppress is the walk↔run
+ * handover: for the few hundred milliseconds where the blend crosses over, the machine re-seeds onto
+ * the new clip at whatever phase that clip happens to be at, which can land just before one of its
+ * contacts and produce a second step within a few frames of the last one.
  */
 export const MIN_STEP_SECONDS = 0.2;
 

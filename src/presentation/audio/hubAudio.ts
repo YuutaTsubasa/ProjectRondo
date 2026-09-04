@@ -10,7 +10,7 @@ import { POND } from '../../domain/hub/waterBody';
 import { WALK_THRESHOLD, type Knight } from '../babylon/knight';
 import type { Player } from '../babylon/playerController';
 import { createGameAudio } from './audioEngine';
-import { loadSoundBank, type LoopHandle } from './soundBank';
+import { loadSoundBank, type LoopHandle, type SoundBank } from './soundBank';
 
 export interface HubAudio {
   setMusicScene(scene: MusicScene): void;
@@ -68,79 +68,119 @@ async function buildHubAudio(
   knight: Knight,
 ): Promise<HubAudio> {
   const audio = await createGameAudio();
-  const bank = await loadSoundBank(audio);
 
-  // The listener rides the camera, not the character: what the player hears should match what the
-  // player sees, and the third-person camera sits several units behind the knight.
-  audio.engine.listener.attach(camera);
-
+  // Everything built below this point has to be torn down if a later step throws — otherwise a
+  // failure at, say, `listener.attach` or a `startLoop` leaves the AudioContext, every decoded cue,
+  // and any ambience loop already started alive for the life of the page: `createHubAudio`'s catch
+  // only ever sees `SILENT`, whose `dispose` is a no-op, so nothing built before the throw is ever
+  // reachable again. Tracked here and released in the `catch` below, before the error is rethrown for
+  // `createHubAudio` to turn into the `SILENT` stub.
+  let bank: SoundBank | undefined;
   const loops: LoopHandle[] = [];
-  const wind = bank.startLoop('ambience.wind');
-  if (wind) loops.push(wind);
-  const water = bank.startLoop('ambience.water', {
-    position: new Vector3(POND.centreX, POND.surfaceY, POND.centreZ),
-  });
-  if (water) loops.push(water);
+  let observer: ReturnType<Scene['onBeforeRenderObservable']['add']> | null = null;
 
-  const cadence = createFootstepCadence();
-  let wasAirborne = player.airborne;
-  let music: LoopHandle | null = null;
-  let playingTrack: SoundCue | null = null;
+  try {
+    // A `const` alias, taken right after the assignment above: `bank` itself stays `| undefined` so
+    // the `catch` below can tell whether it needs disposing, but every use inside this closure below
+    // wants the narrowed, definitely-assigned type.
+    const soundBank = (bank = await loadSoundBank(audio));
 
-  const observer = scene.onBeforeRenderObservable.add(() => {
-    const elapsed = scene.getEngine().getDeltaTime() / 1000;
-    const { airborne } = player;
+    // The listener rides the camera, not the character: what the player hears should match what the
+    // player sees, and the third-person camera sits several units behind the knight.
+    audio.engine.listener.attach(camera);
 
-    // Take-off and landing ride the edges of the same `airborne` flag the jump clip uses, rather
-    // than a second reading of the ground probe. `groundContact.ts` exists because two consumers
-    // deciding "is it grounded" independently drifted apart; sound and pose stay on one source.
-    if (airborne !== wasAirborne) bank.play(airborne ? 'jump.takeoff' : 'jump.land');
-    wasAirborne = airborne;
-
-    const v = player.motion.velocity;
-    const speed = Math.hypot(v.x, v.z);
-    const { walk, run } = knight.animations;
-    // The clip that is actually driving the pose, by blend weight. "Run is playing at all" is not
-    // the same question: the cross-fade starts the run clip the moment speed passes walking, so for
-    // the whole handover it is playing while the walk pose is still what is on screen — and the two
-    // clips' phases are unrelated, so reading the wrong one puts the sound anywhere in the cycle.
-    const running = weightOf(run) > weightOf(walk);
-    const gait: Gait = speed <= WALK_THRESHOLD ? 'idle' : running ? 'run' : 'walk';
-    const phase = running ? phaseOf(run) : phaseOf(walk);
-    if (phase === null) {
-      cadence.step({ gait: 'idle', phase: 0, airborne, elapsed });
-      return;
-    }
-
-    const fall = cadence.step({ gait, phase, airborne, elapsed });
-    if (!fall) return;
-    // Two layers, one footfall: the armour on the character and the surface under it.
-    bank.play('footstep.armour', { playbackRate: fall.playbackRate, gain: fall.volume });
-    bank.play(surfaceCue('grass'), {
-      playbackRate: fall.playbackRate,
-      gain: fall.volume,
-      variant: fall.foot === 'left' ? 0 : 1,
+    const wind = soundBank.startLoop('ambience.wind');
+    if (wind) loops.push(wind);
+    const water = soundBank.startLoop('ambience.water', {
+      position: new Vector3(POND.centreX, POND.surfaceY, POND.centreZ),
     });
-  });
+    if (water) loops.push(water);
 
-  return {
-    setMusicScene(next) {
-      const change = musicChange(playingTrack, next);
-      if (!change) return;
-      music?.stop();
-      music = bank.startLoop(change.track);
-      playingTrack = music ? change.track : null;
-      if (music) {
-        music.setVolume(0);
-        music.setVolume(1, change.fadeSeconds);
+    const cadence = createFootstepCadence();
+    let wasAirborne = player.airborne;
+    let music: LoopHandle | null = null;
+    let playingTrack: SoundCue | null = null;
+    // Handles mid-crossfade-out, so `dispose` can stop them even though nothing else still holds a
+    // reference once `setMusicScene` has moved on to tracking the new `music` handle.
+    const fadingOut: LoopHandle[] = [];
+
+    observer = scene.onBeforeRenderObservable.add(() => {
+      const elapsed = scene.getEngine().getDeltaTime() / 1000;
+      const { airborne } = player;
+
+      // Take-off and landing ride the edges of the same `airborne` flag the jump clip uses, rather
+      // than a second reading of the ground probe. `groundContact.ts` exists because two consumers
+      // deciding "is it grounded" independently drifted apart; sound and pose stay on one source.
+      if (airborne !== wasAirborne) soundBank.play(airborne ? 'jump.takeoff' : 'jump.land');
+      wasAirborne = airborne;
+
+      const v = player.motion.velocity;
+      const speed = Math.hypot(v.x, v.z);
+      const { walk, run } = knight.animations;
+      // The clip that is actually driving the pose, by blend weight. "Run is playing at all" is not
+      // the same question: the cross-fade starts the run clip the moment speed passes walking, so for
+      // the whole handover it is playing while the walk pose is still what is on screen — and the two
+      // clips' phases are unrelated, so reading the wrong one puts the sound anywhere in the cycle.
+      const running = weightOf(run) > weightOf(walk);
+      const gait: Gait = speed <= WALK_THRESHOLD ? 'idle' : running ? 'run' : 'walk';
+      const phase = running ? phaseOf(run) : phaseOf(walk);
+      if (phase === null) {
+        cadence.step({ gait: 'idle', phase: 0, airborne, elapsed });
+        return;
       }
-    },
-    dispose() {
-      scene.onBeforeRenderObservable.remove(observer);
-      music?.stop();
-      for (const loop of loops) loop.stop();
-      bank.dispose();
-      audio.dispose();
-    },
-  };
+
+      const fall = cadence.step({ gait, phase, airborne, elapsed });
+      if (!fall) return;
+      // Two layers, one footfall: the armour on the character and the surface under it.
+      soundBank.play('footstep.armour', { playbackRate: fall.playbackRate, gain: fall.volume });
+      soundBank.play(surfaceCue('grass'), {
+        playbackRate: fall.playbackRate,
+        gain: fall.volume,
+        variant: fall.foot === 'left' ? 0 : 1,
+      });
+    });
+
+    return {
+      setMusicScene(next) {
+        const change = musicChange(playingTrack, next);
+        if (!change) return;
+
+        // A real crossfade, not a cut: the outgoing track keeps playing while the new one fades in
+        // under it, and only stops once it has faded fully out.
+        const outgoing = music;
+        music = soundBank.startLoop(change.track, { gain: 0 });
+        playingTrack = music ? change.track : null;
+        music?.setVolume(1, change.fadeSeconds);
+
+        if (outgoing) {
+          fadingOut.push(outgoing);
+          outgoing.setVolume(0, change.fadeSeconds);
+          // Safe even past `dispose` because of soundBank.ts's guard on `stop` — but `dispose` still
+          // stops it directly below rather than leaning on that, so a teardown mid-crossfade does not
+          // wait out the fade.
+          setTimeout(() => {
+            outgoing.stop();
+            const i = fadingOut.indexOf(outgoing);
+            if (i >= 0) fadingOut.splice(i, 1);
+          }, change.fadeSeconds * 1000);
+        }
+      },
+      dispose() {
+        if (observer) scene.onBeforeRenderObservable.remove(observer);
+        music?.stop();
+        for (const handle of fadingOut) handle.stop();
+        for (const loop of loops) loop.stop();
+        soundBank.dispose();
+        audio.dispose();
+      },
+    };
+  } catch (error) {
+    // Tear down whatever got built before the throw — see the comment above this `try` — then rethrow
+    // so `createHubAudio`'s own catch logs it and hands back the `SILENT` stub.
+    if (observer) scene.onBeforeRenderObservable.remove(observer);
+    for (const loop of loops) loop.stop();
+    bank?.dispose();
+    audio.dispose();
+    throw error;
+  }
 }

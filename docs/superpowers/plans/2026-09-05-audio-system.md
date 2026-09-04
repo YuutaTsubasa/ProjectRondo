@@ -1444,8 +1444,9 @@ mv public/audio/sfx/armor_step.ogg /tmp/armor_step.ogg
 `navigate` to the preview URL again to reload, then read the console.
 
 Expected, all three:
-1. **Exactly one** new `[audio] cue "footstep.armour" unavailable` warning — not two, and not one per
-   variant.
+1. **Exactly three** new `[audio] cue "…" unavailable` warnings — `footstep.armour`, `jump.takeoff`
+   and `jump.land`, one each — because the manifest maps all three cue ids to this one file and the
+   policy is one warning per affected cue id, not one per missing file.
 2. **No** `[audio] could not start` — one missing file must not fail the whole graph.
 3. `window.hub` still built, `window.hub.audio` still present — the scene is intact.
 

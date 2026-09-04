@@ -250,10 +250,14 @@ exercised. Each item below is marked with what was actually established, not a s
   whether the sound lands with the visible foot needs eyes and ears on a running scene.
 - **Unverified (listening)** — repeated steps not reading as a machine gun. The playback-rate jitter
   exists in code; how it sounds was not and could not be judged here.
-- **Partially verified** — in the live scene, `setMusicScene('intro')`, a repeated `setMusicScene('intro')`,
-  then `setMusicScene('playing')` all completed with no throw, exercising the volume-ramp path AudioV2
-  throws on when a ramp is already running and confirming the director's idempotent (`null`) result is
-  actually acted on. **Unverified (listening)**: that the AVG intro actually starts `avg_theme`, that
+- **Partially verified, with a correction to this item's own wording** — in the live scene,
+  `setMusicScene('intro')`, a repeated `setMusicScene('intro')`, then `setMusicScene('playing')` all
+  completed with no throw. That confirms the director's idempotent (`null`) result is actually acted
+  on — the repeated call did not restart the intro track — but it does not demonstrate an
+  overlapping-ramp guard: AudioV2 does not throw when a volume ramp is requested while another is
+  already in progress (it silently cancels the in-flight ramp and replaces it, see `soundBank.ts`'s
+  `LoopHandle.setVolume`), so this call sequence exercised the ramp path and would not have thrown
+  either way. **Unverified (listening)**: that the AVG intro actually starts `avg_theme`, that
   finishing the intro triggers the crossfade in real play (rather than a direct call), and that the
   crossfade sounds like a fade rather than a cut.
 - **Unverified (listening + a rendering scene)** — the wind bed audible across the field; the water

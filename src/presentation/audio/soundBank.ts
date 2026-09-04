@@ -2,6 +2,7 @@
 import { CreateSoundAsync, CreateStreamingSoundAsync } from '@babylonjs/core/AudioV2/abstractAudio/audioEngineV2';
 import type { StaticSound } from '@babylonjs/core/AudioV2/abstractAudio/staticSound';
 import type { StreamingSound } from '@babylonjs/core/AudioV2/abstractAudio/streamingSound';
+import { AudioParameterRampShape } from '@babylonjs/core/AudioV2/audioParameter';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 
 import type { SoundCue } from '../../domain/audio/soundCue';
@@ -10,8 +11,15 @@ import { MANIFEST, type CueSpec } from './manifest';
 
 /** A running looped sound. */
 export interface LoopHandle {
-  /** Ramps to a new volume, or sets it immediately when `fadeSeconds` is 0. */
-  setVolume(value: number, fadeSeconds?: number): void;
+  /**
+   * Ramps this cue's volume to `level` × its manifest volume, or sets it immediately when
+   * `fadeSeconds` is 0 or omitted.
+   *
+   * `level` is a 0-1 **fraction of the cue's manifest volume**, not an absolute gain: a caller fading
+   * a loop in or out never needs to know what that manifest volume actually is, and the manifest stays
+   * the one place the mix balance lives.
+   */
+  setVolume(level: number, fadeSeconds?: number): void;
   stop(): void;
 }
 
@@ -90,37 +98,71 @@ export async function loadSoundBank(audio: GameAudio): Promise<SoundBank> {
   };
 
   return {
+    // `play` and `startLoop` (and the `stop`/`setVolume` a loop hands back) run from
+    // `scene.onBeforeRenderObservable` in hubAudio.ts. `Observable.notifyObservers` does not catch
+    // observer exceptions, and `AbstractEngine._renderLoop` calls `_processFrame` — which is what runs
+    // that observable — *before* it queues the next frame, so one uncaught throw here does not just
+    // drop a sound, it stops the render loop permanently. Babylon's own AudioV2 sound instances throw
+    // synchronously from exactly this position: `_WebAudioStaticSoundInstance._initSourceNode` /
+    // `_deinitSourceNode` throw `Error("Connect failed")` / `"Disconnect failed"` when the underlying
+    // node is in a state that cannot be connected or disconnected. Every call into a sound below is
+    // therefore guarded, and the guard is what stands between one bad node and a frozen game.
     play(cue, options = {}) {
       const sound = pick(cue, options.variant);
       if (!sound) return;
       const spec = MANIFEST[cue];
-      if (options.position) sound.spatial.position = options.position;
-      if (options.playbackRate !== undefined && 'playbackRate' in sound)
-        (sound as StaticSound).playbackRate = options.playbackRate;
-      sound.play({ volume: spec.volume * (options.gain ?? 1) });
+      try {
+        if (options.position) sound.spatial.position = options.position;
+        if (options.playbackRate !== undefined && 'playbackRate' in sound)
+          (sound as StaticSound).playbackRate = options.playbackRate;
+        sound.play({ volume: spec.volume * (options.gain ?? 1) });
+      } catch (error) {
+        console.warn(`[audio] cue "${cue}" failed to play:`, error);
+      }
     },
 
     startLoop(cue, options = {}) {
       const sound = pick(cue, options.variant);
       if (!sound) return null;
       const spec = MANIFEST[cue];
-      if (options.position) sound.spatial.position = options.position;
-      sound.play({ loop: true, volume: spec.volume * (options.gain ?? 1) });
+      try {
+        if (options.position) sound.spatial.position = options.position;
+        sound.play({ loop: true, volume: spec.volume * (options.gain ?? 1) });
+      } catch (error) {
+        console.warn(`[audio] cue "${cue}" failed to start looping:`, error);
+        return null;
+      }
       return {
-        setVolume: (value, fadeSeconds = 0) => {
-          // AudioV2 throws when a ramp is requested while one is already in progress. A zero-length
-          // change is therefore set outright rather than ramped over the default 10 ms, and the
-          // catch covers the other half of the same hazard: two fades landing on one sound inside
-          // each other's window. Snapping to the value is the right degradation — a volume change
-          // is never worth throwing out of a render frame, or into App.svelte's uncaught `.then`.
+        setVolume: (level, fadeSeconds = 0) => {
+          const target = spec.volume * level;
           try {
-            if (fadeSeconds > 0) sound.setVolume(value, { duration: fadeSeconds });
-            else sound.volume = value;
-          } catch {
-            sound.volume = value;
+            // Verified against @babylonjs/core@9.21.0's `_WebAudioParameterComponent.setTargetValue`
+            // (which both `sound.setVolume` and `sound.volume =` end up calling): it does *not* throw
+            // when a ramp is requested while another is already in progress. Its first act is
+            // `this._param.cancelScheduledValues(0)`, so the in-flight ramp is silently cancelled and
+            // replaced — the hazard is a fade quietly getting cut off and restarted, not an exception.
+            // `sound.volume = target` goes through the same path with no options, which defaults to a
+            // *linear ramp* over `engine.parameterRampDuration`, not an immediate set — so the genuinely
+            // immediate path is `setVolume` with `shape: None`, which assigns the underlying param
+            // directly. The try/catch is still worth keeping for the reason `play`/`startLoop` above
+            // are guarded: this call happens inside the same render-frame callback, and a torn-down
+            // audio node can still throw synchronously regardless of the ramp semantics.
+            if (fadeSeconds > 0) sound.setVolume(target, { duration: fadeSeconds });
+            else sound.setVolume(target, { shape: AudioParameterRampShape.None });
+          } catch (error) {
+            // Retrying with `sound.volume = target` would just re-run the call that failed against the
+            // same node — not a genuinely different operation — so this gives up on the change instead
+            // of risking a second throw out of the render frame.
+            console.warn(`[audio] cue "${cue}" volume change failed:`, error);
           }
         },
-        stop: () => sound.stop(),
+        stop: () => {
+          try {
+            sound.stop();
+          } catch (error) {
+            console.warn(`[audio] cue "${cue}" failed to stop:`, error);
+          }
+        },
       };
     },
 

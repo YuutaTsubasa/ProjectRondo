@@ -17,10 +17,13 @@ Engineering approach: **TDD + DDD + Functional + Reactive**.
 | Path | Purpose |
 | --- | --- |
 | `src/domain/` | Pure TypeScript domain — no engine/UI imports. Movement, kernel types. The single source of truth, independently testable. |
+| `src/domain/audio/` | Pure audio logic: footstep cadence + measured foot-contact phases, the music director's scene → track decision. No engine imports. |
 | `src/presentation/babylon/` | babylon.js scene: hub, follow camera, Havok character controller, glTF knight. Reads input → calls the domain → applies the result to the physics body. |
+| `src/presentation/audio/` | AudioV2 wiring: engine + buses, the cue manifest, the sound bank (load + missing-asset policy), and the per-frame hub audio wiring. |
 | `src/app/` | Svelte entry + full-window canvas. |
 | `tests/` | Vitest specs (mirror the domain's former xUnit tests). |
 | `public/models/` | `knight_web.glb` (baked Idle/Walk, texture-only optimized), `knight_mr.webp` (packed metallic/roughness map). |
+| `public/audio/` | Shipped `music/`, `sfx/`, `ambience/` (Vorbis/MP3), plus `CREDITS.md` for source provenance. Regenerated from raw sources by `tools/audio/preprocess.mjs`, not hand-edited. |
 | `src-tauri/` | Tauri v2 shell (desktop/mobile packaging). |
 | `__prototype__/` | The original Godot 4.7.1 (mono/C#) project, kept as a parity reference. |
 
@@ -38,6 +41,11 @@ scatter (grass, wildflowers, rocks, bushes). A third-person, mouse-look knight (
 jump, click to capture the mouse) walks the field: movement is driven by the pure domain, the character
 is a Havok capsule, and the knight is a glTF model with Idle/Walk animation blended by speed. Entering
 the hub plays an AVG dialogue intro.
+
+It's also audible: the hub theme crossfades in once the intro ends, footsteps play as a two-layer
+sound (armour plus the grass surface underfoot) locked to each foot's contact phase, jumps get their
+own take-off and landing cue, a wind bed carries across the whole field, and water is audible near the
+pond.
 
 ## Develop
 
@@ -107,6 +115,18 @@ these anywhere, so the values are coming from somewhere in step 1 or 2 above tha
 exported GLB's JSON chunk against its spec default before shipping a regeneration, and drop the
 corresponding load-time correction in `knight.ts` once a regenerated file ships the correct defaults
 (or no key at all) on its own.
+
+### Regenerating the audio assets
+
+`public/audio/` is built from raw sources by `tools/audio/preprocess.mjs`, not hand-edited:
+
+```bash
+node tools/audio/preprocess.mjs [sourceDir]   # default source dir: ~/Downloads
+```
+
+Needs **ffmpeg** with **libvorbis**. The raw sources themselves are not committed — they're supplied
+separately and passed as `sourceDir` — so `public/audio/CREDITS.md` is where their provenance
+(source/author/licence) is recorded; fill it in when adding or replacing a source.
 
 ### Regenerating the knight's metallic/roughness map
 

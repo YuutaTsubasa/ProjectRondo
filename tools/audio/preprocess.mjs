@@ -184,6 +184,14 @@ function normalize({ rate, channels }, db) {
  *
  * The repetition is reduced, not removed: three detuned layers of one second of stream is still one
  * second of stream. Replace the source with a longer recording to actually fix it.
+ *
+ * **`seconds` must be long enough, relative to the source, that every detuned layer gets its own
+ * whole-loop count.** Rounding `loops + detune[k]` up to a minimum of 1 was tried and rejected: when
+ * `loops` is already 1 (an 8 s bed from an 8 s+ source, say), two different `detune` entries can both
+ * clamp to the same rate, so two "different" layers play back identically. Summing a signal with
+ * itself is a **coherent** sum — the amplitudes add directly rather than the powers — which is
+ * exactly the loud, phasey artefact this function exists to avoid, and it happened with no warning of
+ * any kind. This throws instead: better to fail the build than ship a silently-defeated bed.
  */
 function bed({ rate, channels }, { seconds, layers = 3, detune = [0, -1, 1] }) {
   const n = Math.round(seconds * rate);
@@ -191,11 +199,21 @@ function bed({ rate, channels }, { seconds, layers = 3, detune = [0, -1, 1] }) {
   const gain = 1 / Math.sqrt(layers); // incoherent sum: power adds, so amplitude goes as sqrt
   // m loops of the source across the output; m = n/src is rate 1, and ±1 from there is the finest
   // detune the seamlessness constraint allows.
-  const loops = Math.max(1, Math.round(n / src));
+  const loops = Math.round(n / src);
+  for (let k = 0; k < layers; k++) {
+    if (loops + detune[k % detune.length] < 1) {
+      throw new Error(
+        `bed: seconds=${seconds} gives only ${loops} loop(s) of the ${(src / rate).toFixed(3)}s ` +
+          `source, so detune ${detune[k % detune.length]} (layer ${k}) would collapse onto another ` +
+          `layer's rate instead of staying distinct — producing a coherent, phasey sum with no ` +
+          `warning. Lengthen \`seconds\` relative to the source.`,
+      );
+    }
+  }
   const out = channels.map((ch, ci) => {
     const buf = new Float32Array(n);
     for (let k = 0; k < layers; k++) {
-      const r = (Math.max(1, loops + detune[k % detune.length]) * src) / n;
+      const r = ((loops + detune[k % detune.length]) * src) / n;
       // Offsets spread the layers across the source, and the channel index shifts them again so the
       // two output channels are not the same signal (a bed identical in both ears collapses to a
       // point between the speakers instead of surrounding the listener). Offsets do not affect the
@@ -300,25 +318,31 @@ for (const d of ['music', 'sfx', 'ambience']) mkdirSync(join(OUT, d), { recursiv
 
 const tmp = join(OUT, '.tmp.wav');
 const missing = [];
-for (const r of RECIPES) {
-  const from = join(SRC, r.copy ?? r.src);
-  const to = join(OUT, r.to);
-  if (!existsSync(from)) {
-    missing.push(r.copy ?? r.src);
-    continue;
+try {
+  for (const r of RECIPES) {
+    const from = join(SRC, r.copy ?? r.src);
+    const to = join(OUT, r.to);
+    if (!existsSync(from)) {
+      missing.push(r.copy ?? r.src);
+      continue;
+    }
+    let detail = '(copied)';
+    if (r.copy) {
+      copyFileSync(from, to);
+    } else {
+      const built = r.build(readWav(from));
+      writeWavF32(tmp, built);
+      // execFileSync throws on a non-zero ffmpeg exit. Without the try/finally around this loop, that
+      // throw would skip straight past the cleanup below and leave this 32-bit float scratch WAV
+      // sitting in public/audio/ — the directory Vite serves in dev and copies verbatim into dist/.
+      execFileSync(FFMPEG, ['-y', '-loglevel', 'error', '-i', tmp, '-c:a', 'libvorbis', '-q:a', '4', to]);
+      detail = `${(built.channels[0].length / built.rate).toFixed(3)}s ${built.channels.length}ch ${built.rate}Hz`;
+    }
+    console.log(`${r.to.padEnd(30)}${(statSync(to).size / 1024).toFixed(1).padStart(9)} KB  ${detail}`);
   }
-  let detail = '(copied)';
-  if (r.copy) {
-    copyFileSync(from, to);
-  } else {
-    const built = r.build(readWav(from));
-    writeWavF32(tmp, built);
-    execFileSync(FFMPEG, ['-y', '-loglevel', 'error', '-i', tmp, '-c:a', 'libvorbis', '-q:a', '4', to]);
-    detail = `${(built.channels[0].length / built.rate).toFixed(3)}s ${built.channels.length}ch ${built.rate}Hz`;
-  }
-  console.log(`${r.to.padEnd(30)}${(statSync(to).size / 1024).toFixed(1).padStart(9)} KB  ${detail}`);
+} finally {
+  if (existsSync(tmp)) unlinkSync(tmp);
 }
-if (existsSync(tmp)) unlinkSync(tmp);
 if (missing.length) {
   console.error(`\nMissing sources in ${SRC}:\n  ${missing.join('\n  ')}`);
   process.exit(1);

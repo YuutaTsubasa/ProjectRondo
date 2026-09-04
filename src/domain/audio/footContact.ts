@@ -21,7 +21,9 @@
  * | Run | left | 0.4 | 0.8985 |
  * | Run | right | 0.82 | 0.801 |
  *
- * The two feet of a gait land 0.5 (walk) and 0.42 (run) of a cycle apart.
+ * The two feet of a gait land 0.5 (walk) and 0.42 (run) of a cycle apart. 0.42 is on the low side of
+ * "roughly half a cycle" but is what the measurement above actually found for Run — not a defect in
+ * the numbers below, just a less symmetric gait than Walk's.
  *
  * Re-measure whenever the clips are re-exported: these are properties of the animation data, not of
  * the character, and the GLB pipeline has already changed once (see the README's regeneration notes).
