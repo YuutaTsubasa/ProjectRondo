@@ -291,13 +291,23 @@ Not a TDD task — a measurement, like the stride table in `2026-08-20-run-jump-
 - Consumes: nothing.
 - Produces: `WALK_CONTACTS: readonly [number, number]`, `RUN_CONTACTS: readonly [number, number]` — phases in `[0, 1)`, index 0 = left foot, index 1 = right foot.
 
-- [ ] **Step 1: Pull the LFS assets and start the dev server**
+- [ ] **Step 1: Pull the LFS assets, start the dev server, and hand input back to gameplay**
 
 ```bash
 git lfs pull
 ```
 
-Then start the preview with the `Claude_Browser` preview tool (`preview_start` with the name in `.claude/launch.json`) — not with a raw `pnpm dev` in a Bash call. Click the canvas once to capture the mouse.
+Then start the preview with the `Claude_Browser` preview tool (`preview_start` with the name in
+`.claude/launch.json`) — not with a raw `pnpm dev` in a Bash call. **Keep the Browser pane visible
+for the whole measurement**: the render loop is driven by `requestAnimationFrame`, which a hidden
+tab throttles, and `input.ts` clears every held key on `visibilitychange` and `blur`.
+
+The scene opens with the AVG intro, during which `App.svelte` has called `hub.suspendInput(true)` and
+every key handler is inert. Hand input back without dismissing the overlay:
+
+```js
+window.hub.suspendInput(false);
+```
 
 - [ ] **Step 2: Find the toe bone names**
 
@@ -340,7 +350,32 @@ window.__stop = hub.scene.onAfterRenderObservable.add(() => {
 
 - [ ] **Step 4: Collect a walk and a run**
 
-Hold **W** for about 6 seconds (≥ 5 walk cycles at 1.033 s), release, then hold **Shift+W** for about 6 seconds (≥ 9 run cycles at 0.633 s), and release. Walk in a straight line on flat ground away from the pond — a slope tilts the character and adds a slow drift to both toe heights.
+Drive the movement with **synthetic keyboard events**, not with the `computer` tool: `input.ts`
+listens on `window` for `keydown`/`keyup` and reads `e.key.toLowerCase()`, and there is no way to
+express "hold a key for six seconds" through a click-and-type interface.
+
+Run this in `javascript_tool`. It walks for 6 s (≥ 5 walk cycles at 1.033 s), pauses, then runs for
+6 s (≥ 9 run cycles at 0.633 s), and releases everything:
+
+```js
+const key = (type, k) => window.dispatchEvent(new KeyboardEvent(type, { key: k }));
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+key('keydown', 'w');
+await wait(6000);
+key('keyup', 'w');
+await wait(500);
+key('keydown', 'Shift');
+key('keydown', 'w');
+await wait(6000);
+key('keyup', 'w');
+key('keyup', 'Shift');
+'collected ' + window.__samples.length + ' frames';
+```
+
+The knight walks in a straight line from spawn, which is flat open ground away from the pond — a
+slope tilts the character and adds a slow drift to both toe heights. If the frame count comes back
+near zero, the pane was hidden and `requestAnimationFrame` was throttled: make it visible and redo
+Steps 3 and 4.
 
 - [ ] **Step 5: Reduce the samples to contact phases**
 
