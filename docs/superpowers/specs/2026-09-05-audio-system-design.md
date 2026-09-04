@@ -237,17 +237,57 @@ Pure, so unit-tested rather than debugged in the browser:
 
 ## 7. Definition of done
 
-- `pnpm test` green, including the cases above.
-- Walking and running produce footsteps **in step with the visible feet** at both gaits; nothing fires
-  while airborne; take-off and landing each sound once.
-- Repeated steps do not read as a machine gun (the one armour sample is jittered).
-- The AVG intro plays `avg_theme`; finishing it crossfades to `hub_theme`, once.
-- The wind bed is audible across the field; the water is audible near the pond and gone at distance.
-- Neither ambience bed has an audible seam over several minutes.
-- **Deleting any one audio file leaves one console warning, every other sound working, and the scene
-  intact.**
-- Silent before the first gesture, correct after it.
-- Frame budget unchanged — audio is not a GPU cost, but confirm no per-frame allocation in the wiring.
+This list splits into what a machine can establish and what needs a person with speakers and a
+rendering window. The Task 9 in-scene pass ran with the browser pane hidden, which starves
+`requestAnimationFrame` — the scene's promise-driven loads still complete, but no frame ever renders,
+so nothing that depends on the game actually running (walking, jumping, elapsed real time) could be
+exercised. Each item below is marked with what was actually established, not a summary judgement.
+
+- **Verified** — `pnpm test` green, including the cases in §6: 25 test files, 156 tests, all passing.
+- **Unverified (listening + a rendering scene)** — walking and running producing footsteps in step
+  with the visible feet at both gaits; nothing firing while airborne; take-off and landing each
+  sounding once. `footstepCadence`'s airborne/landing rules are unit-tested in isolation (§6), but
+  whether the sound lands with the visible foot needs eyes and ears on a running scene.
+- **Unverified (listening)** — repeated steps not reading as a machine gun. The playback-rate jitter
+  exists in code; how it sounds was not and could not be judged here.
+- **Partially verified** — in the live scene, `setMusicScene('intro')`, a repeated `setMusicScene('intro')`,
+  then `setMusicScene('playing')` all completed with no throw, exercising the volume-ramp path AudioV2
+  throws on when a ramp is already running and confirming the director's idempotent (`null`) result is
+  actually acted on. **Unverified (listening)**: that the AVG intro actually starts `avg_theme`, that
+  finishing the intro triggers the crossfade in real play (rather than a direct call), and that the
+  crossfade sounds like a fade rather than a cut.
+- **Unverified (listening + a rendering scene)** — the wind bed audible across the field; the water
+  audible near the pond and gone at distance. Nothing here exercises player position or world-space
+  attenuation.
+- **Unverified (listening + a rendering scene, elapsed real time)** — neither ambience bed having an
+  audible seam over several minutes. The wind loops at 8 s and the water at 6 s; confirming a seamless
+  loop needs the scene running in real time, which the hidden pane cannot provide.
+- **Verified, with a correction to this item's own wording** — removing `public/audio/sfx/armor_step.ogg`
+  and reloading produced **three** `[audio] cue "…" unavailable` warnings, not one:
+  `footstep.armour`, `jump.takeoff` and `jump.land` all warned, because the manifest (§5, `manifest.ts`)
+  maps all three cue ids to that single file — one warning per affected cue id, not one per file. No
+  `[audio] could not start` appeared (the graph still built), no other cue warned (the other eight
+  manifest entries loaded and decoded fine), and `window.hub` / `window.hub.audio` were still present
+  after the reload — the scene stayed intact. Restoring the file and reloading again produced zero
+  `[audio]` warnings. The resilience property this item is really after — one missing asset cannot take
+  down the graph or silence anything else — holds; "leaves one console warning" only holds for a cue
+  whose file backs no other cue.
+- **Unverified (listening, and needs a user gesture to test against)** — silent before the first
+  gesture, correct after it.
+- **Not established** — the mix balance. Every `volume` in `manifest.ts` is still §5.5's untuned
+  starting point; tuning them needs a running scene and ears, and was explicitly out of scope for this
+  pass.
+- **Partially verified by static read, not measurement** — `hubAudio.ts`'s `onBeforeRenderObservable`
+  callback allocates a small options object literal on *every* frame for the `cadence.step({...})`
+  call (both the early-return `{ gait: 'idle', phase: 0, airborne, elapsed }` branch and the normal
+  `{ gait, phase, airborne, elapsed }` branch), not only on an actual footfall — so "no per-frame
+  allocation in the wiring" does not hold literally, though the allocation is a small, short-lived
+  object and its actual cost was not measured. `bank.play(...)`'s options objects are allocated only on
+  a footfall, not every frame. **Unverified**: frame budget / frame rate itself, since the hidden pane
+  never renders a frame to measure.
+
+None of the above changes §5.5: the per-cue volumes remain starting points to be tuned in-scene, not
+measurements.
 
 ## 8. Sequencing, and staying out of the way
 
