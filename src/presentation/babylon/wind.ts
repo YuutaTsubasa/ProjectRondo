@@ -17,6 +17,24 @@ const SPATIAL_FREQ = 0.35;
  *  {@link SPATIAL_FREQ}. */
 const SPEED = 1.1;
 
+/**
+ * The gust envelope's exact period in phase radians, used to wrap the phase before it is bound.
+ *
+ * The envelope is `sin(t) + 0.5*sin(2.3t + 1.7)`. 2.3 = 23/10, so the two terms come back into step
+ * after `20*PI` (10 turns of the first sine, 23 of the second) and subtracting a multiple of it from
+ * the phase is an identity, not an approximation — no seam, no drift.
+ *
+ * It has to be wrapped because the phase reaches the shader through a **float32** uniform while the
+ * clock behind it only grows. At 8 h of uptime the phase is ~3.2e4 rad, where a float32 ULP is 2^-8 ≈
+ * 0.0039 rad against a 144 Hz frame's 1.1/144 ≈ 0.0076 rad step — two ULP, so the gust already moves
+ * in visible stair-steps; by ~24 h the step is about one ULP and the wind quantises into a stall.
+ * Wrapping holds the bound value under 63, where a ULP is ~4e-6 rad, for any uptime.
+ *
+ * Change the 2.3 in the shader and this constant is wrong. `clouds.ts` reads the same clock but scales
+ * it by 0.004 into a texture offset, so it needs no equivalent and has none.
+ */
+const GUST_PERIOD = 20 * Math.PI;
+
 /** The single source of wind time, in seconds. Every plugin instance binds this same value, so the
  *  whole field shares one phase; nothing else may write it. `createWind` is the only writer — the
  *  clouds read it through {@link windTime} rather than integrating their own clock, so both effects
@@ -62,7 +80,13 @@ export function windTime(): number {
  * hook sits before both `gl_Position` and `vPositionW = vec3(worldPos)` so lighting and fog see the
  * displaced position too.
  *
- * `bendHeight` is LOCAL-space height. The thin-instance matrix and any parent scaling are applied
+ * `bendHeight` is LOCAL-space height, and must be finite and strictly positive — the shader divides
+ * `positionUpdated.y` by it. Zero clamps every vertex's weight to 1 (the mesh translates rigidly
+ * instead of bending) or produces NaN (the geometry disappears), and a negative height inverts the
+ * weight so the root swings while the tip stands still. That is checked HERE rather than at each
+ * caller: `trees.ts` measures its height off a bounding box and can legitimately meet a degenerate
+ * mesh, so it screens those out before calling, but a caller passing a constant has no such screen
+ * and this boundary is what covers it. The thin-instance matrix and any parent scaling are applied
  * later in `finalWorld`, so one value per material is correct across instances of different sizes.
  *
  * `amplitude` is the per-sine scale fed into the shader's gust envelope, in WORLD units — NOT the peak
@@ -89,6 +113,9 @@ export function windTime(): number {
  * on that path. Grass and flowers do not cast, so they are unaffected; trees do (spec §3e, Task 2).
  */
 export function applyWind(material: Material, bendHeight: number, amplitude: number): void {
+  if (!(bendHeight > 0) || !Number.isFinite(bendHeight)) {
+    throw new RangeError(`applyWind: bendHeight must be finite and > 0 (material '${material.name}' got ${bendHeight})`);
+  }
   new WindPlugin(material, bendHeight, amplitude);
 }
 
@@ -124,7 +151,10 @@ uniform vec2 windBend;
   }
 
   bindForSubMesh(uniformBuffer: UniformBuffer): void {
-    uniformBuffer.updateFloat4('windPhase', WIND_DIRECTION_X, WIND_DIRECTION_Z, SPATIAL_FREQ, field.time * SPEED);
+    // Wrapped, not raw: see GUST_PERIOD — the float32 uniform loses phase resolution as the clock
+    // grows, and the envelope is exactly periodic, so this costs nothing and is invisible.
+    const phase = (field.time * SPEED) % GUST_PERIOD;
+    uniformBuffer.updateFloat4('windPhase', WIND_DIRECTION_X, WIND_DIRECTION_Z, SPATIAL_FREQ, phase);
     uniformBuffer.updateFloat2('windBend', this.amplitude, this.bendHeight);
   }
 
@@ -141,7 +171,8 @@ uniform vec2 windBend;
   windW *= windW;
   // Phase from world XZ, so neighbours are out of step and gusts travel across the field.
   float windTheta = dot(worldPos.xz, windPhase.xy) * windPhase.z - windPhase.w;
-  // Two incommensurate sines: one alone reads as a metronome.
+  // Two incommensurate sines: one alone reads as a metronome. The 2.3 sets GUST_PERIOD — change it
+  // there too, or the phase wrap stops being an identity and the field jumps once per wrap.
   float windGust = sin(windTheta) + 0.5 * sin(windTheta * 2.3 + 1.7);
   // XZ only. Vertical motion separates a card from its own ground contact and it has no
   // thickness to hide the gap.

@@ -10,6 +10,27 @@
 > and 5 below are history, not work to do**, and neither is anything else on this page that mentions a
 > butterfly. Everything up to and including Task 3, plus Tasks 6 and 7, is the shipped phase.
 
+> **The code blocks on this page are the implementation as it was WRITTEN, not as it shipped — read
+> the files, not this page.** A plan is the record of what was executed, so the blocks are left as
+> executed rather than back-edited; what follows is the list of places where the shipped file now says
+> something different, and why:
+>
+> - **Task 1's `wind.ts` block** calls `SPATIAL_FREQ` "Tuned in the browser (Step 5)". It never was —
+>   the tuning pass did not happen, and the shipped file says **"Untuned"** instead. Same for Task 3's
+>   `DRIFT_SPEED`. Treat every "tuned in the browser" claim on this page as unverified.
+> - **Task 3's `clouds.ts` block** is the pre-fix cloud layer, and three of its numbers are now known
+>   to be wrong. Its band `0.05 + rand() * 0.45`, commented "keeps the band above the horizon", is in
+>   fact elevation **-81 to 0 degrees**: the canvas-fraction-to-elevation mapping is inverted, and
+>   every cloud rendered *below* the horizon. Its `40 + rand() * 90` radii at 40 blobs gave **100%
+>   coverage** — an overcast lid, not scattered cloud — and `CLOUD_ALPHA = 0.55` composited well past
+>   the point the layer reads as a painted ceiling. The block's per-frame `uOffset +=` also
+>   accumulates its own clock instead of reading the shared one. The shipped `clouds.ts` documents the
+>   measured mapping, the coverage table and the fix at length; that file is the reference, this block
+>   is the mistake it corrects. (Fixed in `f6e394a`, `ea4eba3` and `3c14e83`.)
+> - **Task 6's blocks** still describe P4 as "wind, clouds and ambient life". The ambient-life layer
+>   was cut after Task 6 was executed; the shipped `waterBody.ts` and `HANDOFF.md` say **wind and
+>   clouds**.
+
 **Architecture:** One `MaterialPluginBase` injects a vertex displacement into the three existing
 `StandardMaterial`s (grass, flowers, trees) at `CUSTOM_VERTEX_UPDATE_WORLDPOS`, driven by a single
 shared accumulated time. Clouds are a second inward-facing dome with a procedurally drawn, u-tiling
@@ -44,6 +65,11 @@ alpha texture whose `uOffset` advances from that same time.
 ---
 
 ### Task 1: Wind — the plugin, and grass + flowers swaying
+
+> **Superseded in part — the `wind.ts` block below is not the shipped file.** Its "Tuned in the
+> browser" claim on `SPATIAL_FREQ` is untrue (the shipped file says "Untuned"), the wind direction
+> moved out to `src/domain/hub/windDirection.ts`, `applyWind` gained a per-material `amplitude`, and
+> the phase is now wrapped before it is bound. Read the shipped file.
 
 **Files:**
 - Create: `src/presentation/babylon/wind.ts`
@@ -411,6 +437,11 @@ looks like, replacing the open question."
 ---
 
 ### Task 3: Drifting clouds
+
+> **Superseded — the `clouds.ts` block in Step 5 is the pre-fix implementation.** Its band placement
+> put every cloud below the horizon, its blob radii and alpha gave an overcast lid, and its drift kept
+> a private clock. See the note at the top of this page for the specifics, and read the shipped
+> `src/presentation/babylon/clouds.ts` for the corrected values and the measurements behind them.
 
 **Files:**
 - Create: `src/domain/math/rng.ts`
@@ -1229,11 +1260,16 @@ zero as if it were positive; say it straddles zero.
 
 Roadmap §6, from spawn, all of it: rolling terrain the knight rides; distant mountains fading into the
 sky; tone-mapped, bloomed lighting with nothing washed out or crushed; a water feature and a landmark,
-both with correct collision; wind-swept grass and trees, drifting clouds, ambient life; no clipping
+both with correct collision; wind-swept grass and trees, drifting clouds; no clipping
 through trees, landmarks or designated-solid props; steady 60 fps.
 
+**Do not check for ambient life.** The "and some ambient life" clause was struck from roadmap §6 on
+2026-09-04 when the layer was cut (see the note at the top of this page); walk the checklist as it
+reads *now*, not as this plan first transcribed it.
+
 Record the result item by item in spec §10 — including anything that fails. A failing item is a
-finding, not a reason to quietly re-scope: report it and let the user decide.
+finding, not a reason to quietly re-scope: report it and let the user decide. That is about items the
+checklist still contains — a bar the owner has deliberately withdrawn is not a failing item.
 
 - [ ] **Step 4: Update the docs to say P4 shipped**
 

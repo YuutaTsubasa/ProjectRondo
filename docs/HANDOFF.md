@@ -164,7 +164,9 @@ scheduled additions). Sequence from here:
    and has not been retaken. The current GLB was texture-optimised but never decimated either, which
    is still a separate job; re-measure per-mesh vertex counts on the current model before picking a
    decimation target.
-2. **P4 — life & motion** (wind sway, drifting clouds, ambient creatures). Budget against the
+2. **P4 — life & motion** (wind sway, drifting clouds; the ambient-creature layer was built and then
+   **cut on 2026-09-04** by the owner — roadmap §4 P4 and
+   `docs/superpowers/specs/2026-09-04-life-and-motion-design.md` §5). Budget against the
    already-loaded scene (roadmap §7): the fps headroom the earlier phases left is what P4 spends. P2
    measured its own cost at **0.3 ms** and P3 at **0.09–0.26 ms**. Note P3's numbers were taken on a
    different machine from P2's, so compare *within-session deltas*, never the absolutes (P3 spec §9d).
@@ -194,8 +196,8 @@ scheduled additions). Sequence from here:
    times over — but it is where the budget lives if P4 runs out.
 
    P3 left `WaterBody` (`src/domain/hub/waterBody.ts`) as the shape shallow-water feedback — splashes,
-   slowdown, wet shading — should read when someone builds it. **It is not part of P4**, which is wind,
-   clouds and ambient life only: shallow water is movement feel and would reach into the pure movement
+   slowdown, wet shading — should read when someone builds it. **It is not part of P4**, which shipped
+   as wind and clouds only: shallow water is movement feel and would reach into the pure movement
    domain, so it was ruled out when P4 was designed (`2026-09-04-life-and-motion-design.md` §1). It has
    no scheduled owner. The plaza's eight pillars are where the mode-entrances attach.
 3. **Then: game modes** — Sonic-style 3D/2D levels, 2048, Sudoku (a new milestone, SP2+).

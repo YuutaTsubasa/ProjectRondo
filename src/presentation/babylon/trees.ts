@@ -226,8 +226,9 @@ function bendCanopiesWithWind(container: AssetContainer): void {
     bendHeights.set(mat, Math.max(bendHeights.get(mat) ?? 0, top));
   }
   for (const [mat, height] of bendHeights) {
-    // A non-positive extent means the mesh sits entirely at or below its own origin; dividing by it
-    // in the shader would be a divide-by-zero or an inverted weight. Skip rather than sway wrongly.
+    // A non-positive extent means the mesh sits entirely at or below its own origin. `applyWind`
+    // rejects that outright, and rightly — but here it is a fact about a loaded model rather than a
+    // bug in this file, so screen it out and leave that material unswayed instead of failing the load.
     if (height > 0) applyWind(mat, height, TREE_WIND_AMPLITUDE);
   }
 }

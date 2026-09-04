@@ -3,7 +3,7 @@
  * from this, and shallow-water feedback (splashes, slowdown, wet shading) should read the same shape
  * rather than re-deriving the pond's geometry from the mesh.
  *
- * That feedback is NOT built, and it is not P4's — P4 is wind, clouds and ambient life, and shallow
+ * That feedback is NOT built, and it is not P4's — P4 shipped as wind and clouds, and shallow
  * water was ruled out of it because it is movement feel and would reach into the pure movement domain
  * (`2026-09-04-life-and-motion-design.md` §1). This shape is still the right one for whoever does
  * build it; it just has no scheduled owner.
