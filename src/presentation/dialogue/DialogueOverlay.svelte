@@ -20,6 +20,19 @@
   // A modal is open, so the scene UI behind it must neither take focus nor act on Enter.
   const modalOpen = $derived(showLog || session.choices.length > 0);
 
+  // inert blurs whatever was focused inside .scene-ui, and nothing would catch it: a modal would
+  // open with focus on <body>, and closing would leave it there — restarting the tab order twice
+  // per visit. Remember what had focus and hand it back.
+  let focusBeforeModal: HTMLElement | null = null;
+  $effect(() => {
+    if (modalOpen) {
+      focusBeforeModal ??= document.activeElement as HTMLElement | null;
+    } else if (focusBeforeModal) {
+      focusBeforeModal.focus();
+      focusBeforeModal = null;
+    }
+  });
+
   function advance() {
     session.advance();
     if (session.isFinished) { finish(); }
@@ -48,7 +61,7 @@
   // AUTO: once the line finishes revealing, advance after a pause (only when not awaiting a choice).
   // Setting auto = false (e.g. via finish()) re-runs this effect and fires the cleanup.
   $effect(() => {
-    if (auto && lineDone && session.choices.length === 0 && !session.isFinished) {
+    if (auto && lineDone && !modalOpen && !session.isFinished) {
       const t = setTimeout(advance, AUTO_ADVANCE_MS);
       return () => clearTimeout(t);
     }
@@ -67,43 +80,43 @@
     <Controls {auto} onToggleAuto={() => (auto = !auto)} onSkip={skip} onToggleLog={() => (showLog = !showLog)} />
 
     <div class="dock">
-    <Nameplate speaker={session.speaker} />
-    <!-- The whole box is the advance target, not an inner element: the arrow sits in the box's
-         bottom padding, which a flex child cannot reach. -->
-    <div
-      class="box"
-      role="button"
-      tabindex="0"
-      onclick={onBoxClick}
-      onkeydown={onBoxKeydown}
-      aria-label="advance dialogue"
-    >
-      <!-- The glass and the octagon silhouette. Separate from .box so .box stays unclipped and can
-           paint its focus outline. -->
-      <div class="pane" aria-hidden="true"></div>
-      <!-- The 2px inset ring, drawn as an evenodd clip-path over a solid fill: the outer octagon
-           minus an octagon inset by 2px leaves the ring between them. -->
-      <div class="ring" aria-hidden="true"></div>
-      <!-- Positioned, so it paints above .pane. In-flow content would not: a positioned sibling
-           with z-index auto paints after non-positioned content, so the glass would cover the text. -->
-      <div class="content">
-        <!-- Five markers, static. The kit shows three filled and two hollow; nothing in the dialogue
-             domain maps to them, so they are decoration rather than an invented progress readout. -->
-        <div class="marks" aria-hidden="true">
-          <span class="on"></span><span class="on"></span><span class="on"></span><span></span><span></span>
+      <Nameplate speaker={session.speaker} />
+      <!-- The whole box is the advance target, not an inner element: the arrow sits in the box's
+           bottom padding, which a flex child cannot reach. -->
+      <div
+        class="box"
+        role="button"
+        tabindex="0"
+        onclick={onBoxClick}
+        onkeydown={onBoxKeydown}
+        aria-label="advance dialogue"
+      >
+        <!-- The glass and the octagon silhouette. Separate from .box so .box stays unclipped and can
+             paint its focus outline. -->
+        <div class="pane" aria-hidden="true"></div>
+        <!-- The 2px inset ring, drawn as an evenodd clip-path over a solid fill: the outer octagon
+             minus an octagon inset by 2px leaves the ring between them. -->
+        <div class="ring" aria-hidden="true"></div>
+        <!-- Positioned, so it paints above .pane. In-flow content would not: a positioned sibling
+             with z-index auto paints after non-positioned content, so the glass would cover the text. -->
+        <div class="content">
+          <!-- Five markers, static. The kit shows three filled and two hollow; nothing in the dialogue
+               domain maps to them, so they are decoration rather than an invented progress readout. -->
+          <div class="marks" aria-hidden="true">
+            <span class="on"></span><span class="on"></span><span class="on"></span><span></span><span></span>
+          </div>
+          {#key session.line}
+            <Line bind:this={lineRef} text={session.line} onDone={() => (lineDone = true)} />
+          {/key}
         </div>
-        {#key session.line}
-          <Line bind:this={lineRef} text={session.line} onDone={() => (lineDone = true)} />
-        {/key}
+        <svg class="advance" width="30" height="18" viewBox="0 0 30 18" fill="none" aria-hidden="true"><path d="M0 9h26M20 3l6 6-6 6" /></svg>
+        <div class="rail" aria-hidden="true"></div>
       </div>
-      <svg class="advance" width="30" height="18" viewBox="0 0 30 18" fill="none" aria-hidden="true"><path d="M0 9h26M20 3l6 6-6 6" /></svg>
-      <div class="rail" aria-hidden="true"></div>
     </div>
-  </div>
   </div>
 
   <!-- Both modals sit outside the inert wrapper, so they keep their own focus. -->
-  <Choices choices={session.choices} onSelect={onSelect} />
+  <Choices choices={session.choices} prompt={session.line} onSelect={onSelect} />
   {#if showLog}<Backlog entries={session.backlog} onClose={() => (showLog = false)} />{/if}
 </div>
 

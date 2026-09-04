@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { DialogueChoice } from '../../domain/dialogue/dialogueChoice';
-  let { choices, onSelect }: { choices: readonly DialogueChoice[]; onSelect: (i: number) => void } = $props();
+  let { choices, prompt, onSelect }:
+    { choices: readonly DialogueChoice[]; prompt: string; onSelect: (i: number) => void } = $props();
 </script>
 
 {#if choices.length > 0}
@@ -8,6 +9,9 @@
   <div class="scrim">
     <div class="panel">
       <div class="head">SELECT AN ACTION</div>
+      <!-- The line that poses the question. The scrim is opaque, so the dialogue box is not readable
+           behind it -- without this the player is answering a question they cannot see. -->
+      <p class="prompt">{prompt}</p>
       {#each choices as choice, i}
         <!-- Kit: a 1px frame with 4px padding around an inner block, and a caret prefix. -->
         <button class="choice" onclick={() => onSelect(i)}>
@@ -47,6 +51,13 @@
     letter-spacing: 3px;
     color: var(--c-ink);
     margin-bottom: 4px;
+  }
+  .prompt {
+    margin: 0 0 6px;
+    font-family: var(--font-body);
+    font-size: 18px;
+    line-height: 1.7;
+    color: var(--c-ink);
   }
   .choice {
     display: block;

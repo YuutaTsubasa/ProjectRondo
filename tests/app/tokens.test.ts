@@ -36,13 +36,16 @@ describe('tokens.css', () => {
   // '(' in front of it and must not count as a definition.
   const declared = (src.match(/^\s*(--[a-z0-9-]+)\s*:/gm) ?? []).map((m) => m.trim().replace(/\s*:$/, ''));
 
+  // Compares the SET, so a duplicate does not fail here -- that is the next case's job, and it can
+  // only do it if this one tolerates duplicates.
   it('declares every expected token', () => {
-    expect(declared.slice().sort()).toEqual(EXPECTED.slice().sort());
+    expect([...new Set(declared)].sort()).toEqual(EXPECTED.slice().sort());
   });
 
   it('declares each token exactly once', () => {
-    const seen = new Set<string>();
-    const dupes = declared.filter((n) => (seen.has(n) ? true : (seen.add(n), false)));
+    const counts = new Map<string, number>();
+    for (const name of declared) counts.set(name, (counts.get(name) ?? 0) + 1);
+    const dupes = [...counts].filter(([, n]) => n > 1).map(([name]) => name);
     expect(dupes).toEqual([]);
   });
 
