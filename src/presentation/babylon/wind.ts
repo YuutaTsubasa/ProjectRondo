@@ -14,10 +14,9 @@ const SPATIAL_FREQ = 0.35;
 const SPEED = 1.1;
 
 /** The single source of wind time, in seconds. Every plugin instance binds this same value, so the
- *  whole field shares one phase; nothing else may write it. `createWind` is the only writer — clouds
- *  and butterflies read it through {@link windTime} rather than integrating their own clock, so all
- *  three effects agree on "now" even though each still runs its own per-frame observer to apply its
- *  own motion. */
+ *  whole field shares one phase; nothing else may write it. `createWind` is the only writer — the
+ *  clouds read it through {@link windTime} rather than integrating their own clock, so both effects
+ *  agree on "now" even though each still runs its own per-frame observer to apply its own motion. */
 const field = { time: 0 };
 
 /**
@@ -34,9 +33,9 @@ export function createWind(scene: Scene): void {
 }
 
 /** The shared wind clock, in seconds — the same value every wind-bent material binds this frame.
- *  Read-only from outside this module: `clouds.ts` and `butterflies.ts` call this instead of
- *  accumulating their own elapsed time, so P4's three moving effects share one clock rather than
- *  three that merely start in step and drift apart across a scene teardown. */
+ *  Read-only from outside this module: `clouds.ts` calls this instead of accumulating its own elapsed
+ *  time, so P4's moving effects share one clock rather than several that merely start in step and
+ *  drift apart across a scene teardown. */
 export function windTime(): number {
   return field.time;
 }
