@@ -1359,91 +1359,137 @@ git commit -m "feat(audio): cross from the AVG theme to the hub theme when the i
 
 ---
 
-### Task 9: Verify in the scene and tune the mix
+### Task 9: Verify what a machine can verify
 
-The DoD from spec §7. Everything before this was testable without ears; this is not.
+The DoD from spec §7 splits in two, and this task is the half that does not need ears.
+
+**Why it splits.** Most of the original DoD is a listening test — footsteps landing with the visible
+feet, repeated steps not reading as a machine gun, a crossfade sounding like a fade, an ambience bed
+with no audible seam. No agent can hear any of it. On top of that, the Browser pane in this
+environment is hidden, which starves `requestAnimationFrame`: the scene builds (its loads are
+promise-driven) but never renders a frame, so nothing that needs the game actually running — walking,
+jumping, frame rate — can be exercised either.
+
+What remains is worth doing on its own: it proves the audio graph builds, that every asset in the
+manifest really loads from its shipped path, and that the missing-asset policy behaves as designed.
+Those are the failure modes that would otherwise be discovered by a person wondering why the game is
+silent.
+
+**Do not mark any listening item verified.** The handover list at the end of this task is the honest
+record of what is still unchecked, and the mix volumes stay at their documented starting points —
+spec §5.5 continues to say "starting points to be tuned", because they have not been tuned.
 
 **Files:**
-- Modify: `src/presentation/audio/manifest.ts` (volumes only)
-- Modify: `docs/superpowers/specs/2026-09-05-audio-system-design.md` (record the tuned values)
+- Modify: `docs/superpowers/specs/2026-09-05-audio-system-design.md` (record the results)
 
-- [ ] **Step 1: Start the scene with the assets present**
+- [ ] **Step 1: Start the scene**
 
 ```bash
 git lfs pull
 ```
 
-Start the preview with `preview_start`, click once to capture the mouse and unlock audio.
+Start the preview with `preview_start` (the config in `.claude/launch.json`), then `navigate` to its
+URL once to force a fresh load. Every `javascript_tool` snippet below must be **fully synchronous** —
+timers are starved while the pane is hidden.
 
-- [ ] **Step 2: Check the console is clean**
+- [ ] **Step 2: Confirm the graph built and every cue loaded**
 
-Use `read_console_messages`. Expected: no `[audio]` warnings. A warning here means a cue's file is missing or still an LFS pointer — fix that before tuning anything, or you will tune around a silent sound.
+Read the console with `read_console_messages` (raise `limit` — the scene emits a few hundred
+pre-existing babylon and knight warnings, which are not yours).
 
-- [ ] **Step 3: Verify each DoD item, in order**
+Expected: **not a single message beginning `[audio]`.**
 
-Walk (W), run (Shift+W), jump (Space) on flat ground, then near and away from the pond at (−15, −5). Confirm, and write down what you observe for each:
+That single absence carries two results. No `[audio] could not start` means `createGameAudio`
+succeeded — an AudioContext was created and all three buses were built — so `createHubAudio` returned
+the real implementation and not the `SILENT` stub. No `[audio] cue "…" unavailable` means **all 11
+cues fetched and decoded** from their manifest paths. Record both conclusions.
 
-1. Footsteps fire in step with the visible feet, at **both** walk and run. If they are consistently half a step off, the two `footContact` phases are swapped between feet — that is a sign convention, not a re-measurement.
-2. Nothing fires while airborne; take-off and landing each sound exactly once.
-3. Repeated steps do not read as a machine gun.
-4. Wind is audible across the field; water rises approaching the pond and is gone at distance.
-5. The AVG theme plays over the intro and crosses to the hub theme once, when the intro ends.
-6. Reload and confirm silence before the first click, sound after it.
+Also confirm the scene itself is intact:
 
-- [ ] **Step 4: Tune the manifest volumes**
+```js
+({ built: !!window.hub, hasAudio: !!window.hub?.audio })
+```
 
-Adjust only the `volume` values in `manifest.ts`. Target: footsteps present but not dominant under the music; the grass layer heard as texture under the armour rather than as its own sound; the wind bed below everything; typing (checked in Task 10) quiet enough to survive a long conversation.
+Note for your report: the pre-existing warnings you *will* see are babylon's "Non uniform scaling is
+unsupported for sphere shapes" and two `[knight]` warnings about the GLB's zeroed scalars. Both
+predate this branch (the `[knight]` ones are documented in the README) — do not report them as
+findings, and do not try to fix them.
 
-Re-run the scene after each change — Vite forces a full reload on any source edit (`vite.config.ts`), so the scene rebuilds with the new values.
+- [ ] **Step 3: Confirm `setMusicScene` does not throw**
 
-- [ ] **Step 5: Confirm the beds have no audible seam**
+```js
+(() => {
+  try {
+    window.hub.audio.setMusicScene('intro');
+    window.hub.audio.setMusicScene('intro');   // idempotent: musicChange returns null
+    window.hub.audio.setMusicScene('playing'); // crossfade path
+    return 'no throw';
+  } catch (e) { return 'threw: ' + e.message; }
+})()
+```
 
-Stand still with the music muted (`window.hub.audio` has no mute; instead set `music.hub`'s volume to 0 in the manifest temporarily) and listen to the wind for at least three loop lengths (24 s) and the water for four (24 s). Expected: no pulse or click at the 8 s / 6 s marks. The seams measure 0.02–0.14 dB against 0.36–0.41 dB of ordinary variation (spec §5.3), so anything audible here means the shipped file is not the one the tool produced — re-run `node tools/audio/preprocess.mjs`.
+Expected: `'no throw'`. This exercises the volume-ramp path that AudioV2 throws on when a ramp is
+already running, and the second identical call proves the director's null result is actually acted on.
+It does **not** prove anything about how the crossfade sounds.
 
-- [ ] **Step 6: Confirm the missing-asset path**
+- [ ] **Step 4: Prove the missing-asset policy**
+
+This is the most important check in the task, and the one thing here that could not be caught by
+reading the code. Take one asset away:
 
 ```bash
 mv public/audio/sfx/armor_step.ogg /tmp/armor_step.ogg
 ```
 
-Reload the scene. Expected: exactly one `[audio] cue "footstep.armour" unavailable` warning, the grass layer still audible on every step, jump and landing silent, **and the scene otherwise completely intact** — this is the check that audio cannot do what an unpulled knight GLB does. Then restore it:
+`navigate` to the preview URL again to reload, then read the console.
+
+Expected, all three:
+1. **Exactly one** new `[audio] cue "footstep.armour" unavailable` warning — not two, and not one per
+   variant.
+2. **No** `[audio] could not start` — one missing file must not fail the whole graph.
+3. `window.hub` still built, `window.hub.audio` still present — the scene is intact.
+
+Then put it back and reload once more to confirm the warning is gone:
 
 ```bash
 mv /tmp/armor_step.ogg public/audio/sfx/armor_step.ogg
 ```
 
-- [ ] **Step 7: Confirm the frame budget is unmoved**
+- [ ] **Step 5: Record the results in the spec**
 
-Audio is not a GPU cost, but the per-frame wiring must not allocate. In the console:
+In `docs/superpowers/specs/2026-09-05-audio-system-design.md` §7, mark each DoD item with what was
+actually established: which were verified here and how, and which remain unverified because they
+require listening or a rendering scene. Be exact — "verified: all 11 cues load, zero `[audio]`
+warnings" and "unverified: whether footsteps land with the visible feet" are both useful; "verified"
+against a listening item is a lie that no later reader can detect.
 
-```js
-window.hub.scene.getEngine().getFps().toFixed(1);
-```
+Leave §5.5's "starting points to be tuned" wording alone.
 
-Confirm the number is still at the vsync cap (~59–60) while walking and running. A drop here points at an allocation in the `onBeforeRenderObservable` callback — the `Vector3` for the pond emitter is built once at setup, and nothing in the per-frame path should allocate.
-
-- [ ] **Step 8: Record the results in the spec**
-
-Replace spec §5.5's "starting points to be tuned" paragraph with the tuned values and one line on what each was tuned against, and add the observed DoD results to §7. Keep it to what was measured.
-
-- [ ] **Step 9: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
-git add src/presentation/audio/manifest.ts docs/superpowers/specs/2026-09-05-audio-system-design.md
-git commit -m "fix(audio): tune the mix in-scene and record the verification"
+git add docs/superpowers/specs/2026-09-05-audio-system-design.md
+git commit -m "docs(audio): record what the in-scene verification could establish"
 ```
 
-- [ ] **Step 10: Open PR-1**
+- [ ] **Step 7: Write the handover list**
 
-```bash
-git push -u origin claude/new-feature-discussion-d7fe44
-```
+The following need a person with speakers and a visible window, and belong in the PR description so
+they are checked before merge rather than forgotten:
 
-Then open the PR against `main` with `gh` (full path: `C:\Program Files\GitHub CLI\gh.exe`), titled `feat(audio): music, footsteps, ambience and the audio system`. The description covers: what ships, the phase-locking finding (spec §3.1), the missing-asset policy, the asset preprocessing tool, and that AVG/UI cue wiring is deliberately held back to PR-2.
-
-**Note:** LFS upload needs Git Credential Manager to have had one interactive login on this machine. If the push fails on credentials, that is the cause.
-
----
+- Footsteps land with the visible feet, at **both** walk and run. (If they are consistently half a
+  step off, the two `footContact` phases are swapped between feet — a sign convention, not a
+  re-measurement.)
+- Nothing fires while airborne; take-off and landing each sound once.
+- Repeated steps do not read as a machine gun.
+- The AVG theme plays over the intro and crosses to the hub theme once, when the intro ends.
+- Wind is audible across the field; water rises approaching the pond at (−15, −5) and is gone at
+  distance.
+- Neither ambience bed has an audible seam over several minutes (the wind loops at 8 s, the water at
+  6 s).
+- Silent before the first click, correct after it.
+- The mix balance — every `volume` in `manifest.ts` is an untuned starting point.
+- Frame rate still at the vsync cap while walking and running.
 
 ### Task 10: AVG and UI cues — PR-2, blocked
 
