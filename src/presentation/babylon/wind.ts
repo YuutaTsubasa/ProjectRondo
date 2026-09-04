@@ -107,20 +107,20 @@ export function windTime(): number {
  * displacement. The envelope `sin(x) + 0.5*sin(2.3x + 1.7)` peaks at ~1.4999, so a fully-bent tip moves
  * about 1.5x `amplitude`. It is a per-material argument rather than one shared constant because wind is
  * a property of the air (spec §3c: every surface is pushed the same world distance, not scaled by its
- * own size) — but "the same world distance" cannot be one number for both a 0.22-unit flower and a
- * 6-unit tree, so each call site picks the value for its own surface:
- * - grass (`scatter.ts`, 0.5-unit card): 0.06 — peak ~0.09, ~18% of the card's height (~26% on the
- *   smallest 0.7-scaled tufts).
- * - wildflowers (`scatter.ts`, 0.22-unit card): 0.06 — peak ~0.09, ~41% of the card's height.
- * - trees (`trees.ts`, ~6-unit canopy): 0.2 — peak ~0.30, ~5% of tree height. Observed, not derived;
- *   see TREE_WIND_AMPLITUDE for the two sightings that bracket it.
+ * own size) — but "the same world distance" cannot be one number for both a flower's card and a tree's
+ * canopy, so each call site picks the value for its own surface and records the reasoning next to its
+ * own constant, against its own card/canopy size, rather than here where a restated number would drift
+ * out of step with it:
+ * - grass and wildflowers: `SCATTER_WIND_AMPLITUDE` in `scatter.ts`, next to `GRASS_CARD_SIZE` and
+ *   `FLOWER_CARD_SIZE`.
+ * - trees: `TREE_WIND_AMPLITUDE` in `trees.ts`, which also carries the two sightings that bracket it.
  *
- * **Do not tune the trees by matching the grass's proportional lean.** That was tried — 0.6, putting
- * the canopy at ~15% against the grass's ~18% — and the project owner reported it as visibly too much.
- * The reasoning was wrong, not just the number: it treats a tree as a giant blade of grass. A grass
- * card is uniformly flexible along its whole length, whereas a tree's trunk is rigid and only the
- * crown gives, so a real tree in a breeze deflects a few percent of its height where grass bends tens
- * of percent. Matching the two proportions guarantees a tree that looks like it is in a gale.
+ * **Do not tune the trees by matching the grass's proportional lean.** That was tried and the project
+ * owner reported it as visibly too much — see `TREE_WIND_AMPLITUDE` for the value and the report. The
+ * reasoning was wrong, not just the number: it treats a tree as a giant blade of grass. A grass card is
+ * uniformly flexible along its whole length, whereas a tree's trunk is rigid and only the crown gives,
+ * so a real tree in a breeze deflects a few percent of its height where grass bends tens of percent.
+ * Matching the two proportions guarantees a tree that looks like it is in a gale.
  *
  * NOT replicated into the shadow map, and it cannot be: `shadowMap.vertex` exposes only
  * `CUSTOM_VERTEX_DEFINITIONS` — there is no injection point between `positionUpdated` and `worldPos`

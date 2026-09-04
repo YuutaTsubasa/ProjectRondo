@@ -229,7 +229,13 @@ function bendCanopiesWithWind(container: AssetContainer): void {
     // A non-positive extent means the mesh sits entirely at or below its own origin. `applyWind`
     // rejects that outright, and rightly — but here it is a fact about a loaded model rather than a
     // bug in this file, so screen it out and leave that material unswayed instead of failing the load.
-    if (height > 0) applyWind(mat, height, TREE_WIND_AMPLITUDE);
+    // Warned, like every other asset-driven degradation in this file: a swapped GLB can reach this,
+    // and the result — a motionless canopy — is otherwise indistinguishable from wind being broken.
+    if (height > 0) {
+      applyWind(mat, height, TREE_WIND_AMPLITUDE);
+    } else {
+      console.warn(`[trees] '${mat.name}' has a non-positive bounding-box height (${height}) — left unswayed by wind.`);
+    }
   }
 }
 

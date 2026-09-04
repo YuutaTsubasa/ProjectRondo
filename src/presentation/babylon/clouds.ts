@@ -230,22 +230,20 @@ export function createClouds(scene: Scene): void {
  * therefore very easy to ship.
  */
 function cloudTexture(scene: Scene): DynamicTexture {
-  const width = CANVAS_WIDTH;
-  const height = CANVAS_HEIGHT;
-  const tex = new DynamicTexture('cloudLayer', { width, height }, scene, false);
+  const tex = new DynamicTexture('cloudLayer', { width: CANVAS_WIDTH, height: CANVAS_HEIGHT }, scene, false);
   const ctx = tex.getContext();
-  ctx.clearRect(0, 0, width, height);
+  ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
   const rand = rng(11);
   for (let i = 0; i < BLOB_COUNT; i++) {
-    const cx = rand() * width;
+    const cx = rand() * CANVAS_WIDTH;
     // See CLOUD_BAND_BASE_F: canvas fraction maps to elevation as f * 180 - 90, so LARGER f is HIGHER in
     // the sky. This is inverted from the obvious reading and is what the first version got wrong.
-    const cy = height * (CLOUD_BAND_BASE_F + rand() * CLOUD_BAND_SPAN_F);
+    const cy = CANVAS_HEIGHT * (CLOUD_BAND_BASE_F + rand() * CLOUD_BAND_SPAN_F);
     // `cy` is the CENTRE; the gradient below paints out to `r` either side of it, so the band's f
     // bounds are not the alpha's. See CLOUD_BAND_BASE_F for what the shipped draw actually reaches
     // (elevation -2.7..54.6, against 10.6..44.4 for these centres) and why the low end is harmless.
     const r = BLOB_MIN_RADIUS + rand() * BLOB_RADIUS_SPREAD;
-    for (const dx of [-width, 0, width]) {
+    for (const dx of [-CANVAS_WIDTH, 0, CANVAS_WIDTH]) {
       const g = ctx.createRadialGradient(cx + dx, cy, 0, cx + dx, cy, r);
       g.addColorStop(0, `rgba(255,255,255,${CLOUD_ALPHA})`);
       g.addColorStop(1, 'rgba(255,255,255,0)');
