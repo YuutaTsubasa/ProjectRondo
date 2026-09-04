@@ -24,6 +24,9 @@
     letter-spacing: 5px;
     padding: 5px 40px 5px 20px;
     clip-path: polygon(0 0, 100% 0, calc(100% - 18px) 100%, 0 100%);
-    pointer-events: auto;
+    /* Not interactive, and it overlaps the dialogue box's top padding by 14px. With pointer-events
+       enabled it was the topmost hit target in that strip, so clicks there neither advanced the
+       dialogue nor reached the scene behind. */
+    pointer-events: none;
   }
 </style>

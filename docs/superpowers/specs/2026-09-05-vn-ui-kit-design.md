@@ -204,3 +204,24 @@ Alongside it, `@types/node` moved out of the main project into `tsconfig.test.js
 theoretical reach the previous branch parked it as: with `node` in the shared `types` list,
 `ReturnType<typeof setInterval>` in `Line.svelte` resolved to Node's `Timeout` instead of the DOM's
 `number`. `pnpm typecheck` now runs both projects.
+
+## 12. `clip-path` clips the outline too
+
+Round 3 found that the dialogue box had no visible keyboard focus indicator, and had never had one.
+`clip-path` clips an element's entire rendering, outline included; `outline-offset: 4px` puts the
+ring outside the border box, which is exactly the region an inset octagon clip removes. So the ring
+was specified, computed, and never painted — which means round 2's change of its colour from
+`--c-blue` to `--c-blue-deep` improved a ring nobody could see, and the contrast figure recorded for
+it described nothing.
+
+The fix is structural: `.box` no longer carries the clip. A `.pane` layer beneath the content holds
+the glass and the octagon silhouette, leaving `.box` unclipped so its outline paints. Verified by
+applying the ring inline on the running app and screenshotting it, since a synthetic Tab in this
+environment does not drive `:focus-visible`.
+
+Two smaller things from the same round. The nameplate had `pointer-events: auto` while being
+entirely decorative, so the 14px strip where it deliberately overlaps the box was dead in both
+directions — it neither advanced the dialogue nor reached the scene. Section 11's verification
+missed it because the top padding band is precisely where the tag sits. And `tests/app/fonts.test.ts`
+claimed to check "the families the tokens name" while never opening `tokens.css`; it now does, so a
+`--font-*` token whose family has no `@font-face` fails instead of falling back in silence.

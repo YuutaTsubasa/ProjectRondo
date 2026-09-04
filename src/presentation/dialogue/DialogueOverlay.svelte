@@ -74,6 +74,9 @@
       onkeydown={onBoxKeydown}
       aria-label="advance dialogue"
     >
+      <!-- The glass and the octagon silhouette. Separate from .box so .box stays unclipped and can
+           paint its focus outline. -->
+      <div class="pane" aria-hidden="true"></div>
       <!-- The 2px inset ring, drawn as an evenodd clip-path over a solid fill: the outer octagon
            minus an octagon inset by 2px leaves the ring between them. -->
       <div class="ring" aria-hidden="true"></div>
@@ -116,19 +119,28 @@
     align-items: flex-start;
     pointer-events: none;
   }
+  /* The octagon lives on .pane, not here. clip-path clips an element's whole rendering, outline
+     included, so a clipped .box could not paint a focus ring: outline-offset puts the ring outside
+     the border box, which is exactly the region the clip removes. Keeping .box unclipped is what
+     makes the focus indicator visible at all. */
   .box {
     align-self: stretch;
     position: relative;
     box-sizing: border-box;
     min-height: clamp(150px, 20vh, 200px);
     padding: 20px 24px 28px;
+    pointer-events: auto;
+    cursor: pointer;
+    outline: none;
+  }
+  .pane {
+    position: absolute;
+    inset: 0;
     background: var(--surface-glass);
     backdrop-filter: var(--surface-blur);
     -webkit-backdrop-filter: var(--surface-blur);
     clip-path: polygon(18px 0, calc(100% - 18px) 0, 100% 18px, 100% calc(100% - 18px), calc(100% - 18px) 100%, 18px 100%, 0 calc(100% - 18px), 0 18px);
-    pointer-events: auto;
-    cursor: pointer;
-    outline: none;
+    pointer-events: none;
   }
   .ring {
     position: absolute;
