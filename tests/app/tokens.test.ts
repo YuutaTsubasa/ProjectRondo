@@ -8,7 +8,7 @@ const TOKENS = fileURLToPath(new URL('../../src/app/tokens.css', import.meta.url
 const SRC_DIR = fileURLToPath(new URL('../../src/', import.meta.url));
 
 const EXPECTED = [
-  '--c-blue', '--c-blue-soft', '--c-pale', '--c-white', '--c-ink',
+  '--c-blue', '--c-blue-deep', '--c-blue-soft', '--c-pale', '--c-white', '--c-ink',
   '--c-ink-rgb', '--c-white-rgb', '--c-blue-soft-rgb',
   '--font-headline', '--font-body', '--font-display',
   '--surface-glass', '--surface-blur',

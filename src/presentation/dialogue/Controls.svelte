@@ -52,8 +52,16 @@
     transition: color 0.12s ease;
   }
   .controls svg { width: 38px; height: 28px; display: block; }
-  .controls button:hover,
-  .controls button:focus-visible { color: var(--c-blue); outline: none; }
+  /* Hover recolours the label and icon, as the kit's HUD does -- but in --c-blue-deep, since
+     --c-blue on this glass is 2.34:1 and hovering would make the label harder to read, not easier. */
+  .controls button:hover { color: var(--c-blue-deep); }
+  /* Focus needs an indicator of its own. A colour change alone is not one: it disappears for anyone
+     who cannot distinguish the two colours, and it left these buttons with outline:none. */
+  .controls button:focus-visible {
+    color: var(--c-blue-deep);
+    outline: 2px solid var(--c-blue-deep);
+    outline-offset: 2px;
+  }
   /* AUTO's lit state. The dialogue box carries no AUTO indicator in the kit, so this button is the
      only place the mode is visible -- it reads as a filled tile rather than a colour shift. */
   .controls button.active {

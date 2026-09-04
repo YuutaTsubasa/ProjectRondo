@@ -38,7 +38,8 @@
      what indicates "click to advance" once the line is complete, so a caret that outlived the
      reveal would be a second, contradictory affordance. */
   .caret {
-    color: var(--c-blue);
+    /* --c-blue-deep, not --c-blue: the caret is a glyph on the glass, where --c-blue is 2.34:1. */
+    color: var(--c-blue-deep);
     animation: caret-blink 1s steps(1) infinite;
   }
   @keyframes caret-blink {

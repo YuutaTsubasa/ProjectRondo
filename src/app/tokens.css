@@ -8,6 +8,11 @@
  */
 :root {
   --c-blue: #1f45ff;
+  /* A blue dark enough to be TEXT or a focus indicator on --surface-glass. --c-blue itself is
+     2.34:1 there, under both the 4.5:1 text and 3:1 non-text-UI thresholds; this is 5.52:1 at the
+     worst backdrop the glass can produce. Used for the typing caret and the focus rings, which are
+     the places the kit colours blue but which are glyphs and indicators, not fills. */
+  --c-blue-deep: #0a1f6b;
   --c-ink: #0a1440;
   --c-blue-soft: #7aa0ff;
   --c-pale: #eef2ff;

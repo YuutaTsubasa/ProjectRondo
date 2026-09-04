@@ -149,7 +149,8 @@
   }
   .marks span.on { background: var(--c-blue); }
   .hit { cursor: pointer; outline: none; }
-  .hit:focus-visible { outline: 2px solid var(--c-blue); outline-offset: 4px; }
+  /* --c-blue-deep: a focus ring is non-text UI at a 3:1 threshold, and --c-blue is 2.34:1 here. */
+  .hit:focus-visible { outline: 2px solid var(--c-blue-deep); outline-offset: 4px; }
   .advance {
     position: absolute;
     right: 26px;

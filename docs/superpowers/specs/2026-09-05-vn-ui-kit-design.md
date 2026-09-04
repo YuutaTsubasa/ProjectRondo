@@ -163,3 +163,22 @@ One bug found by looking rather than by testing: the timeline node circles were 
 scrolling list's `overflow`, because a node at a negative `left` falls outside its scroll container.
 The spine moved from a border on the list to a pseudo-element on each entry, which also makes it
 scroll with the content.
+
+## 10. `--c-blue-deep`, and the mistake that produced it
+
+Section 8 concluded that `--c-blue` is a fill only, and `tokens.css` says so. The first
+implementation then used it for a typing caret and two focus rings — a glyph and two indicators,
+none of them fills. A review of the PR caught all three.
+
+`--c-blue` is 2.34:1 on the darkest panel this glass can produce, against a 4.5:1 threshold for the
+caret and 3:1 for the focus rings. `--c-blue-deep: #0a1f6b` is **5.52:1** there and still reads as
+blue rather than as ink, so the kit's intent — those elements are blue — survives the fix.
+
+Two related things changed with it. `Controls`' hover moved from `--c-blue` to `--c-blue-deep` for
+the same reason: hovering a label should not make it harder to read. And the focus state on those
+buttons gained a real outline; it previously set `outline: none` and changed only the text colour,
+which is not a focus indicator at all for anyone who cannot separate the two colours.
+
+The lesson is narrow and worth keeping: writing the rule down in `tokens.css` did not stop me from
+breaking it four lines of CSS later. The measurement caught it the first time only because I ran it;
+the second time it took a reviewer.
