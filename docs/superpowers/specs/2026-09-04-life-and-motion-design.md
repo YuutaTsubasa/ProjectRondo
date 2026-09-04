@@ -125,10 +125,15 @@ canopy at ~15% lean against the grass's ~18% — and the project owner reported 
 
 ### 3d. Ownership and time
 
-`src/presentation/babylon/wind.ts` owns all of it and exports two things: the plugin, and
-`createWind(scene)`, which registers **one** `scene.onBeforeRenderObservable` handler that accumulates
-`engine.getDeltaTime()` into the shared time value every plugin instance binds. Deltas, not
-`performance.now()`, so the field stops when the scene stops rather than jumping on resume.
+`src/presentation/babylon/wind.ts` owns all of it and exports three things. `applyWind(material,
+bendHeight, amplitude)` attaches the material plugin — the plugin class itself is module-private, so
+that call is the only way in, and it is where the `bendHeight`/`amplitude` validation lives.
+`createWind(scene)` registers **one** `scene.onBeforeRenderObservable` handler that accumulates
+`engine.getDeltaTime()` into the shared time value every plugin instance binds; it is the only writer.
+`windTime()` is the read-only accessor on that same value, and it is how the shared clock reaches
+`clouds.ts` — the clouds set `uOffset` from it rather than integrating an elapsed time of their own, so
+P4's two moving effects cannot drift apart across a scene teardown. Deltas, not `performance.now()`, so
+the field stops when the scene stops rather than jumping on resume.
 
 `scatter.ts` and `trees.ts` gain one call each and know nothing about the shader.
 
@@ -172,9 +177,13 @@ A second inward-facing sphere just inside the skydome (`environment.ts`'s `sky` 
   under Git LFS**.
 - `fogEnabled = false` and `infiniteDistance = true`, for exactly the reason `environment.ts` records
   for the skydome: at that distance scene fog would flatten it into a sheet of fog colour.
-- Drift by setting `uOffset` per frame from the same accumulated time as §3d. Which way the sky then
-  travels is decided by the sign of the drift constant and settled by looking: clouds crossing the sky
-  against the grass would read as two unrelated effects.
+- Drift by setting `uOffset` per frame from the same accumulated time as §3d. The sign of the drift
+  constant decides which way the sky rotates about +Y, and it is **not** settled by looking for
+  agreement with the grass. Under the azimuthal scroll this section arrives at below, there is no
+  single "with the grass" or "against the grass" to see: either sign agrees with the wind's bearing at
+  two viewing azimuths and runs crosswise at the two at right angles to them, so negating it only
+  swaps which pair agrees. `clouds.ts`'s `DRIFT_SPEED` doc says the same and closes with "Don't chase
+  agreement here."
 
 The cloud texture must be drawn to **tile seamlessly in u**, or the drift will show a visible seam
 sweeping past on a loop.

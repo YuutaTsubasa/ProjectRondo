@@ -29,7 +29,10 @@ const DRIFT_SPEED = 0.004;
 /**
  * Where the cloud band sits on the texture: `BASE_F` is the band's LOWEST elevation and `SPAN_F` the
  * height it covers, both as fractions of canvas height (hence the `_F` — they are the `f` of the
- * mapping below). The band is f 0.55..0.75, elevation 9..45 degrees.
+ * mapping below). They bound blob **centres**, not painted alpha: f 0.55..0.75 is elevation 9..45
+ * degrees for the centres, but `cloudTexture` paints each blob out to its own radius either side of
+ * its centre, so the texture carries alpha well outside that — see "What the alpha actually reaches"
+ * below for the real extremes and for why the sub-horizon part of it is not the bug it looks like.
  *
  * These were `CLOUD_BAND_TOP` and `CLOUD_BAND_SPAN`. "TOP" was only correct read as a canvas row
  * index — under the mapping below, larger f is HIGHER, so the smaller of the two bounds is the band's
@@ -54,19 +57,64 @@ const DRIFT_SPEED = 0.004;
  * the real mapping that is elevation **-81 to 0 degrees** — at and below the horizon, buried under the
  * world, which is why the layer was invisible in play.
  *
- * 0.55..0.75 is elevation 9..45 degrees. The gameplay camera sits at about -1.8 degrees of pitch with
- * a 0.8 rad vertical FOV, so it frames sky from roughly 10 to 23 degrees, and the mountain ring
- * occludes the bottom of that. Measured coverage of the shipped values, as the percentage of each
- * elevation ring carrying any cloud (and the mean summed RGB delta against a cloudless render, where
- * ~300 would be opaque white over dark sky):
+ * **What the alpha actually reaches.** A blob's radius is `BLOB_MIN_RADIUS + rand() * BLOB_RADIUS_SPREAD`
+ * — up to 46 px, which is 0.09 of CANVAS_HEIGHT — and it is painted either side of the centre, so the
+ * f 0.55..0.75 above is not where the picture ends. Enumerating the shipped draw (the exact `rng(11)`
+ * sequence `cloudTexture` consumes) gives, for the 20 blobs actually painted:
+ *
+ * |               | lowest                       | highest                      |
+ * | blob centres  | f 0.5590, elevation 10.6 deg | f 0.7469, elevation 44.4 deg |
+ * | painted alpha | f 0.4848, elevation -2.7 deg | f 0.8032, elevation 54.6 deg |
+ *
+ * So the layer **does** put alpha below the horizon: a fringe from 0 down to -2.7 degrees, at most
+ * 0.076 alpha on the horizon row itself and falling linearly to nothing (a radial gradient's outer
+ * stop is transparent, so those extremes are where alpha reaches zero, not where it stops being
+ * faint). It is there at t = 0 and at every other phase, since a u scroll cannot move a texel to
+ * another elevation.
+ *
+ * **No constant is moved for that fringe**, because it is never drawn over anything: it sits behind
+ * opaque geometry from everywhere the player can stand. `terrain.ts`'s mountain ring is at radius 85
+ * with tops at 18..44 world Y over a skirt at -4, and the barrier confines the player to a radius of
+ * about 42, so from any reachable point the ridge alone fills every view direction from below up to at
+ * least ~7 degrees of elevation, and the terrain fills what is left. The bug this file's rationale
+ * guards against was the whole band's CENTRES at -81..0 degrees, leaving nothing above the ridge at
+ * all — not a transparent edge two degrees under it. Raising BASE_F to lift the fringe clear would
+ * invalidate every row of the coverage table below for no visible gain.
+ *
+ * Measured coverage of the shipped values, as the percentage of each elevation ring carrying any cloud
+ * (and the mean summed RGB delta against a cloudless render, where ~300 would be opaque white over
+ * dark sky):
  *
  * | elevation | 15 | 20 | 25 | 30 | 35 | 40 | 45 |
  * | coverage  | 5% | 33% | 40% | 34% | 36% | 29% | 20% |
  * | strength  | 1  | 19 | 30 | 26 | 27 | 24 | 14 |
  *
+ * **That table stops at 45 degrees and the alpha does not** — it runs to 54.6. Nothing above 45 was
+ * ever put under the probe, so this file says nothing about what 45..55 degrees looks like, and the
+ * camera can be aimed there (see below). Extend the table next time the scene is run.
+ *
  * **That table describes every moment of the drift, not just t = 0** — but only because the drift is a
  * scroll in u, which slides each elevation ring along itself and so cannot move a cloud to a different
  * elevation. See {@link createClouds} for why no other kind of drift is available on this dome.
+ *
+ * **What the camera frames is not a fixed strip.** `followCamera.ts` drives pitch from the mouse and
+ * clamps it to [-1.2, 0.6] rad (`minPitch`/`maxPitch`), so the band has to survive a range, not a
+ * resting pose. With that file's distance 5, height 1.2, aimHeight 0.3 and `capsule.ts`'s CAPSULE_HALF
+ * of 1.0, the view axis's elevation is `atan2(5*sin(pitch) - 0.9, 5*cos(pitch))`, and Babylon's default
+ * 0.8 rad vertical FOV puts the frame edges 22.9 degrees either side of it:
+ *
+ * | pitch                          | view axis | frame bottom..top |
+ * | 0.15 (`initialPitch`, at rest) | -1.8 deg  | -24.7 .. 21.1     |
+ * | 0.6 (`maxPitch`), flat ground  | 9.6 deg   | -13.3 .. 32.5     |
+ * | 0.6, camera over lower ground  | 25.0 deg  | 2.1 .. 47.9       |
+ *
+ * The two `maxPitch` rows differ because `groundUnderCamera` shoves the camera up when a rearward pitch
+ * would sink it into the terrain, which tips the view axis back down; on flat ground that clamp bites
+ * for any pitch above ~0.33 rad, and it stops biting wherever the ground behind the player falls away.
+ * So the top of frame reaches 32.5 degrees normally and 47.9 at worst — past the 45-degree centre
+ * ceiling, which is the other reason the coverage table wants rows above 45. Downward there is sky in
+ * frame all the way to the horizon at every pitch: the ~10-degree effective floor is the mountain
+ * ring's occlusion, not the FOV's.
  *
  * Re-measure with that probe after touching any constant here; do not reason about the mapping.
  */
@@ -102,8 +150,9 @@ const CLOUD_ALPHA = 0.4;
  *
  * **Why the drift is a u scroll and not a directional one.** Scrolling u is a rotation of the pattern
  * about +Y, and that is the only rotation a band on a dome survives. The band is an annulus about +Y
- * at elevation 9..45 degrees ({@link CLOUD_BAND_BASE_F}); under a rotation by theta about a horizontal
- * axis `(ax, 0, az)` a point `(px, y, pz)`'s height becomes `y*cos(theta) - (ax*px + az*pz)*sin(theta)`,
+ * at elevation 9..45 degrees by blob centre ({@link CLOUD_BAND_BASE_F}); under a rotation by theta
+ * about a horizontal axis `(ax, 0, az)` a point `(px, y, pz)`'s height becomes
+ * `y*cos(theta) - (ax*px + az*pz)*sin(theta)`,
  * which at theta = pi is just `-y` — every cloud below the horizon. That version shipped, about the axis
  * perpendicular to the wind so that every point of the dome travelled along the wind's bearing from
  * any viewing angle, and it emptied the sky once per cycle. Sampling the band (elevation 9..45 every
@@ -113,10 +162,12 @@ const CLOUD_ALPHA = 0.4;
  * | horizontal axis  | 100% | 73% | 63% | 62% | 51% | 13% | 0% |
  *
  * The same sampler over the shipped scroll, at all 72 points of the 250 s loop: **100% above the
- * horizon at every one**, with the band's elevation extremes exactly 9 and 45 throughout. That is
+ * horizon at every one**, with the sampled annulus's extremes exactly 9 and 45 throughout. That is
  * invariant by construction rather than by luck — u is the sphere's azimuth, so the scroll moves each
  * texel along its own elevation ring — which is also why {@link CLOUD_BAND_BASE_F}'s coverage table holds
- * for the whole loop instead of only for the first frame.
+ * for the whole loop instead of only for the first frame. The same invariance cuts the other way for
+ * the sub-horizon alpha fringe {@link CLOUD_BAND_BASE_F} records: the scroll neither creates it nor
+ * clears it, so it is exactly as large at every phase as it is at t = 0.
  *
  * The cost, stated so nobody re-attempts the fix: an azimuthal drift reads as travelling along the
  * wind's bearing only from the two viewing azimuths where the ring's tangent IS that bearing, and
@@ -190,6 +241,9 @@ function cloudTexture(scene: Scene): DynamicTexture {
     // See CLOUD_BAND_BASE_F: canvas fraction maps to elevation as f * 180 - 90, so LARGER f is HIGHER in
     // the sky. This is inverted from the obvious reading and is what the first version got wrong.
     const cy = height * (CLOUD_BAND_BASE_F + rand() * CLOUD_BAND_SPAN_F);
+    // `cy` is the CENTRE; the gradient below paints out to `r` either side of it, so the band's f
+    // bounds are not the alpha's. See CLOUD_BAND_BASE_F for what the shipped draw actually reaches
+    // (elevation -2.7..54.6, against 10.6..44.4 for these centres) and why the low end is harmless.
     const r = BLOB_MIN_RADIUS + rand() * BLOB_RADIUS_SPREAD;
     for (const dx of [-width, 0, width]) {
       const g = ctx.createRadialGradient(cx + dx, cy, 0, cx + dx, cy, r);

@@ -25,10 +25,13 @@ const SPEED = 1.1;
  * the phase is an identity, not an approximation — no seam, no drift.
  *
  * It has to be wrapped because the phase reaches the shader through a **float32** uniform while the
- * clock behind it only grows. At 8 h of uptime the phase is ~3.2e4 rad, where a float32 ULP is 2^-8 ≈
- * 0.0039 rad against a 144 Hz frame's 1.1/144 ≈ 0.0076 rad step — two ULP, so the gust already moves
- * in visible stair-steps; by ~24 h the step is about one ULP and the wind quantises into a stall.
- * Wrapping holds the bound value under 63, where a ULP is ~4e-6 rad, for any uptime.
+ * clock behind it only grows. A float32's ULP at a value in `[2^e, 2^(e+1))` is `2^(e-23)`, so at 8 h
+ * of uptime the phase is `28800 * 1.1` = 31680 rad, which lies in [2^14, 2^15) and therefore steps by
+ * 2^-9 ≈ 0.00195 rad — against a 144 Hz frame's 1.1/144 ≈ 0.00764 rad, that is **3.9 ULP**, so the
+ * gust already moves in visible stair-steps. By 24 h the phase is 95040 rad, in [2^16, 2^17), ULP
+ * 2^-7 ≈ 0.0078: the same frame step is now 0.98 ULP and the wind quantises into a stall. Wrapping
+ * holds the bound value under `20*PI` ≈ 62.8, in [2^5, 2^6), where a ULP is 2^-18 ≈ 3.8e-6 rad, for
+ * any uptime.
  *
  * Change the 2.3 in the shader and this constant is wrong.
  *
