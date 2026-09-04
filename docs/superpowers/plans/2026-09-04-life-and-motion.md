@@ -1207,10 +1207,8 @@ Paired A/B, each item disabled against the shipped scene, in the browser console
   await sleep(300);
 
   const clouds = scene.getMeshByName('clouds');
-  const wings = scene.meshes.filter((m) => m.name.startsWith('butterfly_'));
   const variants = {
     clouds: { on: () => (clouds.setEnabled(false)), off: () => clouds.setEnabled(true) },
-    butterflies: { on: () => wings.forEach((w) => w.setEnabled(false)), off: () => wings.forEach((w) => w.setEnabled(true)) },
   };
 
   const BATCH = 40;
@@ -1238,23 +1236,32 @@ Paired A/B, each item disabled against the shipped scene, in the browser console
   }
   const stats = (arr) => { const s = [...arr].sort((x, y) => x - y); return { median: +s[Math.floor(s.length / 2)].toFixed(3), p25: +s[Math.floor(s.length * 0.25)].toFixed(3), p75: +s[Math.floor(s.length * 0.75)].toFixed(3) }; };
   engine.runRenderLoop(() => scene.render());
-  return { fullFrame: stats(fulls), clouds: stats(pairs.clouds), butterflies: stats(pairs.butterflies) };
+  return { fullFrame: stats(fulls), clouds: stats(pairs.clouds) };
 })()
 ```
+
+**Butterflies dropped from this script, not just from the checklist below.** The layer was cut (see
+the note at the top of this page) and nothing in the shipped scene is named `butterfly_*`, so an A/B
+toggle over that filter would enable/disable zero meshes: `pairs.butterflies` would be noise around
+zero, not a measurement, and writing it into spec §10 would record a fabricated cost for a layer that
+does not exist. This is unlike the blanket "history, not work to do" note above — Step 1 has not run
+yet, so leaving the dead variant in place and merely annotating it would ship a live instruction that
+produces a bad number. Removing it here is the correction; the note at the top of the page still
+covers every already-executed block that mentions a butterfly.
 
 Wind cannot be A/B'd this way — disabling the plugin recompiles the shader, and spec §2's predecessor
 records that measuring a recompile and calling it a feature cost is exactly how the last session
 produced an impossible number. Get the wind's cost as the residual instead: compare `fullFrame` here
 against the **5.10 ms** shipped-scene median recorded in `2026-08-25-shadow-quality-design.md` §7,
-minus the clouds and butterflies deltas, and state plainly that it is a residual across two sessions
-and therefore weaker evidence than the two paired deltas.
+minus the clouds delta, and state plainly that it is a residual across two sessions and therefore
+weaker evidence than the paired delta.
 
 - [ ] **Step 2: Write §10 into the spec**
 
-Add a `## 10. Measured` section recording, for each of the three items: the paired median with p25/p75,
-or the words **"unresolved — below the ~0.4 ms floor"** where that is what the data says. Quote the
-full-frame figure and the 60 fps headroom that remains. Do not report a number whose IQR straddles
-zero as if it were positive; say it straddles zero.
+Add a `## 10. Measured` section recording, for each of the two items (wind's residual, clouds' paired
+delta): the paired median with p25/p75, or the words **"unresolved — below the ~0.4 ms floor"** where
+that is what the data says. Quote the full-frame figure and the 60 fps headroom that remains. Do not
+report a number whose IQR straddles zero as if it were positive; say it straddles zero.
 
 - [ ] **Step 3: Walk the M4 "world done" checklist**
 

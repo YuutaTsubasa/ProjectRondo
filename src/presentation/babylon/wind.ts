@@ -18,11 +18,26 @@ const SPATIAL_FREQ = 0.35;
 const SPEED = 1.1;
 
 /**
+ * The shader gust envelope's second-sine multiplier, kept as an exact fraction rather than the decimal
+ * 2.3 so {@link GUST_PERIOD} can be *computed* from it instead of separately restated. `getCustomCode`
+ * below interpolates this same constant into the GLSL template literal — a JS value, not prose — so
+ * the shader and {@link GUST_PERIOD} cannot drift apart the way a hand-copied `2.3` in both places
+ * could. Reduced already (gcd(23, 10) = 1), which is what makes the period below exact.
+ */
+const GUST_HARMONIC_NUM = 23;
+const GUST_HARMONIC_DEN = 10;
+/** = 2.3. The value that actually reaches the shader; see {@link GUST_HARMONIC_NUM}. */
+const GUST_HARMONIC = GUST_HARMONIC_NUM / GUST_HARMONIC_DEN;
+
+/**
  * The gust envelope's exact period in phase radians, used to wrap the phase before it is bound.
  *
- * The envelope is `sin(t) + 0.5*sin(2.3t + 1.7)`. 2.3 = 23/10, so the two terms come back into step
- * after `20*PI` (10 turns of the first sine, 23 of the second) and subtracting a multiple of it from
- * the phase is an identity, not an approximation — no seam, no drift.
+ * The envelope is `sin(t) + 0.5*sin(GUST_HARMONIC*t + 1.7)`. Because `GUST_HARMONIC` is the reduced
+ * fraction 23/10, the two terms come back into step after `2*PI*10` (10 turns of the first sine, 23 of
+ * the second — the denominator is exactly the turn count), and subtracting a multiple of it from the
+ * phase is an identity, not an approximation — no seam, no drift. This is *why* the fraction form
+ * above exists rather than the bare decimal: the period falls out of the denominator instead of being
+ * a second number someone has to keep matching to the first.
  *
  * It has to be wrapped because the phase reaches the shader through a **float32** uniform while the
  * clock behind it only grows. A float32's ULP at a value in `[2^e, 2^(e+1))` is `2^(e-23)`, so at 8 h
@@ -33,15 +48,13 @@ const SPEED = 1.1;
  * holds the bound value under `20*PI` ≈ 62.8, in [2^5, 2^6), where a ULP is 2^-18 ≈ 3.8e-6 rad, for
  * any uptime.
  *
- * Change the 2.3 in the shader and this constant is wrong.
- *
  * `clouds.ts` reads the same clock and takes its own wrap, `% 1` on the texture offset. It is not
  * exempt and the scale factor is no reason to think it would be: the step-to-ULP ratio is
  * `(V / 2^exponent) * 2^23 * dt / t`, which the constant drops out of, so 0.004 buys nothing. At the
  * 8 h above its offset steps 3.6 ULP against this phase's 3.9 — the same stair-stepping at the same
  * hour. An earlier version of this comment claimed the scaling excused it; it does not.
  */
-const GUST_PERIOD = 20 * Math.PI;
+const GUST_PERIOD = 2 * Math.PI * GUST_HARMONIC_DEN;
 
 /** The single source of wind time, in seconds. Every plugin instance binds this same value, so the
  *  whole field shares one phase; nothing else may write it. `createWind` is the only writer — the
@@ -188,9 +201,10 @@ uniform vec2 windBend;
   windW *= windW;
   // Phase from world XZ, so neighbours are out of step and gusts travel across the field.
   float windTheta = dot(worldPos.xz, windPhase.xy) * windPhase.z - windPhase.w;
-  // Two incommensurate sines: one alone reads as a metronome. The 2.3 sets GUST_PERIOD — change it
-  // there too, or the phase wrap stops being an identity and the field jumps once per wrap.
-  float windGust = sin(windTheta) + 0.5 * sin(windTheta * 2.3 + 1.7);
+  // Two incommensurate sines: one alone reads as a metronome. The harmonic below is GUST_HARMONIC
+  // interpolated from JS, not a hand-copied literal — it sets GUST_PERIOD, and the two stay in step
+  // because both come from the same TS constant rather than two numbers someone has to keep matching.
+  float windGust = sin(windTheta) + 0.5 * sin(windTheta * ${GUST_HARMONIC} + 1.7);
   // XZ only. Vertical motion separates a card from its own ground contact and it has no
   // thickness to hide the gap.
   worldPos.xz += windPhase.xy * (windGust * windBend.x * windW);

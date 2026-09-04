@@ -216,7 +216,17 @@ const FLOWER_CARD_SIZE = 0.22;
 const ROCK_COLLIDER_MIN_SCALE = 0.75; // only the biggest rocks (top ~quarter) block the player
 
 /** Wind amplitude for grass and flowers, in WORLD units — see `applyWind`'s doc comment for what this
- *  scale means and why it differs from the trees' value. */
+ *  scale means and why it differs from the trees' value.
+ *
+ *  Peak displacement is ~1.5x amplitude (see `applyWind`): at 0.06, peak ~0.09. Against
+ *  `GRASS_CARD_SIZE` (0.5) that is a ~18% lean; against `FLOWER_CARD_SIZE` (0.22) that is ~41%. One
+ *  amplitude serves both on purpose — wind is a property of the air, pushing every surface the same
+ *  world distance rather than scaling by its own size (spec §3c) — so the flower's larger proportional
+ *  lean is the expected shape of that rule, not a mismatch to fix.
+ *
+ *  **Untuned**: 0.06 is the value this was written with; nobody has watched grass or flowers move. Both
+ *  figures above are arithmetic, not an observation, on the same footing as `SPATIAL_FREQ`/`SPEED` in
+ *  `wind.ts`. Re-tune by looking at the running scene, not by chasing a target percentage. */
 const SCATTER_WIND_AMPLITUDE = 0.06;
 
 /** Invisible static sphere colliders for the large rocks only, and only where the player can reach
