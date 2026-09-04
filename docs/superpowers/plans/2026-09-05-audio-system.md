@@ -1047,10 +1047,19 @@ export async function loadSoundBank(audio: GameAudio): Promise<SoundBank> {
       if (options.position) sound.spatial.position = options.position;
       sound.play({ loop: true, volume: spec.volume * (options.gain ?? 1) });
       return {
-        setVolume: (value, fadeSeconds = 0) =>
-          // AudioV2 throws when a ramp is requested while one is in progress, so a zero-length change
-          // is set outright rather than ramped over the default 10 ms.
-          fadeSeconds > 0 ? sound.setVolume(value, { duration: fadeSeconds }) : (sound.volume = value),
+        setVolume: (value, fadeSeconds = 0) => {
+          // AudioV2 throws when a ramp is requested while one is already in progress. A zero-length
+          // change is therefore set outright rather than ramped over the default 10 ms, and the
+          // catch covers the other half of the same hazard: two fades landing on one sound inside
+          // each other's window. Snapping to the value is the right degradation — a volume change
+          // is never worth throwing out of a render frame, or into App.svelte's uncaught `.then`.
+          try {
+            if (fadeSeconds > 0) sound.setVolume(value, { duration: fadeSeconds });
+            else sound.volume = value;
+          } catch {
+            sound.volume = value;
+          }
+        },
         stop: () => sound.stop(),
       };
     },
