@@ -149,7 +149,8 @@ Three deliberate deviations, each measured or reasoned rather than preferred:
   with reproducing it: the kit's `mix-blend-mode: multiply` cannot work from inside `.overlay`,
   whose `z-index: 10` creates a stacking context that isolates the blend from the canvas; and once
   rendered as plain alpha over a live 3D hub it read as a filter over the whole game rather than as
-  UI. The user asked for it gone, and it is. The scanlines remain.
+  UI. The scanlines went the same way for the same reason. Nothing of the UI's is drawn over the
+  scene now: the overlay is the panels and nothing else.
 
 The kit's HUD icons **are** shipped, in the `hud` data block at the foot of `VN Screens - Light`
 (`{ label, icon: svg(path) }`), and are used verbatim for AUTO, SKIP and LOG. An earlier draft of

@@ -54,10 +54,6 @@
 
 <!-- Transparent layer over the live 3D hub — only the panels are opaque, so the scene shows through. -->
 <div class="overlay">
-  <!-- Scanlines only. The kit also washes the scene in blue, but that reads as a filter over the
-       whole game rather than UI, so it is left off. -->
-  <div class="scanlines" aria-hidden="true"></div>
-
   <!-- Standing character 立繪, behind the dialogue box and over the live 3D hub. -->
   <Portrait portrait={session.portrait} />
 
@@ -105,12 +101,6 @@
     pointer-events: none; /* let clicks fall through to the 3D canvas except on the panels below */
     font-family: var(--font-body);
     color: var(--c-ink);
-  }
-  .scanlines {
-    position: absolute;
-    inset: 0;
-    background: repeating-linear-gradient(to bottom, rgba(var(--c-ink-rgb), 0.1) 0 1px, transparent 1px 3px);
-    pointer-events: none;
   }
   /* Bottom-anchored dialogue dock. Left inset clears the standing portrait, as in the kit's
      composition (box at left:140 of 960; the portrait stands to its left). */
