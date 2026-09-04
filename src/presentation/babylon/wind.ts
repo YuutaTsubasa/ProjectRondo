@@ -7,10 +7,14 @@ import { WIND_DIRECTION_X, WIND_DIRECTION_Z } from '../../domain/hub/windDirecti
 /** Radians of phase per world unit along the wind direction. The visible result is the wavelength of
  *  a gust travelling over the field: 2*PI / 0.35 is ~18 units, so roughly five gusts span the 100-unit
  *  hub. Larger values shorten the wave until neighbouring tufts fight each other and it reads as noise
- *  rather than wind. Tuned in the browser (Step 5); re-tune there, not by arithmetic. */
+ *  rather than wind.
+ *
+ *  **Untuned**: 0.35 is the value this was written with, and nobody has watched the field move. The
+ *  wavelength above is arithmetic, not an observation. Re-tune by looking at the running scene. */
 const SPATIAL_FREQ = 0.35;
 
-/** Radians of phase per second — how fast a gust travels. */
+/** Radians of phase per second — how fast a gust travels. Untuned, on the same footing as
+ *  {@link SPATIAL_FREQ}. */
 const SPEED = 1.1;
 
 /** The single source of wind time, in seconds. Every plugin instance binds this same value, so the
@@ -25,8 +29,15 @@ const field = { time: 0 };
  *
  * Time accumulates from `getDeltaTime()` rather than `performance.now()`: a wall clock keeps running
  * while the scene does not, so a paused or backgrounded tab would jump the field forward on resume.
+ *
+ * The clock is module-global but the scene it clocks is disposable — `App.svelte`'s unmount disposes
+ * the engine and a remount builds a fresh scene against this same module instance — so it is reset
+ * here rather than merely accumulated. Without the reset the second scene would open at whatever the
+ * first one had reached: the grass mid-gust, and the cloud dome at an arbitrary point of its 250 s
+ * loop. Resetting is safe precisely because this function is the clock's only writer.
  */
 export function createWind(scene: Scene): void {
+  field.time = 0;
   scene.onBeforeRenderObservable.add(() => {
     field.time += scene.getEngine().getDeltaTime() / 1000;
   });

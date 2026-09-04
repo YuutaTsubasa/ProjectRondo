@@ -2,13 +2,18 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Give the hub wind-swept grass and trees, drifting clouds, and butterflies — the last phase of M4.
+**Goal:** Give the hub wind-swept grass and trees and drifting clouds — the last phase of M4.
+
+> **Butterflies were cut on 2026-09-04, after Tasks 4 and 5 had been built and merged.** The owner
+> found them startling rather than calming, which is the opposite of the DoD's own bar; the spec's §5
+> records what was built and why it went, and the roadmap's P4 DoD was amended the same day. **Tasks 4
+> and 5 below are history, not work to do**, and neither is anything else on this page that mentions a
+> butterfly. Everything up to and including Task 3, plus Tasks 6 and 7, is the shipped phase.
 
 **Architecture:** One `MaterialPluginBase` injects a vertex displacement into the three existing
 `StandardMaterial`s (grass, flowers, trees) at `CUSTOM_VERTEX_UPDATE_WORLDPOS`, driven by a single
 shared accumulated time. Clouds are a second inward-facing dome with a procedurally drawn, u-tiling
-alpha texture whose `uOffset` advances from that same time. Butterflies are billboards positioned each
-frame from a pure, Vitest-covered flight path in `src/domain/hub/butterfly.ts`.
+alpha texture whose `uOffset` advances from that same time.
 
 **Tech Stack:** TypeScript, `@babylonjs/core` 9.21.0 (deep subpath imports), Svelte 5, Vitest, pnpm.
 

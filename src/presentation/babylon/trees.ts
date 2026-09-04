@@ -78,8 +78,7 @@ const TRUNK_HEIGHT = 4;
  * means (it is the per-sine scale; peak displacement is ~1.5x it, because the gust envelope
  * `sin(x) + 0.5*sin(2.3x + 1.7)` peaks at ~1.4999).
  *
- * Bracketed by two sightings rather than derived, and neither of them is mine — I have never had a
- * working Browser pane on this branch:
+ * Bracketed by two sightings rather than derived:
  *
  * - **0.06** (peak ~0.09, ~1.5% of a ~6-unit tree): a reviewer's judgement that the canopy would not
  *   read as moving at all. Never seen on screen by anyone.
@@ -133,6 +132,9 @@ export async function loadTrees(scene: Scene, shadows: Shadows): Promise<void> {
   // Swap once on the container, before instantiation: every clone copies the container mesh's
   // material reference, so doing this per tree would rebuild the same material once per spot.
   retargetMaterials(scene, container);
+  // Where the canopies get their sway. Must run after the swap (it bends the StandardMaterials the
+  // swap produced) and, like the swap, before instantiation, so every clone shares one bent material.
+  bendCanopiesWithWind(container);
 
   SPOTS.forEach(([x, z, yaw, scale], i) => {
     const { rootNodes } = container.instantiateModelsToScene((name) => `tree_${i}_${name}`, false, {
@@ -175,25 +177,6 @@ function retargetMaterials(scene: Scene, container: AssetContainer): void {
     const swap = mesh.material && replacements.get(mesh.material);
     if (swap) mesh.material = swap;
   }
-  // Bend height per material, in LOCAL space, taken from the tallest mesh that uses it — the shader
-  // weights by the raw `position` attribute, which is what a bounding box's `maximum` is expressed
-  // in. Measured from the container's own meshes, before instantiation and before `root.scaling`
-  // multiplies everything by BASE_SCALE: tree.glb is normalized to ~1 unit tall and that
-  // normalization is what this reads. A hard-coded 6 here would weight the whole canopy at ~0 and
-  // the trees would stand still.
-  const bendHeights = new Map<StandardMaterial, number>();
-  for (const mesh of container.meshes) {
-    const mat = mesh.material;
-    if (!(mat instanceof StandardMaterial) || mesh.getTotalVertices() === 0) continue;
-    const top = mesh.getBoundingInfo().boundingBox.maximum.y;
-    bendHeights.set(mat, Math.max(bendHeights.get(mat) ?? 0, top));
-  }
-  for (const [mat, height] of bendHeights) {
-    // A non-positive extent means the mesh sits entirely at or below its own origin; dividing by it
-    // in the shader would be a divide-by-zero or an inverted weight. Skip rather than sway wrongly.
-    if (height > 0) applyWind(mat, height, TREE_WIND_AMPLITUDE);
-  }
-
   container.materials = container.materials.map((m) => replacements.get(m) ?? m);
 
   // Warn BEFORE the empty-map guard would have returned: the case where *nothing* converted is the
@@ -221,6 +204,32 @@ function retargetMaterials(scene: Scene, container: AssetContainer): void {
   // which the replacements now sample. The meshes are already safe — rebinding above cleared each old
   // material's `meshMap`.
   for (const source of replacements.keys()) source.dispose(false, false);
+}
+
+/**
+ * Attaches the shared wind to the container's tree materials, so every canopy instantiated from it
+ * sways. Runs on the container, before instantiation, for the same reason the material swap does: the
+ * clones share these materials, so bending them once bends every tree.
+ *
+ * Bend height per material, in LOCAL space, taken from the tallest mesh that uses it — the shader
+ * weights by the raw `position` attribute, which is what a bounding box's `maximum` is expressed in.
+ * Read from the container's own meshes, before `root.scaling` multiplies everything by BASE_SCALE:
+ * tree.glb is normalized to ~1 unit tall and that normalization is what this reads. A hard-coded 6
+ * here would weight the whole canopy at ~0 and the trees would stand still.
+ */
+function bendCanopiesWithWind(container: AssetContainer): void {
+  const bendHeights = new Map<StandardMaterial, number>();
+  for (const mesh of container.meshes) {
+    const mat = mesh.material;
+    if (!(mat instanceof StandardMaterial) || mesh.getTotalVertices() === 0) continue;
+    const top = mesh.getBoundingInfo().boundingBox.maximum.y;
+    bendHeights.set(mat, Math.max(bendHeights.get(mat) ?? 0, top));
+  }
+  for (const [mat, height] of bendHeights) {
+    // A non-positive extent means the mesh sits entirely at or below its own origin; dividing by it
+    // in the shader would be a divide-by-zero or an inverted weight. Skip rather than sway wrongly.
+    if (height > 0) applyWind(mat, height, TREE_WIND_AMPLITUDE);
+  }
 }
 
 /**

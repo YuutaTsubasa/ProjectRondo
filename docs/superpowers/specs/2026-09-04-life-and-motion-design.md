@@ -154,11 +154,24 @@ A second inward-facing sphere just inside the skydome (`environment.ts`'s `sky` 
   under Git LFS**.
 - `fogEnabled = false` and `infiniteDistance = true`, for exactly the reason `environment.ts` records
   for the skydome: at that distance scene fog would flatten it into a sheet of fog colour.
-- Drift by advancing `uOffset` per frame from the same accumulated time as §3d, in the same direction
-  as the wind — clouds crossing the sky against the grass would read as two unrelated effects.
+- Drift by setting `uOffset` per frame from the same accumulated time as §3d. Which way the sky then
+  travels is decided by the sign of the drift constant and settled by looking: clouds crossing the sky
+  against the grass would read as two unrelated effects.
 
 The cloud texture must be drawn to **tile seamlessly in u**, or the drift will show a visible seam
 sweeping past on a loop.
+
+**The drift is a u scroll and cannot be anything else.** A u scroll is a rotation of the pattern about
++Y, and that is the only rotation the cloud band survives — the band is an annulus about +Y, so any
+rotation with a horizontal component carries it below the horizon and, at half a turn, inverts it
+entirely. That shipped: the drift was briefly a dome rotation about the horizontal axis perpendicular
+to the wind, so that every point of the dome travelled along the wind's true bearing from any viewing
+angle. It empties the sky once per cycle — sampled over the band, the fraction still above the horizon
+falls 100% → 51% → 0% across 126 s. `clouds.ts`'s `createClouds` carries the measurement.
+
+The price is that the drift is azimuthal: it reads as travelling along the wind's bearing from the two
+viewing azimuths where the ring's tangent is that bearing, and crosswise from the two at right angles
+to them. **That is accepted**, and it is why the wind direction is not an input to the clouds at all.
 
 This is the one part of P4 with a real fill cost, and §2's floor applies: it gets a paired measurement.
 
@@ -188,9 +201,12 @@ The roadmap's P4 DoD and its §6 "world done" checklist were amended the same da
 ambient-life clause, with the same reasoning recorded there. The implementation is in git history
 (commits `432a5da` and `22d3915`, removed by `b0bb07b`) if it is ever wanted.
 
-One piece of it survives and is still load-bearing: `src/domain/hub/windDirection.ts`. It was
-extracted so the shader and the butterfly path could share one definition of the wind direction
-instead of hand-keeping two copies; the cloud dome now holds up the other end of that share.
+One piece of it survives: `src/domain/hub/windDirection.ts`. It was extracted so the shader and the
+butterfly path could share one definition of the wind direction instead of hand-keeping two copies.
+With the path gone the shader is its only reader — the clouds do not take a direction (§4) — so it is
+now a single-consumer constant, kept in the domain because the wind's bearing is a fact about the hub
+world rather than about the shader, and pinned unit-length by `tests/domain/hub/windDirection.test.ts`
+because the shader's phase and amplitude both scale with its length.
 
 ## 6. Modules
 
@@ -198,10 +214,10 @@ instead of hand-keeping two copies; the cloud dome now holds up the other end of
 | --- | --- | --- |
 | `src/presentation/babylon/wind.ts` | new | The plugin, the shared wind field, `createWind(scene)` |
 | `src/presentation/babylon/clouds.ts` | new | Drifting cloud dome |
-| `src/domain/hub/windDirection.ts` | new | The one wind direction, shared by the shader and the clouds |
+| `src/domain/hub/windDirection.ts` | new | The one wind direction, read by the wind shader |
 | `src/presentation/babylon/scatter.ts` | edit | One `applyWind` call for grass and flowers |
 | `src/presentation/babylon/trees.ts` | edit | One `applyWind` call, `bendHeight` from the bounding box |
-| `src/presentation/babylon/hubScene.ts` | edit | Wire `createWind`, `createClouds`, `createButterflies` |
+| `src/presentation/babylon/hubScene.ts` | edit | Wire `createWind` and `createClouds` |
 | `src/domain/hub/waterBody.ts` | edit | Drop the "P4 will read this" claim (§1) |
 | `docs/HANDOFF.md` | edit | Same correction |
 

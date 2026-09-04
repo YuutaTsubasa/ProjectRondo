@@ -1,24 +1,29 @@
 import type { Scene } from '@babylonjs/core/scene';
 import { CreateSphere } from '@babylonjs/core/Meshes/Builders/sphereBuilder';
 import { Mesh } from '@babylonjs/core/Meshes/mesh';
-import { Quaternion, Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
 // Side-effect: registers the StandardMaterial shader (tree-shaken deep imports need this).
 import '@babylonjs/core/Materials/standardMaterial';
 import { DynamicTexture } from '@babylonjs/core/Materials/Textures/dynamicTexture';
 import { Texture } from '@babylonjs/core/Materials/Textures/texture';
 import { rng } from '../../domain/math/rng';
-import { WIND_DIRECTION_X, WIND_DIRECTION_Z } from '../../domain/hub/windDirection';
 import { windTime } from './wind';
 
 /** Just inside `environment.ts`'s 1000-diameter skydome, so the clouds are in front of the gradient
  *  and behind everything else. Both are `infiniteDistance`, so neither has a real position. */
 const DOME_DIAMETER = 900;
 
-/** Radians of dome rotation per second about the drift axis (see `createClouds`) — roughly the old
- *  `uOffset` scroll's apparent speed (0.004 texture-widths/s * 2*PI). UNTUNED: pick the real rate in
- *  the browser (Step 7); small values matter because clouds that visibly race read as a timelapse. */
-const DRIFT_RATE = 0.025;
+/** Texture widths of drift per second, so one loop lasts `1 / DRIFT_SPEED` seconds — 250 s here. Small
+ *  values matter: clouds that visibly race read as a timelapse rather than as weather.
+ *
+ *  **Untuned.** This is the initial value; nobody has watched the layer move. Judge it against the
+ *  running scene, not by arithmetic, and note that one loop is four minutes — a few seconds of
+ *  watching says nothing about the seam (see {@link cloudTexture}).
+ *
+ *  Its SIGN decides which way the sky travels. Whether that agrees with the way the grass leans is a
+ *  property of how the sphere's UVs wrap, not something to derive on paper: if the clouds cross the
+ *  field's lean, negate this. */
+const DRIFT_SPEED = 0.004;
 
 /**
  * Where the cloud band sits on the texture, as a fraction of canvas height.
@@ -50,6 +55,11 @@ const DRIFT_RATE = 0.025;
  * | coverage  | 5% | 33% | 40% | 34% | 36% | 29% | 20% |
  * | strength  | 1  | 19 | 30 | 26 | 27 | 24 | 14 |
  *
+ * **That table describes every moment of the drift, not just t = 0** — but only because the drift is a
+ * scroll in u, which slides each elevation ring along itself and cannot move a cloud to a different
+ * elevation. `createClouds` records the measurement, and the reason a drift that fails that is not
+ * available here. A drift that moved clouds across elevations would invalidate these numbers.
+ *
  * Re-measure with that probe after touching any constant here; do not reason about the mapping.
  */
 const CLOUD_BAND_TOP = 0.55;
@@ -69,8 +79,31 @@ const BLOB_RADIUS_SPREAD = 30;
 const CLOUD_ALPHA = 0.4;
 
 /**
- * A drifting cloud layer: a second inward-facing dome carrying a procedurally drawn alpha texture,
- * rotated about a HORIZONTAL axis so the cloud band travels along the wind's bearing.
+ * A drifting cloud layer: a second inward-facing dome carrying a procedurally drawn alpha texture that
+ * scrolls in u.
+ *
+ * **Why the drift is a u scroll and not a directional one.** Scrolling u is a rotation of the pattern
+ * about +Y, and that is the only rotation a band on a dome survives. The band is an annulus about +Y
+ * at elevation 9..45 degrees ({@link CLOUD_BAND_TOP}); under a rotation by theta about a horizontal
+ * axis `(ax, 0, az)` a point `(px, y, pz)`'s height becomes `y*cos(theta) - (ax*px + az*pz)*sin(theta)`,
+ * which at theta = pi is just `-y` — every cloud below the horizon. That version shipped, about the axis
+ * perpendicular to the wind so that every point of the dome travelled along the wind's bearing from
+ * any viewing angle, and it emptied the sky once per cycle. Sampling the band (elevation 9..45 every
+ * 2 degrees, azimuth every 5 degrees) for the fraction still above the horizon, at its 0.025 rad/s:
+ *
+ * | t (s)            | 0 | 21 | 42 | 63 | 84 | 105 | 126 |
+ * | horizontal axis  | 100% | 73% | 63% | 62% | 51% | 13% | 0% |
+ *
+ * The same sampler over the shipped scroll, at all 72 points of the 250 s loop: **100% above the
+ * horizon at every one**, with the band's elevation extremes exactly 9 and 45 throughout. That is
+ * invariant by construction rather than by luck — u is the sphere's azimuth, so the scroll moves each
+ * texel along its own elevation ring — which is also why {@link CLOUD_BAND_TOP}'s coverage table holds
+ * for the whole loop instead of only for the first frame.
+ *
+ * The cost, stated so nobody re-attempts the fix: an azimuthal drift reads as travelling along the
+ * wind's bearing only from the two viewing azimuths where the ring's tangent IS that bearing, and
+ * crosswise from the two at right angles to them. That is the trade spec §4 takes, and it is the only
+ * one on offer — a band that must stay in the sky can only rotate about +Y.
  *
  * `fogEnabled = false` and `infiniteDistance = true` for the same reason `environment.ts` records for
  * the skydome: at this distance scene fog would flatten the whole thing into a sheet of fog colour.
@@ -81,7 +114,13 @@ export function createClouds(scene: Scene): void {
   const dome = CreateSphere('clouds', { diameter: DOME_DIAMETER, segments: 24, sideOrientation: Mesh.BACKSIDE }, scene);
   dome.infiniteDistance = true;
   dome.isPickable = false;
-  dome.rotationQuaternion = Quaternion.Identity();
+  // Transparent meshes sort by `alphaIndex` first and only then back-to-front, and the default is
+  // Number.MAX_VALUE for every mesh — so the dome and the pond would tie and be ordered by distance.
+  // The dome loses that: `infiniteDistance` moves it with the camera in the shader, but the sort reads
+  // its real bounding sphere, which is centred on the origin and therefore *nearer* than half the
+  // water. Neither surface writes depth, so whichever draws second blends over the other, and a dome
+  // drawn after the pond tints the water with sky. 0 pins it ahead of all other transparency.
+  dome.alphaIndex = 0;
 
   const mat = new StandardMaterial('cloudMat', scene);
   mat.disableLighting = true;
@@ -94,16 +133,11 @@ export function createClouds(scene: Scene): void {
   mat.opacityTexture = tex;
   dome.material = mat;
 
-  // Rotating the dome about Y (what scrolling `tex.uOffset` amounts to, since u is the sphere's
-  // azimuth) is a spin, not a drift: it has no single bearing, so it only agrees with the wind
-  // direction from two viewing azimuths and is perpendicular to it from the other two. Rotating about
-  // the HORIZONTAL axis perpendicular to the wind instead makes every point on the dome travel along
-  // the wind's bearing, from any viewing angle. For a unit-length wind direction (dx, dz) in the XZ
-  // plane, that axis is (dz, 0, -dx) — already unit length, and perpendicular to (dx, 0, dz) by
-  // construction (their dot product is dz*dx + 0 + (-dx)*dz = 0).
-  const driftAxis = new Vector3(WIND_DIRECTION_Z, 0, -WIND_DIRECTION_X);
+  // Set from the shared clock rather than accumulated here, so the clouds and the grass cannot drift
+  // out of step across a scene teardown. `uOffset` is in texture widths and wraps naturally, as long
+  // as the texture tiles in u — which `cloudTexture` is drawn to do.
   scene.onBeforeRenderObservable.add(() => {
-    Quaternion.RotationAxisToRef(driftAxis, windTime() * DRIFT_RATE, dome.rotationQuaternion!);
+    tex.uOffset = windTime() * DRIFT_SPEED;
   });
 }
 
@@ -140,7 +174,10 @@ function cloudTexture(scene: Scene): DynamicTexture {
   }
   tex.update(true);
   tex.hasAlpha = true;
-  tex.wrapU = Texture.WRAP_ADDRESSMODE; // the drift depends on this
+  // `uOffset` grows without bound, so u is sampled far outside [0, 1): WRAP is what makes the loop a
+  // loop. CLAMP on v because nothing ever samples outside the band vertically, and wrapping there
+  // would fold the horizon's edge into the zenith.
+  tex.wrapU = Texture.WRAP_ADDRESSMODE;
   tex.wrapV = Texture.CLAMP_ADDRESSMODE;
   return tex;
 }

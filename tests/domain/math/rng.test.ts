@@ -30,8 +30,7 @@ describe('rng (mulberry32)', () => {
     }
   });
 
-  // The guard that makes this a move rather than a rewrite. These four values were produced by the
-  // implementation that shipped the hub's layout; if they change, every scattered thing has moved.
+  // The guard that makes this a move rather than a rewrite — see EXPECTED_SEED_1.
   it('reproduces the exact sequence the hub layout was generated from', () => {
     const r = rng(1);
     const got = [r(), r(), r(), r()].map((v) => Number(v.toFixed(12)));
