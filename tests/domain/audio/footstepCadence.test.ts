@@ -97,12 +97,16 @@ describe('createFootstepCadence', () => {
     ).toBeNull();
   });
 
-  it('fires at most one step for a frame that spans a whole cycle', () => {
-    // A tab switch or a hitch produces one enormous frame. Firing a burst then is the failure.
+  it('pays out one step for a frame that spans a whole cycle, and queues nothing', () => {
+    // A tab switch or a hitch produces one enormous frame that crosses both contacts. Firing a
+    // burst then is the failure, and so is paying the second one out on the following frame.
     const c = fixed();
     c.step({ gait: 'walk', phase: 0.0, airborne: false, elapsed: 0.016 });
     const fall = c.step({ gait: 'walk', phase: 0.99, airborne: false, elapsed: 5 });
-    expect(fall === null || typeof fall.foot === 'string').toBe(true);
+    // Left is checked first, so the earlier contact of the two is the one that sounds.
+    expect(fall?.foot).toBe('left');
+    // The crossing that was not paid out is discarded, not remembered.
+    expect(c.step({ gait: 'walk', phase: 0.995, airborne: false, elapsed: 0.016 })).toBeNull();
   });
 
   it('jitters playback rate and volume within their bands', () => {
