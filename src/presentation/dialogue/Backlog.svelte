@@ -137,7 +137,7 @@
     width: 12px;
     height: 180px;
     border: 1px solid var(--c-blue);
-    background: repeating-linear-gradient(to bottom, var(--c-blue) 0 3px, transparent 3px 6px);
+    background: var(--rail-dash);
     pointer-events: none;
   }
 </style>

@@ -57,10 +57,13 @@
   .controls button:hover { color: var(--c-blue-deep); }
   /* Focus needs an indicator of its own. A colour change alone is not one: it disappears for anyone
      who cannot distinguish the two colours, and it left these buttons with outline:none. */
+  /* Same halo as the dialogue box, and for the same reason: these tiles sit on the 3D scene, so an
+     outline beyond their border box has no fixed backdrop to be measured against. */
   .controls button:focus-visible {
     color: var(--c-blue-deep);
-    outline: 2px solid var(--c-blue-deep);
-    outline-offset: 2px;
+    outline: 2px solid var(--c-ink);
+    outline-offset: 3px;
+    box-shadow: 0 0 0 7px rgba(var(--c-white-rgb), 0.92);
   }
   /* AUTO's lit state. The dialogue box carries no AUTO indicator in the kit, so this button is the
      only place the mode is visible -- it reads as a filled tile rather than a colour shift. */

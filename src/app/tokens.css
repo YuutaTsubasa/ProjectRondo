@@ -20,10 +20,10 @@
      companion (white text on blue fills, and the glass), never as a bare var(--c-white). */
   --c-white: #ffffff;
 
-  /* --c-ink and white as bare channels, so a component can write rgba(var(--c-ink-rgb), .5) for a
-     hairline or rgba(var(--c-white-rgb), .62) for glass without restating the colour.
-     tests/app/tokens.test.ts asserts each pair stays in sync with its hex. */
-  --c-ink-rgb: 10, 20, 64;
+  /* Bare channels for the colours a component needs at an alpha: --c-white-rgb backs the glass and
+     white-on-blue text, --c-blue-soft-rgb the backlog's entry rules. --c-ink has no companion —
+     nothing needs ink at an alpha here, and the rule that once did belonged to the superseded token
+     plan this rebuild replaced. tests/app/tokens.test.ts keeps each pair in sync with its hex. */
   --c-white-rgb: 255, 255, 255;
   --c-blue-soft-rgb: 122, 160, 255;
 
@@ -39,6 +39,12 @@
      darkest panel this produces at 6.61:1, with no room to weaken it further (see the design doc,
      section 8). --c-blue is 2.34:1 as text on the same panel, so blue is a FILL only — rails, the
      inset ring, the name tag's background, the diamonds. Text on blue is white on a blue block. */
+  /* The kit's dashed rail, on the dialogue box and the backlog. Defined once: the dash rhythm is
+     as much part of the motif as the colour, and two hand-kept copies drift without any test here
+     being able to see it -- the guards check that var() resolves and that no hex appears, neither
+     of which notices 3px becoming 4px in one of two places. */
+  --rail-dash: repeating-linear-gradient(to bottom, var(--c-blue) 0 3px, transparent 3px 6px);
+
   --surface-glass: rgba(var(--c-white-rgb), 0.62);
   --surface-blur: blur(12px);
 }

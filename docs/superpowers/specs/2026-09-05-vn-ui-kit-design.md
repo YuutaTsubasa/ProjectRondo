@@ -225,3 +225,23 @@ directions — it neither advanced the dialogue nor reached the scene. Section 1
 missed it because the top padding band is precisely where the tag sits. And `tests/app/fonts.test.ts`
 claimed to check "the families the tokens name" while never opening `tokens.css`; it now does, so a
 `--font-*` token whose family has no `@font-face` fails instead of falling back in silence.
+
+## 13. A focus ring has no fixed backdrop
+
+Section 12 moved the clip so the box's outline could paint. Round 4 pointed out the figure justifying
+its colour was still measured against the wrong thing: `outline-offset` puts the ring beyond `.box`'s
+border box, and the glass is `.pane` at `inset: 0`, so the ring paints on the **live 3D scene** — not
+on the panel `--c-blue-deep`'s 5.52:1 was measured against. Over lit grass it was fine; over water,
+or where the box overlaps the portrait's own drop shadow, it fell to roughly 1.4-2.8:1.
+
+No single colour fixes that, because the backdrop changes with the camera. Both focus indicators —
+the dialogue box and the HUD tiles — now carry a white halo (`box-shadow: 0 0 0 7px`) with the ring
+sitting inside it, so the ring's adjacent colour is the halo rather than the scene. The indicator
+carries its own contrast, which is what WCAG 2.4.11 asks for and what a measurement against any one
+backdrop cannot deliver.
+
+Two smaller items from the round. `--c-ink-rgb` was declared, documented as backing a hairline, and
+pinned by two tests, while nothing in `src/` used it — the rule it was added for belonged to the
+superseded token plan. Removed. And the kit's dashed rail was written out twice, identically, in
+`DialogueOverlay` and `Backlog`: only its colour was tokenised, so the dash rhythm was two hand-kept
+copies that no guard here could see drift. It is now `--rail-dash`, defined once.

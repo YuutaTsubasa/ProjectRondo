@@ -162,8 +162,16 @@
     display: block;
   }
   .marks span.on { background: var(--c-blue); }
-  /* --c-blue-deep: a focus ring is non-text UI at a 3:1 threshold, and --c-blue is 2.34:1 here. */
-  .box:focus-visible { outline: 2px solid var(--c-blue-deep); outline-offset: 4px; }
+  /* The ring sits OUTSIDE the glass -- outline-offset puts it beyond .box's border box, while the
+     glass is .pane at inset 0 -- so its backdrop is the live 3D scene, not the panel any of this
+     file's contrast figures were measured against. A single colour cannot clear 3:1 against a
+     backdrop that changes with the camera. The halo fixes that: the ring's adjacent colour is the
+     white band it sits inside, not the scene, so the indicator carries its own contrast. */
+  .box:focus-visible {
+    outline: 2px solid var(--c-ink);
+    outline-offset: 3px;
+    box-shadow: 0 0 0 7px rgba(var(--c-white-rgb), 0.92);
+  }
   .advance {
     position: absolute;
     right: 26px;
@@ -180,7 +188,7 @@
     bottom: 12px;
     width: 11px;
     border: 1px solid var(--c-blue);
-    background: repeating-linear-gradient(to bottom, var(--c-blue) 0 3px, transparent 3px 6px);
+    background: var(--rail-dash);
     pointer-events: none;
   }
 </style>
