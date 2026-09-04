@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Chakra+Petch:wght@400;500;600;700&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+<script src="./image-slot.js"></script>
+<style>
+  html, body { margin:0; padding:0; }
+  body { font-family:'Chakra Petch','Noto Sans TC',sans-serif; }
+  a { color:#1f45ff; text-decoration:none; }
+  a:hover { color:#7aa0ff; }
+  input[type=range] { -webkit-appearance:none; appearance:none; background:transparent; }
+  input[type=range]::-webkit-slider-runnable-track { height:3px; background:#0a1440; }
+  input[type=range]::-webkit-slider-thumb { -webkit-appearance:none; width:14px; height:14px; border-radius:50%; background:#0a1440; margin-top:-6px; }
+  @keyframes vnmarquee { from { transform:translateX(0); } to { transform:translateX(-50%); } }
+</style>
+</helmet>
+
+<div style="width:1520px; box-sizing:border-box; padding:26px 28px 40px; color:#0a1440; background-color:#c9c9c9; background-image:linear-gradient(45deg,#b4b4b4 25%,transparent 25%,transparent 75%,#b4b4b4 75%),linear-gradient(45deg,#b4b4b4 25%,transparent 25%,transparent 75%,#b4b4b4 75%); background-size:22px 22px; background-position:0 0,11px 11px; display:flex; flex-direction:column; gap:30px;">
+
+  <div style="display:flex; align-items:baseline; gap:14px;">
+    <div style="background:rgba(255,255,255,0.62); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); border:1px solid #0a1440; padding:6px 14px; font-size:14px; font-weight:700; letter-spacing:3px; white-space:nowrap;">VN UI PARTS — LIGHT</div>
+    <div style="font-size:11px; letter-spacing:1px; color:#3c3c3c;">子元件庫 / 逐項完成後再組裝成畫面</div>
+  </div>
+
+  <div style="display:flex; flex-direction:column; gap:12px;">
+    <div style="align-self:flex-start; background:rgba(255,255,255,0.62); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); border:1px solid #0a1440; padding:4px 12px; font-size:11px; font-weight:700; letter-spacing:2px; white-space:nowrap;">TOP HUD ELEMENTS</div>
+    <div style="display:flex; align-items:flex-start; gap:26px; flex-wrap:wrap;">
+
+      <div style="display:flex; flex-direction:column; gap:6px;">
+        <div style="position:relative; width:212px; height:102px; box-sizing:border-box; background:rgba(255,255,255,0.62); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); clip-path:polygon(11px 1px, 205px 1px, 205px 48px, 192px 48px, 192px 92px, 182px 101px, 1px 101px, 1px 12px);">
+          <svg viewBox="0 0 212 102" width="212" height="102" preserveAspectRatio="none" style="position:absolute; inset:0; filter:drop-shadow(0 0 5px rgba(31,69,255,0.45));">
+            <path d="M11 1 H205 V48 H192 V92 L182 101 H1 V12 Z" fill="none" stroke="#1f45ff" stroke-width="1.6"></path>
+            <rect x="3" y="18" width="3" height="72" fill="#1f45ff"></rect>
+            <rect x="199.5" y="7" width="4" height="18" fill="#1f45ff"></rect>
+            <rect x="187" y="44.5" width="16" height="3.5" fill="#1f45ff"></rect>
+          </svg>
+          <div style="position:absolute; left:16px; right:32px; top:9px; display:flex; align-items:baseline; justify-content:space-between;">
+            <span style="font-family:'Chakra Petch',sans-serif; font-weight:700; font-size:24px; line-height:1; color:#1f45ff;">CHAPTER</span>
+            <span style="font-family:'Chakra Petch',sans-serif; font-weight:700; font-size:24px; line-height:1; color:#0a1440;">01</span>
+          </div>
+          <span style="position:absolute; left:4px; top:45px; width:42px; height:6px; background:#1f45ff;"></span>
+          <span style="position:absolute; left:46px; top:47px; width:138px; height:1px; background:#0a1440;"></span>
+          <div style="position:absolute; left:16px; right:34px; top:62px; display:flex; align-items:center; justify-content:space-between;">
+            <span style="font-family:'Chakra Petch',sans-serif; font-weight:700; font-size:18px; letter-spacing:1px; color:#0a1440;">MORNING</span>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="#0a1440"><path d="M12 0l1.5 8.1L12 24l-1.5-15.9zM0 12l8.1-1.5L24 12l-15.9 1.5zM3.5 3.5l6.4 5.1 4.6 11.9-5.1-6.4zM20.5 3.5l-5.1 6.4-11.9 4.6 6.4-5.1z"/></svg>
+          </div>
+          <span style="position:absolute; top:5px; right:9px; width:7px; height:9px; background:repeating-linear-gradient(to right, #1f45ff 0 1px, transparent 1px 3px);"></span>
+          <span style="position:absolute; top:76px; right:36px; width:9px; height:2px; background:#0a1440;"></span>
+        </div>
+        <div style="font-size:10px; color:#3c3c3c; letter-spacing:0.5px;">top_chapter.png</div>
+      </div>
+
+      <sc-for list="{{ hud }}" as="h" hint-placeholder-count="4">
+        <div style="display:flex; flex-direction:column; gap:6px;">
+          <div style="width:72px; height:72px; background:rgba(255,255,255,0.62); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; cursor:pointer;" style-hover="color:#1f45ff">
+            <div style="width:38px; height:28px; display:flex; align-items:center; justify-content:center;">{{ h.icon }}</div>
+            <span style="font-size:15px; font-weight:700; line-height:1; letter-spacing:0.5px;">{{ h.label }}</span>
+          </div>
+          <div style="font-size:10px; color:#3c3c3c;">{{ h.file }}</div>
+        </div>
+      </sc-for>
+
+      <div style="display:flex; flex-direction:column; gap:6px;">
+        <div style="height:64px; display:flex; align-items:center; background:rgba(255,255,255,0.62); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); padding:0 16px; font-size:15px; letter-spacing:2px;">{{ clock }}</div>
+        <div style="font-size:10px; color:#3c3c3c;">top_time.png</div>
+      </div>
+
+      <div style="display:flex; flex-direction:column; gap:6px;">
+        <div style="width:64px; height:64px; background:rgba(255,255,255,0.62); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); display:flex; align-items:center; justify-content:center; cursor:pointer;" style-hover="color:#1f45ff">
+          <svg width="24" height="24" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.6"><path d="M4 4l16 16M20 4L4 20"/></svg>
+        </div>
+        <div style="font-size:10px; color:#3c3c3c;">top_close.png</div>
+      </div>
+    </div>
+  </div>
+
+  <div style="display:flex; flex-direction:column; gap:12px;">
+    <div style="align-self:flex-start; background:rgba(255,255,255,0.62); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); border:1px solid #0a1440; padding:4px 12px; font-size:11px; font-weight:700; letter-spacing:2px; white-space:nowrap;">BOTTOM BAR (MAIN MENU)</div>
+    <div style="display:flex; align-items:flex-start; gap:26px; flex-wrap:wrap;">
+      <div style="display:flex; flex-direction:column; gap:6px;">
+        <div style="width:560px; height:26px; background:#1f45ff; color:#ffffff; overflow:hidden; display:flex; align-items:center;">
+          <div style="display:flex; gap:34px; white-space:nowrap; animation:vnmarquee 20s linear infinite; font-family:'Chakra Petch',sans-serif; font-size:15px; font-weight:700; letter-spacing:0.5px; padding-left:18px;">
+            <span>✦ WELCOME TO THE UNKNOWN WORLD</span><span>✦ WELCOME TO THE UNKNOWN WORLD</span><span>✦ WELCOME TO THE UNKNOWN WORLD</span><span>✦ WELCOME TO THE UNKNOWN WORLD</span>
+          </div>
+        </div>
+        <div style="font-size:10px; color:#3c3c3c;">bottom_bar.png</div>
+      </div>
+      <div style="display:flex; flex-direction:column; gap:6px;">
+        <div style="width:56px; height:44px; background:rgba(255,255,255,0.62); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); display:flex; align-items:center; justify-content:center; cursor:pointer;" style-hover="color:#1f45ff">
+          <svg width="24" height="16" viewBox="0 0 30 18" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M30 9H4M10 3L4 9l6 6"/></svg>
+        </div>
+        <div style="font-size:10px; color:#3c3c3c;">nav_left.png</div>
+      </div>
+      <div style="display:flex; flex-direction:column; gap:6px;">
+        <div style="width:56px; height:44px; background:rgba(255,255,255,0.62); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); display:flex; align-items:center; justify-content:center; cursor:pointer;" style-hover="color:#1f45ff">
+          <svg width="24" height="16" viewBox="0 0 30 18" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M0 9h26M20 3l6 6-6 6"/></svg>
+        </div>
+        <div style="font-size:10px; color:#3c3c3c;">nav_right.png</div>
+      </div>
+      <div style="display:flex; flex-direction:column; gap:6px;">
+        <div style="width:250px; height:44px; background:rgba(255,255,255,0.62); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); display:flex; align-items:center; justify-content:space-between; padding:0 16px; font-size:13px; letter-spacing:1px;">
+          <svg width="20" height="14" viewBox="0 0 30 18" fill="none" stroke="#0a1440" stroke-width="1.6" style="cursor:pointer;"><path d="M30 9H4M10 3L4 9l6 6"/></svg>
+          <span>1 / 10</span>
+          <svg width="20" height="14" viewBox="0 0 30 18" fill="none" stroke="#0a1440" stroke-width="1.6" style="cursor:pointer;"><path d="M0 9h26M20 3l6 6-6 6"/></svg>
+        </div>
+        <div style="font-size:10px; color:#3c3c3c;">page_indicator.png</div>
+      </div>
+    </div>
+  </div>
+
+  <div style="display:flex; flex-direction:column; gap:12px;">
+    <div style="align-self:flex-start; background:rgba(255,255,255,0.62); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); border:1px solid #0a1440; padding:4px 12px; font-size:11px; font-weight:700; letter-spacing:2px; white-space:nowrap;">SLIDERS &amp; TOGGLES</div>
+    <div style="display:flex; align-items:flex-start; gap:26px; flex-wrap:wrap;">
+      <div style="display:flex; flex-direction:column; gap:6px;">
+        <div style="width:250px; background:rgba(255,255,255,0.62); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); padding:14px 12px; display:flex; align-items:center;">
+          <input type="range" min="0" max="100" value="{{ demo }}" onChange="{{ setDemo }}" style="width:100%; height:16px; cursor:pointer;">
+        </div>
+        <div style="font-size:10px; color:#3c3c3c;">slider_knob.png</div>
+      </div>
+      <div style="display:flex; flex-direction:column; gap:6px;">
+        <div style="width:64px; height:44px; background:rgba(255,255,255,0.62); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); display:flex; align-items:center; justify-content:center; font-size:14px;">{{ demo }}</div>
+        <div style="font-size:10px; color:#3c3c3c;">slider_value.png</div>
+      </div>
+      <div style="display:flex; flex-direction:column; gap:6px;">
+        <div style="width:96px; text-align:center; padding:6px 0; background:#1f45ff; color:#ffffff; border:1px solid #1f45ff; font-size:12px; font-weight:700; letter-spacing:2px; cursor:pointer;">ON</div>
+        <div style="font-size:10px; color:#3c3c3c;">toggle_on.png</div>
+      </div>
+      <div style="display:flex; flex-direction:column; gap:6px;">
+        <div style="width:96px; text-align:center; padding:6px 0; background:rgba(255,255,255,0.62); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); color:#0a1440; border:1px solid #0a1440; font-size:12px; font-weight:700; letter-spacing:2px; cursor:pointer;" style-hover="background:#e6ebfb">OFF</div>
+        <div style="font-size:10px; color:#3c3c3c;">toggle_off.png</div>
+      </div>
+      <div style="display:flex; flex-direction:column; gap:6px;">
+        <div onClick="{{ toggleA }}" style="{{ boxAStyle }}">{{ boxAMark }}</div>
+        <div style="font-size:10px; color:#3c3c3c;">checkbox_off.png</div>
+      </div>
+      <div style="display:flex; flex-direction:column; gap:6px;">
+        <div onClick="{{ toggleB }}" style="{{ boxBStyle }}">{{ boxBMark }}</div>
+        <div style="font-size:10px; color:#3c3c3c;">checkbox_on.png</div>
+      </div>
+    </div>
+  </div>
+
+  <div style="display:flex; gap:38px; flex-wrap:wrap;">
+    <div style="display:flex; flex-direction:column; gap:12px;">
+      <div style="align-self:flex-start; background:rgba(255,255,255,0.62); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); border:1px solid #0a1440; padding:4px 12px; font-size:11px; font-weight:700; letter-spacing:2px; white-space:nowrap;">SMALL BUTTONS</div>
+      <div style="display:flex; gap:22px;">
+        <div style="display:flex; flex-direction:column; gap:6px;">
+          <div style="width:52px; height:44px; background:rgba(255,255,255,0.62); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); display:flex; align-items:center; justify-content:center; cursor:pointer;" style-hover="color:#1f45ff">
+            <svg width="24" height="14" viewBox="0 0 30 18" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M0 9h26M20 3l6 6-6 6"/></svg>
+          </div>
+          <div style="font-size:10px; color:#3c3c3c;">btn_next.png</div>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:6px;">
+          <div style="width:52px; height:44px; background:rgba(255,255,255,0.62); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); display:flex; align-items:center; justify-content:center; cursor:pointer;" style-hover="color:#1f45ff">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 12a9 9 0 11-3-6.7M21 3v5h-5"/></svg>
+          </div>
+          <div style="font-size:10px; color:#3c3c3c;">btn_reset.png</div>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:6px;">
+          <div style="width:52px; height:44px; background:rgba(255,255,255,0.62); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); display:flex; align-items:center; justify-content:center; cursor:pointer;" style-hover="color:#1f45ff">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M4 9h3l5-4v14l-5-4H4zM17 8a5 5 0 010 8"/></svg>
+          </div>
+          <div style="font-size:10px; color:#3c3c3c;">btn_sound.png</div>
+        </div>
+      </div>
+    </div>
+
+    <div style="display:flex; flex-direction:column; gap:12px;">
+      <div style="align-self:flex-start; background:rgba(255,255,255,0.62); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); border:1px solid #0a1440; padding:4px 12px; font-size:11px; font-weight:700; letter-spacing:2px; white-space:nowrap;">SYSTEM ICONS (BOTTOM RIGHT)</div>
+      <div style="display:flex; gap:20px;">
+        <sc-for list="{{ sysIcons }}" as="s" hint-placeholder-count="7">
+          <div style="display:flex; flex-direction:column; gap:6px;">
+            <div style="width:52px; height:44px; background:rgba(255,255,255,0.62); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); display:flex; align-items:center; justify-content:center; cursor:pointer;" style-hover="color:#1f45ff">
+              <div style="width:22px; height:22px;">{{ s.icon }}</div>
+            </div>
+            <div style="font-size:10px; color:#3c3c3c;">{{ s.file }}</div>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+  </div>
+
+  <div style="display:flex; gap:38px; flex-wrap:wrap; align-items:flex-start;">
+    <div style="display:flex; flex-direction:column; gap:12px;">
+      <div style="align-self:flex-start; background:rgba(255,255,255,0.62); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); border:1px solid #0a1440; padding:4px 12px; font-size:11px; font-weight:700; letter-spacing:2px; white-space:nowrap;">CHOICE BOX</div>
+      <div style="display:flex; flex-direction:column; gap:14px;">
+        <div style="display:flex; flex-direction:column; gap:6px;">
+          <div style="width:320px; border:1px solid #1f45ff; padding:4px;">
+            <div style="display:flex; align-items:center; gap:10px; padding:8px 12px; background:rgba(255,255,255,0.62); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); color:#0a1440; font-family:'Noto Sans TC',sans-serif; font-size:14px; cursor:pointer;"><span style="color:#1f45ff;">❯</span><span>選項文字會顯示在這裡</span></div>
+          </div>
+          <div style="font-size:10px; color:#3c3c3c;">choice_normal.png</div>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:6px;">
+          <div style="width:320px; border:1px solid #1f45ff; padding:4px; background:rgba(255,255,255,0.62); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);">
+            <div style="display:flex; align-items:center; gap:10px; padding:8px 12px; background:#1f45ff; color:#ffffff; font-family:'Noto Sans TC',sans-serif; font-size:14px; font-weight:700; cursor:pointer; clip-path:polygon(0 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%);"><span>❯</span><span>選項文字會顯示在這裡</span></div>
+          </div>
+          <div style="font-size:10px; color:#3c3c3c;">choice_hover.png</div>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:6px;">
+          <div style="width:320px; border:1px solid #7aa0ff; padding:4px; background:rgba(255,255,255,0.62); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);">
+            <div style="display:flex; align-items:center; gap:10px; padding:8px 12px; background:rgba(122,160,255,0.55); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); color:#0a1440; font-family:'Noto Sans TC',sans-serif; font-size:14px; font-weight:700; cursor:pointer; clip-path:polygon(0 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%);"><span>❯</span><span>選項文字會顯示在這裡</span></div>
+          </div>
+          <div style="font-size:10px; color:#3c3c3c;">choice_selected.png</div>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:6px;">
+          <div style="width:320px; border:1px solid #c3cdf0; padding:4px; background:rgba(255,255,255,0.62); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);">
+            <div style="display:flex; align-items:center; gap:10px; padding:8px 12px; color:#9aa4c4; font-family:'Noto Sans TC',sans-serif; font-size:14px; cursor:not-allowed;"><span>❯</span><span>選項文字會顯示在這裡</span></div>
+          </div>
+          <div style="font-size:10px; color:#3c3c3c;">choice_disabled.png</div>
+        </div>
+      </div>
+    </div>
+
+    <div style="display:flex; flex-direction:column; gap:12px;">
+      <div style="align-self:flex-start; background:rgba(255,255,255,0.62); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); border:1px solid #0a1440; padding:4px 12px; font-size:11px; font-weight:700; letter-spacing:2px; white-space:nowrap;">DIALOGUE BOX</div>
+      <div style="display:flex; flex-direction:column; gap:18px;">
+
+        <div style="display:flex; flex-direction:column; gap:6px;">
+          <div style="position:relative; width:440px; padding-top:14px;">
+            <div style="position:absolute; top:0; left:40px; background:#1f45ff; color:#ffffff; font-size:12px; font-weight:700; letter-spacing:3px; padding:4px 26px 4px 14px; clip-path:polygon(0 0, 100% 0, calc(100% - 12px) 100%, 0 100%); z-index:1;">NAME</div>
+            <div style="background:rgba(255,255,255,0.62); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); position:relative; clip-path:polygon(15px 0, calc(100% - 15px) 0, 100% 15px, 100% calc(100% - 15px), calc(100% - 15px) 100%, 15px 100%, 0 calc(100% - 15px), 0 15px);">
+              <div style="padding:24px 16px 20px; position:relative;"><div style="position:absolute; inset:0; pointer-events:none; background:#1f45ff; clip-path:polygon(evenodd, 15px 0, calc(100% - 15px) 0, 100% 15px, 100% calc(100% - 15px), calc(100% - 15px) 100%, 15px 100%, 0 calc(100% - 15px), 0 15px, 15px 0, 17px 2px, calc(100% - 17px) 2px, calc(100% - 2px) 17px, calc(100% - 2px) calc(100% - 17px), calc(100% - 17px) calc(100% - 2px), 17px calc(100% - 2px), 2px calc(100% - 17px), 2px 17px, 17px 2px);"></div>
+              <div style="display:flex; gap:4px; position:absolute; top:8px; left:16px;"><span style="color:#1f45ff; font-size:8px;">◆</span><span style="color:#1f45ff; font-size:8px;">◆</span><span style="color:#1f45ff; font-size:8px;">◆</span><span style="color:#0a1440; font-size:8px;">◆</span><span style="color:#0a1440; font-size:8px;">◆</span></div>
+              <div style="font-family:'Noto Sans TC',sans-serif; font-size:15px;">對話文字會顯示在這裡。</div>
+              <svg width="26" height="14" viewBox="0 0 30 18" fill="none" stroke="#0a1440" stroke-width="1.6" style="position:absolute; right:22px; bottom:12px;"><path d="M0 9h26M20 3l6 6-6 6"/></svg>
+              <div style="position:absolute; right:6px; top:10px; bottom:10px; width:10px; background:repeating-linear-gradient(to bottom, #1f45ff 0 3px, #ffffff 3px 6px); border:1px solid #1f45ff;"></div>
+            </div>
+            </div>
+          </div>
+          <div style="font-size:10px; color:#3c3c3c;">dialogue_box_green.png</div>
+        </div>
+
+        <div style="display:flex; flex-direction:column; gap:6px;">
+          <div style="position:relative; width:440px; padding-top:14px;">
+            <div style="position:absolute; top:0; left:40px; background:rgba(122,160,255,0.55); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); color:#0a1440; font-size:12px; font-weight:700; letter-spacing:3px; padding:4px 26px 4px 14px; clip-path:polygon(0 0, 100% 0, calc(100% - 12px) 100%, 0 100%); z-index:1;">NAME</div>
+            <div style="background:rgba(255,255,255,0.62); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); position:relative; clip-path:polygon(15px 0, calc(100% - 15px) 0, 100% 15px, 100% calc(100% - 15px), calc(100% - 15px) 100%, 15px 100%, 0 calc(100% - 15px), 0 15px);">
+              <div style="padding:24px 16px 20px; position:relative;"><div style="position:absolute; inset:0; pointer-events:none; background:#7aa0ff; clip-path:polygon(evenodd, 15px 0, calc(100% - 15px) 0, 100% 15px, 100% calc(100% - 15px), calc(100% - 15px) 100%, 15px 100%, 0 calc(100% - 15px), 0 15px, 15px 0, 17px 2px, calc(100% - 17px) 2px, calc(100% - 2px) 17px, calc(100% - 2px) calc(100% - 17px), calc(100% - 17px) calc(100% - 2px), 17px calc(100% - 2px), 2px calc(100% - 17px), 2px 17px, 17px 2px);"></div>
+              <div style="display:flex; gap:4px; position:absolute; top:8px; left:16px;"><span style="color:#1f45ff; font-size:8px;">◆</span><span style="color:#1f45ff; font-size:8px;">◆</span><span style="color:#1f45ff; font-size:8px;">◆</span><span style="color:#0a1440; font-size:8px;">◆</span><span style="color:#0a1440; font-size:8px;">◆</span></div>
+              <div style="font-family:'Noto Sans TC',sans-serif; font-size:15px;">對話文字會顯示在這裡。</div>
+              <svg width="26" height="14" viewBox="0 0 30 18" fill="none" stroke="#0a1440" stroke-width="1.6" style="position:absolute; right:22px; bottom:12px;"><path d="M0 9h26M20 3l6 6-6 6"/></svg>
+              <div style="position:absolute; right:6px; top:10px; bottom:10px; width:10px; background:repeating-linear-gradient(to bottom, #7aa0ff 0 3px, #ffffff 3px 6px); border:1px solid #7aa0ff;"></div>
+            </div>
+            </div>
+          </div>
+          <div style="font-size:10px; color:#3c3c3c;">dialogue_box_blue.png</div>
+        </div>
+
+        <div style="display:flex; flex-direction:column; gap:6px;">
+          <div style="position:relative; width:440px; padding-top:14px;">
+            <div style="position:absolute; top:0; left:40px; border:2px solid #0a1440; background:rgba(255,255,255,0.62); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); color:#0a1440; font-size:12px; font-weight:700; letter-spacing:3px; padding:3px 14px; z-index:1;">NAME</div>
+            <div style="background:rgba(255,255,255,0.62); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); position:relative; clip-path:polygon(15px 0, calc(100% - 15px) 0, 100% 15px, 100% calc(100% - 15px), calc(100% - 15px) 100%, 15px 100%, 0 calc(100% - 15px), 0 15px);">
+              <div style="padding:24px 16px 20px; position:relative;"><div style="position:absolute; inset:0; pointer-events:none; background:#0a1440; clip-path:polygon(evenodd, 15px 0, calc(100% - 15px) 0, 100% 15px, 100% calc(100% - 15px), calc(100% - 15px) 100%, 15px 100%, 0 calc(100% - 15px), 0 15px, 15px 0, 17px 2px, calc(100% - 17px) 2px, calc(100% - 2px) 17px, calc(100% - 2px) calc(100% - 17px), calc(100% - 17px) calc(100% - 2px), 17px calc(100% - 2px), 2px calc(100% - 17px), 2px 17px, 17px 2px);"></div>
+              <div style="display:flex; gap:4px; position:absolute; top:8px; left:16px;"><span style="color:#0a1440; font-size:8px;">◆</span><span style="color:#0a1440; font-size:8px;">◆</span><span style="color:#0a1440; font-size:8px;">◆</span><span style="color:#9aa4c4; font-size:8px;">◆</span><span style="color:#9aa4c4; font-size:8px;">◆</span></div>
+              <div style="font-family:'Noto Sans TC',sans-serif; font-size:15px;">對話文字會顯示在這裡。</div>
+              <svg width="26" height="14" viewBox="0 0 30 18" fill="none" stroke="#0a1440" stroke-width="1.6" style="position:absolute; right:26px; bottom:14px;"><path d="M0 9h26M20 3l6 6-6 6"/></svg>
+              <div style="position:absolute; right:6px; top:10px; bottom:22px; width:10px; background:repeating-linear-gradient(to bottom, #0a1440 0 3px, #ffffff 3px 6px); border:1px solid #0a1440;"></div>
+            </div>
+            </div>
+          </div>
+          <div style="font-size:10px; color:#3c3c3c;">dialogue_box_white.png</div>
+        </div>
+      </div>
+    </div>
+
+    <div style="display:flex; flex-direction:column; gap:26px;">
+      <div style="display:flex; flex-direction:column; gap:12px;">
+        <div style="align-self:flex-start; background:rgba(255,255,255,0.62); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); border:1px solid #0a1440; padding:4px 12px; font-size:11px; font-weight:700; letter-spacing:2px; white-space:nowrap;">NAME BOX</div>
+        <div style="display:flex; gap:20px; align-items:flex-start;">
+          <div style="display:flex; flex-direction:column; gap:6px;">
+            <div style="background:rgba(255,255,255,0.62); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); border:2px solid #1f45ff; padding:6px 8px;">
+              <div style="background:#1f45ff; color:#ffffff; font-family:'Archivo Black',sans-serif; font-size:22px; letter-spacing:1px; padding:6px 26px 6px 14px; clip-path:polygon(0 0, 100% 0, calc(100% - 14px) 100%, 0 100%);">NAME</div>
+            </div>
+            <div style="font-size:10px; color:#3c3c3c;">name_box_green.png</div>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:6px;">
+            <div style="background:rgba(255,255,255,0.62); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); border:2px solid #7aa0ff; padding:6px 8px;">
+              <div style="color:#0a1440; font-family:'Archivo Black',sans-serif; font-size:22px; letter-spacing:1px; padding:6px 26px 6px 14px; border:1px solid #1f45ff; clip-path:polygon(0 0, 100% 0, calc(100% - 14px) 100%, 0 100%);">NAME</div>
+            </div>
+            <div style="font-size:10px; color:#3c3c3c;">name_box_blue.png</div>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:6px;">
+            <div style="background:rgba(255,255,255,0.62); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); border:2px solid #0a1440; padding:6px 8px;">
+              <div style="background:#0a1440; color:#ffffff; font-family:'Archivo Black',sans-serif; font-size:22px; letter-spacing:1px; padding:6px 20px;">NAME</div>
+            </div>
+            <div style="font-size:10px; color:#3c3c3c;">name_box_white.png</div>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex; flex-direction:column; gap:12px;">
+        <div style="align-self:flex-start; background:rgba(255,255,255,0.62); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); border:1px solid #0a1440; padding:4px 12px; font-size:11px; font-weight:700; letter-spacing:2px; white-space:nowrap;">SLOT ITEM</div>
+        <div style="display:flex; flex-direction:column; gap:6px;">
+          <div style="width:420px; display:flex; align-items:center; gap:10px; background:rgba(122,160,255,0.55); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); color:#0a1440; height:52px;">
+            <div style="width:62px; height:100%; position:relative; overflow:hidden; border-right:1px solid #0a1440; flex:none; background:#eef2ff;">
+              <image-slot id="vn-part-slot-l" placeholder="縮圖" style="position:absolute; inset:0; width:100%; height:100%;"></image-slot>
+            </div>
+            <div style="width:32px; text-align:center; font-size:16px; font-weight:700; flex:none;">01</div>
+            <div style="flex:1; line-height:1.4;">
+              <div style="font-size:13px; font-weight:600; letter-spacing:1px;">CHAPTER 01 - MORNING</div>
+              <div style="font-size:10px; letter-spacing:1px; opacity:0.85;">2024/05/20   10:35:24</div>
+            </div>
+            <div style="padding-right:14px; font-size:12px; opacity:0.8;">--</div>
+          </div>
+          <div style="font-size:10px; color:#3c3c3c;">slot_item.png</div>
+        </div>
+      </div>
+
+      <div style="display:flex; flex-direction:column; gap:12px;">
+        <div style="align-self:flex-start; background:rgba(255,255,255,0.62); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); border:1px solid #0a1440; padding:4px 12px; font-size:11px; font-weight:700; letter-spacing:2px; white-space:nowrap;">WINDOW FRAME</div>
+        <div style="display:flex; gap:20px;">
+          <div style="display:flex; flex-direction:column; gap:6px;">
+            <div style="width:200px; height:78px; background:rgba(122,160,255,0.55); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); border:1px solid #0a1440; padding:8px 10px; box-sizing:border-box;">
+              <div style="display:flex; justify-content:space-between; align-items:center; font-size:11px; font-weight:700; letter-spacing:2px;">
+                <span>TITLE</span>
+                <svg width="12" height="12" viewBox="0 0 24 24" stroke="#0a1440" stroke-width="1.8"><path d="M4 4l16 16M20 4L4 20"/></svg>
+              </div>
+            </div>
+            <div style="font-size:10px; color:#3c3c3c;">window_frame.png</div>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:6px;">
+            <div style="width:200px; height:78px; background:rgba(255,255,255,0.62); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); border:1px solid #1f45ff; padding:8px 10px; box-sizing:border-box;">
+              <div style="display:flex; justify-content:space-between; align-items:center; font-size:11px; font-weight:700; letter-spacing:2px; color:#1f45ff;">
+                <span>TITLE</span>
+                <svg width="12" height="12" viewBox="0 0 24 24" stroke="#1f45ff" stroke-width="1.8"><path d="M4 4l16 16M20 4L4 20"/></svg>
+              </div>
+            </div>
+            <div style="font-size:10px; color:#3c3c3c;">window_frame_black.png</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div style="display:flex; flex-direction:column; gap:12px;">
+    <div style="align-self:flex-start; background:rgba(255,255,255,0.62); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); border:1px solid #0a1440; padding:4px 12px; font-size:11px; font-weight:700; letter-spacing:2px; white-space:nowrap;">UI ACCENTS (RIGHT PANEL)</div>
+    <div style="display:flex; gap:24px; align-items:flex-start; flex-wrap:wrap;">
+      <div style="display:flex; flex-direction:column; gap:6px;">
+        <div style="width:84px; height:104px; background:rgba(255,255,255,0.62); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); display:flex; align-items:center; justify-content:center; gap:4px;">
+          <div style="writing-mode:vertical-rl; font-family:'Archivo Black',sans-serif; font-size:19px; line-height:1; color:#1f45ff;">STAY<br>CURIOUS</div>
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="#1f45ff" style="align-self:flex-end;"><path d="M12 0l1.7 8.6L22 12l-8.3 3.4L12 24l-1.7-8.6L2 12l8.3-3.4z"/></svg>
+        </div>
+        <div style="font-size:10px; color:#3c3c3c;">accent_stay_curious.png</div>
+      </div>
+      <div style="display:flex; flex-direction:column; gap:6px;">
+        <div style="width:84px; height:104px; background:rgba(255,255,255,0.62); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); display:flex; align-items:center; justify-content:center;">
+          <svg width="60" height="60" viewBox="0 0 60 60" fill="none" stroke="#0a1440" stroke-width="1"><circle cx="30" cy="30" r="26"/><ellipse cx="30" cy="30" rx="10" ry="26"/><ellipse cx="30" cy="30" rx="20" ry="26"/><path d="M4 30h52M9 17h42M9 43h42"/></svg>
+        </div>
+        <div style="font-size:10px; color:#3c3c3c;">accent_globe.png</div>
+      </div>
+      <div style="display:flex; flex-direction:column; gap:6px;">
+        <div style="width:84px; height:104px; background:rgba(255,255,255,0.62); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); display:flex; align-items:center; justify-content:center;">
+          <svg width="58" height="58" viewBox="0 0 24 24" fill="#0a1440"><path d="M12 0l1.4 9.2L22 12l-8.6 2.8L12 24l-1.4-9.2L2 12l8.6-2.8z"/></svg>
+        </div>
+        <div style="font-size:10px; color:#3c3c3c;">accent_star.png</div>
+      </div>
+      <div style="display:flex; flex-direction:column; gap:6px;">
+        <div style="width:84px; height:104px; background:rgba(255,255,255,0.62); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); display:flex; align-items:center; justify-content:center;">
+          <svg width="58" height="58" viewBox="0 0 60 60" fill="none" stroke="#0a1440" stroke-width="1"><circle cx="30" cy="30" r="14"/><circle cx="30" cy="30" r="4"/><path d="M30 2v16M30 42v16M2 30h16M42 30h16"/></svg>
+        </div>
+        <div style="font-size:10px; color:#3c3c3c;">accent_target.png</div>
+      </div>
+      <div style="display:flex; flex-direction:column; gap:6px;">
+        <div style="width:104px; height:104px; background:rgba(255,255,255,0.62); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px;">
+          <div style="width:84px; height:44px; background:repeating-linear-gradient(to right, #0a1440 0 2px, #ffffff 2px 4px, #0a1440 4px 5px, #ffffff 5px 9px);"></div>
+          <div style="font-size:8px; letter-spacing:1px;">0000-UNKNOWN</div>
+        </div>
+        <div style="font-size:10px; color:#3c3c3c;">accent_barcode.png</div>
+      </div>
+      <div style="display:flex; flex-direction:column; gap:6px;">
+        <div style="width:84px; height:104px; background:rgba(255,255,255,0.62); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); display:flex; align-items:center; justify-content:center;">
+          <div style="width:64px; height:36px; background:repeating-linear-gradient(115deg, #0a1440 0 6px, #ffffff 6px 13px);"></div>
+        </div>
+        <div style="font-size:10px; color:#3c3c3c;">accent_stripes.png</div>
+      </div>
+      <div style="display:flex; flex-direction:column; gap:6px;">
+        <div style="width:84px; height:104px; background:rgba(255,255,255,0.62); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); display:flex; flex-direction:column; align-items:center; justify-content:center;">
+          <div style="font-family:'Archivo Black',sans-serif; font-size:40px; line-height:1;">02</div>
+          <div style="font-size:9px; letter-spacing:3px;">SECTION</div>
+        </div>
+        <div style="font-size:10px; color:#3c3c3c;">accent_section.png</div>
+      </div>
+    </div>
+  </div>
+
+  <div style="display:flex; gap:38px; flex-wrap:wrap; align-items:flex-start;">
+    <div style="display:flex; flex-direction:column; gap:12px;">
+      <div style="align-self:flex-start; background:rgba(255,255,255,0.62); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); border:1px solid #0a1440; padding:4px 12px; font-size:11px; font-weight:700; letter-spacing:2px; white-space:nowrap;">DECORATION LINES</div>
+      <div style="display:flex; gap:22px;">
+        <div style="display:flex; flex-direction:column; gap:6px;">
+          <div style="width:240px; height:44px; background:rgba(255,255,255,0.62); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); display:flex; flex-direction:column; justify-content:center; gap:8px; padding:0 12px; box-sizing:border-box;">
+            <div style="height:1px; background:#1f45ff;"></div>
+            <div style="height:4px; background:repeating-linear-gradient(to right, #1f45ff 0 3px, transparent 3px 7px);"></div>
+          </div>
+          <div style="font-size:10px; color:#3c3c3c;">line_green.png</div>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:6px;">
+          <div style="width:240px; height:44px; background:rgba(255,255,255,0.62); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); display:flex; flex-direction:column; justify-content:center; gap:8px; padding:0 12px; box-sizing:border-box;">
+            <div style="height:1px; background:#0a1440;"></div>
+            <div style="height:4px; background:repeating-linear-gradient(to right, #0a1440 0 3px, transparent 3px 7px);"></div>
+          </div>
+          <div style="font-size:10px; color:#3c3c3c;">line_white.png</div>
+        </div>
+      </div>
+    </div>
+
+    <div style="display:flex; flex-direction:column; gap:12px;">
+      <div style="align-self:flex-start; background:rgba(255,255,255,0.62); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); border:1px solid #0a1440; padding:4px 12px; font-size:11px; font-weight:700; letter-spacing:2px; white-space:nowrap;">SCROLL BAR</div>
+      <div style="display:flex; flex-direction:column; gap:6px;">
+        <div style="width:44px; height:104px; background:rgba(255,255,255,0.62); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); display:flex; align-items:center; justify-content:center;">
+          <div style="width:12px; height:80px; background:repeating-linear-gradient(to bottom, #1f45ff 0 3px, #ffffff 3px 6px); border:1px solid #1f45ff;"></div>
+        </div>
+        <div style="font-size:10px; color:#3c3c3c;">scrollbar.png</div>
+      </div>
+    </div>
+
+    <div style="display:flex; flex-direction:column; gap:12px;">
+      <div style="align-self:flex-start; background:rgba(255,255,255,0.62); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); border:1px solid #0a1440; padding:4px 12px; font-size:11px; font-weight:700; letter-spacing:2px; white-space:nowrap;">MISC</div>
+      <div style="display:flex; gap:22px; align-items:flex-start;">
+        <div style="display:flex; flex-direction:column; gap:6px;">
+          <div style="width:110px; height:44px; background:rgba(255,255,255,0.62); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); display:flex; align-items:center; justify-content:center; gap:5px;">
+            <span style="color:#1f45ff; font-size:11px;">◆</span><span style="color:#1f45ff; font-size:11px;">◆</span><span style="color:#1f45ff; font-size:11px;">◆</span><span style="color:#0a1440; font-size:11px;">◆</span><span style="color:#0a1440; font-size:11px;">◆</span>
+          </div>
+          <div style="font-size:10px; color:#3c3c3c;">star_dots.png</div>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:6px;">
+          <div style="width:64px; height:44px; background:rgba(255,255,255,0.62); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); display:flex; align-items:center; justify-content:center;">
+            <div style="width:30px; height:18px; background:#0a1440; clip-path:polygon(0 0, 100% 0, calc(100% - 12px) 100%, 0 100%);"></div>
+          </div>
+          <div style="font-size:10px; color:#3c3c3c;">corner.png</div>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:6px;">
+          <div style="width:64px; height:44px; background:rgba(255,255,255,0.62); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); display:flex; align-items:center; justify-content:center;">
+            <div style="width:26px; height:16px; background:radial-gradient(circle, #1f45ff 42%, transparent 44%) 0 0/9px 8px;"></div>
+          </div>
+          <div style="font-size:10px; color:#3c3c3c;">dots.png</div>
+        </div>
+      </div>
+    </div>
+
+    <div style="display:flex; flex-direction:column; gap:12px;">
+      <div style="align-self:flex-start; background:rgba(255,255,255,0.62); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); border:1px solid #0a1440; padding:4px 12px; font-size:11px; font-weight:700; letter-spacing:2px; white-space:nowrap;">BACKGROUND SNAPSHOTS</div>
+      <div style="display:flex; gap:22px;">
+        <div style="display:flex; flex-direction:column; gap:6px;">
+          <div style="position:relative; width:200px; height:104px; background:#eef2ff; border:1px solid #7aa0ff; overflow:hidden;">
+            <image-slot id="vn-bg-blue-l" placeholder="城市背景（藍）" style="position:absolute; inset:0; width:100%; height:100%;"></image-slot>
+            <div style="position:absolute; inset:0; background:rgba(122,160,255,0.55); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); opacity:0.4; mix-blend-mode:multiply; pointer-events:none;"></div>
+          </div>
+          <div style="font-size:10px; color:#3c3c3c;">bg_city_blue.png</div>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:6px;">
+          <div style="position:relative; width:200px; height:104px; background:#eef2ff; border:1px solid #1f45ff; overflow:hidden;">
+            <image-slot id="vn-bg-green-l" placeholder="城市背景（綠）" style="position:absolute; inset:0; width:100%; height:100%;"></image-slot>
+            <div style="position:absolute; inset:0; background:#1f45ff; opacity:0.3; mix-blend-mode:multiply; pointer-events:none;"></div>
+          </div>
+          <div style="font-size:10px; color:#3c3c3c;">bg_city_green.png</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1520,&quot;height&quot;:1600}}">
+const LIME = "#1f45ff", INK = "#ffffff", PAPER = "#0a1440";
+const svg = (d, opts) => React.createElement("svg", Object.assign({ viewBox: "0 0 24 24", width: "100%", height: "100%", fill: "none", stroke: "currentColor", strokeWidth: 1.4, strokeLinejoin: "miter" }, opts || {}), React.createElement("path", { d }));
+
+class Component extends DCLogic {
+  state = { demo: 75, a: false, b: true, clock: "00:00:00" };
+
+  componentDidMount() {
+    const start = Date.now();
+    this.c = setInterval(() => {
+      const s = Math.floor((Date.now() - start) / 1000), p = n => String(n).padStart(2, "0");
+      this.setState({ clock: p(Math.floor(s / 3600)) + ":" + p(Math.floor(s / 60) % 60) + ":" + p(s % 60) });
+    }, 1000);
+  }
+  componentWillUnmount() { clearInterval(this.c); }
+
+  box(key) {
+    return {
+      width: "34px", height: "34px", display: "flex", alignItems: "center", justifyContent: "center",
+      fontSize: "18px", cursor: "pointer", border: "2px solid " + PAPER,
+      background: this.state[key] ? LIME : INK, color: INK
+    };
+  }
+
+  renderVals() {
+    return {
+      clock: this.state.clock,
+      demo: this.state.demo,
+      setDemo: e => this.setState({ demo: Number(e.target.value) }),
+      toggleA: () => this.setState({ a: !this.state.a }),
+      toggleB: () => this.setState({ b: !this.state.b }),
+      boxAStyle: this.box("a"), boxBStyle: this.box("b"),
+      boxAMark: this.state.a ? "\u2714" : "", boxBMark: this.state.b ? "\u2714" : "",
+      hud: [
+        { label: "LOG", file: "top_log.png", icon: svg("M6 2h9l4 4v16H6zM10 9h7M10 13h7M10 17h5", { viewBox: "0 0 24 24", strokeWidth: 1.7 }) },
+        { label: "AUTO", file: "top_auto.png", icon: svg("M4 3l24 9-24 9zM9 9h9M9 13h6", { viewBox: "0 0 32 24", strokeWidth: 1.7 }) },
+        { label: "SKIP", file: "top_skip.png", icon: svg("M3 4l10 8-10 8zM17 4l10 8-10 8z", { viewBox: "0 0 32 24", strokeWidth: 1.7 }) },
+        { label: "MENU", file: "top_menu.png", icon: svg("M3 5h26M3 12h26M3 19h26", { viewBox: "0 0 32 24", strokeWidth: 2.1 }) }
+      ],
+      sysIcons: [
+        { file: "icon_doc.png", icon: svg("M6 2h8l4 4v16H6zM9 9h6M9 13h6M9 17h4") },
+        { file: "icon_download.png", icon: svg("M12 3v12M7 11l5 5 5-5M3 21h18") },
+        { file: "icon_upload.png", icon: svg("M12 21V9M7 13l5-5 5 5M3 3h18") },
+        { file: "icon_play.png", icon: svg("M5 3l14 9-14 9z") },
+        { file: "icon_ff.png", icon: svg("M3 4l8 8-8 8zM13 4l8 8-8 8z") },
+        { file: "icon_skip.png", icon: svg("M4 4v16M20 4v16M9 12h6M9 12l3-3M9 12l3 3") },
+        { file: "icon_settings.png", icon: React.createElement("svg", { viewBox: "0 0 24 24", width: "100%", height: "100%", fill: "none", stroke: "currentColor", strokeWidth: 1.4 }, React.createElement("circle", { cx: 12, cy: 12, r: 3.4 }), React.createElement("path", { d: "M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2" })) }
+      ]
+    };
+  }
+}
+
+</script>
+</body>
+</html>
