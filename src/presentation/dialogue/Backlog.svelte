@@ -1,6 +1,11 @@
 <script lang="ts">
   import type { BacklogEntry } from './dialogueSession.svelte';
   let { entries, onClose }: { entries: readonly BacklogEntry[]; onClose: () => void } = $props();
+
+  // A modal has to take focus, or it opens with focus parked on the control that opened it -- which
+  // inert has just made non-interactive. Nothing else would announce that a full-screen panel arrived.
+  let closeButton: HTMLButtonElement | undefined = $state();
+  $effect(() => { closeButton?.focus(); });
 </script>
 
 <!-- A full-screen opaque panel must be dismissable from the keyboard, not only by finding its
@@ -11,7 +16,7 @@
   <section class="log" aria-label="dialogue backlog">
     <header>
       <span>BACKLOG</span>
-      <button class="close" onclick={onClose} aria-label="close log">
+      <button class="close" bind:this={closeButton} onclick={onClose} aria-label="close log">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M4 4l16 16M20 4L4 20" /></svg>
       </button>
     </header>

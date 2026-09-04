@@ -20,17 +20,23 @@
   // A modal is open, so the scene UI behind it must neither take focus nor act on Enter.
   const modalOpen = $derived(showLog || session.choices.length > 0);
 
-  // inert blurs whatever was focused inside .scene-ui, and nothing would catch it: a modal would
-  // open with focus on <body>, and closing would leave it there — restarting the tab order twice
-  // per visit. Remember what had focus and hand it back.
+  // Focus has to move INTO a modal and come back out. inert does not blur what it covers -- Chrome
+  // leaves focus exactly where it was, which is now inside the inert subtree and so non-interactive
+  // and out of the accessibility tree. The modals focus themselves on mount; this half remembers
+  // where focus came from so it can be handed back.
+  //
+  // The capture runs in $effect.pre, before the DOM update applies inert: a normal $effect runs
+  // after, by which point an engine that *does* implement the spec's focus fixup has already moved
+  // activeElement to <body> and the saved value is useless.
   let focusBeforeModal: HTMLElement | null = null;
+  $effect.pre(() => {
+    if (modalOpen) focusBeforeModal ??= document.activeElement as HTMLElement | null;
+  });
   $effect(() => {
-    if (modalOpen) {
-      focusBeforeModal ??= document.activeElement as HTMLElement | null;
-    } else if (focusBeforeModal) {
-      focusBeforeModal.focus();
-      focusBeforeModal = null;
-    }
+    if (modalOpen || !focusBeforeModal) return;
+    const target = focusBeforeModal;
+    focusBeforeModal = null;
+    if (target.isConnected) target.focus();
   });
 
   function advance() {

@@ -298,3 +298,24 @@ the inert.
 Worth recording separately: while fixing this I broke the markup mid-edit, and `svelte-check`
 reported zero errors over the broken file while Vite's compiler rejected it. `vite build` is the
 check that told the truth.
+
+## 16. `inert` does not blur, so a modal has to take focus itself
+
+Section 15 added `inert` and a save/restore pair, on the assumption that `inert` blurs whatever it
+covers. **It does not** — Chrome leaves focus exactly where it was, which after the update is inside
+the inert subtree: non-interactive, and out of the accessibility tree. So the modal opened with
+focus parked on a dead control, nothing announced that a full-screen panel had arrived, and the
+save/restore was returning focus that had never been taken.
+
+The fix has two halves, and the first was missing entirely:
+
+- **Each modal takes focus on mount** — the backlog on its close button, the choices panel on its
+  first option. That is what makes the panel reachable without guessing at Tab, and it matters most
+  for the choices modal, which cannot be dismissed and must be answered.
+- **The trigger is captured in `$effect.pre`**, not `$effect`. A normal effect runs after the DOM
+  update, by which point an engine that *does* implement the spec's focus fixup has already moved
+  `activeElement` to `<body>` and the saved value is worthless. The pre-effect runs before `inert`
+  is applied.
+
+Verified end to end in Chrome: focus starts on LOG, moves to the close button inside the panel on
+open (`closest('[inert]')` null), and returns to LOG after Escape.

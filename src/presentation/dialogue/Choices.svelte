@@ -2,12 +2,17 @@
   import type { DialogueChoice } from '../../domain/dialogue/dialogueChoice';
   let { choices, prompt, onSelect }:
     { choices: readonly DialogueChoice[]; prompt: string; onSelect: (i: number) => void } = $props();
+
+  // Same as the backlog: this modal cannot be dismissed and must be answered, so it takes focus
+  // rather than leaving it on whatever inert has just switched off behind the scrim.
+  let panel: HTMLDivElement | undefined = $state();
+  $effect(() => { (panel?.querySelector('button') as HTMLElement | null)?.focus(); });
 </script>
 
 {#if choices.length > 0}
   <!-- Full-screen takeover; the option list sits in the centre of the screen. -->
   <div class="scrim">
-    <div class="panel">
+    <div class="panel" bind:this={panel}>
       <div class="head">SELECT AN ACTION</div>
       <!-- The line that poses the question. The scrim is opaque, so the dialogue box is not readable
            behind it -- without this the player is answering a question they cannot see. -->
