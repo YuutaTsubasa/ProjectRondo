@@ -56,18 +56,27 @@ const DRIFT_SPEED = 0.004;
  * | strength  | 1  | 19 | 30 | 26 | 27 | 24 | 14 |
  *
  * **That table describes every moment of the drift, not just t = 0** — but only because the drift is a
- * scroll in u, which slides each elevation ring along itself and cannot move a cloud to a different
- * elevation. `createClouds` records the measurement, and the reason a drift that fails that is not
- * available here. A drift that moved clouds across elevations would invalidate these numbers.
+ * scroll in u, which slides each elevation ring along itself and so cannot move a cloud to a different
+ * elevation. See {@link createClouds} for why no other kind of drift is available on this dome.
  *
  * Re-measure with that probe after touching any constant here; do not reason about the mapping.
  */
 const CLOUD_BAND_TOP = 0.55;
 const CLOUD_BAND_SPAN = 0.2;
 
-/** Blob count and radii, in pixels of the 512-tall canvas. Tuned together with CLOUD_ALPHA against the
- *  coverage table above: the target was scattered cloud in the camera's strip, not an overcast lid.
- *  The first version's 40 blobs at radius 40..130 gave 100% coverage wherever they landed. */
+/** The cloud texture's size in pixels. Not incidental to `cloudTexture`, which is why it is out here:
+ *  {@link BLOB_MIN_RADIUS} and {@link BLOB_RADIUS_SPREAD} are pixel radii, so their angular size on the
+ *  dome — and with it {@link CLOUD_BAND_TOP}'s measured coverage table — is set by CANVAS_HEIGHT, and
+ *  {@link cloudTexture}'s seamless u-tiling draws each blob at ±CANVAS_WIDTH. Change either and the
+ *  coverage table must be re-measured with the probe {@link CLOUD_BAND_TOP} describes; halving the
+ *  height alone doubles every blob's angular radius. */
+const CANVAS_WIDTH = 1024;
+const CANVAS_HEIGHT = 512;
+
+/** Blob count and radii, in pixels of the {@link CANVAS_HEIGHT}-tall canvas. Tuned together with
+ *  CLOUD_ALPHA against the coverage table above: the target was scattered cloud in the camera's strip,
+ *  not an overcast lid. The first version's 40 blobs at radius 40..130 gave 100% coverage wherever they
+ *  landed. */
 const BLOB_COUNT = 20;
 const BLOB_MIN_RADIUS = 16;
 const BLOB_RADIUS_SPREAD = 30;
@@ -150,10 +159,10 @@ export function createClouds(scene: Scene): void {
  * therefore very easy to ship.
  */
 function cloudTexture(scene: Scene): DynamicTexture {
-  const width = 1024;
-  const height = 512;
+  const width = CANVAS_WIDTH;
+  const height = CANVAS_HEIGHT;
   const tex = new DynamicTexture('cloudLayer', { width, height }, scene, false);
-  const ctx = tex.getContext() as unknown as CanvasRenderingContext2D;
+  const ctx = tex.getContext();
   ctx.clearRect(0, 0, width, height);
   const rand = rng(11);
   for (let i = 0; i < BLOB_COUNT; i++) {

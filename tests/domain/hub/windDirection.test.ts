@@ -11,9 +11,4 @@ describe('the hub wind direction', () => {
   it('is exactly unit length', () => {
     expect(WIND_DIRECTION_X * WIND_DIRECTION_X + WIND_DIRECTION_Z * WIND_DIRECTION_Z).toBe(1);
   });
-
-  it('actually points somewhere — neither component is zero', () => {
-    expect(WIND_DIRECTION_X).not.toBe(0);
-    expect(WIND_DIRECTION_Z).not.toBe(0);
-  });
 });

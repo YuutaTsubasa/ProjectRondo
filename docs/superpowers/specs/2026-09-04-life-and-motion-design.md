@@ -111,9 +111,17 @@ Two scale interactions, both deliberate. `positionUpdated` is **local** space �
 matrix and the per-tree `root.scaling` are both applied later, in `finalWorld` — so a single
 `bendHeight` per material is correct across instances of different sizes, and `tree.glb`'s
 ~1-unit-tall normalisation is what `bendHeight` measures, not the 6x `BASE_SCALE` a tree ends up at.
-The displacement itself is in **world** units, so every tuft and every tree tip travels the same
-distance regardless of its own scale. That is the right way round: wind is a property of the air, not
-of the plant.
+The displacement itself is in **world** units rather than in fractions of a plant's own size — wind is a
+property of the air, not of the plant, so nothing here scales the push by the surface's height.
+
+**That does not make it one world distance for the whole scene, and an earlier draft of this section
+said it did.** `applyWind` takes `amplitude` per call site: grass and flowers get 0.06 (peak ~0.09) and
+trees get 0.2 (peak ~0.30), so a tree tip travels about 3.3x what a grass tip does. The reason is not
+scale but stiffness: a grass card is uniformly flexible along its whole length, whereas a tree's trunk
+is rigid and only the crown gives, so a real tree in a breeze deflects a few percent of its height where
+grass bends tens of percent. Matching the proportions instead was tried — 0.6 on the trees, putting the
+canopy at ~15% lean against the grass's ~18% — and the project owner reported it as visibly too much.
+`wind.ts`'s `applyWind` doc carries the per-call-site values and that history.
 
 ### 3d. Ownership and time
 
@@ -124,9 +132,14 @@ of the plant.
 
 `scatter.ts` and `trees.ts` gain one call each and know nothing about the shader.
 
-Amplitude, speed and spatial frequency are art-direction constants tuned in the browser against the
-DoD's "calm, not distracting", and they carry their tuned values in doc comments the way this repo's
-other measured constants do.
+Amplitude, speed and spatial frequency are art-direction constants whose only honest test is the DoD's
+"calm, not distracting" seen in a running browser. **That test was not run for any of them**, and each
+constant says so where it lives rather than here: `wind.ts` marks `SPATIAL_FREQ` and `SPEED` *Untuned* —
+nobody has watched the field move — `trees.ts` marks `TREE_WIND_AMPLITUDE` *Still unverified*, and
+`clouds.ts` marks `DRIFT_SPEED` *Untuned*. The one number that moved did so on a report rather than an
+observation: the tree amplitude came down from 0.6 to 0.2 because the owner found 0.6 too strong, and
+0.2 itself has not been looked at. Each doc comment carries the mapping needed to move its constant
+without re-deriving it.
 
 ### 3e. Known limitation: the shadow pass cannot sway
 
@@ -137,12 +150,17 @@ The sway therefore **cannot** be replicated into the shadow map by this techniqu
 - **Grass and flowers: unaffected.** They receive but do not cast (`scatter.ts`, Task 7's decision).
 - **Trees: a swaying canopy casts a still shadow.** All 20 of them cast.
 
-This is not designed around in advance, because whether it is *visible* is a rendering question that
+This was not designed around in advance, because whether it is *visible* is a rendering question that
 argument cannot settle: shadow darkness is 0.15, and a tree's own shadow falls largely under its own
-canopy. The plan is to ship the sway and look at it, with a stated fallback if it reads wrong —
-restrict tree displacement to the outer canopy at a small amplitude, trading sway magnitude for a
-shadow mismatch small enough to disappear. **A verification task exists specifically for this** (§7);
-it is not to be resolved by opinion.
+canopy. The sway was to ship and then be looked at, with a stated fallback if it read wrong — restrict
+tree displacement to the outer canopy at a small amplitude, trading sway magnitude for a shadow
+mismatch small enough to disappear.
+
+**Outcome: not observed.** The sway shipped at `TREE_WIND_AMPLITUDE` 0.2 and nobody has looked at the
+mismatch, so this section records no sighting — the fallback was neither taken nor ruled out. That is
+the third unverified item of this phase, alongside the tree amplitude itself and §7's frame-cost
+measurement, and it is still not a question to be resolved by opinion: whoever next runs the scene
+should look at a canopy against its own shadow and write the answer here.
 
 ## 4. Clouds
 
@@ -228,7 +246,11 @@ accumulated wind time, and `wind.ts` owns it.
 
 Per the repo's split: the pure domain gets Vitest TDD; the scene gets in-browser verification.
 
-1. **Domain** — §5a's properties, red before green.
+1. **Domain** — the pure pieces that shipped: `src/domain/math/rng.ts`, pinned to its exact sequence
+   because it seeds the whole hub layout, and `src/domain/hub/windDirection.ts`, pinned unit-length
+   because the shader's phase and amplitude both scale with that length (§5). Red before green. (This
+   item used to point at §5a, the butterfly path's properties; that layer was cut — see §5 — and its
+   tests went with it.)
 2. **Wind reads as wind** — in-browser: the field's motion is coherent and travelling, not a uniform
    pulse; tuft bases stay planted (the squared bend weight's job); motion is calm at the shipped
    amplitude.
@@ -236,9 +258,14 @@ Per the repo's split: the pure domain gets Vitest TDD; the scene gets in-browser
    was seen either way; if the fallback is taken, record the amplitude it settled at.
 4. **Clouds** — drift is visible and slow; **no seam** crosses the sky over a full texture loop (watch
    one whole period, not a few seconds); the dome does not fog or take lighting.
-6. **Frame cost** — paired measurement, using the harness and protocol from
+5. **Frame cost** — paired measurement, using the harness and protocol from
    `2026-08-25-shadow-quality-design.md` §7, on a **visible** pane, per item and for P4 as a whole.
    Anything under ~0.4 ms is reported as unresolved, with the drift figure quoted alongside.
+
+**Status as shipped:** item 1 is done. Items 2, 3 and 5 were **not performed** — nobody has watched the
+field move (§3d), looked at a canopy against its own shadow (§3e), or measured the frame cost. Of item 4
+only the band's placement was verified, by the probe measurement `clouds.ts` records; the drift, the seam
+over a full 250 s loop, and whether the layer reads as cloud at all are unwatched.
 
 ## 8. Done
 
