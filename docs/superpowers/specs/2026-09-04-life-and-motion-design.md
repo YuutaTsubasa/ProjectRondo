@@ -5,9 +5,12 @@ game modes. Roadmap: `2026-08-18-refined-hub-world-roadmap.md` §4 P4.
 
 ## 1. Scope, and a documented disagreement this settles
 
-The roadmap's bounded DoD for P4 is three things: **grass and trees sway with wind; clouds drift; at
+The roadmap's bounded DoD for P4 was three things: **grass and trees sway with wind; clouds drift; at
 least one kind of ambient creature or particle moves through the scene** — with the motion reading as
 calm rather than distracting, and 60 fps holding.
+
+**The third was cut on 2026-09-04, after being built.** See §5. Both this spec and the roadmap's DoD
+were amended rather than left showing an unmet bar. The shipped phase is wind and clouds.
 
 Two other files described a fourth item. `src/domain/hub/waterBody.ts`'s header says "P4's
 shallow-water feedback (splashes, slowdown) will read the same shape", and HANDOFF §5 repeats it. That
@@ -35,11 +38,11 @@ Two constraints from that same measurement bind everything below:
 - **Only paired deltas are quotable.** Absolute frame times drifted 3.49–5.64 ms across a single
   session for the same config.
 
-P4's three items are expected to land: wind at or below the resolution floor (it is vertex arithmetic
-on draw calls that already exist), clouds as the only plausibly-measurable item (one large transparent
-sphere is fill, and fill is ~2.1 ms/Mpx in this scene), butterflies as a dozen tiny draw calls. If the
-total lands above ~1 ms, the cheapest recovery is not in P4 at all: the knight's 47 shadow-caster
-meshes cost 1.73 ms.
+P4's shipped items are expected to land cheap: wind at or below the resolution floor (it is vertex
+arithmetic on draw calls that already exist), and the clouds as the only plausibly-measurable item
+(one large transparent sphere is fill, and fill is ~2.1 ms/Mpx in this scene). The ambient-life layer
+would have added a dozen tiny draw calls; it was cut (§5), so it adds none. If the total lands above
+~1 ms, the cheapest recovery is not in P4 at all: the knight's 47 shadow-caster meshes cost 1.73 ms.
 
 ## 3. Wind
 
@@ -159,48 +162,35 @@ sweeping past on a loop.
 
 This is the one part of P4 with a real fill cost, and §2's floor applies: it gets a paired measurement.
 
-## 5. Butterflies
+## 5. Ambient life — built, then cut
 
-The DoD asks for at least one kind of ambient creature. Butterflies, and they are also the only part of
-P4 with a genuinely pure, testable core — which is where the project's TDD/DDD discipline earns its
-keep.
+**This layer is not in the shipped phase.** It was designed, implemented and reviewed, and then removed
+on 2026-09-04 at the project owner's decision. The section is kept rather than deleted because the
+roadmap's P4 DoD used to require it, and a requirement that vanishes without explanation is
+indistinguishable from one that was quietly missed.
 
-### 5a. Domain — `src/domain/hub/butterfly.ts`
+What was built: butterflies. A pure, engine-agnostic wander path —
+`butterflyAt(seed, t) -> { x, z, heightAboveGround, wingPhase }` in `src/domain/hub/butterfly.ts` —
+bounded by construction rather than by clamping (two sines per axis whose amplitudes sum to 1, so
+`HOME_MAX + sqrt(WANDER^2 + (WANDER/WIND_STRETCH)^2)` = 28.13 < the 30-unit limit), covered by six
+Vitest cases, and driving ten yaw-billboarded alpha-cutout planes in
+`src/presentation/babylon/butterflies.ts` that rode `terrainHeight` and skimmed the pond surface.
+An independent review swept 200 seeds x 20 000 samples and found max radius 27.686 and max speed
+2.307 against those bounds.
 
-```ts
-butterflyAt(seed: number, t: number): { x: number; z: number; heightAboveGround: number; wingPhase: number }
-```
+Why it went: the owner found them startling rather than calming — the exact opposite of the DoD's own
+"calm, not distracting" bar, which makes this a design failure of the layer and not a matter of taste
+to argue with. Drifting pollen and distant circling birds were both offered as substitutes, since
+either would have satisfied the DoD's "creature **or particle**" wording without anything darting near
+the camera, and both were declined: the phase closes without this layer.
 
-Pure, deterministic, no engine imports. It returns a **height above the ground, not a world Y** — ground
-height is `terrainHeight`, which lives in the presentation layer, and reaching for it here would put an
-engine-adjacent dependency inside the domain. Presentation adds the two.
+The roadmap's P4 DoD and its §6 "world done" checklist were amended the same day to strike the
+ambient-life clause, with the same reasoning recorded there. The implementation is in git history
+(commits `432a5da` and `22d3915`, removed by `b0bb07b`) if it is ever wanted.
 
-The path is a slow wandering loop — summed sinusoids at incommensurate frequencies, per-seed phase
-offsets — drifting gently along the same wind direction as §3 so the whole scene shares one sense of
-which way the air is moving. `wingPhase` is a separate, much faster cycle, returned as 0..1 so the
-presentation layer decides what a wingbeat looks like.
-
-Vitest, red before green:
-
-- same `(seed, t)` returns the same value; different seeds do not collapse onto one path;
-- `x`/`z` stay inside a configured radius for large `t` (a butterfly must not wander past the barrier
-  or off the map);
-- `heightAboveGround` stays inside its band — never negative (underground) and never above the band's
-  top;
-- position is continuous: bounded displacement per small `dt`, which is what catches a path that
-  teleports at a period boundary;
-- `wingPhase` stays in 0..1 and wraps without a discontinuity in the beat.
-
-### 5b. Presentation — `src/presentation/babylon/butterflies.ts`
-
-8–12 small billboard planes, wing texture drawn into a `DynamicTexture` (no new asset again), each
-positioned per frame from `butterflyAt(seed_i, t)` plus `terrainHeight` at its x/z. Not pickable, no
-physics, no colliders, and **not** registered with `shadows` — a butterfly's shadow is not worth a
-draw call per cascade, and §2 says exactly where shadow draw calls go.
-
-Start as a dozen ordinary meshes. Thin-instancing them is a real option but it is an optimization, and
-§2's floor means a dozen tiny draw calls are very likely unresolvable; measure before adding the
-machinery.
+One piece of it survives and is still load-bearing: `src/domain/hub/windDirection.ts`. It was
+extracted so the shader and the butterfly path could share one definition of the wind direction
+instead of hand-keeping two copies; the cloud dome now holds up the other end of that share.
 
 ## 6. Modules
 
@@ -208,9 +198,7 @@ machinery.
 | --- | --- | --- |
 | `src/presentation/babylon/wind.ts` | new | The plugin, the shared wind field, `createWind(scene)` |
 | `src/presentation/babylon/clouds.ts` | new | Drifting cloud dome |
-| `src/presentation/babylon/butterflies.ts` | new | Billboards driven by the domain path |
-| `src/domain/hub/butterfly.ts` | new | Pure flight path |
-| `tests/domain/hub/butterfly.test.ts` | new | The properties in §5a (mirroring `tests/domain/hub/character/`) |
+| `src/domain/hub/windDirection.ts` | new | The one wind direction, shared by the shader and the clouds |
 | `src/presentation/babylon/scatter.ts` | edit | One `applyWind` call for grass and flowers |
 | `src/presentation/babylon/trees.ts` | edit | One `applyWind` call, `bendHeight` from the bounding box |
 | `src/presentation/babylon/hubScene.ts` | edit | Wire `createWind`, `createClouds`, `createButterflies` |
@@ -232,16 +220,14 @@ Per the repo's split: the pure domain gets Vitest TDD; the scene gets in-browser
    was seen either way; if the fallback is taken, record the amplitude it settled at.
 4. **Clouds** — drift is visible and slow; **no seam** crosses the sky over a full texture loop (watch
    one whole period, not a few seconds); the dome does not fog or take lighting.
-5. **Butterflies** — they stay in the field, do not sink into or hover above the terrain across a walk
-   around the map, and read as alive rather than as drifting sprites.
 6. **Frame cost** — paired measurement, using the harness and protocol from
    `2026-08-25-shadow-quality-design.md` §7, on a **visible** pane, per item and for P4 as a whole.
    Anything under ~0.4 ms is reported as unresolved, with the drift figure quoted alongside.
 
 ## 8. Done
 
-P4 is done when the roadmap's bounded DoD holds: grass and trees sway subtly, clouds drift, butterflies
-move through the scene, the motion reads calm rather than busy, and 60 fps holds on the cumulative
+P4 is done when the roadmap's bounded DoD holds **as revised on 2026-09-04** (§5): grass and trees
+sway subtly, clouds drift, the motion reads calm rather than busy, and 60 fps holds on the cumulative
 scene — checked with everything from P1–P3 loaded, per roadmap §7, never on the feature in isolation.
 
 Closing P4 closes M4. The roadmap's §6 "world done" checklist should be walked from spawn as the last
@@ -251,8 +237,8 @@ act of this phase, and whatever it turns up recorded — that walkthrough is the
 
 - Shallow-water feedback — §1. Splashes, slowdown, wet shading; a separate piece of work.
 - Wind as a simulated force. Nothing but shaders reads the wind.
-- Birds and pollen. The DoD asks for at least one kind of ambient life and butterflies are it; the sky
-  is empty above the clouds and a distant circling bird is a cheap later addition if it is wanted.
-- Thin-instancing the butterflies before measuring — §5b.
+- Ambient life of any kind — butterflies, birds, pollen. Cut on 2026-09-04 and struck from the DoD;
+  see §5 for what was built and why it went. The sky above the clouds is empty, and a distant circling
+  bird remains a cheap later addition if it is ever wanted.
 - Anything about the knight's 47 shadow-caster meshes. It is the biggest single item in the frame
   (1.73 ms) and it is **not** P4's job; P4's budget is not tight enough to need it.
