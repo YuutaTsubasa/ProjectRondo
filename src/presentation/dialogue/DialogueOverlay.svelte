@@ -102,12 +102,14 @@
     font-family: var(--font-body);
     color: var(--c-ink);
   }
-  /* Bottom-anchored dialogue dock. Left inset clears the standing portrait, as in the kit's
-     composition (box at left:140 of 960; the portrait stands to its left). */
+  /* Bottom-anchored dialogue dock, centred. The kit insets the box at left:140 right:34 of 960 to
+     leave room for the standing portrait, but that 11-point asymmetry reads as a right-shift at
+     other aspect ratios. These insets keep the kit's box WIDTH -- 786 of 960, ~82% -- and centre
+     it instead. */
   .dock {
     position: absolute;
-    left: 14.6%;
-    right: 3.5%;
+    left: 9%;
+    right: 9%;
     bottom: 28px;
     display: flex;
     flex-direction: column;
