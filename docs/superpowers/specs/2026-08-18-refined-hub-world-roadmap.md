@@ -167,6 +167,16 @@ sits at ~59fps (largely the vsync cap), and the real GPU costs land later — P2
 phases stacked**, and P2/P3 in particular must budget against the already-loaded scene (dropping
 godrays or reflection quality if needed) rather than assuming headroom.
 
+**Measured, 2026-09-04 (post-P3, post-shadow-quality).** The cumulative scene costs **~5.1 ms of the
+16.7 ms budget** at 1280x720 on the ARM64 dev machine, leaving **~11.6 ms (~3.3x) for P4**. The split is
+lopsided in a way this section did not anticipate: **shadows are ~91% of the frame (4.65 ms)** and
+everything else — terrain, 16 000 grass instances, trees, the knight, water, the landmark and the whole
+post-processing chain — is **0.57 ms** together. The stylized-direction perf discipline above worked;
+the shadow pass is what eats the budget, and inside it the single biggest item is the knight's 47
+caster meshes at 1.73 ms. Full record and the method (paired deltas only — this machine's absolutes
+drift 1.40x within seconds): `2026-08-25-shadow-quality-design.md` §7, "Task 6 (re-measured
+2026-09-04)".
+
 ## 7b. Scheduled additions (added 2026-08-18, after P1 shipped)
 
 Two items the user asked to fold in after P1 merged. Neither was in the original four phases; both are

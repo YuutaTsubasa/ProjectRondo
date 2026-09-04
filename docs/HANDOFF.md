@@ -1,6 +1,6 @@
 # ProjectRondo — Developer Handoff
 
-Last updated: 2026-08-24. Purpose: everything the next machine / developer / Claude session needs to
+Last updated: 2026-09-04. Purpose: everything the next machine / developer / Claude session needs to
 pick this up cold. The repo is the source of truth; this file is the map.
 
 ## 1. What this is
@@ -60,7 +60,7 @@ pnpm build              # static bundle → dist/
 pnpm tauri dev          # native desktop app (needs Rust)
 ```
 
-## 4. Current state (M1–M4/P2 merged to `main`; **P3 is open as a PR**, branch `claude/p3-water-landmarks`)
+## 4. Current state (M1–M3 and M4/P1–P3 all merged to `main`; M4/P4 is the only phase left)
 
 - **M1 — hub web parity:** third-person mouse-look knight (WASD/Space), pure-domain movement, Havok
   capsule, Idle/Walk animation blend.
@@ -166,15 +166,33 @@ scheduled additions). Sequence from here:
    decimation target.
 2. **P4 — life & motion** (wind sway, drifting clouds, ambient creatures). Budget against the
    already-loaded scene (roadmap §7): the fps headroom the earlier phases left is what P4 spends. P2
-   measured its own cost at **0.3 ms** and P3 at **0.09–0.26 ms**, so there is still roughly 8x
-   headroom against the 16.7 ms vsync budget. Note P3's numbers were taken on a different machine
-   from P2's, so compare *within-session deltas*, never the absolutes (P3 spec §9d). **That 8x figure
-   predates the shadow-quality branch and no longer holds** — it adds four 1024² cascades plus ~360
-   newly-casting thin instances (rock/bush) whose cost is *unmeasured*: the only session that tried
-   to time it ran with the Browser pane hidden, which GPU-throttles the page and invalidated every
-   timing sample taken (see `docs/superpowers/specs/2026-08-25-shadow-quality-design.md` §7's "Task 6 —
-   performance" for the retracted figures and why). Re-measure frame cost with a visible window before
-   P4 spends the remainder.
+   measured its own cost at **0.3 ms** and P3 at **0.09–0.26 ms**. Note P3's numbers were taken on a
+   different machine from P2's, so compare *within-session deltas*, never the absolutes (P3 spec §9d).
+
+   **The budget was re-measured on 2026-09-04, on a visible pane, and the old "roughly 8x headroom"
+   figure is superseded.** Full record:
+   `docs/superpowers/specs/2026-08-25-shadow-quality-design.md` §7, "Task 6 (re-measured 2026-09-04)".
+   Headline, at 1280x720 on the ARM64 dev machine (Adreno X2-90):
+
+   - **Shipped scene: ~5.1 ms** of the 16.7 ms / 60 fps budget → **~11.6 ms left, ~3.3x** (not 8x).
+     That is a **720p** number. Cost scales 1.68x to 1080p and 2.66x to 1440p, so **1080p is ~8.6 ms →
+     ~1.9x** and 1440p leaves almost nothing. Real vsync-locked frames run at the display's 144 Hz cap
+     (6.90 ms median, p95 7.9 ms).
+   - **Shadows are ~91% of that frame** — 4.65 ms, split 3.25 ms shadow-map regeneration + 0.78 ms
+     receiver-side PCF. **Everything else in the hub — terrain, 16 000 grass instances, trees, knight,
+     water, landmark, the whole post-processing chain — is 0.57 ms.**
+   - The **~360 newly-casting rock/bush thin instances**, flagged here as an unmeasured risk, cost
+     **~0.25 ms — at the noise floor.** The risk was real but landed on the wrong object: the knight's
+     **47 caster meshes cost 1.73 ms** (188 draw calls across four cascades), a third of the whole
+     frame. That is the cheapest ~1.7 ms on the table if P4 ever needs it back.
+   - **Error bar:** three measurements of the identical config seconds apart spread by a median factor
+     of **1.40** on this fanless ARM laptop. Only paired deltas are trustworthy; absolutes carry ~±20%;
+     **any delta below ~0.4 ms is unresolvable here.**
+
+   Threshold 4 of the shadow spec (shadow-map re-render < 1.5 ms) **fails at 3.25–4.04 ms**. That is a
+   known, accepted overrun, not a regression to chase before P4 — the frame still fits 60 fps three
+   times over — but it is where the budget lives if P4 runs out.
+
    P3 left `WaterBody` (`src/domain/hub/waterBody.ts`) as the shape P4's shallow-water feedback —
    splashes, slowdown, wet shading — should read, and the plaza's eight pillars are where the
    mode-entrances attach.

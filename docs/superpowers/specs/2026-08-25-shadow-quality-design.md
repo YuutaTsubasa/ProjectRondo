@@ -269,7 +269,7 @@ option available and tends toward speckle noise.
 | 1 | Knight ground shadow present | ≥ 2 000 px darkened at 1280×720, side-on camera | **Invented, unphysical, replaced.** No camera framing at this geometry reaches 2 000 px unoccluded — see below. Replaced by: a non-zero, reproducible knight-only ground shadow with a zero restore-control, plus a measurable increase when ground-detail receivers are enabled. Both hold. |
 | 2 | No shadow acne | darkened pixels on open unoccluded ground < 0.1% of frame | **Original method structurally invalid — replaced (Task 8); the replacement passes.** The Task 3 reading (0 px, recorded as PASS) was taken with an empty caster list, so 0 px was forced by the configuration, not produced by the swept values: acne requires a surface that both casts and receives, which nothing did at that point, so it certified nothing. Replaced by the Task 8 pedestal-top ROI method, measured against the shipped configuration (the first with any casting+receiving meshes — 62 of them). At `normalBias = 0.01` (the Task 3 pick) that method reads severe acne — 75.4% of the 34 850-px pedestal-top ROI. Raising `normalBias` to 0.04 brings it to 360 px, 1.0% of the ROI — converted to the original criterion's own denominator (921 600 px at 1280×720), 360 / 921 600 = 0.039% of frame, under the < 0.1%-of-frame bar. See §7 Task 8. |
 | 3 | Ambient tint did not brighten the scene | in-page-state whole-frame mean luma within ±5% of the branch's own untinted reading (`frame.mean` = 114.11, measured at commit `3320e30` with shadows already enabled); crushed-black % not increased | **PASS** — +4.83% (scale 0.30) against the 114.11 baseline; crushed % rises 0 → 0.001, treated as noise floor, not a regression |
-| 4 | Perf | **Basis corrected.** As originally written this said "within-session round-robin median against `main`", but no method on this branch ever compared against `main` — the only protocol defined or run is `__fpsAB`, which round-robins `shadowMap.refreshRate` 1 against 0 inside a single build. That measures the shadow-map **re-render** cost only: `__fpsAB` deliberately holds every material define fixed, so the receiver-side PCF sampling cost is present in both halves and cancels out. The bar is therefore: shadow-map re-render cost < 1.5 ms of the 16.7 ms budget, single-build refreshRate pairing — and it **understates the feature's total frame cost** by the receiver-side sampling it cancels. A true against-`main` figure would need a second build and has never been taken. | **unmeasured — requires a visible window.** Every timing figure this session was taken with the Browser pane hidden (`document.hidden === true`), which GPU-throttles the page; eight samples of an identical config spread 2.7x with a monotonic upward drift. There is no valid measurement to judge this threshold against. See §7's Task 6 write-up. |
+| 4 | Perf | **Basis corrected.** As originally written this said "within-session round-robin median against `main`", but no method on this branch ever compared against `main` — the only protocol defined or run is `__fpsAB`, which round-robins `shadowMap.refreshRate` 1 against 0 inside a single build. That measures the shadow-map **re-render** cost only: `__fpsAB` deliberately holds every material define fixed, so the receiver-side PCF sampling cost is present in both halves and cancels out. The bar is therefore: shadow-map re-render cost < 1.5 ms of the 16.7 ms budget, single-build refreshRate pairing — and it **understates the feature's total frame cost** by the receiver-side sampling it cancels. A true against-`main` figure would need a second build and has never been taken. | **FAILED — re-measured 2026-09-04 at 3.25 ms** (paired shipped-vs-frozen-map delta), or **4.04 ms** run against this row's own `__fpsAB` protocol; the bar is 1.5 ms, so 2.2–2.7x over. This cell previously read "unmeasured — requires a visible window", because every timing figure taken when this branch was written came from a hidden, GPU-throttled pane (eight samples of one config spread 2.7x with a monotonic upward drift). The re-measurement asserts `document.hidden === false` in the harness and aborts otherwise. See §7's "Task 6 (re-measured 2026-09-04)". |
 
 Threshold 3 uses the whole-frame protocol because P2's tree-emissive regression came from measuring
 only lit points, and its baseline is the branch's own untinted, in-page-state reading (114.11 at
@@ -556,6 +556,108 @@ then, treat P4's frame-budget headroom as unknown — not the "~11 ms of 16.7 ms
 figure came from this session's retracted throttled measurements (above), not from HANDOFF §5, which
 states only "roughly 8x headroom against the 16.7 ms vsync budget" and itself flags that 8x figure as
 predating this branch and no longer holding.
+
+**That re-measurement has since been taken** — see "Task 6 (re-measured 2026-09-04)" immediately below,
+which supersedes this subsection for every number. Nothing above is un-retracted by it: the figures here
+stay withdrawn on their own merits. What the new pass changes is the *verdict* — measured properly, the
+shadow-map re-render costs 3.25–4.04 ms and threshold 4 fails by 2.2–2.7x, so the withdrawn
+"≈3.62 ms, failed by 2.4x" turned out to be right despite having had no valid basis at the time. And
+P4's headroom is no longer unknown: **~11.6 ms of the 16.7 ms budget at 720p**, ~3.3x rather than 8x.
+
+### Task 6 (re-measured 2026-09-04) — performance, on a visible pane
+
+The measurement the section above says must happen before any perf claim is trusted. Taken with
+`document.hidden === false` (asserted in the harness, which aborts otherwise), Browser pane displayed
+throughout.
+
+**Machine and scene.** Windows 11 ARM64, Snapdragon-class CPU (18 logical cores), **Adreno X2-90** GPU
+via ANGLE/D3D11, 144 Hz display, `devicePixelRatio` 1.5. Chromium 148 inside the Claude Browser pane.
+Render target **1280x720**, `hardwareScalingLevel` 1. Shipped scene as of `d0544fd`: 168 meshes, 67
+active, **78 shadow casters** (47 knight `Mesh_*`, 20 trees, 8 `plazaPillar_*`, 1 `plazaPedestal`, 1
+`rock` @ 200 thin instances, 1 `bush` @ 160), AVG intro dismissed, player idle, camera static.
+
+**Method.** `engine.stopRenderLoop()`, then each sample is 40 `scene.render()` calls bracketed by
+`gl.finish()` after 12 warm-up renders — the warm-up is what keeps method 1's recompilation trap above
+out of the number, since any define change forced by a toggle recompiles during warm-up and not inside
+the timed window. Every figure below is a **paired** delta: the variant is sandwiched between two
+measurements of the shipped config in the same rep, and the delta is taken against their mean, so slow
+drift cancels. 14 reps.
+
+**This is a serialized upper bound, not a frame time.** A `gl.finish()`-bracketed burst prevents the
+CPU/GPU overlap that vsync pacing gives you, so it sums submission and execution instead of
+overlapping them. The reality check is the rAF measurement below, and it agrees.
+
+| Configuration | ms / render (median) |
+| --- | --- |
+| Shipped | **5.10** (p25 4.20, p75 5.33) |
+| Shadow map frozen (`refreshRate = 0`; still sampled by receivers) | 1.39 |
+| `scene.shadowsEnabled = false` | **0.57** |
+
+Paired deltas, same round:
+
+| Cost | ms (median) | p25–p75 |
+| --- | --- | --- |
+| **All shadows** | **4.65** | 4.60–4.88 |
+| — shadow-map regeneration (4 cascades x 78 casters) | **3.25** | 3.17–3.38 |
+| — receiver-side PCF sampling | **0.78** | 0.69–0.85 |
+| Everything else (terrain, 16k grass, trees, knight, water, landmark, post-processing) | **0.57** | 0.52–0.63 |
+
+Arithmetic controls, all satisfied within the drift envelope below: regeneration + sampling (4.03) vs
+all-shadows (4.65); shipped − no-shadow (4.53) vs all-shadows (4.65); shipped − no-regen (3.71) vs
+regeneration (3.25). This is the check method 1 above failed — it reported a 4.729 ms shadow cost
+inside a 3.4 ms frame — and it is the reason these numbers are quotable where those were not.
+
+**Shadows are ~91% of the frame.** The rest of the hub — every mesh, all 16 000 grass instances, the
+whole post-processing chain — renders in 0.57 ms.
+
+**Inside the regeneration**, paired the same way (10 reps; each row is what is *saved* by disabling it):
+
+| Caster group | ms saved | p25–p75 | Read |
+| --- | --- | --- | --- |
+| Knight (47 of the 78 casters) | **1.73** | 1.47–1.75 | ~53% of regeneration, ~34% of the whole frame |
+| 4 cascades -> 2 | 1.27 | 0.96–1.42 | |
+| 4 cascades -> 1 | 1.40 | 1.09–1.46 | cascade 2 is nearly free; 3 and 4 are the cost |
+| 20 trees | 0.17 | −0.14–0.22 | straddles zero — unresolvable |
+| `rock` + `bush` (360 thin instances) | 0.25 | −0.05–0.38 | straddles zero — unresolvable |
+
+The knight costs what it costs because it is **47 separate meshes re-submitted per cascade** — 188 draw
+calls — not because of its geometry. Task 7's decision to let rock and bush cast, which HANDOFF flagged
+as an unmeasured risk, is **vindicated: ~0.25 ms, at this machine's noise floor.** The risk was real
+but it landed on the wrong object; the knight's mesh count is where the shadow budget actually goes.
+
+**Threshold 4 (§5b: shadow-map re-render < 1.5 ms of 16.7 ms): FAILED, at 3.25 ms — 2.2x over.** Run
+against the spec's own sanctioned protocol (20 pairs, `refreshRate` 1 vs 0, every define held fixed, 40
+timed renders per half after 10 warm-up) the same cost reads **4.04 ms** (p25 3.88, p75 4.35), 2.7x
+over. The verdict the throttled session withdrew — "≈3.62 ms, failed by 2.4x" — is reproduced, not
+overturned: it was right, on numbers that had no right to be.
+
+**Resolution scaling** (5 samples per point, all in one round): 1280x720 → 3.49 ms; 1920x1080 → 5.86 ms;
+2560x1440 → 9.27 ms. A linear fit gives ~1.6 ms resolution-independent (draw-call submission plus the
+fixed-size 1024² cascades) and ~2.1 ms/Mpx of fill. Shadow work dominates both halves.
+
+That round's own 720p reading is 3.49 ms, not the 5.10 ms headline above — the two rounds are minutes
+apart and the drift envelope below is exactly that wide. **Use these as ratios, never as absolutes**:
+1080p costs **1.68x** 720p and 1440p **2.66x**. Applied to the 5.10 ms headline that is ~8.6 ms at
+1080p and ~13.5 ms at 1440p; applied to its 4.20 ms p25, ~7.0 ms and ~11.2 ms.
+
+**Real frames.** With the normal render loop restored, 399 rAF intervals: median **6.90 ms (144.9 fps)**,
+p95 7.9 ms, max 36.0 ms (one hitch). The loop is vsync-locked at the display's 144 Hz, i.e. real frames
+complete inside 6.94 ms including compositing — consistent with a ~5 ms serialized cost.
+
+**Headroom against the project's 60 fps DoD (16.7 ms), which is what P4 gets to spend:** ~5.1 ms used at
+720p → **~11.6 ms left, ~3.3x**. Scaled by the ratio above, **1080p is ~8.6 ms → ~8.1 ms left, ~1.9x**
+(~7.0 ms → ~2.4x if the 720p p25 is the truer figure), and 1440p ~13.5 ms leaves almost nothing. The
+retracted "roughly 8x" is superseded at every resolution. Two things follow for P4: the comfortable
+headroom is a **720p** statement, and 1.7 ms of the 5.1 is recoverable from the knight's caster count
+alone if 1080p turns out to be the target.
+
+**The error bar, and it is large.** Three measurements of the *identical* shipped config, seconds apart
+inside one rep, spread by a median factor of **1.40** (p25 1.27, p75 1.46). Absolute frame time also
+drifted 3.49–5.64 ms across the session for the same config as the chip warmed. Consequences, binding
+on anyone citing this section: **only the paired deltas are trustworthy**; absolute values carry roughly
+±20%; and **any delta below ~0.4 ms is unresolvable on this machine** — which is exactly why the tree
+and rock/bush rows above are reported as straddling zero rather than as small positive numbers. This is
+a fanless ARM laptop; a machine with stable clocks would resolve more.
 
 ### Task 7 — rocks and bushes cast
 
