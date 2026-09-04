@@ -194,7 +194,8 @@ rotation with a horizontal component carries it below the horizon and, at half a
 entirely. That shipped: the drift was briefly a dome rotation about the horizontal axis perpendicular
 to the wind, so that every point of the dome travelled along the wind's true bearing from any viewing
 angle. It empties the sky once per cycle — sampled over the band, the fraction still above the horizon
-falls 100% → 51% → 0% across 126 s. `clouds.ts`'s `createClouds` carries the measurement.
+falls 100% → 50% → 0% across 126 s. `clouds.ts`'s `createClouds` carries the measurement, and the
+closed form that makes it checkable without re-running the sampler.
 
 The price is that the drift is azimuthal: it reads as travelling along the wind's bearing from the two
 viewing azimuths where the ring's tangent is that bearing, and crosswise from the two at right angles

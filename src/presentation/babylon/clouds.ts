@@ -130,6 +130,19 @@ const CLOUD_BAND_SPAN_F = 0.2;
 const CANVAS_WIDTH = 1024;
 const CANVAS_HEIGHT = 512;
 
+/** Horizontal strips in the dome's tessellation — the one geometry number {@link CLOUD_BAND_BASE_F}'s
+ *  measured `elevation = f * 180 - 90` mapping touches, hence a name rather than an inline literal.
+ *
+ *  It does NOT carry {@link CANVAS_WIDTH}'s re-measure-the-table warning, and that is measured rather
+ *  than assumed. Babylon's sphere builder lays down `2 + segments` rings, giving ring k the polar angle
+ *  `k * pi / (2 + segments)` and the v coordinate `k / (2 + segments)` — so the mapping is EXACT at
+ *  every ring boundary for any segment count, and only interpolated between them. Sweeping that
+ *  interpolation, a fragment's true elevation departs from `f * 180 - 90` by at most **0.002 degrees**
+ *  at 24 segments (rings 6.9 degrees apart), and still only 0.03 degrees at 8 — three orders under the
+ *  coverage table's one-percent resolution either way. So this is a fill-cost dial, free to move for
+ *  performance; what would invalidate the table is a change to the canvas constants above. */
+const DOME_SEGMENTS = 24;
+
 /** Blob count and radii, in pixels of the {@link CANVAS_HEIGHT}-tall canvas. Tuned together with
  *  CLOUD_ALPHA against the coverage table above: the target was scattered cloud in the camera's strip,
  *  not an overcast lid. The first version's 40 blobs at radius 40..130 gave 100% coverage wherever they
@@ -151,15 +164,40 @@ const CLOUD_ALPHA = 0.4;
  * **Why the drift is a u scroll and not a directional one.** Scrolling u is a rotation of the pattern
  * about +Y, and that is the only rotation a band on a dome survives. The band is an annulus about +Y
  * at elevation 9..45 degrees by blob centre ({@link CLOUD_BAND_BASE_F}); under a rotation by theta
- * about a horizontal axis `(ax, 0, az)` a point `(px, y, pz)`'s height becomes
- * `y*cos(theta) - (ax*px + az*pz)*sin(theta)`,
+ * about a horizontal UNIT axis `a = (ax, 0, az)` Rodrigues gives a point `p = (px, y, pz)` the height
+ * `y*cos(theta) + (az*px - ax*pz)*sin(theta)`,
  * which at theta = pi is just `-y` — every cloud below the horizon. That version shipped, about the axis
  * perpendicular to the wind so that every point of the dome travelled along the wind's bearing from
- * any viewing angle, and it emptied the sky once per cycle. Sampling the band (elevation 9..45 every
- * 2 degrees, azimuth every 5 degrees) for the fraction still above the horizon, at its 0.025 rad/s:
+ * any viewing angle, and it emptied the sky once per cycle.
+ *
+ * The `sin` term is the CROSS product `(a x p)_y = az*px - ax*pz`, not the dot product: `a` has no y
+ * component, so Rodrigues' third term `a (a.p) (1 - cos theta)` contributes nothing to the height and
+ * `a.p` never appears. An earlier revision of this comment wrote `- (ax*px + az*pz)*sin(theta)` here,
+ * which is the rotation about `(az, 0, -ax)` — the horizontal axis at RIGHT ANGLES to the one named.
+ * It happens to reach the same conclusion (at theta = pi both collapse to `-y`, and the table below is
+ * identical under either, since both are `y cos theta` plus a sinusoid in azimuth), but this block
+ * exists to spare a reader the re-derivation, and that form hands them the wrong axis.
+ *
+ * Sampling the band (elevation 9..45 every 2 degrees, azimuth every 5 degrees) for the fraction still
+ * above the horizon, at its 0.025 rad/s:
  *
  * | t (s)            | 0 | 21 | 42 | 63 | 84 | 105 | 126 |
- * | horizontal axis  | 100% | 73% | 63% | 62% | 51% | 13% | 0% |
+ * | horizontal axis  | 100% | 84% | 60% | 50% | 40% | 16% | 0% |
+ *
+ * **That row is checkable in closed form, and an earlier revision's — 100/73/63/62/51/13/0 — was not.**
+ * Writing a band point as `p = (cos e cos phi, sin e, cos e sin phi)` and the axis bearing as psi, the
+ * height above reduces to `sin(e) cos(theta) + cos(e) cos(phi + psi) sin(theta)`: psi enters only as a
+ * phase on phi, and phi is swept over the whole circle, so the row is a function of theta alone — no
+ * wind bearing needed to reproduce it. For sin(theta) > 0 the ring at elevation e is above the horizon
+ * wherever `cos(phi + psi) > -tan(e)/tan(theta)`, i.e. over `acos(clamp(-tan e / tan theta, -1, 1))/pi`
+ * of itself; averaging that over the 19 sampled elevations gives 100.00 / 83.68 / 60.05 / 49.93 /
+ * 39.74 / 15.92 / 0.00 percent, and the 72-point azimuth grid moves each by under half a point for any
+ * axis bearing. The t = 63 column is pinned by symmetry rather than won by arithmetic: 0.025 * 63 =
+ * 1.575 rad is pi/2 to within 0.005, and at exactly pi/2 the height is `cos(e) cos(phi + psi)`, which
+ * is negative on exactly half of every ring at every elevation. 50% is therefore a ceiling there for
+ * any band sampled uniformly in azimuth, which is what makes the old 62% not merely wrong but
+ * unreachable. The conclusion is unchanged and slightly sharpened — the sky still empties once per
+ * cycle, and passes half a turn before t = 63 rather than after t = 84.
  *
  * The same sampler over the shipped scroll, at all 72 points of the 250 s loop: **100% above the
  * horizon at every one**, with the sampled annulus's extremes exactly 9 and 45 throughout. That is
@@ -180,7 +218,7 @@ const CLOUD_ALPHA = 0.4;
  * the dome.
  */
 export function createClouds(scene: Scene): void {
-  const dome = CreateSphere('clouds', { diameter: DOME_DIAMETER, segments: 24, sideOrientation: Mesh.BACKSIDE }, scene);
+  const dome = CreateSphere('clouds', { diameter: DOME_DIAMETER, segments: DOME_SEGMENTS, sideOrientation: Mesh.BACKSIDE }, scene);
   dome.infiniteDistance = true;
   dome.isPickable = false;
   // Transparent meshes sort by `alphaIndex` first and only then back-to-front, and the default is
