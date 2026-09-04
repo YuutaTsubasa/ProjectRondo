@@ -64,7 +64,16 @@
 
   <div class="dock">
     <Nameplate speaker={session.speaker} />
-    <div class="box">
+    <!-- The whole box is the advance target, not an inner element: the arrow sits in the box's
+         bottom padding, which a flex child cannot reach. -->
+    <div
+      class="box"
+      role="button"
+      tabindex="0"
+      onclick={onBoxClick}
+      onkeydown={onBoxKeydown}
+      aria-label="advance dialogue"
+    >
       <!-- The 2px inset ring, drawn as an evenodd clip-path over a solid fill: the outer octagon
            minus an octagon inset by 2px leaves the ring between them. -->
       <div class="ring" aria-hidden="true"></div>
@@ -73,18 +82,9 @@
       <div class="marks" aria-hidden="true">
         <span class="on"></span><span class="on"></span><span class="on"></span><span></span><span></span>
       </div>
-      <div
-        class="hit"
-        role="button"
-        tabindex="0"
-        onclick={onBoxClick}
-        onkeydown={onBoxKeydown}
-        aria-label="advance dialogue"
-      >
-        {#key session.line}
-          <Line bind:this={lineRef} text={session.line} onDone={() => (lineDone = true)} />
-        {/key}
-      </div>
+      {#key session.line}
+        <Line bind:this={lineRef} text={session.line} onDone={() => (lineDone = true)} />
+      {/key}
       <svg class="advance" width="30" height="18" viewBox="0 0 30 18" fill="none" aria-hidden="true"><path d="M0 9h26M20 3l6 6-6 6" /></svg>
       <div class="rail" aria-hidden="true"></div>
     </div>
@@ -127,6 +127,8 @@
     -webkit-backdrop-filter: var(--surface-blur);
     clip-path: polygon(18px 0, calc(100% - 18px) 0, 100% 18px, 100% calc(100% - 18px), calc(100% - 18px) 100%, 18px 100%, 0 calc(100% - 18px), 0 18px);
     pointer-events: auto;
+    cursor: pointer;
+    outline: none;
   }
   .ring {
     position: absolute;
@@ -148,9 +150,8 @@
     display: block;
   }
   .marks span.on { background: var(--c-blue); }
-  .hit { cursor: pointer; outline: none; }
   /* --c-blue-deep: a focus ring is non-text UI at a 3:1 threshold, and --c-blue is 2.34:1 here. */
-  .hit:focus-visible { outline: 2px solid var(--c-blue-deep); outline-offset: 4px; }
+  .box:focus-visible { outline: 2px solid var(--c-blue-deep); outline-offset: 4px; }
   .advance {
     position: absolute;
     right: 26px;

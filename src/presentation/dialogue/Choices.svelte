@@ -11,7 +11,7 @@
       {#each choices as choice, i}
         <!-- Kit: a 1px frame with 4px padding around an inner block, and a caret prefix. -->
         <button class="choice" onclick={() => onSelect(i)}>
-          <span class="inner"><span class="caret">❯</span><span class="label">{choice.label}</span></span>
+          <span class="inner"><span class="caret">❯</span><span>{choice.label}</span></span>
         </button>
       {/each}
     </div>

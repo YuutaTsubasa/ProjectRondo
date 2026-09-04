@@ -1,0 +1,8 @@
+{
+  "//": "The tests read component and CSS sources off disk, so they need node builtins. Those types stay here rather than in tsconfig.json: adding \"node\" to the project that also compiles src/**/* makes process, Buffer and Node's timer overloads type-visible inside browser code -- it silently changed ReturnType<typeof setInterval> in Line.svelte from number to Node's Timeout.",
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "types": ["vitest/globals", "vite/client", "node", "svelte"]
+  },
+  "include": ["tests/**/*"]
+}

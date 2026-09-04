@@ -6,7 +6,7 @@
 <div class="scrim">
   <section class="log" aria-label="dialogue backlog">
     <header>
-      <span class="title">BACKLOG</span>
+      <span>BACKLOG</span>
       <button class="close" onclick={onClose} aria-label="close log">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M4 4l16 16M20 4L4 20" /></svg>
       </button>

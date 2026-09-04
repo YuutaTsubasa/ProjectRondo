@@ -14,7 +14,13 @@ const EXPECTED = [
   '--surface-glass', '--surface-blur',
 ];
 
-// Recursively collect .svelte and .css files under a directory.
+/**
+ * Every .svelte and .css file under `dir`, recursively.
+ *
+ * Walks the tree rather than globbing a fixed depth: a token can be referenced from anywhere under
+ * src/, and a var() that resolves to nothing renders as nothing -- silently -- so a file this misses
+ * is a check that quietly passes.
+ */
 const collectFiles = (dir: string): string[] =>
   readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
     const full = join(dir, entry.name);

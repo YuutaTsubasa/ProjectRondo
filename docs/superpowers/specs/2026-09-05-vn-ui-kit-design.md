@@ -182,3 +182,25 @@ which is not a focus indicator at all for anyone who cannot separate the two col
 The lesson is narrow and worth keeping: writing the rule down in `tokens.css` did not stop me from
 breaking it four lines of CSS later. The measurement caught it the first time only because I ran it;
 the second time it took a reviewer.
+
+## 11. The advance target, and why the tests could not see it
+
+The rewrite left the dialogue box mostly unclickable and nothing caught it. The old markup made
+`.box` a column flex with an inner `.hit { flex: 1 }`, so the hit target filled the box; the rebuild
+dropped both, leaving `.hit` only as tall as the line. Measured in the running app, `.hit` covered
+47% of the box — and the advance arrow, the affordance that tells the player to click, sat in the
+dead band below it.
+
+Keyboard advance kept working, because focus lands on the target element itself. That is why the
+suite, `tsc` and `svelte-check` were all green over it: nothing here tests pointer geometry, and
+nothing can, without driving a browser.
+
+The fix is not to restore the flex trick. `.box` carries `padding: 20px 24px 28px` and the arrow is
+positioned inside that bottom padding, which a flex child cannot reach. The box itself is now the
+button — `role`, `tabindex` and both handlers moved onto it, and `.hit` is gone. Verified by probing
+`elementFromPoint` at the arrow's centre and at all four padding bands.
+
+Alongside it, `@types/node` moved out of the main project into `tsconfig.test.json`. It was not the
+theoretical reach the previous branch parked it as: with `node` in the shared `types` list,
+`ReturnType<typeof setInterval>` in `Line.svelte` resolved to Node's `Timeout` instead of the DOM's
+`number`. `pnpm typecheck` now runs both projects.
