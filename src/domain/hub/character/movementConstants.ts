@@ -19,8 +19,14 @@ export const MovementConstants = {
   maxSpeed: 4, runSpeed: 8, turnRate: 10, acceleration: 13, deceleration: 17, gravity: 24, jumpSpeed: 9,
 
   /**
-   * Homing attack. ALL FIVE ARE UNTUNED — these are derived starting points, and nobody has played
-   * them. Tune live via `window.moveConfig` and record what they settle at.
+   * Homing attack. ALL FIVE ARE UNTUNED — these are derived starting points, and no pass has changed
+   * any of them. That is not the same as no evidence: the 2026-09-05 browser pass exercised all five
+   * and every check passed at its derived value, which is why none was retuned. But it ran at commit
+   * `d3b64cb`, before `05f1923` made the dash correct course toward its target every frame, and it
+   * covered less than the list of names suggests — no check measures dash speed by eye, for instance.
+   * Read the design spec §7 before treating any one of these as evidenced; it records per constant
+   * what its check did and did not cover. Tune live via `window.moveConfig` and record what they
+   * settle at.
    *
    * `homingSpeed` 24 is 3x `runSpeed`, so the dash reads as a dash rather than a fast run.
    * `homingBounceSpeed` 9 equals `jumpSpeed`, so a chain gains the height the player already has an

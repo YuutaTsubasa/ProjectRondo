@@ -42,8 +42,10 @@ const CRYSTAL_EMISSIVE = new Color3(0.35, 0.75, 0.95);
  *
  * **Untuned**: plain saturated red, chosen only so a hit reads unambiguously against the crystal's own
  * cyan `CRYSTAL_EMISSIVE` — and to read as a continuation of `homingReticle.ts`'s red ring rather than
- * a new colour vocabulary for "this crystal matters right now". Nobody has watched this in the browser;
- * retune by eye against the running scene.
+ * a new colour vocabulary for "this crystal matters right now". It HAS been watched in the browser — a
+ * hit crystal snaps to this red on the bounce frame and reads unmistakably — but that only confirmed
+ * the value is legible, which was never the doubt: it was compared against no other red and against no
+ * non-red, so nothing has been chosen. Retune by eye against the running scene.
  */
 const FLASH_EMISSIVE = new Color3(1, 0, 0);
 
@@ -51,8 +53,11 @@ const FLASH_EMISSIVE = new Color3(1, 0, 0);
  * How long a flash takes to ease back to `CRYSTAL_EMISSIVE`, in seconds.
  *
  * **Untuned**: 0.4s is a guess at "reads as a distinct hit, but is done fading before the next crystal
- * in a chain could plausibly be flashed" — a homing chain's own bounce-to-bounce cadence has not been
- * measured against it. Nobody has watched this in the browser; retune by eye.
+ * in a chain could plausibly be flashed". The first half of that has been watched — the ease back was
+ * followed frame by frame in the browser against this constant, and 0.40s does read as a distinct hit.
+ * The half the value exists for has not: a homing chain's own bounce-to-bounce cadence was never
+ * measured, so whether the flash is done fading before the next one starts is still unknown. Retune by
+ * eye once a chain can be flown, not before.
  */
 const FLASH_DECAY_SECONDS = 0.4;
 

@@ -117,10 +117,14 @@ export function createPlayer(
     if (dt <= 0) return;
 
     // The jump key is edge-triggered and consumed once, then offered to BOTH the ground-contact
-    // machine below and the homing lock; each decides for itself whether this press is for it. At most
-    // one can act on it, because their gates are disjoint: `groundContact.canJump` is false for the
-    // whole `rising`/`jumpSpent` window that its own `airborne` — the homing lock's precondition —
-    // covers.
+    // machine below and the homing lock; each decides for itself whether this press is for it. Their
+    // gates are NOT disjoint: `stepGroundContact` moves `contact` to `rising` before it reads
+    // `airborne` off it, so the frame an ordinary jump launches reports `jumpRequested` and `airborne`
+    // together, and the lock does commit a crystal on that press. What stops it becoming a dash is the
+    // domain's own gate — `isHomingFrame` requires `!motion.isGrounded`, and a launch frame reports
+    // grounded (that is what lets the domain accept the jump at all) — after which the lock, offered no
+    // press next frame, releases the crystal again. So that `isGrounded` check is load-bearing here,
+    // not a redundant second guard.
     //
     // Acting on it is not the same as consuming it, though. `stepGroundContact` arms its
     // `JUMP_BUFFER_SECONDS` buffer from every press it is handed, including one spent on a dash or on
@@ -146,7 +150,15 @@ export function createPlayer(
       dashInFlight: player.motion.homing !== null,
       jumpPressed: pressed,
       airborne: player.airborne,
-      from: toVec3(root.getAbsolutePosition()),
+      // The physics capsule's position, NOT `root`'s: `root.position.y` is `visualY`, the smoothed
+      // visual height, and the filter's steady-state lag while the capsule climbs at `homingSpeed` 24
+      // is 1.92 u at 60 fps (2.14 u at the MAX_DT clamp). Everything `stepHoming` derives from this
+      // offset — the dash direction, `remaining`, and so both the arrival test and the timeout —
+      // would then be measured from a point the capsule is not at, and that lag is larger than the
+      // arrival threshold (`homingSpeed * dt`, 0.4–0.8 u) and than `homingMaxDuration`'s whole 0.1 s
+      // margin over a max-range crossing, so steep dashes would time out instead of arriving.
+      // Read before this frame's `integrate`, which is the position the frame's velocity starts from.
+      from: toVec3(controller.getPosition()),
       cameraForward: toVec3(cam.getTarget().subtract(cam.position)),
       candidates: crystals.positions,
     }, config);
@@ -215,4 +227,3 @@ export function createPlayer(
 function faceRoot(root: TransformNode, facingX: number, facingY: number): void {
   root.rotation.y = Math.atan2(-facingX, -facingY);
 }
-

@@ -141,10 +141,14 @@ const TRAIL_EMISSIVE = new Color3(0.08, 0.22, 0.95);
  * from the parent's, so `trailGenerator.getWorldMatrix()` carries that same scaling even though nothing
  * on `trailGenerator` itself sets it. So `0.2` is in the GLB's own local units, and the on-screen ribbon
  * width is `0.2 * root.scaling`, whatever that multiple happens to be — not directly comparable to
- * `TARGET_HEIGHT` or any other world-space measurement in this file. Nobody has watched the trail on
- * screen; retune this by eye in local units against an actual screenshot, or compute the world-space
- * width wanted and divide by `root.scaling` at the call site, rather than treating this number as if
- * it were already in world units.
+ * `TARGET_HEIGHT` or any other world-space measurement in this file.
+ *
+ * **Untuned**, and unlike {@link TRAIL_EMISSIVE} above — retuned off the same browser pass — this one
+ * came out of that pass unchanged: the ribbon measured 0.776 world units across on screen, close to the
+ * knight's own torso width and reading thick, but no better width was tried, so 0.2 is still the
+ * arrival value rather than a chosen one. Retune it in local units against an actual screenshot, or
+ * compute the world-space width wanted and divide by `root.scaling` at the call site, rather than
+ * treating this number as if it were already in world units.
  */
 const DASH_TRAIL_DIAMETER = 0.2;
 const DASH_TRAIL_LENGTH = 24;

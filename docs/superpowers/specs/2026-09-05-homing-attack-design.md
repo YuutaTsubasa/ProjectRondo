@@ -24,8 +24,10 @@ Settled with the owner, option by option:
 - **Targets are static anchors, not enemies.** Hitting one bounces the player and lets them home
   again, so chains carry you upward. No damage, no health, no enemy AI — README's near-term vision
   puts combat out of scope, and a traversal move does not need it.
-- **The anchors are crystals**, procedurally generated the way `scatter.ts`'s rocks are (`CreateIcoSphere`),
-  so the phase adds no model, no texture and nothing to Git LFS.
+- **The anchors are crystals**, built in code the way `scatter.ts`'s rocks are, so the phase adds no
+  model, no texture and nothing to Git LFS. Not the same builder, though: `crystals.ts` uses
+  `CreatePolyhedron` with `type: 1` — an octahedron, two square pyramids base to base — where a
+  subdivided sphere would read as another rock.
 - **Trigger: press jump again while airborne.** On the ground, jump still jumps.
 - **Selection: nearest crystal inside a cone about the camera's forward direction.** The player aims
   with the camera, which is how a third-person player aims at anything. The alternative — "any crystal
@@ -222,8 +224,10 @@ stays the project owner's call and is untouched here.
 
 | File | Status | Responsibility |
 | --- | --- | --- |
-| `src/presentation/babylon/crystals.ts` | new | Procedural crystal meshes and their world positions |
-| `src/presentation/babylon/playerController.ts` | edit | Read the press, run the selection, feed `homingTarget` |
+| `src/presentation/babylon/crystals.ts` | new | Procedural crystal meshes, their world positions, and the hit flash |
+| `src/presentation/babylon/homingLock.ts` | new | The lock lifecycle §4 depends on: which crystal a dash is committed to, its entry estimate, and the reticle's separate preview |
+| `src/presentation/babylon/homingReticle.ts` | new | The ring drawn on the crystal a press would hit right now |
+| `src/presentation/babylon/playerController.ts` | edit | Wire the press and the lock into the domain step; flash the crystal on the bounce |
 | `src/presentation/babylon/knight.ts` | edit | Dash animation, the bounce's clip seam, the trail |
 | `src/presentation/babylon/hubScene.ts` | edit | Build the test crystals |
 

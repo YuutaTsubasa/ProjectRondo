@@ -63,7 +63,10 @@ const RETICLE_TEXTURE_SIZE = 128;
  * **Untuned**: plain red, chosen only to be unambiguous against the crystal's own cyan
  * `CRYSTAL_EMISSIVE` (`crystals.ts`) — a hit crystal flashes this same red (`crystals.ts`'s
  * `FLASH_EMISSIVE`), so the two are meant to read as one colour vocabulary ("this crystal matters"),
- * not independently chosen. Nobody has watched this in the browser; retune by eye.
+ * not independently chosen. The ring has been watched in the browser across the three rounds of
+ * adjustment that settled {@link RETICLE_EXTENT_RATIO} and {@link RETICLE_ALPHA}, and the red held up
+ * against the crystal's cyan each time — but every round changed the ring's size or its opacity, never
+ * its colour, so this value has been confirmed legible rather than chosen. Retune by eye.
  */
 const RETICLE_EMISSIVE = new Color3(1, 0, 0);
 
@@ -75,7 +78,9 @@ const RETICLE_EMISSIVE = new Color3(1, 0, 0);
  * crystal it is meant to point at. Letting the crystal show through keeps the marker readable as an
  * overlay on the target rather than a decal replacing part of it.
  *
- * **Untuned**: 0.6 is a first pass at "clearly visible, clearly not solid". Retune by eye.
+ * **Untuned**: 0.6 is where "clearly visible, clearly not solid" was left after the same rounds of
+ * on-screen adjustment that settled {@link RETICLE_EXTENT_RATIO} — watched, and good enough to stop
+ * adjusting, which is not the same as a value anything was measured against. Retune by eye.
  */
 const RETICLE_ALPHA = 0.6;
 

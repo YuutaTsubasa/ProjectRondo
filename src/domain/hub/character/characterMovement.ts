@@ -121,8 +121,14 @@ const stepHoming = (
  * Z — see the doc comment on `IDLE`), so this is the normalized X/Z projection of the 3D dash
  * direction. A dash straight up or down projects to a zero-length vector — `normalize` would return
  * `ZERO`, a meaningless facing that `faceRoot` would hand to `atan2(0, 0)` and snap to a fixed yaw —
- * so that degenerate case keeps the previous facing instead. It is reachable: the hub's test crystals
- * include ones directly overhead.
+ * so that degenerate case keeps the previous facing instead.
+ *
+ * This is a guard, not a case the hub produces: the test is exact, so it needs the offset's x and z to
+ * be exactly zero, and the hub's five test crystals sit ahead of the spawn (x 0 or ±3, z −8 to −18)
+ * rather than above it — measure-zero against Havok's continuous positions. It earns a branch anyway
+ * because what `normalize` returns for a zero vector is not a facing at all, and the layouts this move
+ * is aimed at are the ones that put a crystal over the player's head: the tower (design spec §9) is a
+ * vertical climb by construction.
  *
  * The degenerate case is detected on the projection's own length, not on the identity of what
  * `normalize` returns for it. `vec2.normalize` promises the zero *value*, and today happens to hand
