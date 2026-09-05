@@ -158,7 +158,7 @@ names suggested:
 | `白い通り角.mp3` | 64 kbps, 48 kHz stereo, 7:03 | hub theme, copied verbatim |
 | `AVGBG.mp3` | 64 kbps, 48 kHz stereo, 7:59 | AVG theme, copied verbatim |
 | `armor-step.wav` | 0.145 s mono 44.1 kHz, one hit, −13.8 dBFS peak | the only armour sample; §3.2 |
-| `Third-person_game_gr_#1…` | **Not discrete footsteps** — 2 s of continuous rustle with two sweeps (transients at 0.570 s, 1.205 s) | cut into two soft surface layers, not percussive steps |
+| `Third-person_game_gr_#1…` | **Not discrete footsteps** — 2 s of continuous rustle with two sweeps, of unlike shape: the first has a real attack into a peak at 0.585 s, the second no attack at all, climbing 130 ms into a plateau at 1.32–1.40 s | cut into two soft surface layers, not percussive steps, each **cut on its energy rather than on where the rustle begins** (§5.4a) |
 | `AVG_visual_novel_typ_#4…` | **18** separate ticks over 1.54 s, ~40 ms each | four of the best-isolated become the typing variants |
 | `AVG_visual_novel_opt_#2…` | Attack at 0, but rings on for the full 2 s | trimmed to 0.3 s, or a menu move drones |
 | `AVG_visual_novel_opt_#4…` | **Two** hits (0.00 s and 0.64 s) | first only, or one press sounds like two |
@@ -230,17 +230,45 @@ and re-cutting one sound cannot silently change the others.
 | `music/hub_theme.mp3` | 3308 KB | copied |
 | `music/avg_theme.mp3` | 3741 KB | copied |
 | `sfx/armor_step.ogg` | 5.3 KB | 0.145 s mono |
-| `sfx/footstep_grass_01.ogg` / `_02.ogg` | 7.0 / 7.1 KB | 0.350 s mono |
+| `sfx/footstep_grass_01.ogg` / `_02.ogg` | 6.0 / 5.9 KB | 0.235 / 0.220 s mono |
 | `sfx/ui_type_01..04.ogg` | 4.4–4.5 KB | 0.060 s mono |
 | `sfx/ui_move.ogg` | 6.5 KB | 0.300 s mono |
 | `sfx/ui_confirm.ogg` | 8.2 KB | 0.450 s mono |
 | `ambience/wind_field.ogg` | 131 KB | 8 s stereo, seamless — **shipped, not wired (§5.3a)** |
 | `ambience/water_pond.ogg` | 57 KB | 6 s mono (spatial ⇒ mono), seamless — **shipped, not wired** |
 
-SFX and ambience total **≈ 240 KB**; the two music tracks are 6.9 MB. `*.mp3` and `*.ogg` join the
+SFX and ambience total **≈ 238 KB**; the two music tracks are 6.9 MB. `*.mp3` and `*.ogg` join the
 LFS-tracked extensions in `.gitattributes`.
 
 Everything spatial is mono: a stereo buffer cannot be panned.
+
+### 5.4a The two footstep layers have to *start* together
+
+**Heard in play: the grass layer arrived noticeably after the armour.** Both cues are played on the
+same frame, so the delay was entirely in the assets — the cuts had been aligned to where each rustle
+sweep begins, not to where its energy is, leaving a silent-ish run-up inside the clip.
+
+Measured on the shipped files, as the time from the file's start to the point it reaches 12 dB below
+its own peak:
+
+| | onset, first cut | onset, corrected | energy peak, first cut | energy peak, corrected |
+| --- | --- | --- | --- | --- |
+| `armor_step` (the reference) | 5 ms | 5 ms | 40 ms | 40 ms |
+| `footstep_grass_01` | 25 ms | **0 ms** | 85 ms | **40 ms** |
+| `footstep_grass_02` | 55 ms | **0 ms** | 245 ms | **95 ms** |
+
+The second was the audible offender: a quarter of a second is far past the window in which two sounds
+fuse into one event, so it read as a separate noise after the step rather than as the ground under it.
+
+**Onset is the thing to align, not the peak.** `footstep_grass_02` still peaks at 95 ms against the
+armour's 40, because that is the shape of the material — it is a scuff, not an impact, and it has no
+attack to move. With the onsets together it reads as the surface continuing under the armour, and the
+difference in shape is what makes the two variants sound unlike each other, which is why there are
+two. Their fade-ins are 3 ms rather than the 10 ms used elsewhere, for the same reason: long enough to
+stop a mid-signal cut clicking, short enough not to put the delay back.
+
+Re-cut any future surface layer against this table. A surface sound whose onset is more than about
+20 ms behind the armour's will be heard as late.
 
 ### 5.5 Mix balance
 

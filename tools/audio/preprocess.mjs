@@ -12,6 +12,11 @@
  * winget install does not reach an already-running shell's PATH snapshot, so set FFMPEG to the full
  * path when a bare `ffmpeg` is not found.
  *
+ * **Re-running dirties every .ogg, and that is expected.** ffmpeg gives each Ogg stream a fresh
+ * bitstream serial number, so the bytes differ on every run even when the decoded audio is identical.
+ * After a re-run, commit only the files whose *content* you actually changed and `git checkout --` the
+ * rest; committing the others is pure LFS churn.
+ *
  * The two music tracks are **copied, not transcoded**: both sources are already 64 kbps MP3, so a
  * re-encode to Vorbis would add a second generation of lossy artefacts to spend roughly the same
  * number of bytes. Their loop seam (MP3 encoder padding) is left as-is — it lands once per 7-8
@@ -255,17 +260,32 @@ const RECIPES = [
     build: (a) => normalize(fade(a, 0, 0.01), -3),
   },
   // The grass source is *not* discrete footsteps: it is 2 s of continuous rustle containing two
-  // "sweeps" (transients at 0.570 s and 1.205 s). They are cut out as the surface layer that plays
-  // *under* the armour step, which is why they are soft and long rather than percussive.
+  // "sweeps". They are cut out as the surface layer that plays *under* the armour step, which is why
+  // they are soft and long rather than percussive.
+  //
+  // **Both cuts start on the energy, not on where the rustle begins.** The two layers of one footfall
+  // are triggered on the same frame, so the ear fuses them only if they *start* together; a surface
+  // layer arriving even 50 ms late is heard as a second event rather than as texture. The first cut of
+  // these aligned the starts of the sweeps instead, and measured onsets of 25 ms and 55 ms against the
+  // armour sample's 5 ms — audibly late in play, and worse than those figures suggest for the second,
+  // whose energy peak sat 245 ms in.
+  //
+  // The two sweeps have different shapes and cannot be cut the same way. The first has a real attack
+  // (+7 dB over 20 ms, into a peak at 0.585 s), so it is cut just below that rise. The second has no
+  // attack at all — it climbs for 130 ms into a broad plateau at 1.32-1.40 s — so it is cut *into* the
+  // plateau and necessarily starts mid-signal.
+  //
+  // Their fade-ins are 3 ms rather than the 10 ms used elsewhere: long enough to stop a mid-signal cut
+  // clicking, short enough not to reintroduce the delay this is correcting.
   {
     src: 'Third-person_game_gr_#1-1788552338814.wav',
     to: 'sfx/footstep_grass_01.ogg',
-    build: (a) => normalize(fade(toMono(cut(a, 0.5, 0.85)), 0.01, 0.08), -3),
+    build: (a) => normalize(fade(toMono(cut(a, 0.545, 0.78)), 0.003, 0.08), -3),
   },
   {
     src: 'Third-person_game_gr_#1-1788552338814.wav',
     to: 'sfx/footstep_grass_02.ogg',
-    build: (a) => normalize(fade(toMono(cut(a, 1.15, 1.5)), 0.01, 0.08), -3),
+    build: (a) => normalize(fade(toMono(cut(a, 1.3, 1.52)), 0.003, 0.08), -3),
   },
 
   // --- UI / AVG ---
