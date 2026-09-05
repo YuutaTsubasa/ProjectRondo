@@ -39,6 +39,74 @@ prototype; on the TypeScript side they are upheld by `tsc` strict mode and revie
 | 17 | Avoid single-line comments; document with doc comments | Document types/members with JSDoc `/** … */` (`/// <summary>` in the C# prototype), not `//`. Reserve in-body notes for a rare *why* that documents no API surface. |
 | 18 | Prefer literal empty collections | Write empty collections as `[]` / `{}` literals (with `readonly` / `as const` for fixed tables) rather than helper constructors. |
 
+## What review keeps catching in the web UI
+
+The 18 above are about how code is written. This section is about what has actually gone wrong here.
+
+PR #33 (the VN UI kit) took **18 review rounds and 55 findings** to reach a clean verdict. They were
+not 55 independent problems — they were about six mistakes, each made several times, mostly in code
+that every automated check passed. These are written as **checks to run**, not rules to remember,
+because the rule was not the missing part: `tokens.css` said "`--c-blue` is a fill only" in a comment
+and the same PR then broke it three times.
+
+### Colour used as text or as an indicator
+
+- **Measure against the composited backdrop, not the token's own surface.** A panel at
+  `rgba(255,255,255,0.62)` over a live 3D scene is not white — it spans white down to `rgb(158)`
+  depending on what is behind it. Compute the range and take the worst case.
+- **An outline's backdrop is *outside* the element.** `outline-offset` puts the ring past the border
+  box, so a focus ring on a panel is drawn on the scene, not on the panel. Contrast measured against
+  the panel says nothing about it. Where the backdrop cannot be bounded, give the indicator its own
+  contrast — a light halo with the ring inside it — rather than picking a colour and hoping.
+- **A modal ground with alpha has no floor.** `rgba(soft-blue, 0.55)` over an arbitrary scene can
+  composite arbitrarily dark. If text sits on it, make it opaque or measure the floor.
+- Thresholds: **4.5:1** for text (24px regular / 18.66px bold is the "large" exemption), **3:1** for
+  non-text indicators.
+
+### Focus, when a panel covers the screen
+
+- **`inert` does not blur.** Chrome leaves focus exactly where it was — now inside the inert subtree,
+  non-interactive and out of the accessibility tree. The modal must take focus itself.
+- **Save the trigger before the DOM updates.** A `$effect` runs after; use `$effect.pre`, or an
+  engine that applies the spec's focus fixup will have moved `activeElement` to `<body>` already.
+- **Defer the focus call by a task, not a frame.** `requestAnimationFrame` never fires on a hidden
+  page, so a modal opening in a backgrounded tab would never take focus.
+- **Mount modals conditionally.** A component that is always mounted and hides behind an inner
+  `{#if}` runs its focus effect too early; a fresh mount is what makes the timing work.
+- **Check siblings outside the wrapper.** `inert` on an overlay does not reach the `<canvas>` next to
+  it. Babylon also sets a *positive* `tabIndex` in `Scene`'s constructor, synchronously, before the
+  first `await` — so a reset in `.then()` leaves it tabbable for the whole scene load.
+- **Scroll containers need a tab stop.** A scrollable region with no focusable child is pointer-only
+  unless the browser volunteers (Chrome does; that is not something to depend on).
+
+### Reaching assistive technology
+
+- **`role="button"` prunes its children.** ARIA gives that role presentational children, so content
+  inside it is removed from the accessibility tree and an `aria-label` replaces any name. Keep the
+  affordance and the content as siblings — a stretched `<button>` over a plain container.
+- **Hiding decoration is only half the job.** This UI carefully `aria-hidden`s every rail, marker and
+  glyph, and for several rounds the dialogue line itself reached assistive technology not at all.
+- **A typewriter belongs behind `aria-hidden`**, with the complete line exposed once in a
+  visually-hidden sibling. A live region fed a per-character mutation announces per character.
+- **A `<header>` inside a `div[role="dialog"]` is a page banner.** Only the `<dialog>` *element* is a
+  sectioning root.
+
+### Values that nothing holds together
+
+- **A value repeated across two scoped `<style>` blocks has no guard in this repo.** Svelte scoping
+  means there is no shared class to compare, and the token tests only check `var()` resolution and
+  hex literals. Five things were extracted in PR #33 on exactly this argument. If two components are
+  meant to match, the match has to live in `tokens.css`.
+- **A comment asserting a match is not a mechanism** — and is worse than silence, because it reads as
+  though something enforces it.
+
+### Declarations that reach nothing
+
+- `tests/app/tokens.test.ts` now fails on a token no `var()` references. Before it existed,
+  `--c-ink-rgb` and `--c-white` each survived several rounds, kept alive by the test that read them.
+- The same shape recurs without a guard: exported test helpers with one in-file caller, `class`
+  attributes whose rule was deleted, event handlers a native element already provides.
+
 ## Relationship to tooling
 
 - **`.editorconfig`** encodes the analyzer-enforceable subset (currently #2, #7, #9, #10, #11, #12, #15)

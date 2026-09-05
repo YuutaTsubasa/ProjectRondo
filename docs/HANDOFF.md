@@ -435,6 +435,36 @@ These are hard-won; several cost a debugging session each.
   *what* it contains. Check `document.hidden` before trusting any timing number; if it's `true`, the
   numbers are worthless no matter how tight the IQR looks.
 
+### Checks that were green over real defects
+
+The §7 entries above are about the engine. These are about the *verification*, and they cost most of
+PR #33's 18 review rounds — each one is a case where a check reported success over something broken.
+
+- **`element.click()` dispatches no pointer events.** It does not reproduce pointer-focus behaviour,
+  so it cannot verify anything about focus after a click. A defect that only appears on the click
+  path was "verified fixed" with it, twice, before a real pointer click showed otherwise. Use the
+  Browser pane's own click action when focus is what you are testing.
+- **`svelte-check` and `vite build` have both been green over broken markup.** `svelte-check`
+  reported zero errors over a file Vite's compiler rejected outright; and both were green over a CSS
+  rule spliced into the *markup* by a bad edit, because Svelte took it as text content and rendered
+  it. When an edit is structural, re-read the file — no tool here will tell you.
+- **Vite's watcher silently misses file replacements on this machine.** `perl -0pi` and similar
+  rewrite the file rather than editing in place, and the dev server kept serving the old module —
+  same Svelte scope hash, old computed values. If a measurement contradicts the source, check the
+  scope hash and restart the server before believing the measurement.
+- **A hidden Browser pane changes what runs.** `requestAnimationFrame` never fires (the page never
+  paints), `elementFromPoint` returns `null`, `innerWidth`/`innerHeight` read `0`, and long async
+  probes time out. This is the same class as the `document.hidden` timing trap in §7's performance
+  notes. It also caught a real bug: an rAF-deferred focus call would never have run for a user with
+  the tab in the background.
+- **A test can pass while the code it pins is broken.** Two cases written specifically to pin the
+  modal focus machinery passed with that machinery deliberately reverted — one because all fake
+  timers were advanced before Svelte ever re-ran its effects, one because an unkeyed `{#each}` reused
+  the button so focus appeared to survive. **Break the code and watch the test fail** before
+  believing a new test. It is one command and it has been wrong more often than not here.
+- **The dev server dies on `EBUSY` from `.claude/worktrees/`.** Vite watches the whole project root,
+  including other sessions' worktrees, and a locked file there takes the server down mid-session.
+
 ## 8. Claude's local memory (optional, but valuable for continuity)
 
 The richest operational notes live in **Claude's machine-local memory**, not in git:

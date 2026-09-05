@@ -91,4 +91,24 @@ describe('tokens.css', () => {
 
     expect(unresolved).toEqual([]);
   });
+
+  // The inverse of the case above, and the one that was missing. That one catches a var() with no
+  // token; this catches a token with no var(). Both --c-ink-rgb and --c-white survived several
+  // review rounds as declarations that reached no rendered pixel, each kept alive by the very test
+  // that read them, and only a person noticing found them.
+  //
+  // A token referenced only from inside tokens.css counts as used: --c-white-rgb backs
+  // --surface-glass and --focus-halo, and that is a legitimate building block. What this rejects is
+  // a token nothing anywhere refers to.
+  it('every token declared in tokens.css is referenced by some var()', () => {
+    const referenced = new Set<string>();
+    for (const file of collectFiles(SRC_DIR)) {
+      for (const match of readFileSync(file, 'utf8').matchAll(/var\(\s*(--[a-z0-9-]+)/g)) {
+        referenced.add(match[1]);
+      }
+    }
+    const declared = (readFileSync(TOKENS, 'utf8').match(/^\s*(--[a-z0-9-]+)\s*:/gm) ?? [])
+      .map((m) => m.trim().replace(/\s*:$/, ''));
+    expect(declared.filter((name) => !referenced.has(name))).toEqual([]);
+  });
 });
