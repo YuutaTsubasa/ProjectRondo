@@ -17,4 +17,22 @@
  */
 export const MovementConstants = {
   maxSpeed: 4, runSpeed: 8, turnRate: 10, acceleration: 13, deceleration: 17, gravity: 24, jumpSpeed: 9,
+
+  /**
+   * Homing attack. ALL FIVE ARE UNTUNED — these are derived starting points, and nobody has played
+   * them. Tune live via `window.moveConfig` and record what they settle at.
+   *
+   * `homingSpeed` 24 is 3x `runSpeed`, so the dash reads as a dash rather than a fast run.
+   * `homingBounceSpeed` 9 equals `jumpSpeed`, so a chain gains the height the player already has an
+   * intuition for. `homingRange` 12 is three of the knight's jump apexes. `homingConeHalfAngle`
+   * 0.61 rad is 35 degrees — wide enough to forgive a roughly-aimed camera, narrow enough that two
+   * crystals at different headings stay distinguishable, which is the number route choice lives or
+   * dies on. `homingMaxDuration` 0.6 s is the 0.5 s it takes to cross `homingRange` at `homingSpeed`
+   * plus margin; it is a safety bound, not a feel knob (see characterMovement's dash branch).
+   */
+  homingRange: 12,
+  homingConeHalfAngle: 0.6109,
+  homingSpeed: 24,
+  homingBounceSpeed: 9,
+  homingMaxDuration: 0.6,
 } as const;

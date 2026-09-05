@@ -1,8 +1,8 @@
-import { type CharacterMotion } from './characterMotion';
+import { type CharacterMotion, type HomingDash } from './characterMotion';
 import { type MovementInput } from './movementInput';
 import { type MovementConfig } from './movementConfig';
 import { type Vec2, vec2, scale, normalize, length, moveToward, rotateToward, ZERO } from '../../math/vec2';
-import { vec3 } from '../../math/vec3';
+import { vec3, ZERO3, length as length3, normalize as normalize3, scale as scale3 } from '../../math/vec3';
 import { moveToward as moveTowardScalar } from '../../math/scalar';
 import { isZero } from '../../kernel/normalizedPlanarDirection';
 
@@ -23,6 +23,9 @@ export const step = (
   config: MovementConfig,
   delta: number,
 ): CharacterMotion => {
+  const dash = motion.homing ?? enterHoming(motion, input);
+  if (dash) return stepHoming(motion, dash, config, delta);
+
   const facing = nextFacing(motion, input, config, delta);
   const planar = nextPlanarVelocity(motion, input, config, delta, facing);
   const justJumped = motion.isGrounded && input.jumpRequested;
@@ -32,6 +35,64 @@ export const step = (
     velocity: vec3(planar.x, verticalSpeed, planar.y),
     facing,
     isGrounded: motion.isGrounded && !justJumped,
+    homing: null,
+  };
+};
+
+/**
+ * A press only becomes a dash in the air. On the ground the same button is an ordinary jump, which
+ * the normal path below handles — so this returns null there and nothing else has to know.
+ *
+ * The `homingTarget` check is `== null` (not `===`) on purpose: `MovementInput` gained this field
+ * after callers already existed, and nothing at runtime stops an older literal from omitting it
+ * entirely, which reads back as `undefined` rather than `null`. Both mean "no target".
+ */
+const enterHoming = (motion: CharacterMotion, input: MovementInput): HomingDash | null => {
+  if (motion.isGrounded || input.homingTarget == null) return null;
+  const distance = length3(input.homingTarget);
+  if (distance === 0) return null; // coincident target: nothing to fly toward
+  return { direction: normalize3(input.homingTarget), remaining: distance, elapsed: 0 };
+};
+
+/**
+ * The dash frame. Gravity and steering are both suspended here — that is the whole reason this state
+ * lives inside `step` rather than beside it, since three things `step` otherwise does unconditionally
+ * become conditional.
+ *
+ * Arrival is checked BEFORE the timeout: arriving is a success and should beat a timeout that fires
+ * on the same frame, and this ordering matters at real frame times (`playerController` clamps to
+ * `MAX_DT = 1/30`, well under `homingMaxDuration`), so the two branches almost never compete — but
+ * when they do, the friendlier outcome should win.
+ *
+ * The timeout itself is not defensive polish. `step` emits a velocity but Havok applies it, and a
+ * dash whose straight line crosses terrain never arrives: the controller pins the capsule to the wall
+ * while this function keeps asking for `homingSpeed` toward a point it can never reach, gravity
+ * suspended, for ever. Aborting is a normal outcome — a mistimed press near a wall should drop you,
+ * not trap you.
+ */
+const stepHoming = (
+  motion: CharacterMotion, dash: HomingDash, config: MovementConfig, delta: number,
+): CharacterMotion => {
+  const travelled = config.homingSpeed * delta;
+  if (travelled >= dash.remaining) {
+    return {
+      velocity: vec3(0, config.homingBounceSpeed, 0),
+      facing: motion.facing,
+      isGrounded: false,
+      homing: null,
+    };
+  }
+
+  const elapsed = dash.elapsed + delta;
+  if (elapsed >= config.homingMaxDuration) {
+    return { velocity: ZERO3, facing: motion.facing, isGrounded: false, homing: null };
+  }
+
+  return {
+    velocity: scale3(dash.direction, config.homingSpeed),
+    facing: motion.facing,
+    isGrounded: false,
+    homing: { direction: dash.direction, remaining: dash.remaining - travelled, elapsed },
   };
 };
 
