@@ -14,7 +14,7 @@ import { describe, it, expect, afterEach, vi } from 'vitest';
 import { flushSync } from 'svelte';
 import { renderOverlay, q, resetOverlay } from './overlayHarness';
 
-/** The reveal's own interval, and the throttle it feeds. Both are Line.svelte's defaults. */
+/** The reveal's own interval: Line.svelte's default for its `charMs` prop. */
 const CHAR_MS = 24;
 
 // Nine characters, so the throttle has room to land three ticks inside one line.
