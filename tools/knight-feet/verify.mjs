@@ -66,7 +66,8 @@ for (const r of report.filter((r) => MUST_BE_LEVEL.includes(r.clip))) {
   for (const f of r.feet) {
     assert(
       Math.max(Math.abs(f.min), Math.abs(f.max)) < LEVEL_TOLERANCE,
-      `${r.clip} ${f.foot}: sole pitch ${f.min.toFixed(2)} to ${f.max.toFixed(2)} degrees; expected within ${LEVEL_TOLERANCE} degree of level`,
+      `${r.clip} ${f.foot}: sole pitch ${f.min.toFixed(2)} to ${f.max.toFixed(2)} degrees; ` +
+        `expected within ${LEVEL_TOLERANCE} degree of level`,
     );
   }
 }

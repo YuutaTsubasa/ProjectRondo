@@ -38,7 +38,10 @@ const stored = buf.length - dataStart;
 // Radiance may RLE its scanlines. This file does not: the payload is exactly one uncompressed
 // four-byte pixel per texel, which is what makes the flat indexing below valid.
 if (stored !== flatBytes) {
-  console.log(`payload:     ${stored} bytes, not the ${flatBytes} of a flat RGBE image — RLE-compressed; this tool only reads flat scanlines.`);
+  console.log(
+    `payload:     ${stored} bytes, not the ${flatBytes} of a flat RGBE image — RLE-compressed;` +
+      ' this tool only reads flat scanlines.',
+  );
   process.exit(1);
 }
 console.log(`payload:     ${stored} bytes, exactly ${width}*${height}*4 — flat scanlines, no RLE`);
@@ -68,7 +71,10 @@ for (let y = 0; y < height; y++) {
   }
 }
 
-console.log(`greyscale:   ${greyscale ? 'yes — R = G = B in every pixel, so it tints nothing' : 'NO — this panorama carries colour'}`);
+const greyNote = greyscale
+  ? 'yes — R = G = B in every pixel, so it tints nothing'
+  : 'NO — this panorama carries colour';
+console.log(`greyscale:   ${greyNote}`);
 console.log(`radiance:    ${min.toFixed(4)} to ${max.toFixed(4)}`);
 console.log(`mean:        ${(weighted / weight).toFixed(4)} (solid-angle weighted)`);
 console.log(`brightest:   ${brightest.value.toFixed(3)} at pixel (${brightest.x}, ${brightest.y})`);
@@ -79,7 +85,10 @@ const rowMin = Array.from({ length: height }, (_, y) => {
   for (let x = 0; x < width; x++) m = Math.min(m, value(x, y));
   return m;
 });
-console.log(`gradient:    zenith ${rowMin[0].toFixed(4)} -> horizon ${rowMin[height >> 1].toFixed(4)} -> nadir ${rowMin[height - 1].toFixed(4)} (row minima)`);
+console.log(
+  `gradient:    zenith ${rowMin[0].toFixed(4)} -> horizon ${rowMin[height >> 1].toFixed(4)}` +
+    ` -> nadir ${rowMin[height - 1].toFixed(4)} (row minima)`,
+);
 
 /**
  * The soft lights: peaks standing at more than `LIGHT_THRESHOLD` times the gradient at their own
@@ -118,5 +127,8 @@ console.log(`soft lights: ${lights.length}, each more than ${LIGHT_THRESHOLD}x t
 for (const l of lights) {
   const azimuth = ((l.x + 0.5) / width) * 360;
   const elevation = 90 - ((l.y + 0.5) / height) * 180;
-  console.log(`             ${l.value.toFixed(3)} at (${l.x}, ${l.y}) — azimuth ${azimuth.toFixed(0)}deg, elevation ${elevation.toFixed(0)}deg`);
+  console.log(
+    `             ${l.value.toFixed(3)} at (${l.x}, ${l.y})` +
+      ` — azimuth ${azimuth.toFixed(0)}deg, elevation ${elevation.toFixed(0)}deg`,
+  );
 }

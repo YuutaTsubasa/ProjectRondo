@@ -59,7 +59,9 @@ const SEARCH_ITERATIONS = 28;
 const [, , input, out, preRotationDegrees = '0'] = process.argv;
 if (!input || !out || !['0', '20'].includes(preRotationDegrees)) {
   throw Error(
-    'Usage: node calibrate.mjs input.glb output.glb [fixed pre-rotation degrees: 0 for a fresh export, 20 to reproduce the shipped asset]',
+    'Usage: node calibrate.mjs input.glb output.glb [fixed pre-rotation degrees]\n' +
+      '  0   a fresh export — nothing in this repository bakes an ankle offset to cancel\n' +
+      '  20  reproduces the shipped public/models/knight_web.glb from its own source export',
   );
 }
 if (input === out) throw Error('Use a separate output so the source remains available for verification');
