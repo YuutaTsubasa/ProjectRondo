@@ -1,4 +1,6 @@
 import { describe, it, expect } from 'vitest';
+import { existsSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 
 import { MANIFEST } from '../../src/presentation/audio/manifest';
 
@@ -11,14 +13,15 @@ import { MANIFEST } from '../../src/presentation/audio/manifest';
  * policy is deliberately not fatal (soundBank.ts's `load`), which is exactly what makes a broken path
  * quiet. The paths are the one part of this table that can be checked against reality, so they are.
  *
- * The check is `import.meta.glob` rather than `node:fs` only because this repo has no `@types/node`:
- * the glob is resolved by vite against the same directory the dev server and the build serve
- * `public/` from, which is the path the browser will actually request. Lazy — nothing here decodes
- * three megabytes of music; only the keys are read.
+ * Read off disk with `node:fs`, as `tests/app/fonts.test.ts` and `tests/app/tokens.test.ts` do:
+ * `public/` is served at the site root by both the dev server and the build, so a manifest path
+ * resolved against `public/` is the path the browser will actually request. `existsSync` rather than
+ * a directory listing because that is the whole question — nothing here opens a file, let alone
+ * decodes three megabytes of music.
+ *
+ * `fileURLToPath`, not `URL.pathname` — on Windows the latter yields "/C:/..." and breaks reads.
  */
-const SHIPPED = new Set(Object.keys(import.meta.glob('../../public/audio/**/*')));
-
-const under = (file: string) => `../../public${file}`;
+const under = (file: string) => fileURLToPath(new URL(`../../public${file}`, import.meta.url));
 
 describe('the audio manifest', () => {
   const entries = Object.entries(MANIFEST).flatMap(([cue, spec]) =>
@@ -26,7 +29,7 @@ describe('the audio manifest', () => {
   );
 
   it('names a file that exists for every cue', () => {
-    const missing = entries.filter(([, file]) => !SHIPPED.has(under(file)));
+    const missing = entries.filter(([, file]) => !existsSync(under(file)));
     expect(missing).toEqual([]);
   });
 
