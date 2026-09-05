@@ -19,6 +19,23 @@ import { parse } from '../../../src/domain/dialogue/script/parser';
 const SCRIPT = ':: greet\n里昂: 你好。\n-> ask\n:: ask\n里昂: 走哪？\n* 左 -> l\n* 右 -> r\n:: l\n旁白: 左。\n:: r\n旁白: 右。\n';
 
 /** A frame of the real overlay, mounted into a fresh document body. */
+// jsdom does not implement matchMedia, and Portrait reads it to honour prefers-reduced-motion.
+// Stubbed here rather than guarded in the component: matchMedia is universally supported in real
+// browsers, so a guard there would be defending against a case that only this environment has.
+// Reports "no preference", which is the path that renders the animated portrait.
+if (!window.matchMedia) {
+  window.matchMedia = ((query: string) => ({
+    matches: false,
+    media: query,
+    onchange: null,
+    addEventListener: () => {},
+    removeEventListener: () => {},
+    addListener: () => {},
+    removeListener: () => {},
+    dispatchEvent: () => false,
+  })) as unknown as typeof window.matchMedia;
+}
+
 const mounted: ReturnType<typeof mount>[] = [];
 
 function render(script = SCRIPT) {

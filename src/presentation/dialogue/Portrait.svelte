@@ -1,7 +1,23 @@
 <script lang="ts">
-  import { resolvePortrait } from './portraitLibrary';
+  import { resolvePortrait, resolvePortraitMotion } from './portraitLibrary';
+
   let { portrait }: { portrait: string } = $props();
-  let src = $derived(resolvePortrait(portrait));
+
+  // An animated <img> cannot be paused, so honouring prefers-reduced-motion means choosing the
+  // still instead of the loop. Read once and then follow changes: the setting can be toggled while
+  // the game is running, and the query is the only thing that tells us.
+  let reduceMotion = $state(false);
+  $effect(() => {
+    const query = window.matchMedia('(prefers-reduced-motion: reduce)');
+    reduceMotion = query.matches;
+    const onChange = (e: MediaQueryListEvent) => { reduceMotion = e.matches; };
+    query.addEventListener('change', onChange);
+    return () => query.removeEventListener('change', onChange);
+  });
+
+  let src = $derived(
+    (reduceMotion ? undefined : resolvePortraitMotion(portrait)) ?? resolvePortrait(portrait),
+  );
 </script>
 
 <img class="portrait" {src} alt="" draggable="false" />
