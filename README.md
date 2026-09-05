@@ -200,6 +200,73 @@ resolution; `npm install @gltf-transform/cli@4.4.2` into a scratch dir instead, 
 `overrides: { "sharp": "0.34.5" }` pin (its transitive `sharp@0.35.x` throws
 `colourspace: parameter space not set` on the 8192² source textures).
 
+### Regenerating the AVG portrait assets
+
+`public/portraits/` holds four files, and the code depends on properties of each that no build step
+enforces — see `tests/presentation/dialogue/portraitAssets.test.ts`, which asserts them.
+
+**Two ffmpeg traps make this pipeline easy to get wrong in ways every obvious check survives**, so
+read these before re-encoding anything:
+
+1. **ffmpeg's native `vp9` decoder silently drops this source's alpha**, decoding to `yuv420p`. Every
+   downstream encode then inherits an opaque background and the portrait renders as a black
+   rectangle over the scene. `-c:v libvpx-vp9` **on the input** reads it correctly. This shipped
+   once.
+2. **`ffprobe` and "extract a frame to RGBA" both report alpha on a file that has none** — the first
+   reports the decoder's output format, the second pads alpha to 255. Only sampling a decoded
+   pixel's alpha is honest. A 1x1 `crop` also rounds to zero on subsampled video, so convert with
+   `format=rgba` first.
+
+The source is the background-removed idle clip from the character hand-off (768x1344, VP9 with
+alpha, 24fps, 124 frames, 5.192s). **It is not committed** — the same gap the metallic/roughness map
+above describes, and the three knight encodings cannot be reproduced without it. The probe is the
+exception and the one that matters most: it is synthesised from nothing, so its recipe below is
+complete on its own.
+
+```bash
+SRC=magnific_video-background-removal_8aHGVd3IrU.webm   # not in the repo
+
+# knight_idle.webm — VP9 with alpha, the upgrade path. 514x900 (from -2:900), 12fps, 62 frames.
+ffmpeg -c:v libvpx-vp9 -i "$SRC" -vf 'scale=-2:900,fps=12' \
+  -c:v libvpx-vp9 -pix_fmt yuva420p -b:v 0 -crf 34 -row-mt 1 -an \
+  -fflags +bitexact -flags:v +bitexact public/portraits/knight_idle.webm
+
+# knight_idle.webp — animated WebP, the universal baseline. Same geometry and length, ~6x the bytes.
+ffmpeg -c:v libvpx-vp9 -i "$SRC" -vf 'scale=-2:900,fps=12' \
+  -c:v libwebp_anim -pix_fmt yuva420p -lossless 0 -q:v 35 -loop 0 -an public/portraits/knight_idle.webp
+
+# knight_idle_still.webp — frame 0, shown while the probe runs, under prefers-reduced-motion, and as
+# the <video> poster. Every cold load fetches it, on every path, so quality is chosen against the
+# frame that replaces it: at q90 the mean RGB delta from the WebM's frame 0 is 2.57/255 where a
+# lossless encode reaches 1.98 — the floor, since the reference is itself lossy VP9 — for a third of
+# the bytes. If a re-encode of this file comes out opaque, it is trap #1, not the lossy encoder.
+ffmpeg -c:v libvpx-vp9 -i "$SRC" -vf 'scale=-2:900,fps=12' -frames:v 1 \
+  -c:v libwebp -lossless 0 -q:v 90 -pix_fmt bgra public/portraits/knight_idle_still.webp
+
+# vp9-alpha-probe.webm — 2x2, one frame, every pixel fully transparent. Decoded to a canvas at
+# runtime to find out whether the engine honours VP9's alpha at all; if this file is ever opaque the
+# probe answers "supported" everywhere and the black rectangle ships. Needs no source.
+ffmpeg -f lavfi -i 'color=c=black@0.0:s=2x2:r=1:d=1,format=rgba' \
+  -c:v libvpx-vp9 -pix_fmt yuva420p -frames:v 1 \
+  -fflags +bitexact -flags:v +bitexact public/portraits/vp9-alpha-probe.webm
+```
+
+**This is a reconstruction, and it was checked rather than remembered: re-running all four against
+the source reproduces the shipped files byte-for-byte.** That is worth having rather than
+approximating, because it means any diff at all after a re-encode is a real change and not noise to
+squint past.
+
+Getting there needed the `bitexact` flags on the two WebM encodes. Without them the matroska muxer
+writes a randomly generated `TrackUID` (element `0x73C5`) twice, and two runs over identical input
+differ in exactly those 16 bytes — at offsets 283 and 407 — with every byte of encoded video
+identical. libvpx itself is deterministic here; only the container was not.
+
+After regenerating, run `pnpm test` with ffmpeg **and ffprobe** on PATH. Four asset cases skip
+silently without them, and they are the ones that would catch a lost alpha channel in any of the
+three portraits or in the probe, a WebM frozen on one frame, and a WebM whose loop no longer runs as
+long as the WebP it stands in for. (The check that the *still* has not become animated reads its
+chunks directly, so that one runs either way.)
+
 ## Milestones
 
 - **M1 — Hub web parity** *(done)* — third-person mouse-look knight, pure-domain movement, Havok
