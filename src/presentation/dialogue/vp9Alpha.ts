@@ -5,22 +5,31 @@ const PROBE_URL = '/portraits/vp9-alpha-probe.webm';
 const TIMEOUT_MS = 2000;
 
 /**
- * `supported` is the answer; `decisive` is whether it is worth remembering.
+ * What one run of the probe established. Three cases, because there are three — not two flags.
  *
- * Reading the pixel settles the engine's capability for good. Losing a race does not: the probe
- * starts from Portrait's `$effect`, alongside the hub's GLB and the Havok wasm, so a 535-byte fetch
- * can time out for reasons that have nothing to do with VP9.
+ * `supported` and `unsupported` come from reading the pixel, which settles the engine's capability
+ * for good. `undecided` establishes nothing: the probe starts from Portrait's `$effect`, alongside
+ * the hub's GLB and the Havok wasm, so a 535-byte fetch can time out for reasons that have nothing
+ * to do with VP9, and remembering that would answer a later caller with a fact about one bad moment.
  *
- * No caller is billed for that today — `App.svelte` mounts the overlay behind a one-way
+ * A union rather than `{ supported, decisive }` because that pair admits a fourth case that must
+ * never occur — supported but undecided — and nothing in the type would have stopped it. It is not
+ * merely meaningless: the caller upgrades on `supported` alone, so it would hand VP9 to an engine
+ * the probe never got a pixel out of, then decline to remember doing so.
+ *
+ * No caller is billed for the retry today — `App.svelte` mounts the overlay behind a one-way
  * `intro → playing` gate, so `Portrait` mounts once and this runs once per page load. What is being
- * kept honest is the export's promise rather than an observable cost: a predicate that memoises a
- * lost race answers every later caller with a fact about one bad moment, and the first thing to
- * mount a portrait twice would inherit that silently.
+ * kept honest is the export's promise rather than an observable cost: the first thing to mount a
+ * portrait twice would inherit a memoised bad moment silently.
  */
-type Answer = { readonly supported: boolean; readonly decisive: boolean };
+type Answer =
+  | { readonly kind: 'supported' }
+  | { readonly kind: 'unsupported' }
+  | { readonly kind: 'undecided' };
 
-const NO = { supported: false, decisive: true } as const;
-const UNDECIDED = { supported: false, decisive: false } as const;
+const SUPPORTED = { kind: 'supported' } as const;
+const UNSUPPORTED = { kind: 'unsupported' } as const;
+const UNDECIDED = { kind: 'undecided' } as const;
 
 // `MediaError`'s codes, spelled out because the interface is not a global everywhere this runs --
 // jsdom, where the probe's tests live, does not define it.
@@ -54,7 +63,7 @@ function probe(): Promise<Answer> {
       clearTimeout(timer);
       const code = video.error?.code;
       const rejectedTheFormat = code === MEDIA_ERR_DECODE || code === MEDIA_ERR_SRC_NOT_SUPPORTED;
-      finish(rejectedTheFormat ? NO : UNDECIDED);
+      finish(rejectedTheFormat ? UNSUPPORTED : UNDECIDED);
     });
     video.addEventListener('loadeddata', () => {
       clearTimeout(timer);
@@ -71,7 +80,7 @@ function probe(): Promise<Answer> {
         if (!canvas.width || !canvas.height) return finish(UNDECIDED);
         if (video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) return finish(UNDECIDED);
         const context = canvas.getContext('2d');
-        if (!context) return finish(NO); // no 2D context is not going to appear on a retry
+        if (!context) return finish(UNSUPPORTED); // no 2D context is not going to appear on a retry
         // `copy` rather than the default `source-over`, or a transparent frame drawn onto the opaque
         // fill would composite straight back to opaque and every engine would fail the probe.
         context.globalCompositeOperation = 'copy';
@@ -81,9 +90,9 @@ function probe(): Promise<Answer> {
         // Every pixel of the probe is fully transparent. An engine that drops alpha paints it
         // opaque, so a non-zero alpha here is the answer -- whatever the colour channels say.
         const alpha = context.getImageData(0, 0, 1, 1).data[3];
-        return finish({ supported: alpha === 0, decisive: true });
+        return finish(alpha === 0 ? SUPPORTED : UNSUPPORTED);
       } catch {
-        finish(NO); // a tainted canvas or a blocked read will taint the next one too
+        finish(UNSUPPORTED); // a tainted canvas or a blocked read will taint the next one too
       }
     });
 
@@ -117,6 +126,6 @@ function probe(): Promise<Answer> {
 export const supportsVp9Alpha = async (): Promise<boolean> => {
   cached ??= probe().catch(() => UNDECIDED);
   const answer = await cached;
-  if (!answer.decisive) cached = undefined;
-  return answer.supported;
+  if (answer.kind === 'undecided') cached = undefined;
+  return answer.kind === 'supported';
 };
