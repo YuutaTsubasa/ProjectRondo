@@ -32,16 +32,16 @@ const calls: Call[] = [];
 /** Cues whose `startLoop` must return `null`, as the bank does for an asset that never loaded. */
 const missing = new Set<SoundCue>();
 
-const handles = new Map<SoundCue, LoopHandle>();
 const bank: MusicBank = {
   startLoop(cue, options = {}) {
     if (missing.has(cue)) return null;
     calls.push({ kind: 'startLoop', cue, level: options.level });
+    // Handed straight to the crossfade and not kept here: every assertion in this file reads `calls`,
+    // so a second copy of the handle would be state the test maintains for nothing.
     const handle: LoopHandle = {
       setVolume: (level, fadeSeconds = 0) => calls.push({ kind: 'setVolume', cue, level, fadeSeconds }),
       stop: () => calls.push({ kind: 'stop', cue }),
     };
-    handles.set(cue, handle);
     return handle;
   },
 };
@@ -52,7 +52,6 @@ beforeEach(() => {
   vi.useFakeTimers();
   calls.length = 0;
   missing.clear();
-  handles.clear();
 });
 
 afterEach(() => {
