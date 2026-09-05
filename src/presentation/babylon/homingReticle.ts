@@ -64,6 +64,12 @@ const RETICLE_TEXTURE_SIZE = 128;
  * The homing red ({@link HOMING_RED_RGB}), not a red of this module's own: the hit flash uses the same
  * one, and the shared definition is what holds aim and arrival to one colour rather than a comment
  * saying they match. Its Untuned marking, and the retune, live there.
+ *
+ * Handed to the material as a `.clone()`, the same way `crystals.ts` hands out `CRYSTAL_EMISSIVE`: a
+ * `Color3` is more often mutated in place than reassigned — `crystals.ts` does exactly that to its own
+ * material, with `copyFrom` and `LerpToRef`, for the hit flash — so giving the material this instance
+ * would leave the shared homing red reachable and writable through `scene.materials`. That is the
+ * drift `homingColors.ts` froze its array against.
  */
 const RETICLE_EMISSIVE = new Color3(...HOMING_RED_RGB);
 
@@ -81,6 +87,18 @@ const RETICLE_EMISSIVE = new Color3(...HOMING_RED_RGB);
  */
 const RETICLE_ALPHA = 0.6;
 
+/**
+ * Ring stroke thickness, as a fraction of {@link RETICLE_TEXTURE_SIZE} — so it scales with the
+ * texture rather than being a pixel count that would thin out if the resolution changed.
+ *
+ * **Untuned**: 0.08 is the value the first draft of this module was written with, and unlike
+ * {@link RETICLE_EXTENT_RATIO} and {@link RETICLE_ALPHA} it was never one of the numbers the
+ * on-screen rounds adjusted — the pass that tightened the ring moved its diameter and left this
+ * alone. It is a first guess that nothing has yet disagreed with, not a thickness anything was
+ * measured against. Retune by eye.
+ */
+const RING_STROKE_FRACTION = 0.08;
+
 /** A stroked circle on a transparent background — the reticle's whole visual, drawn at runtime so no
  *  image file enters the repo (the same `DynamicTexture` house pattern `scatter.ts` uses for its grass
  *  and flower cards). The stroke colour itself doesn't matter: the material multiplies it by
@@ -91,7 +109,7 @@ function ringTexture(scene: Scene): DynamicTexture {
   const ctx = tex.getContext() as unknown as CanvasRenderingContext2D;
   ctx.clearRect(0, 0, size, size);
   ctx.strokeStyle = '#ffffff';
-  ctx.lineWidth = size * 0.08;
+  ctx.lineWidth = size * RING_STROKE_FRACTION;
   ctx.beginPath();
   // Radius, not diameter — hence the halving. Derived from RING_TEXTURE_FRACTION rather than written
   // as its own literal so the two cannot drift apart: RETICLE_DIAMETER's sizing maths assumes the ring
@@ -133,7 +151,7 @@ export function createHomingReticle(scene: Scene): HomingReticle {
   mat.diffuseTexture = ringTexture(scene);
   mat.useAlphaFromDiffuseTexture = true;
   mat.disableLighting = true;
-  mat.emissiveColor = RETICLE_EMISSIVE;
+  mat.emissiveColor = RETICLE_EMISSIVE.clone();
   mat.specularColor = new Color3(0, 0, 0);
   mat.alpha = RETICLE_ALPHA;
   // The ring must read the same from either side of the plane — a billboard can present its back to
