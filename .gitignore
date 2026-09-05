@@ -26,5 +26,6 @@ dist/
 src-tauri/target/
 src-tauri/gen/
 
-# Superpowers scratch (SDD ledgers, brainstorm mockups) — working files, not artefacts
+# Superpowers scratch (SDD ledgers, briefs, review packages, brainstorm mockups)
+# — working files, not artefacts
 .superpowers/

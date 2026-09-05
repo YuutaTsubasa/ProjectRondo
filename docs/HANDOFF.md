@@ -22,15 +22,16 @@ functional core, reactive UI**, plus the project's **18 code-quality principles*
 
 | Path | What |
 | --- | --- |
-| `src/domain/` | Pure TS: `hub/character/*` (movement), `dialogue/*` (dialogue graph + DSL), `math/`, `kernel/`. No engine imports. Vitest-covered. |
+| `src/domain/` | Pure TS: `hub/character/*` (movement), `dialogue/*` (dialogue graph + DSL), `audio/` (footstep cadence + contact phases, gait selection, music director), `math/`, `kernel/`. No engine imports. Vitest-covered. |
 | `src/presentation/babylon/` | The 3D scene: `hubScene`, `terrainHeight` (pure) + `terrain`, `scatter`, `trees`, `knight`, `playerController`, `followCamera`, `input`, `environment`, `capsule`. |
+| `src/presentation/audio/` | AudioV2 wiring: `audioEngine` (engine + buses), `manifest` (cue → file/bus/volume), `soundBank` (loading + missing-asset policy), `musicCrossfade` (which track plays, and the handover), `clipSample` (the rig's animation state read as phases and weights), `deferredAudio` (the handle handed back while the graph is still building), `hubAudio` (per-frame scene wiring). |
 | `src/presentation/dialogue/` + `src/app/` | Svelte AVG UI + app entry (`App.svelte`, `gameMode`). |
 | `tests/` | Vitest specs — mirror the domain, plus pure presentation fns (`terrainHeight`, `cameraRelativeDirection`). |
 | `docs/superpowers/specs/` + `plans/` | **Every feature has a design spec and an implementation plan here.** Read these for the "why". |
 | `docs/engineering-principles.md` | The 18 principles (canonical). |
 | `docs/superpowers/specs/2026-08-18-refined-hub-world-roadmap.md` | **The roadmap** — current milestone + what's next. |
 | `__prototype__/` | Original Godot 4.7.1 (mono/C#) project — parity reference; also holds the GLB export tools (`tools/export_web_glb.gd`). |
-| `public/` | Assets: `models/knight_web.glb`, `models/knight_mr.webp`, `models/tree.glb`, `textures/grass.jpg`, `portraits/`, `fonts/`. |
+| `public/` | Assets: `models/knight_web.glb`, `models/knight_mr.webp`, `models/tree.glb`, `textures/grass.jpg`, `portraits/`, `fonts/`, `audio/{music,sfx,ambience}` (+ `audio/CREDITS.md`). |
 | `src-tauri/` | Tauri v2 desktop shell (Rust). |
 
 ## 3. Setup on a new machine
@@ -44,7 +45,12 @@ functional core, reactive UI**, plus the project's **18 code-quality principles*
   unhandled rejection and a blank canvas: the scene loads empty. Only if the GLB pulled correctly but
   `knight_mr.webp` (the armour's metallic/roughness map) is still a pointer does the failure stay local:
   that one texture fetch fails, and the scene loads with the knight's armour stuck matte and a console
-  warning instead of empty. (`.png`/`.jpg`/fonts are normal binaries and clone fine.)
+  warning instead of empty. (`.png`/`.jpg`/fonts are normal binaries and clone fine.) `.mp3`/`.ogg` are
+  LFS-tracked too: every file under `public/audio/` left as a pointer fails to decode individually, and
+  `soundBank.ts`'s missing-asset policy treats that exactly like a missing file — one `[audio] cue "…"
+  unavailable` warning per affected cue, the game stays silent for those cues, and nothing else breaks.
+  A contributor who skipped `git lfs pull` gets **a silent game with console warnings, not a broken
+  one** — that's the missing-asset policy working as designed, not a second bug to chase.
 - **Rust toolchain** — only needed for `pnpm tauri` desktop builds. Not needed to run in the browser.
 - **Godot 4.7.1 (mono)** — only needed to *regenerate* the knight/tree GLBs from the prototype (rare).
   On the old machine it was at `/Applications/Godot_mono.app`; install wherever on the new one.
