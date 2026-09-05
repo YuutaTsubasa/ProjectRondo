@@ -26,6 +26,22 @@ import { createWind } from './wind';
 import { createWater } from './water';
 import { createClouds } from './clouds';
 import { createLandmark } from './landmark';
+import { createCrystals } from './crystals';
+
+/**
+ * Test crystals for the homing attack, placed by hand near spawn so the move can be exercised without
+ * hunting for one. A rising diagonal line plus a cluster: the line is for chaining, the cluster is for
+ * checking that the camera cone actually picks between neighbours rather than grabbing the nearest.
+ *
+ * These are a playground, not level design. The tower spec owns real placement.
+ */
+const TEST_CRYSTALS = [
+  { x: 0, y: 3, z: -8 },
+  { x: 0, y: 5.5, z: -13 },
+  { x: 0, y: 8, z: -18 },
+  { x: 3, y: 4, z: -10 },
+  { x: -3, y: 4, z: -10 },
+] as const;
 
 export interface HubScene {
   readonly engine: Engine;
@@ -75,6 +91,7 @@ export async function createHubScene(canvas: HTMLCanvasElement): Promise<HubScen
   shadows.receive(terrain);
   createWind(scene);
   createGroundScatter(scene, shadows);
+  const crystals = createCrystals(scene, TEST_CRYSTALS);
   createWater(scene);
   createClouds(scene);
   createLandmark(scene, shadows);
