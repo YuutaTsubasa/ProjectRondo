@@ -66,8 +66,12 @@ It returns an **index**, not a position. The caller needs to know *which* crysta
 trail, for a later consumable variant, and for anything the tower wants to attach to a specific anchor.
 
 The presentation layer is what bridges the two halves: it holds the crystal list, calls this with the
-camera's forward vector, and passes `candidates[index]` into §4's `homingTarget`. The domain never sees
-the list, and the movement half never sees an index — each half takes the shape it actually needs.
+camera's forward vector, and turns the index back into §4's `homingTarget` — the **offset**
+`candidates[index] - from`, not the crystal's world position, recomputed live every frame (§5). The
+domain never sees the list, and the movement half never sees an index or a world position: `step` has
+no player position to subtract one from, so a position handed to it would be read as an offset and the
+dash would fly off toward the origin's side of the crystal. Each half takes the shape it actually
+needs.
 
 Vitest, red before green:
 
@@ -336,14 +340,23 @@ ships and the clip becomes its own piece of work. That is a real possible outcom
 
 ## 10. Testing
 
-Per the repo's split. **Domain gets Vitest, red before green:** §3's selection cases, and `step`'s
-homing branch — enters only when airborne, travels toward the target, arrives and bounces, ignores
-gravity and steering while dashing, aborts at the timeout and restores gravity, and cannot enter while
-already homing.
+The split is by whether a thing reduces to inputs and outputs, not by which directory it lives in.
 
-**Presentation is verified in the browser**, and this phase's browser gate is real rather than
-nominal: the whole point is feel. Watch a dash land, watch a chain of three, watch what happens when
-the press comes with the camera pointed at nothing, and watch a dash aimed through a tree.
+**Domain gets Vitest, red before green:** §3's selection cases, and `step`'s homing branch — enters
+only when airborne, travels toward the target, arrives and bounces, ignores gravity and steering while
+dashing, aborts at the timeout and restores gravity, and cannot enter while already homing.
+
+**The presentation rules get Vitest too.** A rule that merely *runs* inside a render loop is testable
+the moment it is lifted out of one, and this repo lifts them: `groundContact.ts` and `slopeMotion.ts`
+already have suites under `tests/presentation/`, which this phase extends for the bounce and the dash;
+§8's `homingLock.ts` and `jumpPose.ts` are new suites on the same reasoning. Their edges — commit on a
+press, hold the lock for the whole dash, release it the frame it ends, answer the reticle separately —
+each misbehave for one frame at a time, which is exactly what a browser pass cannot catch.
+
+**What is left is verified in the browser**: the meshes, the materials, the trail, the render
+observable — and the feel, which is the whole point of the phase, so this gate is real rather than
+nominal. Watch a dash land, watch a chain of three, watch what happens when the press comes with the
+camera pointed at nothing, and watch a dash aimed through a tree.
 
 ## 11. Out of scope
 

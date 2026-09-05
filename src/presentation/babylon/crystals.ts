@@ -38,6 +38,26 @@ export const CRYSTAL_EXTENT = CRYSTAL_SIZE * 2 * Math.SQRT2;
 const CRYSTAL_EMISSIVE = new Color3(0.35, 0.75, 0.95);
 
 /**
+ * Diffuse tint — what the hub's sun lights. Kept dark so it stays under {@link CRYSTAL_EMISSIVE}
+ * rather than competing with it: the emissive is the part that is supposed to carry the crystal at
+ * range, and a bright diffuse would flatten the contrast that does it.
+ *
+ * **Untuned**: a darker shade of {@link CRYSTAL_EMISSIVE}'s own blue-cyan and nothing more — no pass
+ * has looked at a crystal's lit surface as such. Retune by eye alongside the emissive.
+ */
+const CRYSTAL_DIFFUSE = new Color3(0.1, 0.3, 0.4);
+
+/**
+ * Specular tint — the facet glint. It is the only shading cue that changes as a crystal's angle to
+ * the camera changes, since the emissive does not, so it is what makes the octahedron read as faceted
+ * while the player circles it.
+ *
+ * **Untuned**: a pale shade of the same blue-cyan, picked to sit above {@link CRYSTAL_DIFFUSE}
+ * without being white. Nobody has watched a crystal from a moving camera to judge it.
+ */
+const CRYSTAL_SPECULAR = new Color3(0.6, 0.8, 0.9);
+
+/**
  * Emissive colour a crystal snaps to when `flash()` is called, eased back to `CRYSTAL_EMISSIVE` by the
  * decay observer below.
  *
@@ -97,9 +117,12 @@ export interface Crystals {
 export function createCrystals(scene: Scene, spots: readonly Vec3[]): Crystals {
   const materials = spots.map((_, i) => {
     const mat = new StandardMaterial(`crystalMat_${i}`, scene);
-    mat.diffuseColor = new Color3(0.1, 0.3, 0.4);
+    // Cloned rather than assigned: the decay observer below writes a crystal's emissive in place, so
+    // every material owns its own `Color3` instances and one crystal's flash cannot reach the module
+    // constants or its neighbours' materials.
+    mat.diffuseColor = CRYSTAL_DIFFUSE.clone();
     mat.emissiveColor = CRYSTAL_EMISSIVE.clone();
-    mat.specularColor = new Color3(0.6, 0.8, 0.9);
+    mat.specularColor = CRYSTAL_SPECULAR.clone();
     return mat;
   });
 
