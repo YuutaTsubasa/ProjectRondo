@@ -43,6 +43,11 @@ const throwing = new Set<string>();
 
 class FakeSound {
   constructor(readonly name: string) {}
+  /**
+   * Recorded rather than ignored: "was this sound ever handed back to be released" is the whole of
+   * the leak the multi-variant load path can produce, and nothing else in the fake can show it.
+   */
+  disposed = false;
   /** Fails where the real node would: before doing anything, so a throw is not also a recorded call. */
   private guard(kind: FakeCall['kind']): void {
     if (throwing.has(`${this.name}:${kind}`)) throw new Error(`fake ${kind} failure: ${this.name}`);
@@ -59,7 +64,9 @@ class FakeSound {
     this.guard('setVolume');
     calls.push({ sound: this, kind: 'setVolume', value });
   }
-  dispose(): void {}
+  dispose(): void {
+    this.disposed = true;
+  }
 }
 
 const made = new Map<string, FakeSound>();
@@ -231,6 +238,43 @@ describe('the sound bank, when the audio engine fails under it', () => {
     expect(() => handle.setVolume(0.5)).not.toThrow();
     expect(() => handle.setVolume(0, 1.5)).not.toThrow();
     expect(warn).toHaveBeenCalledTimes(2);
+  });
+
+  /**
+   * Only `ui.type` (four variants) and `footstep.grass` (two) can fail *partly*; the other nine cues
+   * have a single file and settle the same way under either design. Both properties below were
+   * unreachable while the load was a `Promise.all`, which rejects on the first file without cancelling
+   * its siblings and then discards the ones that had already resolved.
+   */
+  it('keeps the variants that did load when a sibling rejects, and wraps onto them', async () => {
+    const [first, missing, third, fourth] = MANIFEST['ui.type'].files;
+    failing.add(missing);
+    const bank = await loadSoundBank(audio);
+
+    // One warning for the cue, not one per missing file and not one per play.
+    expect(warn).toHaveBeenCalledTimes(1);
+
+    for (const variant of [0, 1, 2, 3]) bank.play('ui.type', { variant });
+    // The cue stays audible on three of its four ticks. `variant % sounds.length` wraps onto the
+    // survivors, so the variant a caller asks for is a preference and never a requirement.
+    expect(calls.map((c) => c.sound.name)).toEqual([first, third, fourth, first]);
+    expect(warn).toHaveBeenCalledTimes(1);
+  });
+
+  it('still owns those siblings, so disposing the bank releases them', async () => {
+    failing.add(MANIFEST['ui.type'].files[1]);
+    const bank = await loadSoundBank(audio);
+
+    const variants = MANIFEST['ui.type'].files
+      .map((file) => made.get(file))
+      .filter((sound) => sound !== undefined);
+    expect(variants).toHaveLength(3);
+
+    bank.dispose();
+    // The leak this pins: three sounds built against the engine and registered in its node set, with
+    // nothing holding a handle to them — alive on the sfx bus until `engine.dispose()` at teardown.
+    expect(variants.filter((sound) => !sound.disposed)).toEqual([]);
+    expect([...made.values()].filter((sound) => !sound.disposed)).toEqual([]);
   });
 
   it('retires a handle whose own stop throws', async () => {

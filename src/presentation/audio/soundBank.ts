@@ -84,24 +84,58 @@ export interface SoundBank {
 type Sound = StaticSound | StreamingSound;
 type Loaded = readonly Sound[];
 
+/**
+ * Builds one cue's variants, and settles for however many of them arrive.
+ *
+ * The failure path here is deliberately not fatal. `loadKnight` rejecting on an unpulled LFS pointer
+ * takes the whole scene down with it (docs/HANDOFF.md §3); audio must not add a second instance of
+ * that. One warning, then silence for what is actually missing — which is also what lets the system
+ * ship and be verified before every asset is final.
+ *
+ * `allSettled`, not `all`, and the difference only shows on the two multi-file cues (`ui.type`'s four
+ * variants, `footstep.grass`'s two). `all` rejects on the first file without cancelling its siblings,
+ * so the variants that did resolve are `StaticSound`s registered in `audio.engine`'s node set that
+ * nothing holds a handle to any more: they sit on the sfx bus until `engine.dispose()` at scene
+ * teardown. `createGameAudio` answers the identical shape by disposing what resolved, because a
+ * missing *bus* has no partial form — a cue on it would route past the mixer, so the graph is either
+ * whole or it is nothing.
+ *
+ * A cue does have a partial form, so this keeps it rather than discarding it. Three of four typing
+ * ticks is a usable cue; one of two grass footfalls is a footfall on both feet instead of on neither.
+ * `pick`'s `variant % sounds.length` already wraps onto whatever length it is handed, so a short array
+ * needs nothing else, and the variant a caller asks for is a preference and never a requirement. The
+ * missing-asset policy is "one missing file costs one cue, not the scene"; keeping the survivors is
+ * that policy taken one step further down — one missing file costs one *variant*, not the cue. Only a
+ * cue with no surviving variant goes silent, and then there is nothing resolved left to leak.
+ */
 const load = async (audio: GameAudio, cue: SoundCue, spec: CueSpec): Promise<Loaded | null> => {
-  try {
-    const sounds = await Promise.all(
-      spec.files.map((file) =>
-        spec.streaming
-          ? CreateStreamingSoundAsync(cue, file, { outBus: audio.buses[spec.bus] }, audio.engine)
-          : CreateSoundAsync(cue, file, { outBus: audio.buses[spec.bus] }, audio.engine),
-      ),
+  const settled = await Promise.allSettled(
+    spec.files.map((file) =>
+      spec.streaming
+        ? CreateStreamingSoundAsync(cue, file, { outBus: audio.buses[spec.bus] }, audio.engine)
+        : CreateSoundAsync(cue, file, { outBus: audio.buses[spec.bus] }, audio.engine),
+    ),
+  );
+
+  const sounds = settled
+    .filter((result): result is PromiseFulfilledResult<Sound> => result.status === 'fulfilled')
+    .map((result) => result.value);
+  const failed = settled.filter((result): result is PromiseRejectedResult => result.status === 'rejected');
+
+  // One warning per affected cue, not one per file: the PR's stated contract, and what a reader
+  // watching the console for "which cue is missing" is counting.
+  if (failed.length > 0) {
+    const what =
+      sounds.length > 0
+        ? `${failed.length} of ${spec.files.length} variants unavailable, it will play the rest`
+        : 'unavailable, it will be silent';
+    console.warn(
+      `[audio] cue "${cue}" ${what}:`,
+      failed.map((result: PromiseRejectedResult) => result.reason),
     );
-    return sounds;
-  } catch (error) {
-    // The one and only failure path, and it is deliberately not fatal. `loadKnight` rejecting on an
-    // unpulled LFS pointer takes the whole scene down with it (docs/HANDOFF.md §3); audio must not
-    // add a second instance of that. One warning, then silence for this cue only — which is also
-    // what lets the system ship and be verified before every asset is final.
-    console.warn(`[audio] cue "${cue}" unavailable, it will be silent:`, error);
-    return null;
   }
+
+  return sounds.length > 0 ? sounds : null;
 };
 
 /**
