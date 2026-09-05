@@ -8,6 +8,7 @@
       onMove?: () => void;
     } = $props();
 
+  let silentFocus = false;
   /**
    * Sounds the move when focus arrives from another option in this panel.
    *
@@ -27,7 +28,6 @@
    * answering on the second row sounded a move that answering on the first did not, because there
    * the unkeyed `{#each}` re-uses a button that already has focus and no focus event fires at all.
    */
-  let silentFocus = false;
   const moved = (from: EventTarget | null) => {
     if (silentFocus) return;
     if (from instanceof Node && panel?.contains(from)) onMove?.();
