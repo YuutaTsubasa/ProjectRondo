@@ -14,21 +14,16 @@ import { CRYSTAL_EXTENT } from './crystals';
 /**
  * Reticle diameter, as a multiple of a crystal's own full extent ({@link CRYSTAL_EXTENT}).
  *
- * This is deliberately > 1: the ring is centred on the crystal, so at 1.0 its stroke would land exactly
- * on the crystal's own silhouette and read as an outline rather than a marker. The margin is what makes
- * it read as "this object is targeted".
+ * Deliberately well under 1: the ring sits *inside* the crystal's silhouette rather than enclosing it.
+ * Two larger values were watched against the running scene first — 1.35 read as a halo floating around
+ * the crystal, and 1.1 still read as too heavy — so the marker is not meant to trace the target's
+ * outline at all. It only has to be findable: small, centred, and read at a glance as "that one".
  *
- * Scaling off `CRYSTAL_EXTENT` rather than `CRYSTAL_SIZE` matters: `CRYSTAL_SIZE` is a polyhedron-builder
- * scale factor, not a dimension (see its doc in `crystals.ts`), and an earlier version of this constant
- * multiplied it as if it were the crystal's half-height — which produced a ring 1.08 units across around
- * a 1.27-unit crystal, i.e. a "marker" smaller than the thing it marked.
- *
- * Tuned by eye against the running scene, not guessed: 1.35 was watched first and read as too big — a
- * halo floating around the crystal rather than a ring on it. 1.1 works because the crystal is an
- * octahedron, so its silhouette only reaches the full {@link CRYSTAL_EXTENT} at four equatorial points;
- * a ring just past those clears the whole outline while staying visually attached to it.
+ * Scaling off `CRYSTAL_EXTENT` rather than `CRYSTAL_SIZE` matters even now that the ratio is < 1:
+ * `CRYSTAL_SIZE` is a polyhedron-builder scale factor, not a dimension (see its doc in `crystals.ts`),
+ * so a ratio against it would mean nothing in world units and would not track a retune of the crystal.
  */
-const RETICLE_EXTENT_RATIO = 1.1;
+const RETICLE_EXTENT_RATIO = 0.5;
 
 /**
  * How much of the plane's width the drawn ring actually spans — {@link ringTexture} strokes its circle
@@ -71,6 +66,18 @@ const RETICLE_TEXTURE_SIZE = 128;
  * not independently chosen. Nobody has watched this in the browser; retune by eye.
  */
 const RETICLE_EMISSIVE = new Color3(1, 0, 0);
+
+/**
+ * Opacity of the whole ring, multiplied on top of the texture's own alpha.
+ *
+ * The marker draws over everything ({@link RETICLE_RENDERING_GROUP}), which is what stops the crystal
+ * from swallowing it — but that also means a fully opaque ring would punch a solid hole through the
+ * crystal it is meant to point at. Letting the crystal show through keeps the marker readable as an
+ * overlay on the target rather than a decal replacing part of it.
+ *
+ * **Untuned**: 0.6 is a first pass at "clearly visible, clearly not solid". Retune by eye.
+ */
+const RETICLE_ALPHA = 0.6;
 
 /** A stroked circle on a transparent background — the reticle's whole visual, drawn at runtime so no
  *  image file enters the repo (the same `DynamicTexture` house pattern `scatter.ts` uses for its grass
@@ -126,6 +133,7 @@ export function createHomingReticle(scene: Scene): HomingReticle {
   mat.disableLighting = true;
   mat.emissiveColor = RETICLE_EMISSIVE;
   mat.specularColor = new Color3(0, 0, 0);
+  mat.alpha = RETICLE_ALPHA;
   // The ring must read the same from either side of the plane — a billboard can present its back to
   // the camera transiently while `billboardMode` catches up to a sudden camera swing.
   mat.backFaceCulling = false;
