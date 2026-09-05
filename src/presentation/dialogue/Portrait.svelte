@@ -8,9 +8,13 @@
    * Subscribes to a media query, returning its unsubscribe.
    *
    * Safari before 14 exposes `MediaQueryList` without `EventTarget`, so `addEventListener` is
-   * simply absent and calling it throws -- taking the whole portrait down with it. That is
-   * WKWebView, the same engine the VP9 probe next door exists to accommodate, so the older pair is
-   * worth keeping rather than assuming the floor is Safari 14.
+   * simply absent and calling it throws.
+   *
+   * That throw is not what stands between such an engine and a working portrait: WebP arrived in
+   * Safari 14 too, and every asset this component can reach is WebP (see `portraitLibrary.ts`), so
+   * the image is broken there either way. What the branch buys is the difference between a broken
+   * image and an effect that throws, which would take the dialogue overlay down with it -- a poor
+   * trade for a preference listener, and four lines is a cheap way not to make it.
    */
   const follow = (query: MediaQueryList, onChange: (event: MediaQueryListEvent) => void) => {
     if (typeof query.addEventListener === 'function') {
@@ -48,7 +52,7 @@
   // The still doubles as the video's poster, so showing it while the probe runs costs no extra
   // request on the path that ends in a <video>.
   let image = $derived(
-    (reduceMotion || vp9Alpha === undefined ? undefined : resolvePortraitAnimated(portrait)) ?? still,
+    reduceMotion || vp9Alpha === undefined ? still : resolvePortraitAnimated(portrait),
   );
 </script>
 

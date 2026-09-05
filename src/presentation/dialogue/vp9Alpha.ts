@@ -13,12 +13,25 @@
 const PROBE_URL = '/portraits/vp9-alpha-probe.webm';
 const TIMEOUT_MS = 2000;
 
-let cached: Promise<boolean> | undefined;
+/**
+ * `supported` is the answer; `decisive` is whether it is worth remembering.
+ *
+ * Reading the pixel settles the engine's capability for good. Losing a race does not: the probe
+ * starts from Portrait's `$effect`, alongside the hub's GLB and the Havok wasm, so a 591-byte fetch
+ * can time out for reasons that have nothing to do with VP9 — and caching that would bill every
+ * later line of dialogue 2.2MB instead of 376KB.
+ */
+type Answer = { supported: boolean; decisive: boolean };
 
-function probe(): Promise<boolean> {
-  return new Promise<boolean>((resolve) => {
+const NO = { supported: false, decisive: true } as const;
+const UNDECIDED = { supported: false, decisive: false } as const;
+
+let cached: Promise<Answer> | undefined;
+
+function probe(): Promise<Answer> {
+  return new Promise<Answer>((resolve) => {
     let settled = false;
-    const finish = (result: boolean) => {
+    const finish = (result: Answer) => {
       if (settled) return;
       settled = true;
       video.removeAttribute('src');
@@ -31,8 +44,9 @@ function probe(): Promise<boolean> {
     video.playsInline = true;
     video.preload = 'auto';
 
-    const timer = setTimeout(() => finish(false), TIMEOUT_MS);
-    video.addEventListener('error', () => { clearTimeout(timer); finish(false); });
+    const timer = setTimeout(() => finish(UNDECIDED), TIMEOUT_MS);
+    // The clip failing to arrive says something about this load, not about the decoder.
+    video.addEventListener('error', () => { clearTimeout(timer); finish(UNDECIDED); });
     video.addEventListener('loadeddata', () => {
       clearTimeout(timer);
       try {
@@ -45,26 +59,27 @@ function probe(): Promise<boolean> {
         const canvas = document.createElement('canvas');
         canvas.width = video.videoWidth;
         canvas.height = video.videoHeight;
-        if (!canvas.width || !canvas.height) return finish(false);
+        if (!canvas.width || !canvas.height) return finish(UNDECIDED);
+        if (video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) return finish(UNDECIDED);
         const context = canvas.getContext('2d', { willReadFrequently: false });
-        if (!context) return finish(false);
-        if (video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) return finish(false);
+        if (!context) return finish(NO); // no 2D context is not going to appear on a retry
         // `copy` rather than the default `source-over`, or a transparent frame drawn onto the opaque
-        // fill would composite to opaque and every engine would fail.
+        // fill would composite straight back to opaque and every engine would fail the probe.
         context.globalCompositeOperation = 'copy';
         context.fillStyle = '#000';
         context.fillRect(0, 0, canvas.width, canvas.height);
         context.drawImage(video, 0, 0);
         // Every pixel of the probe is fully transparent. An engine that drops alpha paints it
         // opaque, so a non-zero alpha here is the answer -- whatever the colour channels say.
-        finish(context.getImageData(0, 0, 1, 1).data[3] === 0);
+        const alpha = context.getImageData(0, 0, 1, 1).data[3];
+        return finish({ supported: alpha === 0, decisive: true });
       } catch {
-        finish(false); // a tainted canvas or a blocked read is still "do not use VP9"
+        finish(NO); // a tainted canvas or a blocked read will taint the next one too
       }
     });
 
     video.src = PROBE_URL;
-    // Some engines decode no frame until playback starts; the clip is 0.1s and muted.
+    // Some engines decode no frame until playback starts; the clip is one 2x2 frame, and muted.
     // `play()` predates its own promise -- older WebKit and jsdom return undefined -- so the result
     // is wrapped rather than chained. Rejecting here would poison the cache with a promise that
     // never resolves either way, and the caller would wait for an answer that cannot arrive.
@@ -73,10 +88,15 @@ function probe(): Promise<boolean> {
 }
 
 /**
- * Cached across the session: the answer cannot change while the page is open.
+ * Cached for the session once the answer is about the engine, retried while it is not.
  *
  * The `catch` is structural rather than defensive padding: callers upgrade to VP9 only on `true`,
  * so a rejection has no sensible handling at the call site, and one throwing line inside the probe
  * would otherwise turn a cheap wrong answer into a hung one.
  */
-export const supportsVp9Alpha = (): Promise<boolean> => (cached ??= probe().catch(() => false));
+export const supportsVp9Alpha = async (): Promise<boolean> => {
+  cached ??= probe().catch(() => UNDECIDED);
+  const answer = await cached;
+  if (!answer.decisive) cached = undefined;
+  return answer.supported;
+};

@@ -3,46 +3,237 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 
 /**
  * The probe's whole value is that a wrong answer is cheap: the caller upgrades to VP9 only on
- * `true`, so every other outcome must arrive as `false` rather than as a rejection or a hang. A
- * rejection would be cached, and the portrait would then wait forever for an answer that cannot
- * come.
+ * `true`, so every other outcome must arrive as `false` rather than as a rejection or a hang.
  *
- * jsdom is a real instance of the awkward case rather than a stand-in for one: its `play()` returns
- * undefined, exactly as WebKit's did before the method returned a promise.
+ * jsdom never loads media and has no canvas, so the decision itself — the `loadeddata` handler —
+ * only runs against stand-ins. They are built to be able to fail in the same direction the real
+ * thing did: `drawImage` can be a no-op, and compositing is modelled rather than assumed, so a
+ * probe that forgot either would fail here rather than pass for the wrong reason.
  *
  * Timers are faked throughout so that a case cannot pass by quietly falling through to the 2s
- * timeout -- which returns `false` too, and would make three of these four assertions vacuous.
+ * timeout, which also answers `false`.
  */
 const load = async () => {
   vi.resetModules(); // the module caches its answer for the session
   return (await import('../../../src/presentation/dialogue/vp9Alpha')).supportsVp9Alpha;
 };
 
-/** The <video> the probe builds, so a test can drive the element under test rather than a copy. */
-const captureVideo = () => {
-  const real = document.createElement.bind(document);
-  const spy = vi.spyOn(document, 'createElement');
-  let video: HTMLVideoElement | undefined;
-  spy.mockImplementation((tag: string) => {
-    const el = real(tag);
-    if (tag === 'video') video = el as HTMLVideoElement;
-    return el;
-  });
-  return () => video;
+type Frame = {
+  /** Alpha of the decoded frame, 0-255. The real probe clip is fully transparent. */
+  frameAlpha?: number;
+  /** `drawImage` returns silently when there is no frame to draw. This is the round-1 defect. */
+  drawIsNoop?: boolean;
+  width?: number;
+  height?: number;
+  readyState?: number;
+  noContext?: boolean;
+  readThrows?: boolean;
 };
 
-describe('supportsVp9Alpha', () => {
+/**
+ * A one-pixel canvas that composites the way a real one does.
+ *
+ * `source-over` onto an opaque destination stays opaque whatever the source's alpha — which is why
+ * the probe has to ask for `copy`, and why modelling this beats recording calls: a probe that
+ * dropped `copy` reads here as "no engine supports alpha", which is a failing test rather than a
+ * passing one.
+ */
+const canvasFor = ({
+  frameAlpha = 0,
+  drawIsNoop = false,
+  noContext = false,
+  readThrows = false,
+}: Frame) => {
+  let pixel = 0; // a fresh canvas is transparent black
+  const context = {
+    globalCompositeOperation: 'source-over',
+    fillStyle: '',
+    fillRect: () => {
+      pixel = 255;
+    },
+    drawImage: () => {
+      if (drawIsNoop) return;
+      pixel =
+        context.globalCompositeOperation === 'copy'
+          ? frameAlpha
+          : 255 - Math.round(((255 - frameAlpha) * (255 - pixel)) / 255);
+    },
+    getImageData: () => {
+      if (readThrows) throw new Error('tainted canvas');
+      return { data: [0, 0, 0, pixel] };
+    },
+  };
+  return { width: 0, height: 0, getContext: () => (noContext ? null : context) };
+};
+
+/** Stands the DOM up so the probe meets a video that has decoded `frame`, and returns its triggers. */
+const stubDom = (frame: Frame) => {
+  const real = document.createElement.bind(document);
+  const videos: HTMLVideoElement[] = [];
+  vi.spyOn(document, 'createElement').mockImplementation((tag: string) => {
+    if (tag === 'canvas') return canvasFor(frame) as unknown as HTMLCanvasElement;
+    const element = real(tag);
+    if (tag === 'video') {
+      Object.defineProperties(element, {
+        videoWidth: { value: frame.width ?? 2 },
+        videoHeight: { value: frame.height ?? 2 },
+        readyState: { value: frame.readyState ?? HTMLMediaElement.HAVE_CURRENT_DATA },
+      });
+      videos.push(element as HTMLVideoElement);
+    }
+    return element;
+  });
+  return {
+    decode: () => videos[videos.length - 1].dispatchEvent(new Event('loadeddata')),
+    fail: () => videos[videos.length - 1].dispatchEvent(new Event('error')),
+    probes: () => videos.length,
+  };
+};
+
+describe('supportsVp9Alpha decides from the decoded frame', () => {
   afterEach(() => {
     vi.useRealTimers();
     vi.restoreAllMocks();
   });
 
+  it('says yes when the frame really is transparent', async () => {
+    vi.useFakeTimers();
+    const dom = stubDom({ frameAlpha: 0 });
+    const supports = await load();
+    const result = supports();
+    dom.decode();
+    await expect(result).resolves.toBe(true);
+  });
+
+  it('says no when the engine paints the transparent frame opaque', async () => {
+    vi.useFakeTimers();
+    const dom = stubDom({ frameAlpha: 255 });
+    const supports = await load();
+    const result = supports();
+    dom.decode();
+    await expect(result).resolves.toBe(false);
+  });
+
+  // The round-1 defect: a canvas cleared to transparent and never drawn on reads exactly like a
+  // decoded transparent frame, and answering `true` there enables VP9 on an engine that decoded
+  // nothing at all — the one population the probe exists to exclude.
+  it('says no when the draw silently does nothing', async () => {
+    vi.useFakeTimers();
+    const dom = stubDom({ frameAlpha: 0, drawIsNoop: true });
+    const supports = await load();
+    const result = supports();
+    dom.decode();
+    await expect(result).resolves.toBe(false);
+  });
+
+  it('says no when the frame has no intrinsic size', async () => {
+    vi.useFakeTimers();
+    const dom = stubDom({ width: 0, height: 0 });
+    const supports = await load();
+    const result = supports();
+    dom.decode();
+    await expect(result).resolves.toBe(false);
+  });
+
+  it('says no when loadeddata fires before there is a current frame', async () => {
+    vi.useFakeTimers();
+    const dom = stubDom({ readyState: HTMLMediaElement.HAVE_METADATA });
+    const supports = await load();
+    const result = supports();
+    dom.decode();
+    await expect(result).resolves.toBe(false);
+  });
+
+  it('says no when there is no 2D context to draw into', async () => {
+    vi.useFakeTimers();
+    const dom = stubDom({ noContext: true });
+    const supports = await load();
+    const result = supports();
+    dom.decode();
+    await expect(result).resolves.toBe(false);
+  });
+
+  it('says no when reading the pixel back throws', async () => {
+    vi.useFakeTimers();
+    const dom = stubDom({ readThrows: true });
+    const supports = await load();
+    const result = supports();
+    dom.decode();
+    await expect(result).resolves.toBe(false);
+  });
+});
+
+describe('supportsVp9Alpha remembers only what it settled', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  it('probes once when the frame answered the question', async () => {
+    vi.useFakeTimers();
+    const dom = stubDom({ frameAlpha: 0 });
+    const supports = await load();
+    const first = supports();
+    dom.decode();
+    await expect(first).resolves.toBe(true);
+    await expect(supports()).resolves.toBe(true);
+    expect(dom.probes()).toBe(1);
+  });
+
+  it('does not probe again once an engine has been ruled out', async () => {
+    vi.useFakeTimers();
+    const dom = stubDom({ frameAlpha: 255 });
+    const supports = await load();
+    const first = supports();
+    dom.decode();
+    await expect(first).resolves.toBe(false);
+    await expect(supports()).resolves.toBe(false);
+    expect(dom.probes()).toBe(1);
+  });
+
+  // A 591-byte fetch losing a race against the hub's GLB and the Havok wasm says nothing about the
+  // decoder. Cached, it would bill every later line of dialogue 2.2MB instead of 376KB.
+  it('probes again after a timeout, which was never an answer about the engine', async () => {
+    vi.useFakeTimers();
+    const dom = stubDom({ frameAlpha: 0 });
+    const supports = await load();
+    const first = supports();
+    await vi.advanceTimersByTimeAsync(2000);
+    await expect(first).resolves.toBe(false);
+
+    const second = supports();
+    dom.decode();
+    await expect(second).resolves.toBe(true);
+    expect(dom.probes()).toBe(2);
+  });
+
+  it('probes again after the clip failed to load', async () => {
+    vi.useFakeTimers();
+    const dom = stubDom({ frameAlpha: 0 });
+    const supports = await load();
+    const first = supports();
+    dom.fail();
+    await expect(first).resolves.toBe(false);
+
+    const second = supports();
+    dom.decode();
+    await expect(second).resolves.toBe(true);
+    expect(dom.probes()).toBe(2);
+  });
+});
+
+describe('supportsVp9Alpha never rejects', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  // jsdom is a real instance of the awkward case rather than a stand-in for one: its `play()`
+  // returns undefined, exactly as WebKit's did before the method returned a promise.
   it('answers false, not a rejection, when play() returns undefined instead of a promise', async () => {
     vi.useFakeTimers();
     const supports = await load();
     const result = supports();
-    // Nothing decodes under jsdom, so the timeout is the only way out -- the point of the case is
-    // that the answer is still an answer. Before `play()` was wrapped, this rejected synchronously.
     await vi.advanceTimersByTimeAsync(2000);
     await expect(result).resolves.toBe(false);
   });
@@ -55,21 +246,5 @@ describe('supportsVp9Alpha', () => {
     const supports = await load();
     // No timers advanced: a throw has to be caught, not waited out.
     await expect(supports()).resolves.toBe(false);
-  });
-
-  it('answers false as soon as the clip errors, without waiting out the timeout', async () => {
-    vi.useFakeTimers();
-    const video = captureVideo();
-    const supports = await load();
-    const result = supports();
-    expect(video()).toBeDefined();
-    video()!.dispatchEvent(new Event('error'));
-    await expect(result).resolves.toBe(false);
-  });
-
-  it('probes once and reuses the answer', async () => {
-    vi.useFakeTimers();
-    const supports = await load();
-    expect(supports()).toBe(supports());
   });
 });
