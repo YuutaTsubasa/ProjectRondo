@@ -24,6 +24,7 @@ Engineering approach: **TDD + DDD + Functional + Reactive**.
 | `tests/` | Vitest specs (mirror the domain's former xUnit tests). |
 | `public/models/` | `knight_web.glb` (baked Idle/Walk, texture-only optimized), `knight_mr.webp` (packed metallic/roughness map). |
 | `public/audio/` | Shipped `music/`, `sfx/`, `ambience/` (Vorbis/MP3), plus `CREDITS.md` for source provenance. Regenerated from raw sources by `tools/audio/preprocess.mjs`, not hand-edited. |
+| `public/env/` | `studio.hdr`, the armour's image-based lighting. **Not reproducible** — its generator was never committed; `CREDITS.md` records what is knowable and `tools/env/inspect_studio_hdr.mjs` re-derives it from the file. |
 | `src-tauri/` | Tauri v2 shell (desktop/mobile packaging). |
 | `__prototype__/` | The original Godot 4.7.1 (mono/C#) project, kept as a parity reference. |
 
@@ -139,6 +140,25 @@ node tools/audio/preprocess.mjs [sourceDir]   # default source dir: ~/Downloads
 Needs **ffmpeg** with **libvorbis**. The raw sources themselves are not committed — they're supplied
 separately and passed as `sourceDir` — so `public/audio/CREDITS.md` is where their provenance
 (source/author/licence) is recorded; fill it in when adding or replacing a source.
+
+### The studio IBL panorama (`public/env/studio.hdr`)
+
+**There is no regeneration recipe for this one, and that is the point of saying so here.** The
+panorama that lights the armour was baked by a script that was never committed — its own RGBE header
+names `scratchpad/gen_studio_hdr.cjs`, which is not in this repository and not in `.gitignore`. It
+cannot be re-baked brighter, darker, at another resolution or with the lights moved; `IBL_INTENSITY`
+in `src/presentation/babylon/environment.ts` is the only lever, and replacing the panorama means
+authoring a new one and re-tuning that constant against it.
+
+What can be checked is what the file is:
+
+```bash
+node tools/env/inspect_studio_hdr.mjs        # default: public/env/studio.hdr
+```
+
+That prints the format, resolution, greyscale-ness, radiance range, solid-angle-weighted mean,
+vertical gradient and soft-light positions — the same figures `public/env/CREDITS.md` records, so the
+provenance note can be verified instead of believed, and a replacement can be measured against it.
 
 ### Regenerating the knight's metallic/roughness map
 

@@ -42,10 +42,12 @@ const IBL_FACE_SIZE = 128;
  *  mask measurement needs the scene running), so the pair that agreed is what survives, stated once,
  *  here. Treat it as inherited from that tuning pass rather than independently confirmed.
  *
- *  This is the lever to reach for if the plate reads too hot or too dim, in preference to the panorama's
- *  absolute levels or the per-material `BODY_METALLIC` (which stays at the physically-correct 1 now that
- *  there is an environment to reflect — see `knight.ts`). The figures move with the model, so re-measure
- *  on a character swap. */
+ *  This is the lever to reach for if the plate reads too hot or too dim — and, for the panorama's own
+ *  levels, the only one: `public/env/studio.hdr` is a committed binary with no committed generator (see
+ *  `public/env/CREDITS.md`), so it cannot be re-baked brighter or darker. Prefer it over the
+ *  per-material `BODY_METALLIC` too, which stays at the physically-correct 1 now that there is an
+ *  environment to reflect (see `knight.ts`). The figures move with the model, so re-measure on a
+ *  character swap. */
 const IBL_INTENSITY = 1.4;
 
 /** A vertical gradient painted on a DynamicTexture for the unlit skydome; stop 1.0 renders at the
@@ -140,9 +142,16 @@ export function createEnvironment(scene: Scene): Environment {
   // Image-based lighting. A metal has no diffuse — it can only show what it reflects — so without an
   // environment texture the armour's metallic PBR renders near-black (this scene's long-standing
   // "darker than Tripo3D" complaint; Tripo's viewer lights the model with an HDRI). This is a
-  // procedurally-generated NEUTRAL studio panorama (grey, so it casts no colour on the steel;
-  // `scratchpad/gen_studio_hdr.cjs` bakes it), and it is what lets `BODY_METALLIC` sit near the
-  // physically-correct 1 in `knight.ts` instead of the 0.6 that hid the missing IBL.
+  // NEUTRAL studio panorama — strictly greyscale, verified pixel by pixel, so it casts no colour on
+  // the steel — and it is what lets `BODY_METALLIC` sit at the physically-correct 1 in `knight.ts`
+  // instead of the 0.6 that hid the missing IBL.
+  //
+  // **It is a committed binary with no committed generator.** Its own RGBE header names
+  // `scratchpad/gen_studio_hdr.cjs`, which is not in this repository, not in `.gitignore`, and not on
+  // the machine the file was made on. `public/env/CREDITS.md` records everything that is knowable
+  // about it, and `tools/env/inspect_studio_hdr.mjs` re-derives those figures from the file so they
+  // can be checked rather than taken on trust. Replacing it means authoring a new panorama and
+  // re-tuning `IBL_INTENSITY` against it; there is no re-bake path.
   //
   // Only PBR materials read `scene.environmentTexture`; the terrain, sky, water and foliage are all
   // StandardMaterial and are untouched. The only other PBR material, the toon face, opts out with its
