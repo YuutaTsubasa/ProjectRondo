@@ -213,7 +213,8 @@ for (const c of corrections) {
 }
 
 // The receipt: what was fitted, and with which pre-rotation. It is what makes a second run of this
-// tool refuse to double-apply the correction.
+// tool refuse to double-apply the correction, and `tests/presentation/knightFootCalibration.test.ts`
+// reads it back off the shipped GLB to re-measure the soles on every test run.
 g.j.asset.extras = {
   ...g.j.asset.extras,
   knightFootCalibration: {
