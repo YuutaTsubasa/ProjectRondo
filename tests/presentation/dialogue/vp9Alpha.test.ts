@@ -30,6 +30,13 @@ type Frame = {
   readThrows?: boolean;
 };
 
+/** The 0-255 alpha a canvas would resolve a fill colour to. `rgb()`, hex and names are opaque. */
+const alphaOf = (colour: string) => {
+  const rgba = /^rgba\(\s*[\d.]+\s*,\s*[\d.]+\s*,\s*[\d.]+\s*,\s*([\d.]+)\s*\)$/.exec(colour.trim());
+  if (rgba) return Math.round(Number(rgba[1]) * 255);
+  return colour.trim() === 'transparent' ? 0 : 255;
+};
+
 /**
  * A one-pixel canvas that composites the way a real one does.
  *
@@ -48,8 +55,14 @@ const canvasFor = ({
   const context = {
     globalCompositeOperation: 'source-over',
     fillStyle: '',
+    // Reads the alpha the probe actually asked for rather than assuming the fill is opaque. That
+    // opacity is the whole point of the fill: a transparent one under `copy` leaves the canvas
+    // transparent, a no-op draw leaves it that way, and the probe answers `true` for an engine that
+    // decoded nothing — the original defect reached by a different line. Only the notations this
+    // file could plausibly use are understood; anything else counts as opaque, as a canvas would
+    // treat an unparseable colour by ignoring the assignment entirely.
     fillRect: () => {
-      pixel = 255;
+      pixel = alphaOf(context.fillStyle);
     },
     drawImage: () => {
       if (drawIsNoop) return;
@@ -138,22 +151,29 @@ describe('supportsVp9Alpha decides from the decoded frame', () => {
     await expect(result).resolves.toBe(false);
   });
 
-  it('says no when the frame has no intrinsic size', async () => {
+  // These two are deliberately retryable rather than settled — a frame that has not arrived says
+  // nothing about the decoder — and `false` comes out either way, so the second probe is the only
+  // thing holding that choice. Same convention as the decisive cases below, applied in reverse.
+  it('says no without settling anything when the frame has no intrinsic size', async () => {
     vi.useFakeTimers();
     const dom = stubDom({ width: 0, height: 0 });
     const supports = await load();
     const result = supports();
     dom.decode();
     await expect(result).resolves.toBe(false);
+    void supports();
+    expect(dom.probes()).toBe(2);
   });
 
-  it('says no when loadeddata fires before there is a current frame', async () => {
+  it('says no without settling anything when loadeddata beats the first frame', async () => {
     vi.useFakeTimers();
     const dom = stubDom({ readyState: HTMLMediaElement.HAVE_METADATA });
     const supports = await load();
     const result = supports();
     dom.decode();
     await expect(result).resolves.toBe(false);
+    void supports();
+    expect(dom.probes()).toBe(2);
   });
 
   // Both of these are marked decisive in the source, each with a reason — a 2D context that is
