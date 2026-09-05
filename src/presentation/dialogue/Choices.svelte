@@ -33,6 +33,34 @@
     if (from instanceof Node && panel?.contains(from)) onMove?.();
   };
 
+  /**
+   * Puts the selection on the option the pointer moved over.
+   *
+   * The pointer moves the selection instead of running beside it, which is what a menu does and what
+   * the fill now follows: the fill is on `:focus`, so there is one selected row and this is what
+   * puts the pointer's row in it.
+   *
+   * `pointermove`, not `pointerenter`. The rule is that the POINTER moves the selection, and that is
+   * the event that means the pointer moved; `pointerenter` means only that the element under the
+   * pointer changed, which happens to a pointer lying still. The scrim scrolls -- see its comment in
+   * the style block, neither the prompt nor the option list has a bound -- so a wheel taken to read
+   * the rest of the list drags a different option under a resting pointer and fires one, and so does
+   * the scroll Tab performs to bring its target into view. Acted on, the first moves the selection
+   * and sounds a move for a pointer that never moved; the second pulls the selection straight back
+   * off the option Tab just reached and sounds on top of the move Tab already made. `preventScroll`
+   * keeps THIS focus call from scrolling, and says nothing about a scroll arriving from elsewhere.
+   *
+   * That also settles the opening with no state of its own: a panel appearing under a resting pointer
+   * fires no `pointermove`, so the mount focus below keeps the first option and nothing sounds -- and
+   * the moment the player does move, the selection follows and sounds once, like any other move.
+   * `clearTimeout` for the one order that still races: a pointer that moves inside the task the mount
+   * focus is queued in has chosen a row, and the panel's opening focus must not take it back.
+   */
+  const moveSelectionTo = (option: HTMLButtonElement) => {
+    clearTimeout(mountFocus);
+    option.focus({ preventScroll: true });
+  };
+
   // Same as the backlog: this modal cannot be dismissed and must be answered, so it takes focus
   // rather than leaving it on whatever inert has just switched off behind the scrim.
   let panel: HTMLDivElement | undefined = $state();
@@ -91,31 +119,7 @@
         class="choice"
         onclick={() => onSelect(i)}
         onfocus={(e) => moved(e.relatedTarget)}
-        onpointermove={(e) => {
-          // The pointer moves the selection instead of running beside it, which is what a menu does
-          // and what the fill now follows: the fill is on :focus, so there is one selected row and
-          // this is what puts the pointer's row in it.
-          //
-          // `pointermove`, not `pointerenter`. The rule is that the POINTER moves the selection, and
-          // this is the event that means the pointer moved; `pointerenter` means only that the
-          // element under the pointer changed, which happens to a pointer lying still. The scrim
-          // scrolls -- see its comment below, neither the prompt nor the option list has a bound --
-          // so a wheel taken to read the rest of the list drags a different option under a resting
-          // pointer and fires one, and so does the scroll Tab performs to bring its target into
-          // view. Acted on, the first moves the selection and sounds a move for a pointer that never
-          // moved; the second pulls the selection straight back off the option Tab just reached and
-          // sounds on top of the move Tab already made. `preventScroll` keeps THIS handler from
-          // scrolling, and says nothing about a scroll arriving from anywhere else.
-          //
-          // It also settles the opening with no state of its own: a panel appearing under a resting
-          // pointer fires no `pointermove`, so the mount focus below keeps the first option and
-          // nothing sounds -- and the moment the player does move, the selection follows and sounds
-          // once, like any other move. `clearTimeout` for the one order that still races: a pointer
-          // that moves inside the task the mount focus is queued in has chosen a row, and the
-          // panel's opening focus must not take it back.
-          clearTimeout(mountFocus);
-          e.currentTarget.focus({ preventScroll: true });
-        }}
+        onpointermove={(e) => moveSelectionTo(e.currentTarget)}
       >
         <span class="inner"><span class="caret" aria-hidden="true">❯</span><span>{choice.label}</span></span>
       </button>
