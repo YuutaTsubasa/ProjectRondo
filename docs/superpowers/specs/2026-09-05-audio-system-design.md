@@ -266,16 +266,23 @@ re-running the tool is the whole cost of doing it.
 stream is still one second of stream, and the ear finds the period whatever the loop point does. The
 seams are genuinely inaudible — that part worked — but seamlessness was never the problem.
 
-What was removed is only the wiring: `hubAudio` no longer starts either loop, and the two cue ids and
-their manifest entries are gone, so nothing fetches or decodes them. **The assets, the recipe and the
-credits stay** — `public/audio/ambience/` still holds both files and `tools/audio/preprocess.mjs` still
-builds them.
+What was removed is the wiring *and* the spatial support underneath it: `hubAudio` no longer starts
+either loop, the two cue ids and their manifest entries are gone so nothing fetches or decodes them,
+and with no manifest entry setting `spatial` the whole positional path went with them — `CueSpec.spatial`,
+the `spatialEnabled`/`spatialDistanceModel`/`spatialMaxDistance` branch in `load`, `PlayOptions.position`,
+the two `sound.spatial.position` assignments and `engine.listener.attach(camera)`. It shipped untested
+ahead of the work that needed it, which is why it went rather than staying as configuration nothing
+reached. **The assets, the recipe and the credits stay** — `public/audio/ambience/` still holds both
+files and `tools/audio/preprocess.mjs` still builds them.
 
-Bringing ambience back is a small change on top of longer source recordings: re-run the tool, restore
-the two `SoundCue` members and their manifest entries, and start the loops in `buildHubAudio` (the
-pond emitter's position comes from `POND` in `src/domain/hub/waterBody.ts`). **Do not restore the
-wiring without new sources** — the code was never the problem, and the same one-second stream will
-sound the same way again.
+Bringing ambience back therefore restores both halves, on top of longer source recordings: re-run the
+tool; restore the two `SoundCue` members and their manifest entries; restore the positional path
+listed above, including handing `buildHubAudio` the camera again for `listener.attach` (the listener
+rides the camera, not the character — what the player hears should match what they see); then start
+the loops in `buildHubAudio`, the pond one at `POND` from `src/domain/hub/waterBody.ts`. Doing only
+the first three steps gives a pond bed at full level right across the field, which is the opposite of
+§4.3. **Do not restore the wiring without new sources** — the code was never the problem, and the
+same one-second stream will sound the same way again.
 
 The `ambience` mixer bus and its `AudioBusId` member are deliberately kept: the bus is part of the
 mix model a settings panel will bind to (§3.4), and it is what ambience will route through when it
@@ -296,12 +303,14 @@ and re-cutting one sound cannot silently change the others.
 | `sfx/ui_move.ogg` | 6.5 KB | 0.300 s mono |
 | `sfx/ui_confirm.ogg` | 8.2 KB | 0.450 s mono |
 | `ambience/wind_field.ogg` | 131 KB | 8 s stereo, seamless — **shipped, not wired (§5.3a)** |
-| `ambience/water_pond.ogg` | 57 KB | 6 s mono (spatial ⇒ mono), seamless — **shipped, not wired** |
+| `ambience/water_pond.ogg` | 57 KB | 6 s mono (cut for the spatial use it is waiting on), seamless — **shipped, not wired** |
 
 SFX and ambience total **≈ 238 KB**; the two music tracks are 6.9 MB. `*.mp3` and `*.ogg` join the
 LFS-tracked extensions in `.gitattributes`.
 
-Everything spatial is mono: a stereo buffer cannot be panned.
+Anything cut for spatial use is mono, because a stereo buffer cannot be panned. Nothing shipped is
+positioned — the pond bed is the only spatial cue there has ever been, and it is not wired (§5.3a) —
+so this is a rule the *tool* keeps, waiting on the code that will need it.
 
 ### 5.4a The two footstep layers have to *start* together
 

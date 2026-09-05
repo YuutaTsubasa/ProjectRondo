@@ -328,7 +328,9 @@ const RECIPES = [
     build: (a) => normalize(bed(cut(a, 0.42, 1.42), { seconds: 8 }), -9),
   },
   {
-    // Mono because this one is positioned at the water. The source peaks at 0.0 dBFS (clipped), so
+    // Mono because this one is to be positioned at the water — not yet, the emitter is deferred with
+    // the rest of the ambience wiring (spec §5.3a), but a stereo buffer cannot be panned and re-cutting
+    // it later would mean re-tuning it. The source peaks at 0.0 dBFS (clipped), so
     // the bed is normalized well down rather than left near full scale.
     src: 'Natural_stream_water_#3-1788553102614.wav',
     to: 'ambience/water_pond.ogg',

@@ -20,8 +20,15 @@ const AUDIO = '/audio';
  * Every cue, and the file behind it.
  *
  * `satisfies` a total record over `SoundCue`, so a cue added to the union fails the build here until
- * it has a file — rather than becoming a call site that silently plays nothing — while `as const`
- * keeps the table itself from being rewritten by an importer. Whether a cue loops is not stated here:
+ * it has an entry, while `as const` keeps the table itself from being rewritten by an importer.
+ *
+ * That gets as far as "every cue has files, and each is a string" and no further — a path that names
+ * nothing on disk is still a `string`, and the sound bank's deliberately non-fatal missing-asset
+ * policy turns it into one console warning rather than a failure anyone notices. The paths are checked
+ * against `public/` in `tests/presentation/audioManifest.test.ts` for that reason; between the two,
+ * a cue that silently plays nothing is a build failure rather than a discovery in play.
+ *
+ * Whether a cue loops is not stated here:
  * that is the *call site's* choice between `play` and `startLoop`, and a second declaration of it in
  * the manifest could only ever disagree with the one that actually decides.
  */

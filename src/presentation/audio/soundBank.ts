@@ -8,7 +8,17 @@ import type { SoundCue } from '../../domain/audio/soundCue';
 import type { GameAudio } from './audioEngine';
 import { MANIFEST, type CueSpec } from './manifest';
 
-/** A running looped sound. */
+/**
+ * A running looped sound.
+ *
+ * **A handle stops being that the moment the same sound is started again**, and both of its methods
+ * then do nothing — see {@link SoundBank.startLoop}. Without that, a handle would outlive what it
+ * names: neither method can reach a single *instance* (AudioV2 gives none out — `play()` returns
+ * `void`), so `stop()` stops every instance of the sound and `setVolume` writes the sound's one volume
+ * subnode. Two live handles over one sound would be two names for the same thing, each believing it
+ * held its own: their fades would cancel each other on the same param, and whichever stopped first
+ * would silence the other's track.
+ */
 export interface LoopHandle {
   /**
    * Ramps this cue's volume to `level` × its manifest volume, or sets it immediately when
@@ -58,12 +68,21 @@ export interface LoopOptions {
 export interface SoundBank {
   /** Plays a one-shot. A no-op for a cue that failed to load. */
   play(cue: SoundCue, options?: PlayOptions): void;
-  /** Starts a loop, or returns `null` for a cue that failed to load. */
+  /**
+   * Starts a loop, or returns `null` for a cue that failed to load.
+   *
+   * **One loop per sound.** Starting a loop that is already running stops it first and retires the
+   * handle that was holding it, so the caller ends up with exactly one live handle over that sound
+   * rather than two aliases of it — see {@link LoopHandle}. A retired handle's `setVolume` and `stop`
+   * become no-ops, which is what lets a crossfade's outgoing handle and its teardown timer stay
+   * harmless after the cue they were fading has been taken over by a newer play of it.
+   */
   startLoop(cue: SoundCue, options?: LoopOptions): LoopHandle | null;
   dispose(): void;
 }
 
-type Loaded = readonly (StaticSound | StreamingSound)[];
+type Sound = StaticSound | StreamingSound;
+type Loaded = readonly Sound[];
 
 const load = async (audio: GameAudio, cue: SoundCue, spec: CueSpec): Promise<Loaded | null> => {
   try {
@@ -106,6 +125,14 @@ export async function loadSoundBank(audio: GameAudio): Promise<SoundBank> {
     return sounds ? sounds[variant % sounds.length] : null;
   };
 
+  // The handle currently holding each looping sound, keyed by the sound itself rather than by the cue
+  // because variants of one cue are separate sounds with separate volume subnodes. `startLoop` retires
+  // whatever it finds here before taking the sound over; a retired handle's methods return early, so
+  // the sound has exactly one owner at a time. See LoopHandle's doc comment for what goes wrong
+  // otherwise — two handles over one music track is reachable today through `setMusicScene`, whose
+  // crossfade holds the outgoing handle for 1.5 s after starting the next track.
+  const owner = new Map<Sound, { held: boolean }>();
+
   return {
     // `play` and `startLoop` (and the `stop`/`setVolume` a loop hands back) run from
     // `scene.onBeforeRenderObservable` in hubAudio.ts. `Observable.notifyObservers` does not catch
@@ -133,6 +160,20 @@ export async function loadSoundBank(audio: GameAudio): Promise<SoundBank> {
       const sound = pick(cue, options.variant);
       if (!sound) return null;
       const spec = MANIFEST[cue];
+      // Take the sound over from whoever held it. Stopping it here is not the same as leaving the
+      // previous handle to stop it later: `play` below starts a fresh instance regardless, and a
+      // retired handle's timer firing mid-fade would otherwise stop *this* one too.
+      const previous = owner.get(sound);
+      if (previous) {
+        previous.held = false;
+        try {
+          sound.stop();
+        } catch (error) {
+          console.warn(`[audio] cue "${cue}" failed to stop before restarting:`, error);
+        }
+      }
+      const held = { held: true };
+      owner.set(sound, held);
       try {
         // **A loop's level lives on the sound, not on the instance.** `play({ volume })` sets a
         // per-instance GainNode that *multiplies* the sound's own volume subnode, and the
@@ -145,10 +186,13 @@ export async function loadSoundBank(audio: GameAudio): Promise<SoundBank> {
         sound.play({ loop: true });
       } catch (error) {
         console.warn(`[audio] cue "${cue}" failed to start looping:`, error);
+        held.held = false;
+        owner.delete(sound);
         return null;
       }
       return {
         setVolume: (level, fadeSeconds = 0) => {
+          if (!held.held) return;
           const target = spec.volume * level;
           try {
             // Verified against @babylonjs/core@9.21.0's `_WebAudioParameterComponent.setTargetValue`
@@ -172,6 +216,9 @@ export async function loadSoundBank(audio: GameAudio): Promise<SoundBank> {
           }
         },
         stop: () => {
+          if (!held.held) return;
+          held.held = false;
+          owner.delete(sound);
           try {
             sound.stop();
           } catch (error) {
@@ -182,6 +229,12 @@ export async function loadSoundBank(audio: GameAudio): Promise<SoundBank> {
     },
 
     dispose() {
+      // Retire every outstanding handle first: `hubAudio` keeps a crossfade's outgoing handle in a
+      // timer that it cancels on teardown, but a handle can also be held by a caller this bank never
+      // sees, and calling one after its sound is disposed is exactly the throw the guards above exist
+      // for. Retired, it is a no-op instead.
+      for (const held of owner.values()) held.held = false;
+      owner.clear();
       for (const sounds of loaded.values()) for (const s of sounds) s.dispose();
       loaded.clear();
     },

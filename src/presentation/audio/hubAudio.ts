@@ -5,8 +5,7 @@ import { createFootstepCadence } from '../../domain/audio/footstepCadence';
 import { cadenceSample } from '../../domain/audio/locomotionGait';
 import { musicChange, type MusicScene } from '../../domain/audio/musicDirector';
 import { surfaceCue, type SoundCue } from '../../domain/audio/soundCue';
-import { WALK_THRESHOLD, type Knight } from '../babylon/knight';
-import type { Player } from '../babylon/playerController';
+import { WALK_THRESHOLD, type Knight, type KnightMotionSample } from '../babylon/knight';
 import { createGameAudio } from './audioEngine';
 import { loadSoundBank, type LoopHandle, type SoundBank } from './soundBank';
 
@@ -63,15 +62,25 @@ const weightOf = (group: AnimationGroup): number =>
  *
  * A failure in the background build therefore means a silent game, not a broken one — the same
  * contract as before, now with "never settles" covered as well as "rejects".
+ *
+ * `motion` is the reading the animation layer already takes — the *same* function `hubScene` hands to
+ * `driveKnightAnimation`, not a second one built beside it. `groundContact.ts` exists because two
+ * consumers deciding "is it on the ground" independently drifted apart, and planar speed beside it is
+ * the same shape of duplication: sound and pose answer "how fast, and airborne?" from one reading or
+ * they will eventually answer it differently.
  */
-export function createHubAudio(scene: Scene, player: Player, knight: Knight): HubAudio {
+export function createHubAudio(
+  scene: Scene,
+  motion: () => KnightMotionSample,
+  knight: Knight,
+): HubAudio {
   let live: HubAudio | null = null;
   let disposed = false;
   let pending: MusicScene | null = null;
 
   const start = async () => {
     try {
-      const audio = await buildHubAudio(scene, player, knight);
+      const audio = await buildHubAudio(scene, motion, knight);
       // The scene can be torn down while the build is still in flight; without this the graph it
       // just finished building would outlive the page it belongs to.
       if (disposed) {
@@ -101,7 +110,11 @@ export function createHubAudio(scene: Scene, player: Player, knight: Knight): Hu
   };
 }
 
-async function buildHubAudio(scene: Scene, player: Player, knight: Knight): Promise<HubAudio> {
+async function buildHubAudio(
+  scene: Scene,
+  motion: () => KnightMotionSample,
+  knight: Knight,
+): Promise<HubAudio> {
   const audio = await createGameAudio();
 
   // Everything built below this point has to be torn down if a later step throws — otherwise a
@@ -127,7 +140,7 @@ async function buildHubAudio(scene: Scene, player: Player, knight: Knight): Prom
     let desiredScene: MusicScene | null = null;
 
     const cadence = createFootstepCadence();
-    let wasAirborne = player.airborne;
+    let wasAirborne = motion().airborne;
     let music: LoopHandle | null = null;
     let playingTrack: SoundCue | null = null;
     // Crossfades still running, each with the timer that ends it. Held so `dispose` can both stop the
@@ -140,7 +153,8 @@ async function buildHubAudio(scene: Scene, player: Player, knight: Knight): Prom
 
     observer = scene.onBeforeRenderObservable.add(() => {
       const elapsed = scene.getEngine().getDeltaTime() / 1000;
-      const { airborne } = player;
+      // One reading, shared with the animation layer — see this module's doc comment.
+      const { planarSpeed, airborne } = motion();
 
       // Take-off and landing ride the edges of the same `airborne` flag the jump clip uses, rather
       // than a second reading of the ground probe. `groundContact.ts` exists because two consumers
@@ -151,20 +165,20 @@ async function buildHubAudio(scene: Scene, player: Player, knight: Knight): Prom
       // stuttering rather than as leaving the ground and arriving back on it. Up for the push-off,
       // down for the landing: the shift is what makes one read as lighter and the other as heavier,
       // and ±12 % is about as far as it goes before it stops sounding like the same armour.
-      if (airborne !== wasAirborne)
+      if (airborne !== wasAirborne) {
         soundBank.play(airborne ? 'jump.takeoff' : 'jump.land', {
           playbackRate: airborne ? JUMP_RATE : LAND_RATE,
         });
+      }
       wasAirborne = airborne;
 
-      const v = player.motion.velocity;
       const { walk, run } = knight.animations;
       // Which clip to believe, and whether the character is moving at all, is decided by
       // `cadenceSample` in the domain — see its doc comment for why each of those readings is a
       // separate failure. This callback's job is only to take the readings.
       const fall = cadence.step(
         cadenceSample({
-          speed: Math.hypot(v.x, v.z),
+          speed: planarSpeed,
           walkThreshold: WALK_THRESHOLD,
           walkWeight: weightOf(walk),
           runWeight: weightOf(run),
