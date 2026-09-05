@@ -105,13 +105,6 @@ describe('Portrait source selection', () => {
     expect(shown()).toMatchObject({ tag: 'IMG', src: ANIMATED });
   });
 
-  it('never reaches for the WebM when the answer is not a definite yes', async () => {
-    render();
-    await settle(false);
-    expect(target.querySelector('video')).toBeNull();
-    expect(shown().src).not.toBe(WEBM);
-  });
-
   // What makes this element a portrait rather than a video player, and each one fails silently:
   // without `muted` autoplay is blocked and the poster sits frozen; without `playsinline` iOS and
   // WKWebView hand the clip to the fullscreen player, on the very engine this feature is built

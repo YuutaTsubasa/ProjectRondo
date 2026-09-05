@@ -1,15 +1,6 @@
-/**
- * Whether this engine honours VP9's alpha channel.
- *
- * `canPlayType` cannot answer this: WKWebView reports it can play VP9 in WebM, plays it, and then
- * ignores the alpha — so a portrait shipped as VP9 would render its removed background as an opaque
- * black rectangle over the scene. The only reliable answer is to decode a frame and look at it.
- *
- * The probe is a 2x2, one-frame, fully transparent VP9 clip of about 600 bytes, kept separate from
- * the real portrait so the answer arrives before anything large is fetched. A false answer costs
- * bytes (the WebP fallback is ~6x the WebM) and never correctness, so every failure path — no
- * canvas, a decode error, a frame that never arrived, a slow or hung load — resolves to `false`.
- */
+//
+// Whether this engine honours VP9's alpha channel — see `supportsVp9Alpha` at the bottom.
+//
 const PROBE_URL = '/portraits/vp9-alpha-probe.webm';
 const TIMEOUT_MS = 2000;
 
@@ -106,11 +97,22 @@ function probe(): Promise<Answer> {
 }
 
 /**
- * Cached for the session once the answer is about the engine, retried while it is not.
+ * Whether this engine honours VP9's alpha channel.
  *
- * The `catch` is structural rather than defensive padding: callers upgrade to VP9 only on `true`,
- * so a rejection has no sensible handling at the call site, and one throwing line inside the probe
- * would otherwise turn a cheap wrong answer into a hung one.
+ * `canPlayType` cannot answer this: WKWebView reports it can play VP9 in WebM, plays it, and then
+ * ignores the alpha — so a portrait shipped as VP9 would render its removed background as an opaque
+ * black rectangle over the scene. The only reliable answer is to decode a frame and look at it,
+ * which is why this is async and why the probe clip is a 2x2, one-frame, fully transparent VP9 file
+ * of about 600 bytes, kept separate from the real portrait so the answer arrives before anything
+ * large is fetched.
+ *
+ * A false answer costs bytes (the WebP fallback is ~6x the WebM) and never correctness, so every
+ * failure path — no canvas, a decode error, a frame that never arrived, a slow or hung load —
+ * resolves to `false`. The `catch` below is structural rather than defensive padding: callers
+ * upgrade only on `true`, so a rejection has no sensible handling at the call site, and one
+ * throwing line inside the probe would otherwise turn a cheap wrong answer into a hung one.
+ *
+ * Cached for the session once the answer is about the engine, retried while it is not.
  */
 export const supportsVp9Alpha = async (): Promise<boolean> => {
   cached ??= probe().catch(() => UNDECIDED);

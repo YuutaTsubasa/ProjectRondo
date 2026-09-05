@@ -156,22 +156,29 @@ describe('supportsVp9Alpha decides from the decoded frame', () => {
     await expect(result).resolves.toBe(false);
   });
 
-  it('says no when there is no 2D context to draw into', async () => {
+  // Both of these are marked decisive in the source, each with a reason — a 2D context that is
+  // missing will not appear on a retry, and a canvas that tainted once taints again. `false` comes
+  // out either way, so the second call is what holds those reasons to anything.
+  it('says no for good when there is no 2D context to draw into', async () => {
     vi.useFakeTimers();
     const dom = stubDom({ noContext: true });
     const supports = await load();
     const result = supports();
     dom.decode();
     await expect(result).resolves.toBe(false);
+    await expect(supports()).resolves.toBe(false);
+    expect(dom.probes()).toBe(1);
   });
 
-  it('says no when reading the pixel back throws', async () => {
+  it('says no for good when reading the pixel back throws', async () => {
     vi.useFakeTimers();
     const dom = stubDom({ readThrows: true });
     const supports = await load();
     const result = supports();
     dom.decode();
     await expect(result).resolves.toBe(false);
+    await expect(supports()).resolves.toBe(false);
+    expect(dom.probes()).toBe(1);
   });
 });
 
