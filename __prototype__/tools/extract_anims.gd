@@ -14,9 +14,11 @@ const ADDUCT_DEG := -5.0
 const L_THIGH := "Skeleton3D:LeftUpperLeg"
 const R_THIGH := "Skeleton3D:RightUpperLeg"
 
+# Foot calibration is applied to the exported GLB by tools/knight-feet/calibrate.mjs.
+# The former +20 degree parent-space rotation pointed the toes DOWN. Do not bake it again.
+
 # World fore-aft (Z) axis expressed in the thighs' parent frame; the true adduction axis.
 var _adduct_axis := Vector3(0, 0, 1)
-
 func _initialize():
 	var knight: Node = load("res://Assets/Characters/WebKnight/knight.fbx").instantiate()
 	var ksk := _find(knight, "Skeleton3D") as Skeleton3D
