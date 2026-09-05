@@ -28,7 +28,11 @@ export const MovementConstants = {
    * 0.61 rad is 35 degrees — wide enough to forgive a roughly-aimed camera, narrow enough that two
    * crystals at different headings stay distinguishable, which is the number route choice lives or
    * dies on. `homingMaxDuration` 0.6 s is the 0.5 s it takes to cross `homingRange` at `homingSpeed`
-   * plus margin; it is a safety bound, not a feel knob (see characterMovement's dash branch).
+   * plus margin; it is a safety bound, not a feel knob (see characterMovement's dash branch). That
+   * bound is only meaningful because `stepHoming` derives `remaining` from presentation's live offset
+   * to the target rather than dead-reckoning it from `homingSpeed * delta` — a dash obstructed by
+   * terrain then genuinely fails to reach zero and this is what stops it, instead of the value being
+   * unreachable dead code (the defect the 2026-09-05 browser pass found and this fixes).
    */
   homingRange: 12,
   homingConeHalfAngle: 0.6109,

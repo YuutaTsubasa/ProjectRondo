@@ -84,6 +84,12 @@ export function createPlayer(
   const player: Player = { root, motion: IDLE, airborne: false, config };
   // Coyote time, jump buffering and the takeoff guard all live in this pure state — see groundContact.
   let contact = INITIAL_GROUND_CONTACT;
+  // The crystal a homing dash is locked onto, held across frames for as long as `player.motion.homing`
+  // stays non-null — cleared the instant it goes null, so the next press is free to pick anew. This is
+  // what lets `homingTarget` below report the LIVE offset every frame instead of the press-frame
+  // snapshot: `characterMovement.stepHoming` needs the live distance to tell a dash still closing on
+  // its target apart from one a wall has stopped (see the design spec §5 and that function's comment).
+  let homingCrystal: number | null = null;
 
   scene.onBeforeRenderObservable.add(() => {
     const dt = Math.min(scene.getEngine().getDeltaTime() / 1000, MAX_DT);
@@ -105,9 +111,17 @@ export function createPlayer(
     const { grounded, jumpRequested } = contactResult;
     player.airborne = contactResult.airborne;
 
-    const homingTarget = pressed && player.airborne
-      ? selectedOffset(root.getAbsolutePosition(), follow, crystals, config)
-      : null;
+    // `player.motion.homing` reflects last frame's result. Not mid-dash: a fresh press picks a new
+    // crystal (or nothing locks). Mid-dash: keep the SAME crystal — a dash never retargets mid-flight,
+    // only recomputes its distance to the one it already locked.
+    if (player.motion.homing === null) {
+      homingCrystal = pressed && player.airborne
+        ? pickHomingCrystal(root.getAbsolutePosition(), follow, crystals, config)
+        : null;
+    }
+    const homingTarget = homingCrystal === null
+      ? null
+      : homingOffset(root.getAbsolutePosition(), crystals, homingCrystal);
 
     const { right, forward } = follow.planarBasis();
     const direction = planarDirectionFromInput(input.axis(), right, forward);
@@ -152,19 +166,27 @@ function faceRoot(root: TransformNode, facingX: number, facingY: number): void {
 }
 
 /**
- * The offset from the player to the crystal the camera is aiming at, or null.
+ * The index of the crystal the camera is aiming at, or null — called only on the frame a fresh press
+ * needs to pick one (see the lock/hold logic in the render loop above).
  *
  * The aim vector is the camera's TRUE 3D forward — `target - position` — and deliberately not
  * `follow.planarBasis().forward`, which is flattened to X/Z for locomotion. A climb is vertical: a
  * crystal directly overhead is exactly the shot a flattened aim can never take.
  */
-function selectedOffset(
+function pickHomingCrystal(
   from: Vector3, follow: FollowCamera, crystals: Crystals, config: MovementConfig,
-): Vec3 | null {
+): number | null {
   const cam = follow.camera;
   const forward = cam.getTarget().subtract(cam.position);
-  const index = selectHomingTarget(toVec3(from), toVec3(forward), crystals.positions, config);
-  if (index === null) return null;
+  return selectHomingTarget(toVec3(from), toVec3(forward), crystals.positions, config);
+}
+
+/**
+ * The current offset from `from` to the locked crystal `index` — recomputed every frame the dash is
+ * (or is about to be) in flight, not just on the press frame, so `characterMovement.stepHoming` always
+ * sees the real remaining distance rather than one dead-reckoned forward from entry.
+ */
+function homingOffset(from: Vector3, crystals: Crystals, index: number): Vec3 {
   const target = crystals.positions[index];
   return vec3(target.x - from.x, target.y - from.y, target.z - from.z);
 }

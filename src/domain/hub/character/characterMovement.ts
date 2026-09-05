@@ -1,8 +1,8 @@
-import { type CharacterMotion, type HomingDash } from './characterMotion';
+import { type CharacterMotion } from './characterMotion';
 import { type MovementInput } from './movementInput';
 import { type MovementConfig } from './movementConfig';
 import { type Vec2, vec2, scale, normalize, length, moveToward, rotateToward, ZERO } from '../../math/vec2';
-import { vec3, ZERO3, length as length3, normalize as normalize3, scale as scale3 } from '../../math/vec3';
+import { type Vec3, vec3, ZERO3, length as length3, normalize as normalize3, scale as scale3 } from '../../math/vec3';
 import { moveToward as moveTowardScalar } from '../../math/scalar';
 import { isZero } from '../../kernel/normalizedPlanarDirection';
 
@@ -23,8 +23,8 @@ export const step = (
   config: MovementConfig,
   delta: number,
 ): CharacterMotion => {
-  const dash = motion.homing ?? enterHoming(motion, input);
-  if (dash) return stepHoming(motion, dash, config, delta);
+  if (motion.homing) return stepHoming(motion, motion.homing.elapsed, input.homingTarget, config, delta);
+  if (canEnterHoming(motion, input)) return stepHoming(motion, 0, input.homingTarget, config, delta);
 
   const facing = nextFacing(motion, input, config, delta);
   const planar = nextPlanarVelocity(motion, input, config, delta, facing);
@@ -40,37 +40,49 @@ export const step = (
 };
 
 /**
- * A press only becomes a dash in the air. On the ground the same button is an ordinary jump, which
- * the normal path below handles — so this returns null there and nothing else has to know.
+ * A press only becomes a dash in the air, and only when it came with a target offset. On the ground
+ * the same button is an ordinary jump, which the normal path below handles.
  */
-const enterHoming = (motion: CharacterMotion, input: MovementInput): HomingDash | null => {
-  if (motion.isGrounded || input.homingTarget === null) return null;
-  const distance = length3(input.homingTarget);
-  if (distance === 0) return null; // coincident target: nothing to fly toward
-  return { direction: normalize3(input.homingTarget), remaining: distance, elapsed: 0 };
-};
+const canEnterHoming = (motion: CharacterMotion, input: MovementInput): boolean =>
+  !motion.isGrounded && input.homingTarget !== null && length3(input.homingTarget) !== 0;
 
 /**
- * The dash frame. Gravity and steering are both suspended here — that is the whole reason this state
- * lives inside `step` rather than beside it, since three things `step` otherwise does unconditionally
- * become conditional.
+ * The dash frame. `offset` is presentation's LIVE offset from the player to the locked crystal,
+ * supplied fresh every frame it is in flight — never the entry-frame value carried forward. `elapsed`
+ * is the one thing that *is* carried across frames (as `motion.homing.elapsed`, or 0 on the entry
+ * frame), because it is the only quantity `offset` cannot supply.
  *
- * Arrival is checked BEFORE the timeout: arriving is a success and should beat a timeout that fires
- * on the same frame, and this ordering matters at real frame times (`playerController` clamps to
- * `MAX_DT = 1/30`, well under `homingMaxDuration`), so the two branches almost never compete — but
+ * Deriving `direction` and `remaining` from `offset` every frame rather than dead-reckoning them from
+ * `homingSpeed * delta` is the fix for a defect the browser pass found: the domain emits a velocity
+ * but Havok's character controller is what actually moves the capsule, and collides. A dash blocked by
+ * terrain stops advancing, so a *real* offset stops shrinking — and only because `remaining` now
+ * tracks that real offset can it ever fail to reach zero, which is what makes the timeout below
+ * reachable at all (previously `remaining` shrank by `homingSpeed * delta` regardless of whether the
+ * capsule had actually moved, so it always hit zero within `homingRange / homingSpeed` = 0.5s, strictly
+ * before `homingMaxDuration`'s 0.6s — see the design spec §5). Reading the live offset instead of a
+ * fixed entry direction also makes the dash genuinely home: it corrects course toward the target every
+ * frame rather than flying a straight line decided at the press.
+ *
+ * A null `offset` — presentation has nothing to report for the locked crystal on a frame it must, by
+ * the contract in `movementInput.ts`, supply one — is not something to coast through on the previous
+ * frame's direction: that would be moving on stale data with no idea whether it is still correct. It
+ * ends the dash exactly like the timeout below, safely, rather than trusting it.
+ *
+ * Arrival is still checked BEFORE the timeout: arriving is a success and should beat a timeout that
+ * fires on the same frame, and this ordering matters at real frame times (`playerController` clamps
+ * to `MAX_DT = 1/30`, well under `homingMaxDuration`), so the two branches almost never compete — but
  * when they do, the friendlier outcome should win.
- *
- * The timeout itself is not defensive polish. `step` emits a velocity but Havok applies it, and a
- * dash whose straight line crosses terrain never arrives: the controller pins the capsule to the wall
- * while this function keeps asking for `homingSpeed` toward a point it can never reach, gravity
- * suspended, for ever. Aborting is a normal outcome — a mistimed press near a wall should drop you,
- * not trap you.
  */
 const stepHoming = (
-  motion: CharacterMotion, dash: HomingDash, config: MovementConfig, delta: number,
+  motion: CharacterMotion, elapsedSoFar: number, offset: Vec3 | null, config: MovementConfig, delta: number,
 ): CharacterMotion => {
+  if (offset === null) {
+    return { velocity: ZERO3, facing: motion.facing, isGrounded: false, homing: null };
+  }
+
+  const remaining = length3(offset);
   const travelled = config.homingSpeed * delta;
-  if (travelled >= dash.remaining) {
+  if (travelled >= remaining) {
     return {
       velocity: vec3(0, config.homingBounceSpeed, 0),
       facing: motion.facing,
@@ -79,16 +91,17 @@ const stepHoming = (
     };
   }
 
-  const elapsed = dash.elapsed + delta;
+  const elapsed = elapsedSoFar + delta;
   if (elapsed >= config.homingMaxDuration) {
     return { velocity: ZERO3, facing: motion.facing, isGrounded: false, homing: null };
   }
 
+  const direction = normalize3(offset);
   return {
-    velocity: scale3(dash.direction, config.homingSpeed),
-    facing: dashFacing(motion, dash),
+    velocity: scale3(direction, config.homingSpeed),
+    facing: dashFacing(motion, direction),
     isGrounded: false,
-    homing: { direction: dash.direction, remaining: dash.remaining - travelled, elapsed },
+    homing: { direction, remaining: remaining - travelled, elapsed },
   };
 };
 
@@ -99,8 +112,8 @@ const stepHoming = (
  * `ZERO`, a meaningless facing — so that degenerate case keeps the previous facing instead. It is
  * reachable: the hub's test crystals include ones directly overhead.
  */
-const dashFacing = (motion: CharacterMotion, dash: HomingDash): Vec2 => {
-  const projected = normalize(vec2(dash.direction.x, dash.direction.z));
+const dashFacing = (motion: CharacterMotion, direction: Vec3): Vec2 => {
+  const projected = normalize(vec2(direction.x, direction.z));
   return projected === ZERO ? motion.facing : projected;
 };
 

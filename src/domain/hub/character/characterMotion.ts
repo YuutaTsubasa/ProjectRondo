@@ -2,9 +2,17 @@ import { type Vec3, ZERO3 } from '../../math/vec3';
 import { type Vec2, vec2 } from '../../math/vec2';
 
 /**
- * An in-flight homing dash. `direction` is a unit vector fixed at entry — targets are static and the
- * dash lasts under a second, so re-aiming every frame would be invisible. `remaining` is the distance
- * left to cover, and `elapsed` is what the timeout in `characterMovement.step` reads.
+ * An in-flight homing dash. `direction` and `remaining` are NOT carried forward frame to frame —
+ * `characterMovement.stepHoming` recomputes both every frame from presentation's live offset to the
+ * locked crystal, so what is stored here is only the last frame's snapshot, useful to a caller but not
+ * read back as input. `elapsed` is the one field that genuinely persists: it is what the timeout in
+ * `characterMovement.step` reads, and the live offset has no way to supply it.
+ *
+ * Recomputing `direction`/`remaining` from the live offset (rather than fixing `direction` at entry
+ * and dead-reckoning `remaining` down by `homingSpeed * delta`) is deliberate on two counts: it is
+ * what makes the dash home for real — correcting course toward the target every frame, not flying the
+ * straight line decided at the press (design spec §4) — and it is what makes `remaining` reflect
+ * whether the capsule is actually moving, which is the timeout's whole reason to exist (§5).
  */
 export interface HomingDash {
   readonly direction: Vec3;

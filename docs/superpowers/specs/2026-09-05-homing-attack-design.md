@@ -103,9 +103,13 @@ unrepresentable).
 
 - **Entering** — not already homing, `homingTarget` is non-null, and the player is **airborne**. On the
   ground the same button is an ordinary jump.
-- **Dashing** — velocity is `homingSpeed` along the direction to the target. **Gravity is suspended and
-  steering input is ignored**; facing turns to the dash direction. This is the whole reason the state
-  has to live inside `step`: three things it normally does unconditionally are conditional now.
+- **Dashing** — velocity is `homingSpeed` along the direction to the target, RECOMPUTED every frame
+  from presentation's live offset to the locked crystal rather than fixed at entry (§5 explains why
+  that is not optional, but it also has a feel consequence: the dash genuinely homes, correcting
+  course toward the target each frame rather than committing to a straight line decided at the press).
+  **Gravity is suspended and steering input is ignored**; facing turns to the (live) dash direction.
+  This is the whole reason the state has to live inside `step`: three things it normally does
+  unconditionally are conditional now.
 - **Arriving** — when the frame's travel would reach or pass the target, the dash ends: velocity
   becomes `(0, homingBounceSpeed, 0)` and `homing` clears. The player is now airborne and rising, which
   is exactly the state a new dash can start from, so chaining needs no extra machinery.
@@ -122,6 +126,20 @@ gravity suspended, forever.
 So `homing` carries an elapsed time and aborts at `homingMaxDuration`, restoring ordinary airborne
 motion and gravity. The abort is a normal outcome, not an error: a mistimed press near a wall should
 drop you, not trap you.
+
+**This bound only works if "remaining distance" reflects reality.** The first shipped version computed
+it by dead reckoning — decrementing `homingSpeed * delta` every frame regardless of whether the capsule
+had actually moved — and a selectable target is always within `homingRange` (12), so that dead-reckoned
+distance always hit zero within `homingRange / homingSpeed` = 0.5s, strictly before `homingMaxDuration`'s
+0.6s. The timeout branch could never fire for any target, obstructed or not; a blocked dash instead
+"arrived" on schedule and bounced off the obstacle. The fix is for `step`'s `homingTarget` input to
+carry the LIVE offset from the player to the locked crystal, supplied by presentation every frame the
+dash is in flight rather than only on the press frame, and for the domain to derive both direction and
+remaining distance from it each frame instead of carrying either forward. A dash a wall has actually
+stopped then has an offset that stops shrinking too, and only the elapsed-time bound ends it — which is
+what makes this section's "not optional" true of the shipped code, not just of the intent behind it. A
+frame on which presentation cannot report a live offset for an in-flight dash is treated the same as a
+timeout: the dash ends safely rather than continuing on stale data.
 
 ## 6. Chaining needs no charge counter
 
