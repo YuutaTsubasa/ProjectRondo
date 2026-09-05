@@ -17,9 +17,15 @@
  * After a re-run, commit only the files whose *content* you actually changed and `git checkout --` the
  * rest; committing the others is pure LFS churn.
  *
- * The two music tracks are **copied, not transcoded**: both sources are already 64 kbps MP3, so a
- * re-encode to Vorbis would add a second generation of lossy artefacts to spend roughly the same
- * number of bytes.
+ * The two music tracks are **copied, not transcoded**, and that costs bytes rather than saving them.
+ * A re-encode would lay a second generation of lossy artefacts over an already-lossy source, and music
+ * is where that is heard: these are the only two assets in the set played in full, at length, and not
+ * masked by anything. The price, measured rather than assumed: the sources are VBR MP3 at 202 kbps
+ * (hub_theme, 3,386,961 B / 133.85 s) and 205 kbps (avg_theme, 3,830,342 B / 149.61 s), and re-encoding
+ * them at the `-q:a 4` every other asset here uses gives 2.14 MB + 2.46 MB against the 7.22 MB shipped
+ * — 2.6 MB off the wire, given up. What makes that affordable is that they are the only `streaming`
+ * cues in the manifest, so they are off the critical path of first render (hubAudio.ts) and nothing
+ * waits on them.
  *
  * **They do not loop cleanly, and this tool cannot fix that.** Both have a composed ending, so a loop
  * jumps from a decayed tail back to a full-level opening — 11 dB on hub_theme (every 2:14) and 51 dB
@@ -72,14 +78,16 @@ function readWav(path) {
     const id = buf.toString('ascii', off, off + 4);
     const size = buf.readUInt32LE(off + 4);
     const body = off + 8;
-    if (id === 'fmt ')
+    if (id === 'fmt ') {
       fmt = {
         tag: buf.readUInt16LE(body),
         channels: buf.readUInt16LE(body + 2),
         rate: buf.readUInt32LE(body + 4),
         bits: buf.readUInt16LE(body + 14),
       };
-    else if (id === 'data') data = buf.subarray(body, Math.min(body + size, buf.length));
+    } else if (id === 'data') {
+      data = buf.subarray(body, Math.min(body + size, buf.length));
+    }
     off = body + size + (size % 2); // RIFF chunks are word-aligned
   }
   if (!fmt || !data) throw new Error(`${path}: missing fmt/data chunk`);
@@ -87,9 +95,11 @@ function readWav(path) {
     throw new Error(`${path}: expected 16-bit PCM, got tag=${fmt.tag} bits=${fmt.bits}`);
   const frames = Math.floor(data.length / 2 / fmt.channels);
   const channels = Array.from({ length: fmt.channels }, () => new Float32Array(frames));
-  for (let i = 0; i < frames; i++)
-    for (let c = 0; c < fmt.channels; c++)
+  for (let i = 0; i < frames; i++) {
+    for (let c = 0; c < fmt.channels; c++) {
       channels[c][i] = data.readInt16LE((i * fmt.channels + c) * 2) / 32768;
+    }
+  }
   return { rate: fmt.rate, channels };
 }
 
@@ -112,8 +122,9 @@ function writeWavF32(path, { rate, channels }) {
   buf.writeUInt16LE(32, 34);
   buf.write('data', 36, 'ascii');
   buf.writeUInt32LE(bytes, 40);
-  for (let i = 0; i < n; i++)
+  for (let i = 0; i < n; i++) {
     for (let c = 0; c < ch; c++) buf.writeFloatLE(channels[c][i], 44 + (i * ch + c) * 4);
+  }
   writeFileSync(path, buf);
 }
 
