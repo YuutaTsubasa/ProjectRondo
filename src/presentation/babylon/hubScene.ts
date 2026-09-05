@@ -101,8 +101,9 @@ export async function createHubScene(canvas: HTMLCanvasElement): Promise<HubScen
   // Not awaited, and `createHubAudio` is not async: audio must never be able to hold up first render.
   // See its doc comment — a streaming music cue whose media element never fires `canplaythrough`
   // would otherwise leave this line pending for good, and with it the render loop below.
-  // `readMotion` again, not a second reading of the same numbers: the footsteps and the locomotion
-  // blend they have to land on are driven from one sample per frame.
+  // `readMotion` again, not a second function built beside it: the footsteps and the locomotion blend
+  // they have to land on answer "how fast, and airborne?" from one source. Each layer's observer calls
+  // it for itself, so the sample is built twice a frame — one *source*, not one sample.
   const audio = createHubAudio(scene, readMotion, knight);
 
   engine.runRenderLoop(() => scene.render());

@@ -112,7 +112,8 @@ async function buildHubAudio(
 
     observer = scene.onBeforeRenderObservable.add(() => {
       const elapsed = scene.getEngine().getDeltaTime() / 1000;
-      // One reading, shared with the animation layer — see this module's doc comment.
+      // The same `motion` the animation layer reads, called again here — see this module's doc
+      // comment. One source, two readings a frame; not one reading shared between them.
       const { planarSpeed, airborne } = motion();
 
       // Take-off and landing ride the edges of the same `airborne` flag the jump clip uses, rather
