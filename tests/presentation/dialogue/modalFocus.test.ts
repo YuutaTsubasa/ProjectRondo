@@ -16,11 +16,21 @@ import DialogueOverlay from '../../../src/presentation/dialogue/DialogueOverlay.
 import { createDialogueSession } from '../../../src/presentation/dialogue/dialogueSession.svelte';
 import { parse } from '../../../src/domain/dialogue/script/parser';
 
+// Mounting the overlay mounts Portrait, which would otherwise run the real VP9 probe: jsdom decodes
+// nothing, so it only leaves a 2s timer and an unresolved promise outliving a file that finishes in
+// a third of a second, plus a "Not implemented: play()" line in the console. Answered `false` here
+// so that it resolves at once rather than never: this file is about focus, and a probe left hanging
+// is only a way for one suite's leftovers to turn up in another's. Which portrait that renders is
+// pinned in portraitSource.test.ts, not here.
+vi.mock('../../../src/presentation/dialogue/vp9Alpha', () => ({
+  supportsVp9Alpha: () => Promise.resolve(false),
+}));
+
 // jsdom does not implement matchMedia, and Portrait reads it to honour prefers-reduced-motion.
 // Stubbed here rather than guarded in the component: every real browser has matchMedia, so a guard
 // there would defend against a case only this environment has. (The component does branch on
 // MediaQueryList.addEventListener, which pre-14 WebKit genuinely lacks -- that one is pinned in
-// portraitSource.test.ts.) Reports "no preference", the path that renders the animated portrait.
+// portraitSource.test.ts.) Reports "no preference", so motion is not the thing suppressing it.
 if (!window.matchMedia) {
   window.matchMedia = ((query: string) => ({
     matches: false,
