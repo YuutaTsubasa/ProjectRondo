@@ -6,8 +6,10 @@ import '@babylonjs/core/Materials/standardMaterial';
 import { Color3 } from '@babylonjs/core/Maths/math.color';
 import { type Vec3, vec3 } from '../../domain/math/vec3';
 
-/** Half-height of a crystal, in world units. The knight is ~1.9 tall, so this reads as a held object. */
-const CRYSTAL_SIZE = 0.45;
+/** Half-height of a crystal, in world units. The knight is ~1.9 tall, so this reads as a held object.
+ *  Exported so `homingReticle.ts` can size the preview ring off the same number rather than guessing
+ *  a second one that could drift out of proportion with it. */
+export const CRYSTAL_SIZE = 0.45;
 
 /**
  * Emissive tint. Bright and unlit so a crystal reads as a target from across the field rather than
@@ -16,9 +18,36 @@ const CRYSTAL_SIZE = 0.45;
  */
 const CRYSTAL_EMISSIVE = new Color3(0.35, 0.75, 0.95);
 
+/**
+ * Emissive colour a crystal snaps to when `flash()` is called, eased back to `CRYSTAL_EMISSIVE` by the
+ * decay observer below.
+ *
+ * **Untuned**: plain saturated red, chosen only so a hit reads unambiguously against the crystal's own
+ * cyan `CRYSTAL_EMISSIVE` — and to read as a continuation of `homingReticle.ts`'s red ring rather than
+ * a new colour vocabulary for "this crystal matters right now". Nobody has watched this in the browser;
+ * retune by eye against the running scene.
+ */
+const FLASH_EMISSIVE = new Color3(1, 0, 0);
+
+/**
+ * How long a flash takes to ease back to `CRYSTAL_EMISSIVE`, in seconds.
+ *
+ * **Untuned**: 0.4s is a guess at "reads as a distinct hit, but is done fading before the next crystal
+ * in a chain could plausibly be flashed" — a homing chain's own bounce-to-bounce cadence has not been
+ * measured against it. Nobody has watched this in the browser; retune by eye.
+ */
+const FLASH_DECAY_SECONDS = 0.4;
+
 export interface Crystals {
   /** World positions, in the order given — the index `selectHomingTarget` returns indexes into. */
   readonly positions: readonly Vec3[];
+  /**
+   * Snaps crystal `index`'s emissive to {@link FLASH_EMISSIVE}; a single observer registered once in
+   * {@link createCrystals} (not one per crystal) eases it back to {@link CRYSTAL_EMISSIVE} over
+   * {@link FLASH_DECAY_SECONDS}. Out-of-range indices warn and are ignored rather than throwing, in
+   * keeping with this presentation layer's warn-and-skip style elsewhere (see `knight.ts`).
+   */
+  flash(index: number): void;
 }
 
 /**
@@ -35,22 +64,63 @@ export interface Crystals {
  * once lived here, structurally identical to the `Vec3` this file already imports for its return type
  * — two names for the same `{x, y, z}` shape in one file. `Vec3`'s `readonly` fields are exactly what
  * a fixed placement needs.
+ *
+ * **Each crystal gets its own `StandardMaterial`** rather than sharing one, so `flash()` can change one
+ * crystal's emissive without touching the rest. That is a real trade-off, not a free upgrade: at the
+ * hub's five crystals, five materials cost nothing, but a material is a draw-call state change, and the
+ * tower mode this move is being built for (design spec §1, §11) will place far more than five. That
+ * mode must revisit this — most likely by going back to a shared resting material and cloning one only
+ * for the duration of an active flash, releasing it back when the decay finishes — but that machinery
+ * is not built here: it would be optimising a level that does not exist yet, against a crystal count
+ * nobody has picked.
  */
 export function createCrystals(scene: Scene, spots: readonly Vec3[]): Crystals {
-  const mat = new StandardMaterial('crystalMat', scene);
-  mat.diffuseColor = new Color3(0.1, 0.3, 0.4);
-  mat.emissiveColor = CRYSTAL_EMISSIVE;
-  mat.specularColor = new Color3(0.6, 0.8, 0.9);
+  const materials = spots.map((_, i) => {
+    const mat = new StandardMaterial(`crystalMat_${i}`, scene);
+    mat.diffuseColor = new Color3(0.1, 0.3, 0.4);
+    mat.emissiveColor = CRYSTAL_EMISSIVE.clone();
+    mat.specularColor = new Color3(0.6, 0.8, 0.9);
+    return mat;
+  });
 
   const positions = spots.map((spot, i) => {
     const mesh = CreatePolyhedron(`crystal_${i}`, { type: 1, size: CRYSTAL_SIZE }, scene);
     mesh.position.set(spot.x, spot.y, spot.z);
-    mesh.material = mat;
+    mesh.material = materials[i];
     mesh.isPickable = false;
     // Not registered with `shadows`: a crystal's shadow says nothing, and the frame measurement
     // (2026-08-25 shadow-quality spec) puts every caster at four extra draw calls across four cascades.
     return vec3(spot.x, spot.y, spot.z);
   });
 
-  return { positions };
+  // `flashElapsed[i]` is `null` while crystal `i` is at rest (on `CRYSTAL_EMISSIVE`, untouched), or the
+  // seconds elapsed since its last `flash()` call while it is easing back. One observer drives every
+  // crystal's decay — registering one `onBeforeRenderObservable` per crystal here would scale the
+  // per-frame observer-dispatch overhead with crystal count for no benefit, since the work per crystal
+  // (a lerp) is identical either way.
+  const flashElapsed: (number | null)[] = spots.map(() => null);
+
+  scene.onBeforeRenderObservable.add(() => {
+    const dt = scene.getEngine().getDeltaTime() / 1000;
+    for (let i = 0; i < flashElapsed.length; i++) {
+      const elapsed = flashElapsed[i];
+      if (elapsed === null) continue; // at rest — skip the lerp entirely, not just clamp it to a no-op
+      const next = elapsed + dt;
+      const t = Math.min(1, next / FLASH_DECAY_SECONDS);
+      Color3.LerpToRef(FLASH_EMISSIVE, CRYSTAL_EMISSIVE, t, materials[i].emissiveColor);
+      flashElapsed[i] = t >= 1 ? null : next; // done easing — stop paying for this crystal's lerp
+    }
+  });
+
+  return {
+    positions,
+    flash(index: number) {
+      if (index < 0 || index >= materials.length) {
+        console.warn(`[crystals] flash(${index}) is out of range (${materials.length} crystals) — ignored.`);
+        return;
+      }
+      materials[index].emissiveColor.copyFrom(FLASH_EMISSIVE);
+      flashElapsed[index] = 0;
+    },
+  };
 }

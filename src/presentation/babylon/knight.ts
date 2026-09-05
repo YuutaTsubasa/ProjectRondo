@@ -1,5 +1,5 @@
 import type { Scene } from '@babylonjs/core/scene';
-import type { TransformNode } from '@babylonjs/core/Meshes/transformNode';
+import { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 import type { AnimationGroup } from '@babylonjs/core/Animations/animationGroup';
 import type { Shadows } from './shadows';
 import { ImportMeshAsync } from '@babylonjs/core/Loading/sceneLoader';
@@ -130,11 +130,13 @@ const TRAIL_EMISSIVE = new Color3(0.3, 0.65, 1);
  * Trail ribbon width and history length. `DASH_TRAIL_LENGTH` is a ring-segment count, dimensionless.
  * `DASH_TRAIL_DIAMETER` is NOT a world-unit width, even though it reads like one next to
  * {@link TARGET_HEIGHT}: `TrailMesh._updateSectionVectors` builds each ribbon section from `diameter`
- * and then transforms it by `generator.getWorldMatrix()` (`createDashTrail` passes the glTF `root` as
- * the generator), and `root.scaling` is set in {@link loadKnight} to `TARGET_HEIGHT / rawHeight` — a
- * factor that is not 1 by construction (that line exists precisely because the raw model isn't 1.9
- * units tall). So `0.2` is in the GLB's own local units, and the on-screen ribbon width is
- * `0.2 * root.scaling`, whatever that multiple happens to be — not directly comparable to
+ * and then transforms it by `generator.getWorldMatrix()` (`createDashTrail` is passed `trailGenerator`,
+ * a `TransformNode` parented to the glTF `root` — see {@link loadKnight}), and `root.scaling` is set in
+ * {@link loadKnight} to `TARGET_HEIGHT / rawHeight` — a factor that is not 1 by construction (that line
+ * exists precisely because the raw model isn't 1.9 units tall). A parented node's world matrix is built
+ * from the parent's, so `trailGenerator.getWorldMatrix()` carries that same scaling even though nothing
+ * on `trailGenerator` itself sets it. So `0.2` is in the GLB's own local units, and the on-screen ribbon
+ * width is `0.2 * root.scaling`, whatever that multiple happens to be — not directly comparable to
  * `TARGET_HEIGHT` or any other world-space measurement in this file. Nobody has watched the trail on
  * screen; retune this by eye in local units against an actual screenshot, or compute the world-space
  * width wanted and divide by `root.scaling` at the call site, rather than treating this number as if
@@ -861,7 +863,26 @@ export async function loadKnight(
   for (const g of groups) g.stop();
   idle.play(true);
 
-  const trail = createDashTrail(scene, root);
+  // The trail must NOT be generated off `root` itself: `root` is the glTF `__root__` node, and the
+  // seating above puts its origin at the CAPSULE's bottom — the knight's FEET, not its body — so a
+  // `TrailMesh` fed `root` as its generator draws the ribbon from ground level regardless of where the
+  // character actually is (the bug the owner saw). A dedicated generator node fixes it without moving
+  // `root` itself, which everything else in this file (foot planting, the terrain re-anchor above)
+  // depends on staying exactly where it is.
+  //
+  // Same coordinate-space trap `DASH_TRAIL_DIAMETER` documents: `trailGenerator` is parented to `root`,
+  // so its world position is `root`'s world matrix applied to its OWN local position — and `root.scaling`
+  // (set above to `TARGET_HEIGHT / rawHeight`) is part of that matrix. So a local Y of `rawHeight / 2`
+  // (half the model's own raw height, in the GLB's own units, BEFORE the `TARGET_HEIGHT` rescale) lands
+  // at `rawHeight / 2 * root.scaling` = `rawHeight / 2 * (TARGET_HEIGHT / rawHeight)` = `TARGET_HEIGHT / 2`
+  // in world space — mid-torso on the rescaled, on-screen knight. Using a world-space or `TARGET_HEIGHT`-
+  // relative offset here instead would be off by whatever `root.scaling` happens to be, the same mistake
+  // `DASH_TRAIL_DIAMETER`'s doc warns against for the ribbon's width.
+  const trailGenerator = new TransformNode('knightTrailGenerator', scene);
+  trailGenerator.parent = root;
+  trailGenerator.position.y = rawHeight / 2;
+
+  const trail = createDashTrail(scene, trailGenerator);
   const knight: Knight = { animations: { idle, walk, run, jump, kick }, planted: 1, trail };
 
   // Bind-pose bounds don't match the animated idle pose (the knight floated ~0.8u above the floor),

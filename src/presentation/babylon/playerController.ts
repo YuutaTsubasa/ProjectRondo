@@ -18,6 +18,7 @@ import { terrainHeight } from './terrainHeight';
 import type { FollowCamera } from './followCamera';
 import type { InputState } from './input';
 import type { Crystals } from './crystals';
+import { createHomingReticle } from './homingReticle';
 import { stepGroundContact, INITIAL_GROUND_CONTACT } from './groundContact';
 import { alignToSurface } from './slopeMotion';
 
@@ -101,6 +102,13 @@ export function createPlayer(
   // its target apart from one a wall has stopped (see the design spec §5 and that function's comment).
   let homingCrystal: number | null = null;
 
+  // The red target ring the owner asked for. Deliberately fed a SEPARATE selection below
+  // (`previewCrystal`), not `homingCrystal`: `homingCrystal` is the committed lock for a dash already
+  // in flight and must not be reassigned mid-dash (see its own comment above), while the reticle needs
+  // an answer to "what would a press hit right now" on every frame, including frames with no press at
+  // all.
+  const reticle = createHomingReticle(scene);
+
   scene.onBeforeRenderObservable.add(() => {
     const dt = Math.min(scene.getEngine().getDeltaTime() / 1000, MAX_DT);
     if (dt <= 0) return;
@@ -138,6 +146,17 @@ export function createPlayer(
       ? null
       : homingOffset(root.getAbsolutePosition(), crystals, homingCrystal);
 
+    // The reticle shows only when a press would actually DO something: airborne (grounded, the same
+    // button is an ordinary jump — showing a target there would lie about what it does), not already
+    // mid-dash (the lock is committed and the trail already says what is happening), and a candidate
+    // actually in the camera's cone. `player.motion.homing` here is still last frame's value — the same
+    // one the `homingCrystal` block above reads — so "not mid-dash" means the same thing in both places.
+    const previewCrystal = player.airborne && player.motion.homing === null
+      ? pickHomingCrystal(root.getAbsolutePosition(), follow, crystals, config)
+      : null;
+    if (previewCrystal === null) reticle.hide();
+    else reticle.showAt(crystals.positions[previewCrystal]);
+
     const { right, forward } = follow.planarBasis();
     const direction = planarDirectionFromInput(input.axis(), right, forward);
     const next = step(
@@ -146,6 +165,19 @@ export function createPlayer(
       config,
       dt,
     );
+
+    // A crystal flashes on the BOUNCE, not on the dash simply ending: `next.homing` goes null on both
+    // a bounce (arrival) and a timeout (`characterMovement.step`'s two ways out of the dash branch —
+    // design spec §4-5), and only the bounce actually hit something. `next.velocity.y > 0` is what
+    // separates them: arrival sets it to `homingBounceSpeed`, a timeout zeroes it — `knight.ts`'s
+    // `driveKnightAnimation` uses this exact discriminator to decide whether to restart the jump clip,
+    // and this reuses it for the same reason. `homingCrystal` still holds the index that was locked for
+    // the dash that just ended: it is only cleared the NEXT frame, when `player.motion.homing === null`
+    // makes the block above re-run — so it is still the right crystal to flash here.
+    if (player.motion.homing !== null && next.homing === null && next.velocity.y > 0) {
+      if (homingCrystal !== null) crystals.flash(homingCrystal);
+      else console.warn('[playerController] a homing dash bounced with no locked crystal to flash — this should be unreachable.');
+    }
 
     // Following the ground means adding the climb the surface demands — see slopeMotion. A jump is
     // the one grounded frame that must keep its own vertical velocity, so it skips this.
@@ -181,8 +213,11 @@ function faceRoot(root: TransformNode, facingX: number, facingY: number): void {
 }
 
 /**
- * The index of the crystal the camera is aiming at, or null — called only on the frame a fresh press
- * needs to pick one (see the lock/hold logic in the render loop above).
+ * The index of the crystal the camera is aiming at, or null. Called from two places in the render loop
+ * above: once on the frame a fresh press needs to actually LOCK one (the `homingCrystal` block), and
+ * once every frame — press or not — to answer "what would a press hit right now" for the reticle
+ * (`previewCrystal`). Both calls run the identical selection; only what the caller does with the result
+ * differs.
  *
  * The aim vector is the camera's TRUE 3D forward — `target - position` — and deliberately not
  * `follow.planarBasis().forward`, which is flattened to X/Z for locomotion. A climb is vertical: a
