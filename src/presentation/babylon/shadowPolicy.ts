@@ -29,8 +29,12 @@
  *
  *  Two consumers share this list on purpose: `knight.ts` gives these meshes their own face material,
  *  and `knightReceivesShadow` below excludes them from receiving shadows. One definition means the
- *  two cannot drift apart. */
-export const HEAD_MESHES: readonly string[] = ['Mesh_1', 'Mesh_20', 'Mesh_43', 'Mesh_46'];
+ *  two cannot drift apart.
+ *
+ *  Current model (stylized fantasy knight): `Mesh_1` is face + hair and `Mesh_23` the inner head. The
+ *  eyes are painted into the face texture, so unlike the previous model there are no separate eyeball
+ *  meshes to list. */
+export const HEAD_MESHES: readonly string[] = ['Mesh_1', 'Mesh_23'];
 
 /**
  * True for every knight mesh that should receive the sun's shadow — everything but the head.

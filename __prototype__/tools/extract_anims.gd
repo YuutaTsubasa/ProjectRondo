@@ -18,7 +18,7 @@ const R_THIGH := "Skeleton3D:RightUpperLeg"
 var _adduct_axis := Vector3(0, 0, 1)
 
 func _initialize():
-	var knight: Node = load("res://Assets/Characters/MedievalKnight/knight.fbx").instantiate()
+	var knight: Node = load("res://Assets/Characters/WebKnight/knight.fbx").instantiate()
 	var ksk := _find(knight, "Skeleton3D") as Skeleton3D
 	# `export_web_glb.gd` parents the baked AnimationPlayer directly on this same knight root, so every
 	# track path below ("Skeleton3D:...", used verbatim from the source clips — see the loop) resolves

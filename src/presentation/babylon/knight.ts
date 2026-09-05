@@ -105,27 +105,24 @@ const IDLE_SWAY_KEEP = 0.2;
  * disagreed because each used a differently hand-placed box with the idle animation *running*, so the
  * head sat at a different angle in each; both are superseded by the table above.
  *
- * **This table is from the previous character** (whose head was `Mesh_0` + `Mesh_32`/`Mesh_33` — see
- * `HEAD_MESHES` in `shadowPolicy.ts`), not the current four-mesh head this file swaps in
- * (`Mesh_1`/`Mesh_20`/`Mesh_43`/`Mesh_46`), and has not been retaken since. A different head mesh with
- * a different face texture in a different frame composition will not reproduce these figures. Left
- * here because `FACE_EMISSIVE` below was *tuned* against this table, so the constant's provenance is
- * this measurement even though the measurement no longer describes what ships — re-measure on the
- * current head before trusting the numbers, and note the constant itself may want retuning once that's
- * done.
+ * **This table is from an earlier character** (whose head was `Mesh_0` + `Mesh_32`/`Mesh_33`), not the
+ * current head this file swaps in (`Mesh_1` + `Mesh_23`; see `HEAD_MESHES` in `shadowPolicy.ts`), and
+ * has not been retaken since. A different head mesh with a different face texture in a different frame
+ * composition will not reproduce these figures. Left here because `FACE_EMISSIVE` below was *tuned*
+ * against this table, so the constant's provenance is this measurement even though the measurement no
+ * longer describes what ships — re-measure on the current head before trusting the numbers, and note
+ * the constant itself may want retuning once that's done.
  *
- * Previously described here as inseparable from the hair — that was wrong. `shadowPolicy.ts` (`HEAD_MESHES`)
- * establishes that `Mesh_1` is hair only (no face, no neck, no skin) and `Mesh_20` is the face/head
- * skin: they are already separate meshes, both listed separately in `HEAD_MESHES`, both put on the
- * same emissive clone by `swapHeadMaterial` below. So the hair lift (near-black to a warm brown) and
- * the face lift are two separate meshes on one shared material, not one mesh carrying both — they
- * could be tuned independently (e.g. a second, hair-only material) if that were ever wanted. Left as
- * one shared `FACE_EMISSIVE` for now; the lift on the hair reads as an improvement, not a defect.
+ * On the current (stylized fantasy) head, `Mesh_1` carries the face *and* the hair together and
+ * `Mesh_23` is the inner head; the eyes are painted into the face texture, so there is no separate
+ * eyeball mesh. Both head meshes share one material and `swapHeadMaterial` below puts the same emissive
+ * clone on both, so the face lift and the hair lift ride one shared `FACE_EMISSIVE`. They could be
+ * split (e.g. a hair-only material) if that were ever wanted; the hair lift reads as an improvement.
  */
 const FACE_EMISSIVE = 0.45;
 
 /** Cache-buster for the packed metallic/roughness map; bump when the map is rebuilt. */
-const BODY_MR_URL = '/models/knight_mr.webp?v=1';
+const BODY_MR_URL = '/models/knight_mr.webp?v=2';
 
 /**
  * How metallic the armour is allowed to read, deliberately below the physically-correct 1.
@@ -724,7 +721,7 @@ export async function loadKnight(
 ): Promise<Knight> {
   // ?v bust: the browser aggressively caches the GLB, so a plain reload keeps serving an old copy.
   // Bump this whenever knight_web.glb is rebuilt so clients refetch it.
-  const result = await ImportMeshAsync('/models/knight_web.glb?v=5', scene);
+  const result = await ImportMeshAsync('/models/knight_web.glb?v=7', scene);
   const root = result.meshes[0] as TransformNode;
   root.parent = parent;
   root.position.setAll(0);
