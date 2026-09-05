@@ -103,12 +103,15 @@ describe('tokens.css', () => {
   it('every token declared in tokens.css is referenced by some var()', () => {
     const referenced = new Set<string>();
     for (const file of collectFiles(SRC_DIR)) {
-      for (const match of readFileSync(file, 'utf8').matchAll(/var\(\s*(--[a-z0-9-]+)/g)) {
-        referenced.add(match[1]);
+      // Strip block comments first, exactly as the case above does: tokens.css writes var(--...)
+      // in its own prose, so a token named only inside a comment is not a reference. Without this
+      // a mention in a comment would mask a token nothing renders -- a false negative in the one
+      // guard whose whole job is to not have one.
+      const text = readFileSync(file, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+      for (const match of text.matchAll(/var\(([^)]*)\)/g)) {
+        referenced.add(match[1].split(',')[0].trim());
       }
     }
-    const declared = (readFileSync(TOKENS, 'utf8').match(/^\s*(--[a-z0-9-]+)\s*:/gm) ?? [])
-      .map((m) => m.trim().replace(/\s*:$/, ''));
     expect(declared.filter((name) => !referenced.has(name))).toEqual([]);
   });
 });
