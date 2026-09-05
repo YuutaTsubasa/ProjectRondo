@@ -442,3 +442,37 @@ undismissable — the scrim scrolls now, and the panel centres with `margin: aut
 `align-items`, which clips the start edge once content overflows. And `.hit`'s `onkeydown` was left
 over from when it was a `div[role=button]`; on a real `<button>` it duplicated the UA's own handling
 and moved Space activation from `keyup` to `keydown`, so holding Space repeat-advanced the dialogue.
+
+## 22. The canvas was tabbable for the whole scene load
+
+Round 14: `canvas.tabIndex = -1` ran in `createHubScene`'s `.then()`, but the thing it undoes happens
+at the *start* of that call — `new Scene(engine)` reaches `attachControl` in its constructor and sets
+`canvas.tabIndex = engine.canvasTabIndex`, default **1**, synchronously before the first `await`. So
+from then until Havok's WASM, the knight and the trees had all loaded, the canvas carried a
+*positive* tabindex, which sorts ahead of every `tabindex=0` element on the page. The overlay mounts
+synchronously, so the intro dialogue and its LOG button are live for that whole window. It is reset
+in both places now.
+
+### The tests I added last round did not test anything
+
+Round 14 also found that `modalFocus.test.ts`'s header claimed coverage of AUTO pausing that no case
+exercised. Writing those two cases produced the more useful lesson: **my first version of both passed
+with the behaviour deliberately broken.**
+
+- The AUTO case advanced all fake timers in one call and flushed once at the end, so svelte never
+  re-ran its effects *between* timer callbacks and the AUTO timeout was only ever scheduled after
+  time had already passed. It also used the default script, which branches after one advance — so
+  `choices.length === 0` and `!modalOpen` agreed and the assertion could not tell them apart. It now
+  steps in 25ms slices with a flush between, on a three-line linear script.
+- The choice-to-choice case went from two options to two. The `{#each}` is unkeyed, so the surviving
+  button is reused and focus appears to survive on its own. It now goes from three options to one
+  with focus on a button the transition destroys — the only shape where the effect's dependency on
+  `choices` is observable.
+
+Both are now proven to fail when the code they pin is reverted. This is the same defect the previous
+round diagnosed — behaviour nobody had actually exercised — reproduced one commit after being told
+about it, which is why it is written down rather than quietly fixed.
+
+Also from this round: `afterEach` cleared `innerHTML` without unmounting, so every test left a live
+overlay behind with its effects, its typewriter interval and its `svelte:window` Escape listener
+still attached — isolation was coming from test ordering. It calls `unmount` now.
