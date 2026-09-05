@@ -1,5 +1,26 @@
 # Audio System Implementation Plan
 
+> **Status: shipped.** This plan is the historical record of what was scoped, not a description of the
+> final state — several of its interfaces were removed during review and are deliberately *not* in the
+> merged code. **Do not execute this plan against a codebase that already has audio merged**; read
+> `docs/superpowers/specs/2026-09-05-audio-system-design.md` §5 and §7 for what actually shipped. The
+> unchecked boxes below are what was scoped, not work left to do.
+>
+> Superseded by the merged code, in the order a reader meets them:
+>
+> - **"Everything spatial is mono"** (Global Constraints, below) governs a spatial path that no longer
+>   exists. Nothing shipped is positioned; `CueSpec` has no `spatial` field (spec §5.3a).
+> - **`applyLevels` and `createGameAudio(levels?)`** (Task 5) were cut. There is no settings UI to move
+>   a level, so both were a wrapper with no caller that read as "the mix is adjustable";
+>   `createGameAudio()` takes no argument and sets the buses from `DEFAULT_LEVELS` once.
+> - **`ambience.wind` / `ambience.water` manifest entries** (Task 6) were cut. Both beds read as too
+>   repetitive and are shipped-but-unwired (spec §5.3a); the `ambience` *bus* stays.
+> - **`CueSpec.loop`** (Task 6) was cut from both music cues. Looping is the call site's choice between
+>   `play` and `startLoop`; a second declaration in the manifest could only disagree with it.
+> - **`createHubAudio(...): Promise<HubAudio>`** (Task 7) is synchronous. Awaiting the build put the
+>   two streaming music tracks on the critical path of scene startup, where a browser that defers media
+>   loading leaves the promise pending forever and no frame ever renders (`hubAudio.ts`).
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Give the game its first audio — music, footsteps, ambience and AVG/UI cues — driven by a pure domain core over babylon's AudioV2.
