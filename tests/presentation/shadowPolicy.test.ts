@@ -1,4 +1,6 @@
 import { describe, it, expect } from 'vitest';
+import { fileURLToPath } from 'node:url';
+import { load } from '../../tools/knight-feet/glb.mjs';
 import { HEAD_MESHES, knightReceivesShadow } from '../../src/presentation/babylon/shadowPolicy';
 
 describe('knightReceivesShadow', () => {
@@ -7,15 +9,46 @@ describe('knightReceivesShadow', () => {
   });
 
   it('includes body meshes', () => {
-    // Names are not a contiguous 0..46 range — the set contains Mesh_122/222/322/422 and no
+    // Names are not a contiguous 0..41 range — the shipped set contains Mesh_122/222/322 and no
     // Mesh_12/22/32/42 — which is exactly why the prefix test below matters.
     expect(knightReceivesShadow('Mesh_0')).toBe(true);
     expect(knightReceivesShadow('Mesh_122')).toBe(true);
   });
 
   it('matches whole names, not prefixes', () => {
-    // 'Mesh_4' must not be swallowed by the 'Mesh_43'/'Mesh_46' entries, nor 'Mesh_2' by 'Mesh_20'.
-    expect(knightReceivesShadow('Mesh_4')).toBe(true);
+    // The current head is Mesh_1 + Mesh_23, and both are prefixes of real body meshes in this GLB:
+    // 'Mesh_1' of Mesh_10/Mesh_11/Mesh_122 (and every Mesh_1x), and 'Mesh_2' is itself a body mesh
+    // that 'Mesh_23' would swallow. A prefix match would drop all of them out of the shadow set.
+    expect(knightReceivesShadow('Mesh_10')).toBe(true);
+    expect(knightReceivesShadow('Mesh_122')).toBe(true);
     expect(knightReceivesShadow('Mesh_2')).toBe(true);
+  });
+});
+
+/**
+ * `HEAD_MESHES` is the one list in this file whose correctness lives in a binary, and its own doc
+ * says the failure is silent in both directions on a character swap. This resolves it against the
+ * shipped GLB so at least the "name no longer exists, or exists twice" half cannot pass unnoticed —
+ * which is also what keeps the mesh counts quoted in that doc and in `knight.ts` from going stale.
+ */
+describe('HEAD_MESHES against the shipped knight GLB', () => {
+  const g = load(fileURLToPath(new URL('../../public/models/knight_web.glb', import.meta.url)));
+  /** Babylon names each runtime mesh after the glTF **node**, so that is what to count here. */
+  const names: string[] = g.j.nodes
+    .filter((n: { mesh?: number }) => n.mesh !== undefined)
+    .map((n: { name: string }) => n.name);
+
+  it('ships 42 mesh-bearing nodes', () => {
+    expect(names).toHaveLength(42);
+  });
+
+  it('resolves each head mesh exactly once', () => {
+    expect(HEAD_MESHES.map((name) => [name, names.filter((n) => n === name).length])).toEqual(
+      HEAD_MESHES.map((name) => [name, 1]),
+    );
+  });
+
+  it('leaves 40 body meshes receiving shadows', () => {
+    expect(names.filter(knightReceivesShadow)).toHaveLength(40);
   });
 });

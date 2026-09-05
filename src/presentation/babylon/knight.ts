@@ -173,7 +173,7 @@ const BODY_DIRECT_INTENSITY = 1.0;
  * head included — still shares that one material object, so the correction is in place before
  * anything clones it.
  *
- * Must run before {@link applyFaceMaterial}. Every one of the knight's 47 meshes ships sharing a
+ * Must run before {@link applyFaceMaterial}. Every one of the knight's 42 meshes ships sharing a
  * single glTF material at the point `loadKnight` calls this; `swapHeadMaterial` (inside
  * `applyFaceMaterial`, called right after) is what first splits the head onto its own clone via
  * `Material.clone()`. `Material.clone()` runs every texture slot through `SerializationHelper.Clone`,
@@ -181,8 +181,8 @@ const BODY_DIRECT_INTENSITY = 1.0;
  * the clone ends up with its own `bumpTexture` *wrapper*, carrying whatever `level` the source had at
  * clone time. Correct the source here, before that clone exists, and the clone inherits the fix for
  * free. Correcting it only in {@link applyBodyPbr} instead — which runs after the split, and only
- * touches the body's copy of the material — would leave the head's four meshes, including `Mesh_1`
- * (the 9232-vertex hair), on the shipped `level: 0`. Babylon's loader copies `normalTexture.scale`
+ * touches the body's copy of the material — would leave the head's two meshes, including the
+ * 8047-vertex `Mesh_1` that carries the face, on the shipped `level: 0`. Babylon's loader copies `normalTexture.scale`
  * straight into `bumpTexture.level` (`glTFLoader.pure.js`), and PBR materials compile with
  * `NORMALXYSCALE` defined, so `perturbNormalBase` evaluates `normalize(n * vec3(scale, scale, 1.0))`
  * with `scale = 0` — the unperturbed geometric normal, i.e. a dead normal map on whichever mesh never
@@ -239,7 +239,7 @@ function correctSharedNormalScale(meshes: readonly AbstractMesh[]): void {
  * The other export-side defect this material ships with — `normalTexture.scale: 0` — is corrected
  * earlier, by {@link correctSharedNormalScale}, *before* {@link applyFaceMaterial} clones this
  * material for the head. Fixing it here instead, after the clone already exists, would leave the
- * clone (and so all four head meshes) on the shipped, uncorrected `level`; see that function's doc.
+ * clone (and so both head meshes) on the shipped, uncorrected `level`; see that function's doc.
  *
  * Runs *after* {@link applyFaceMaterial}, so the head's toon clone — cloned before this — keeps a
  * non-metallic, unlit face. The whole body shares one material, so setting it once covers every mesh.
@@ -305,8 +305,8 @@ function applyBodyPbr(meshes: readonly AbstractMesh[], scene: Scene): void {
   // is off `source`. `applyFaceMaterial` warn-and-skips from seven different guard points (name-count
   // mismatch, no material, split head materials, no albedoTexture, `clone()` returning null, a clone
   // without an albedoTexture, or a compile failure that rolls the head back to `source`), and on every
-  // one of them the head meshes are still on this exact material object. Applying `metallic = 0.6`,
-  // `directIntensity = 1.6` and unculled two-sided lighting to it would make the face metallic and
+  // one of them the head meshes are still on this exact material object. Applying `BODY_METALLIC`,
+  // `BODY_DIRECT_INTENSITY` and unculled two-sided lighting to it would make the face metallic and
   // light-tracking — a worse outcome than the matte face `applyFaceMaterial`'s own doc promises when it
   // skips. Detect that by identity, not by name, and skip loudly instead.
   if (meshes.some((m) => HEAD_MESHES.includes(m.name) && m.material === source)) {
@@ -332,7 +332,7 @@ function applyBodyPbr(meshes: readonly AbstractMesh[], scene: Scene): void {
   //
   // This also reaches the shadow map, not just the camera pass: `ShadowGenerator._renderSubMeshForShadowMap`
   // passes the material's own `backFaceCulling` straight through, so turning it off here turns
-  // culling off for all four CSM cascade renders too, and these 43 meshes both cast and receive.
+  // culling off for all four CSM cascade renders too, and these 40 meshes both cast and receive.
   // Measured the consequence directly (same frozen frame, 70 436 knight pixels, zero
   // reproducibility control), body culled vs. unculled:
   //
@@ -353,9 +353,10 @@ function applyBodyPbr(meshes: readonly AbstractMesh[], scene: Scene): void {
   //
   // A second, independent way this PR invalidates that same Task 8 validation: it was measured at
   // 62 meshes casting-and-receiving (31 `tripo_part_*` knight-body meshes + 31 environment meshes,
-  // spec §7). This PR takes the knight's receiving body from 31 meshes to 43 (see `HEAD_MESHES` /
-  // `knightReceivesShadow` in `shadowPolicy.ts`), so the shipped casting-and-receiving count is now
-  // 74, not 62. `NORMAL_BIAS = 0.04`'s acne validation was never re-run at 74 — it is recorded here
+  // spec §7; the environment half is inherited from that spec, not re-counted here). This PR takes
+  // the knight's receiving body from 31 meshes to 40 — the shipped GLB has 42 mesh-bearing nodes and
+  // `HEAD_MESHES` in `shadowPolicy.ts` excludes two — so the shipped casting-and-receiving count is
+  // now 71, not 62. `NORMAL_BIAS = 0.04`'s acne validation was never re-run at 71 — it is recorded here
   // rather than re-tuned, same as the culled/unculled point above, and both are noted at
   // `shadows.ts`'s `NORMAL_BIAS` declaration and its WebGL1-fallback comment.
   //
@@ -463,7 +464,7 @@ const FACE_COMPILE_TIMEOUT_MS = 10_000;
 /**
  * Gives the head its own material so the face can be lit differently from the armour.
  *
- * Every one of the knight's 47 meshes ships sharing a single glTF material, so the head needs a clone
+ * Every one of the knight's 42 meshes ships sharing a single glTF material, so the head needs a clone
  * before anything can be changed about it in isolation.
  *
  * `forceCompilationAsync` is not optional: swapping the material on a 101-bone skinned mesh triggers an
@@ -489,15 +490,15 @@ async function applyFaceMaterial(meshes: readonly AbstractMesh[]): Promise<void>
 }
 
 /**
- * Guards, clones, puts the clone on the four head meshes, awaits its compile, and rolls the meshes
+ * Guards, clones, puts the clone on both head meshes, awaits its compile, and rolls the meshes
  * back if that fails. Split out from {@link applyFaceMaterial} so the try/catch there covers all of it.
  */
 async function swapHeadMaterial(meshes: readonly AbstractMesh[]): Promise<void> {
   const head = meshes.filter((m) => HEAD_MESHES.includes(m.name));
   // Each expected name must appear exactly once. Counting `head.length` would not establish that:
   // glTF does not require unique node names and the loader does not dedupe them, so a GLB with two
-  // `Mesh_1`s and no `Mesh_46` still totals four — and the face would be applied to part of the head
-  // with an eyeball left on the dark shared material.
+  // `Mesh_1`s and no `Mesh_23` still totals two — and the face lighting would land on the outer head
+  // twice while the inner head kept the dark shared material.
   const wrongCount = HEAD_MESHES.map((name) => ({ name, n: meshes.filter((m) => m.name === name).length })).filter(
     (x) => x.n !== 1,
   );
@@ -516,8 +517,8 @@ async function swapHeadMaterial(meshes: readonly AbstractMesh[]): Promise<void> 
     return;
   }
   // "Clone the head's material" only means anything while the head actually shares one. Splitting the
-  // eyes onto their own material is an ordinary thing for a re-export to do, and would otherwise paint
-  // the eye material across the face, the hair and the neck with every name check still passing.
+  // hair, or the inner head, onto its own material is an ordinary thing for a re-export to do, and
+  // would otherwise paint one of those materials across the whole head with every name check passing.
   if (head.some((m) => m.material !== source)) {
     const names = [...new Set(head.map((m) => m.material?.name ?? 'none'))].join(', ');
     console.warn(
