@@ -94,7 +94,10 @@ export async function createHubScene(canvas: HTMLCanvasElement): Promise<HubScen
     airtime: (2 * player.config.jumpSpeed) / player.config.gravity,
   }));
   await loadTrees(scene, shadows);
-  const audio = await createHubAudio(scene, follow.camera, player, knight);
+  // Not awaited, and `createHubAudio` is not async: audio must never be able to hold up first render.
+  // See its doc comment — a streaming music cue whose media element never fires `canplaythrough`
+  // would otherwise leave this line pending for good, and with it the render loop below.
+  const audio = createHubAudio(scene, player, knight);
 
   engine.runRenderLoop(() => scene.render());
   // Size the drawing buffer to the canvas now; the resize event only fires on later changes.

@@ -29,11 +29,12 @@ be heard*, and a thin `src/presentation/` layer makes noise.
 src/domain/audio/          pure, Vitest-covered
   soundCue.ts        the cue vocabulary
   footstepCadence.ts clip phase -> footfall events
+  locomotionGait.ts  clip weights + phases -> the cadence's sample
   musicDirector.ts   game state -> desired track
   audioMixer.ts      per-bus gain from volumes + mute
 src/presentation/audio/    thin
   audioEngine.ts     AudioV2 engine, three buses, first-gesture unlock
-  manifest.ts        cue -> file(s), bus, volume, loop, spatial
+  manifest.ts        cue -> file(s), bus, volume, streaming
   soundBank.ts       loading, and the missing-asset policy
   hubAudio.ts        the per-frame wiring; the only file that touches the scene
 public/audio/{music,sfx,ambience}/

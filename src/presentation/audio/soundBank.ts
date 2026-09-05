@@ -3,7 +3,6 @@ import { CreateSoundAsync, CreateStreamingSoundAsync } from '@babylonjs/core/Aud
 import type { StaticSound } from '@babylonjs/core/AudioV2/abstractAudio/staticSound';
 import type { StreamingSound } from '@babylonjs/core/AudioV2/abstractAudio/streamingSound';
 import { AudioParameterRampShape } from '@babylonjs/core/AudioV2/audioParameter';
-import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 
 import type { SoundCue } from '../../domain/audio/soundCue';
 import type { GameAudio } from './audioEngine';
@@ -24,19 +23,43 @@ export interface LoopHandle {
 }
 
 export interface PlayOptions {
+  /**
+   * Retunes the cue before playing it.
+   *
+   * **This is a property of the cue, not of this one play.** AudioV2 carries `playbackRate` only on
+   * `StaticSound` (`IStaticSoundStoredOptions`); `IStaticSoundPlayOptions` has no such field and
+   * `AbstractSound.play()` returns `void`, so there is no instance handle to set it on — the setter
+   * writes through to every instance of that cue currently sounding. Two overlapping plays of the
+   * *same* cue therefore share whichever rate was set last; `gain` below is the one that is genuinely
+   * per-instance.
+   */
   readonly playbackRate?: number;
   /** Scales the manifest volume, for per-instance jitter. */
   readonly gain?: number;
   /** Which variant to use; wraps, so a running counter is fine. */
   readonly variant?: number;
-  readonly position?: Vector3;
+}
+
+export interface LoopOptions {
+  /**
+   * The level to start at, as a fraction of the cue's manifest volume — **the same units
+   * {@link LoopHandle.setVolume} takes**, so `startLoop(cue, { level: 0 })` followed by
+   * `setVolume(1, fade)` is a fade in from silence to the manifest level and back again.
+   *
+   * Deliberately not the `gain` a one-shot takes: `gain` is a per-instance scale that stays applied,
+   * and a start gain that `setVolume` then ignored would make `setVolume(1)` jump somewhere the
+   * caller did not ask for. Defaults to 1.
+   */
+  readonly level?: number;
+  /** Which variant to use; wraps, so a running counter is fine. */
+  readonly variant?: number;
 }
 
 export interface SoundBank {
   /** Plays a one-shot. A no-op for a cue that failed to load. */
   play(cue: SoundCue, options?: PlayOptions): void;
   /** Starts a loop, or returns `null` for a cue that failed to load. */
-  startLoop(cue: SoundCue, options?: PlayOptions): LoopHandle | null;
+  startLoop(cue: SoundCue, options?: LoopOptions): LoopHandle | null;
   dispose(): void;
 }
 
@@ -48,21 +71,7 @@ const load = async (audio: GameAudio, cue: SoundCue, spec: CueSpec): Promise<Loa
       spec.files.map((file) =>
         spec.streaming
           ? CreateStreamingSoundAsync(cue, file, { outBus: audio.buses[spec.bus] }, audio.engine)
-          : CreateSoundAsync(
-              cue,
-              file,
-              {
-                outBus: audio.buses[spec.bus],
-                ...(spec.spatial
-                  ? {
-                      spatialEnabled: true,
-                      spatialDistanceModel: 'linear' as const,
-                      spatialMaxDistance: spec.spatial.maxDistance,
-                    }
-                  : {}),
-              },
-              audio.engine,
-            ),
+          : CreateSoundAsync(cue, file, { outBus: audio.buses[spec.bus] }, audio.engine),
       ),
     );
     return sounds;
@@ -112,7 +121,6 @@ export async function loadSoundBank(audio: GameAudio): Promise<SoundBank> {
       if (!sound) return;
       const spec = MANIFEST[cue];
       try {
-        if (options.position) sound.spatial.position = options.position;
         if (options.playbackRate !== undefined && 'playbackRate' in sound)
           (sound as StaticSound).playbackRate = options.playbackRate;
         sound.play({ volume: spec.volume * (options.gain ?? 1) });
@@ -126,7 +134,6 @@ export async function loadSoundBank(audio: GameAudio): Promise<SoundBank> {
       if (!sound) return null;
       const spec = MANIFEST[cue];
       try {
-        if (options.position) sound.spatial.position = options.position;
         // **A loop's level lives on the sound, not on the instance.** `play({ volume })` sets a
         // per-instance GainNode that *multiplies* the sound's own volume subnode, and the
         // `setVolume` handed back below ramps the latter — so a loop started with an instance gain
@@ -134,7 +141,7 @@ export async function loadSoundBank(audio: GameAudio): Promise<SoundBank> {
         // is exactly how the music was silenced when the crossfade was first written. A loop has one
         // instance, so nothing is lost by putting its level on the sound; `play` above keeps using
         // the instance gain, which is what lets overlapping footsteps each carry their own.
-        sound.setVolume(spec.volume * (options.gain ?? 1), { shape: AudioParameterRampShape.None });
+        sound.setVolume(spec.volume * (options.level ?? 1), { shape: AudioParameterRampShape.None });
         sound.play({ loop: true });
       } catch (error) {
         console.warn(`[audio] cue "${cue}" failed to start looping:`, error);

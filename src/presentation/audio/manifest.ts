@@ -10,11 +10,8 @@ export interface CueSpec {
    * change the level of the others.
    */
   readonly volume: number;
-  readonly loop?: boolean;
   /** Streamed rather than decoded up front. For the multi-megabyte music tracks. */
   readonly streaming?: boolean;
-  /** Present ⇒ positioned in the world. The file must be mono; a stereo buffer cannot be panned. */
-  readonly spatial?: { readonly maxDistance: number };
 }
 
 const AUDIO = '/audio';
@@ -22,10 +19,13 @@ const AUDIO = '/audio';
 /**
  * Every cue, and the file behind it.
  *
- * Typed as a total record over `SoundCue`, so a cue added to the union fails the build here until it
- * has a file — rather than becoming a call site that silently plays nothing.
+ * `satisfies` a total record over `SoundCue`, so a cue added to the union fails the build here until
+ * it has a file — rather than becoming a call site that silently plays nothing — while `as const`
+ * keeps the table itself from being rewritten by an importer. Whether a cue loops is not stated here:
+ * that is the *call site's* choice between `play` and `startLoop`, and a second declaration of it in
+ * the manifest could only ever disagree with the one that actually decides.
  */
-export const MANIFEST: Record<SoundCue, CueSpec> = {
+export const MANIFEST = {
   // The armour layer plays on every footfall, on take-off and on landing: it is the only armour
   // sample there is, and playback-rate jitter is what stops that reading as a machine gun.
   'footstep.armour': { files: [`${AUDIO}/sfx/armor_step.ogg`], bus: 'sfx', volume: 0.45 },
@@ -53,6 +53,6 @@ export const MANIFEST: Record<SoundCue, CueSpec> = {
   'ui.move': { files: [`${AUDIO}/sfx/ui_move.ogg`], bus: 'sfx', volume: 0.5 },
   'ui.confirm': { files: [`${AUDIO}/sfx/ui_confirm.ogg`], bus: 'sfx', volume: 0.6 },
 
-  'music.hub': { files: [`${AUDIO}/music/hub_theme.mp3`], bus: 'music', volume: 0.5, loop: true, streaming: true },
-  'music.avg': { files: [`${AUDIO}/music/avg_theme.mp3`], bus: 'music', volume: 0.55, loop: true, streaming: true },
-};
+  'music.hub': { files: [`${AUDIO}/music/hub_theme.mp3`], bus: 'music', volume: 0.5, streaming: true },
+  'music.avg': { files: [`${AUDIO}/music/avg_theme.mp3`], bus: 'music', volume: 0.55, streaming: true },
+} as const satisfies Record<SoundCue, CueSpec>;
