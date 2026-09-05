@@ -164,7 +164,9 @@ describe('modal focus', () => {
     const panel = q('.panel')!;
     expect(panel.getAttribute('role')).toBe('dialog');
     expect(panel.getAttribute('aria-modal')).toBe('true');
-    // The description must resolve to the line posing the question, which the opaque scrim hides.
+    // The description must resolve to the line posing the question. The scrim is a wash now, so the
+    // box behind it is not hidden -- but the panel is centred over it at most viewport sizes, so the
+    // question is still the one thing a player answering cannot count on seeing (Choices.svelte).
     expect(document.getElementById(panel.getAttribute('aria-describedby')!)!.textContent).toBe('走哪？');
   });
 

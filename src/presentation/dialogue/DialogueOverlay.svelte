@@ -89,11 +89,13 @@
   });
 </script>
 
-<!-- Transparent layer over the live 3D hub — only the panels are opaque, so the scene shows through. -->
+<!-- Transparent layer over the live 3D hub — only the panels paint, so the scene shows through. -->
 <div class="overlay">
-  <!-- Everything the two modals cover. Both are opaque full-screen panels, so without inert a Tab
-       walks straight out of them onto controls nobody can see -- and Enter on the dialogue box would
-       advance the session behind the panel the user is reading. -->
+  <!-- Everything the two modals cover. Both take the whole screen, so without inert a Tab walks
+       straight out of them onto controls the player cannot act on: hidden altogether behind the
+       backlog, which is opaque --c-pale, and visible but unreachable behind the choices, whose scrim
+       is a 0.42 wash. And Enter on the dialogue box would advance the session behind the panel the
+       user is reading -- the half of this that never depended on what the panel is painted in. -->
   <div class="scene-ui" inert={modalOpen}>
     <!-- Standing character 立繪, behind the dialogue box and over the live 3D hub. -->
     <Portrait portrait={session.portrait} />
