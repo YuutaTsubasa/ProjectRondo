@@ -172,12 +172,30 @@ real-time play, because the Browser pane's compositor throttles `requestAnimatio
 when not the foreground surface — `scene.render()` steps the same domain/physics code deterministically
 regardless.
 
-**That pass ran at `d3b64cb`**, before two later reworks: `05f1923` changed `stepHoming` to derive its
-direction and remaining distance from a live offset supplied every frame, rather than a fixed entry
-direction dead-reckoned down — so the shipped dash corrects course toward its target continuously,
-where every check below exercised a straight line decided at the press; and `57489fe` replaced the
-placeholder spin with the Flying Kick clip. Neither rework has been checked against in the browser since
-landing — the bullets below are recorded as measurements of the `d3b64cb` build, not the shipped one.
+**That pass ran at `d3b64cb`**, before seven later reworks, none of which has been checked in the
+browser since landing:
+
+- `05f1923` — `stepHoming` derives its direction and remaining distance from a live offset supplied
+  every frame, rather than from a fixed entry direction dead-reckoned down. The shipped dash therefore
+  corrects course toward its target continuously, where every check below exercised a straight line
+  decided at the press.
+- `57489fe` — the placeholder spin replaced by the Flying Kick clip.
+- `84d256b` — the bounce decided from the domain's own result (`Player.homingBounced`) rather than
+  from Havok's post-solve velocity, and gated on `isHomingFrame` rather than on `motion.homing`, so a
+  dash that arrives on its own entry frame now flashes and bounces like any other.
+- `685ad02` — the dash aims from the physics capsule's position, not from the smoothed visual root,
+  which at `homingSpeed` lags it by ~1.9 units mid-climb. Every arrival and timeout below was measured
+  from the lagging point.
+- `132415e` — the bounce and the dash routed to the solver through `slopeMotion`'s `solverVelocity`
+  instead of through `alignToSurface`, so neither has the surface's climb added on top of it, plus
+  `GroundContactInput.bounced` so ground found under the crystal cannot cancel the rise.
+- `a27669a` — the press offered to the lock on `grounded` rather than on the animation debounce, which
+  changes when a dash may start at all.
+- `32072ec` — the press refused outright on the frames a dash owns, so one made on the bounce frame
+  reaches the lock as a chain dash rather than coming back as an ordinary jump. The chaining bullet
+  below is the check that exercises exactly this input path.
+
+The bullets below are recorded as measurements of the `d3b64cb` build, not the shipped one.
 
 **Every check passed at the derived value, so every constant keeps its Untuned marking. None was
 changed.** Task 7's own rule is to tune only when a check fails and a constant change fixes it; here
@@ -229,7 +247,10 @@ stays the project owner's call and is untouched here.
 | `src/presentation/babylon/crystals.ts` | new | Procedural crystal meshes, their world positions, and the hit flash |
 | `src/presentation/babylon/homingLock.ts` | new | The lock lifecycle §4 depends on: which crystal a dash is committed to, its entry estimate, and the reticle's separate preview |
 | `src/presentation/babylon/homingReticle.ts` | new | The ring drawn on the crystal a press would hit right now |
+| `src/presentation/babylon/homingColors.ts` | new | The one red the reticle and the hit flash both read, so aim and arrival cannot drift apart |
 | `src/presentation/babylon/playerController.ts` | edit | Wire the press and the lock into the domain step; flash the crystal on the bounce |
+| `src/presentation/babylon/groundContact.ts` | edit | Keep the bounce's climb off the probe, and keep a press on a frame a dash owns out of the jump (`GroundContactInput.bounced`, `dashInFlight`) |
+| `src/presentation/babylon/slopeMotion.ts` | edit | `solverVelocity`: keep the surface's climb off a jump's and a dash's own vertical velocity |
 | `src/presentation/babylon/knight.ts` | edit | Dash animation, the bounce's clip seam, the trail |
 | `src/presentation/babylon/hubScene.ts` | edit | Build the test crystals |
 
