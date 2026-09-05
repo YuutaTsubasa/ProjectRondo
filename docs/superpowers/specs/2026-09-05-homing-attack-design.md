@@ -15,7 +15,7 @@ A tower built before those numbers settle has to be rebuilt the moment they move
 hub against scattered test crystals costs nothing to re-tune.
 
 The hub is also the only place this can be built right now without a collision: mode routing lives in
-`App.svelte`, which PR #33 is concurrently rewriting (§8).
+`App.svelte`, which PR #33 is concurrently rewriting (§11).
 
 ## 2. What the move is
 

@@ -787,7 +787,8 @@ function createGroundProbe(scene: Scene): (x: number, footY: number, z: number) 
  */
 function createDashTrail(scene: Scene, generator: TransformNode): TrailMesh {
   const mat = new StandardMaterial('knightTrailMat', scene);
-  mat.emissiveColor = TRAIL_EMISSIVE;
+  // clone: handing out the module constant by reference lets a later mutation travel back into it
+  mat.emissiveColor = TRAIL_EMISSIVE.clone();
   mat.disableLighting = true;
   const trail = new TrailMesh('knightDashTrail', generator, scene, DASH_TRAIL_DIAMETER, DASH_TRAIL_LENGTH, false);
   trail.material = mat;
