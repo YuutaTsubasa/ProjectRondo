@@ -30,7 +30,7 @@
  */
 
 /** Phase in [0, 1) of each footfall in the Walk clip. Index 0 is the left foot. */
-export const WALK_CONTACTS: readonly [number, number] = [0.33, 0.83]; // <- measured values
+export const WALK_CONTACTS: readonly [number, number] = [0.33, 0.83];
 
 /** Phase in [0, 1) of each footfall in the Run clip. Index 0 is the left foot. */
-export const RUN_CONTACTS: readonly [number, number] = [0.4, 0.82]; // <- measured values
+export const RUN_CONTACTS: readonly [number, number] = [0.4, 0.82];
