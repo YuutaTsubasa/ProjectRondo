@@ -133,23 +133,52 @@ already say, and in the tower it is crystal spacing that sets the rhythm, not an
 An unbounded chain is therefore possible where crystals are dense. In the hub that is a playground and
 harmless. In the tower it is a level-design lever, and the tower's spec owns it.
 
-## 7. Constants — all untuned on arrival
+## 7. Constants — measured against the running scene, and left as they were
 
 `homingRange`, `homingConeHalfAngle`, `homingSpeed`, `homingBounceSpeed`, `homingMaxDuration`, beside
 the existing movement constants.
 
-Each ships with a **derived** starting value and an explicit **Untuned** marking, in the house style
+Each shipped with a **derived** starting value and an explicit **Untuned** marking, in the house style
 this repo's review has repeatedly enforced: a constant may not claim a tuning that did not happen.
-Starting points and their reasoning, not their justification:
+The browser pass (2026-09-05, full report at `.superpowers/sdd/2026-09-05-homing-attack/task-7-report.md`)
+ran all four objective checks from the task brief against `window.hub`/`window.moveConfig` in the dev
+build, using console-driven teleports and a manually-stepped render loop (`scene.render()`) rather than
+real-time play, because the Browser pane's compositor throttles `requestAnimationFrame` to near zero
+when not the foreground surface — `scene.render()` steps the same domain/physics code deterministically
+regardless.
 
-- `homingSpeed` at roughly three times `runSpeed`, so the dash reads as a dash rather than a fast walk.
-- `homingBounceSpeed` tied to `jumpSpeed`, so a chain's height gain is predictable from a number the
-  player already has intuition for.
-- `homingConeHalfAngle` wide enough to forgive a camera that is roughly right, narrow enough that two
-  crystals at different headings are distinguishable — the number that decides whether route choice
-  survives.
+**Every check passed at the derived value, so every constant keeps its Untuned marking. None was
+changed.** Task 7's own rule is to tune only when a check fails and a constant change fixes it; here
+no check that a constant can fix failed, so touching any of the five would have been an unjustified
+edit this repo's review already treats as a defect.
 
-The browser pass sets the real values. None of these is a measurement until someone has played it.
+- `homingRange` (12) and `homingConeHalfAngle` (0.6109 rad): checked against the `(3,4,-10)` /
+  `(-3,4,-10)` pair. Positioned so one crystal was centred in the fixed camera cone and the other was
+  not, the dash reliably reached the aimed-at crystal and never the other (arrival within ~0.05 units
+  of each), across both sides of the pair. Left untuned.
+- `homingSpeed` (24, 3x `runSpeed`): every dash in every check completed in well under half a second and
+  read only in domain telemetry, not by eye (see the "art direction" note in the report). No check
+  measures dash speed. Left untuned.
+- `homingBounceSpeed` (9, equal to `jumpSpeed`): checked by chaining `(0,3,-8) -> (0,5.5,-13) ->
+  (0,8,-18)`. Both bounces cleared enough height and forward distance for the next crystal to be
+  in range and cone from the landing spot; the chain completed end to end. Left untuned.
+- `homingMaxDuration` (0.6s): checked with a physical obstruction placed on the direct line to a
+  crystal. **Finding, not a tuning call:** `homingMaxDuration`'s abort branch
+  (`characterMovement.ts`'s `stepHoming`) never fires for any in-range target, obstructed or not,
+  because `remaining` is dead-reckoned from `homingSpeed * delta` alone — it has no way to know the
+  capsule is physically stuck. Since a selectable target is always within `homingRange` (12), the
+  dead-reckoned "arrival" always resolves within `homingRange / homingSpeed` = 0.5s, strictly before
+  `homingMaxDuration`'s 0.6s. Measured: dashing into an obstruction 4 units out on the way to `(0,3,-8)`
+  stopped the capsule dead at the obstruction (position frozen while `homing.remaining` kept counting
+  down regardless), then at `remaining <= 0` (elapsed ~0.34s, not 0.6s) the knight bounced straight up
+  from the obstruction rather than falling. No value of `homingMaxDuration` changes this outcome: any
+  value large enough not to clip legitimate max-range dashes (i.e. above 0.5s) is by definition never
+  reached first. This is a structural property of `stepHoming`'s arrival check being time-based rather
+  than position-based, not a badly-chosen constant, so it is left untuned and out of Task 7's scope
+  (constants and this doc only) — see the report for the follow-up this should become.
+
+None of this is the art-direction pass — "does the dash read as decisive", the trail, the spin — which
+stays the project owner's call and is untouched here.
 
 ## 8. Presentation
 
