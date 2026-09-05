@@ -8,11 +8,12 @@ const TOKENS = fileURLToPath(new URL('../../src/app/tokens.css', import.meta.url
 const SRC_DIR = fileURLToPath(new URL('../../src/', import.meta.url));
 
 const EXPECTED = [
-  '--c-blue', '--c-blue-deep', '--c-blue-soft', '--c-pale', '--c-white', '--c-ink',
+  '--c-blue', '--c-blue-deep', '--c-blue-soft', '--c-pale', '--c-ink',
   '--c-white-rgb', '--c-blue-soft-rgb', '--rail-dash',
   '--font-headline', '--font-body', '--font-display',
   '--focus-ring', '--focus-ring-offset', '--focus-halo',
   '--surface-glass', '--surface-blur',
+  '--octagon-chamfer', '--octagon-ring',
 ];
 
 /**
@@ -55,7 +56,7 @@ describe('tokens.css', () => {
     (src.split('\n').find((l) => l.trim().startsWith(`--c-${token}:`)) ?? '')
       .split(':')[1]?.trim().replace(';', '') ?? '';
 
-  it.each(['white', 'blue-soft'])('keeps --c-%s-rgb in sync with --c-%s', (name) => {
+  it.each(['blue-soft'])('keeps --c-%s-rgb in sync with --c-%s', (name) => {
     const hex = valueOf(name).replace('#', '');
     const rgb = valueOf(`${name}-rgb`).split(',').map((n) => Number(n.trim()));
     expect(hex).toHaveLength(6);

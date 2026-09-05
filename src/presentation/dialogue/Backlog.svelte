@@ -42,7 +42,14 @@
     </div>
     <!-- The kit's stroked display word, sitting behind the list. -->
     <span class="stamp" aria-hidden="true">LOG</span>
-    <ol>
+    <!-- tabindex so the scroll region is reachable from the keyboard. This is the panel's only
+         scrollable area and it holds no focusable children, so without it the older half of a long
+         log is pointer-only. Chrome focuses such scrollers on its own; that is a Chrome behaviour,
+         and the one panel whose whole purpose is re-reading what scrolled past should not depend
+         on it. Labelled by the same heading as the dialog. -->
+    <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+    <div class="scroll" tabindex="0" role="region" aria-labelledby="backlog-head">
+      <ol>
       {#each entries as e}
         <li>
           <span class="node" aria-hidden="true"></span>
@@ -50,7 +57,8 @@
           <p class="text">{e.line}</p>
         </li>
       {/each}
-    </ol>
+      </ol>
+    </div>
     <span class="rail" aria-hidden="true"></span>
   </div>
 </div>
@@ -122,12 +130,21 @@
   /* Timeline: a hairline spine with a node per entry. The spine lives on each li rather than as a
      border on the scrolling ol, so it scrolls with the content and the nodes need no negative
      offset -- a node at a negative left would be clipped by the ol's own overflow. */
-  ol {
-    list-style: none;
-    margin: 104px 0 0;
-    padding: 0;
+  /* The scroll region, not the list: a focusable <ol role=region> would lose its list semantics,
+     so the wrapper takes the role and the tab stop and the list stays a list. */
+  .scroll {
+    margin-top: 104px;
     overflow: auto;
     flex: 1;
+  }
+  .scroll:focus-visible {
+    outline: var(--focus-ring);
+    outline-offset: calc(var(--focus-ring-offset) * -1);
+  }
+  ol {
+    list-style: none;
+    margin: 0;
+    padding: 0;
   }
   li {
     position: relative;

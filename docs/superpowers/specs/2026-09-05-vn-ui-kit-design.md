@@ -496,3 +496,29 @@ still reported `padding: 0` and the **same svelte scope hash** as before the edi
 missed the change — this project has hit Windows watcher problems before, and `perl -0pi` replaces
 the file rather than writing in place. Restarting the dev server showed the real values. When a
 measurement disagrees with the source, check that the server is serving the source.
+
+## 24. Keyboard access to the backlog's scroll region
+
+Round 16. The backlog's `<ol>` is the panel's only scroll container and holds no focusable child,
+so the older half of a long log was pointer-only — in the one panel whose entire purpose is
+re-reading what scrolled past. It does not show with `intro.dlg`'s four lines, which is why no
+screenshot could have caught it.
+
+Round 15's reviewer had checked this and *not* filed it, on the grounds that Chrome focuses such
+scrollers on its own. Measuring it here: the `<ol>` reports `tabIndex === -1` and scrolls fine, so
+whatever reachability exists comes from Chrome's keyboard-focusable-scrollers behaviour rather than
+from anything in the markup. Depending on a browser-specific feature for keyboard access to a
+panel's primary content is not good enough, so the list is now wrapped in a
+`div[role="region"][tabindex="0"]`, labelled by the same heading. The wrapper takes the role and the
+tab stop so the `<ol>` keeps its list semantics — `role="region"` on the list itself would cost
+them. Svelte's `a11y_no_noninteractive_tabindex` rule does not know about scroll containers; the
+suppression sits directly under the comment explaining why.
+
+Two more from the round. The octagon's chamfer was four hand-kept numbers across `.pane` and
+`.ring` — `18px` twice, and `20px`/`2px` in the ring's inner loop with the arithmetic tying them
+nowhere expressed. They are `--octagon-chamfer` and `--octagon-ring` now, with the inner loop
+written as `calc(chamfer + ring)`; verified that the resolved geometry is byte-identical. The ring's
+comment also claimed a uniform 2px inset, which is only true on the straight edges — a per-axis
+offset is about 1.41x wider across the chamfers. And `--c-white` was removed: `--c-white-rgb` is its
+own literal rather than derived from it, so the pair proved only that two adjacent lines in one file
+agreed, with no second consumer to drift. That is the same ground `--c-ink-rgb` went on.

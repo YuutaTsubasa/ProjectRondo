@@ -94,8 +94,10 @@
         <!-- The glass and the octagon silhouette. Separate from .box so .box stays unclipped and can
              paint its focus outline. -->
         <div class="pane" aria-hidden="true"></div>
-        <!-- The 2px inset ring, drawn as an evenodd clip-path over a solid fill: the outer octagon
-             minus an octagon inset by 2px leaves the ring between them. -->
+        <!-- The inset ring: an evenodd clip-path over a solid fill, the outer octagon minus one
+             inset by --octagon-ring. That inset is exact on the straight edges and about 1.41x
+             wider across the four chamfers, since it is applied per axis rather than along the
+             edge normal — which is what the kit's own artwork does too. -->
         <div class="ring" aria-hidden="true"></div>
         <!-- Positioned, so it paints above .pane. In-flow content would not: a positioned sibling
              with z-index auto paints after non-positioned content, so the glass would cover the text. -->
@@ -181,7 +183,7 @@
     background: var(--surface-glass);
     backdrop-filter: var(--surface-blur);
     -webkit-backdrop-filter: var(--surface-blur);
-    clip-path: polygon(18px 0, calc(100% - 18px) 0, 100% 18px, 100% calc(100% - 18px), calc(100% - 18px) 100%, 18px 100%, 0 calc(100% - 18px), 0 18px);
+    clip-path: polygon(var(--octagon-chamfer) 0, calc(100% - var(--octagon-chamfer)) 0, 100% var(--octagon-chamfer), 100% calc(100% - var(--octagon-chamfer)), calc(100% - var(--octagon-chamfer)) 100%, var(--octagon-chamfer) 100%, 0 calc(100% - var(--octagon-chamfer)), 0 var(--octagon-chamfer));
     pointer-events: none;
   }
   .ring {
@@ -189,7 +191,7 @@
     inset: 0;
     pointer-events: none;
     background: var(--c-blue);
-    clip-path: polygon(evenodd, 18px 0, calc(100% - 18px) 0, 100% 18px, 100% calc(100% - 18px), calc(100% - 18px) 100%, 18px 100%, 0 calc(100% - 18px), 0 18px, 18px 0, 20px 2px, calc(100% - 20px) 2px, calc(100% - 2px) 20px, calc(100% - 2px) calc(100% - 20px), calc(100% - 20px) calc(100% - 2px), 20px calc(100% - 2px), 2px calc(100% - 20px), 2px 20px, 20px 2px);
+    clip-path: polygon(evenodd, var(--octagon-chamfer) 0, calc(100% - var(--octagon-chamfer)) 0, 100% var(--octagon-chamfer), 100% calc(100% - var(--octagon-chamfer)), calc(100% - var(--octagon-chamfer)) 100%, var(--octagon-chamfer) 100%, 0 calc(100% - var(--octagon-chamfer)), 0 var(--octagon-chamfer), var(--octagon-chamfer) 0, calc(var(--octagon-chamfer) + var(--octagon-ring)) var(--octagon-ring), calc(100% - var(--octagon-chamfer) - var(--octagon-ring)) var(--octagon-ring), calc(100% - var(--octagon-ring)) calc(var(--octagon-chamfer) + var(--octagon-ring)), calc(100% - var(--octagon-ring)) calc(100% - var(--octagon-chamfer) - var(--octagon-ring)), calc(100% - var(--octagon-chamfer) - var(--octagon-ring)) calc(100% - var(--octagon-ring)), calc(var(--octagon-chamfer) + var(--octagon-ring)) calc(100% - var(--octagon-ring)), var(--octagon-ring) calc(100% - var(--octagon-chamfer) - var(--octagon-ring)), var(--octagon-ring) calc(var(--octagon-chamfer) + var(--octagon-ring)), calc(var(--octagon-chamfer) + var(--octagon-ring)) var(--octagon-ring));
   }
   .content { position: relative; }
   .marks {

@@ -16,14 +16,10 @@
   --c-ink: #0a1440;
   --c-blue-soft: #7aa0ff;
   --c-pale: #eef2ff;
-  /* Kept as the checked source for --c-white-rgb below; white reaches the UI through that
-     companion (white text on blue fills, and the glass), never as a bare var(--c-white). */
-  --c-white: #ffffff;
-
-  /* Bare channels for the colours a component needs at an alpha: --c-white-rgb backs the glass and
-     white-on-blue text, --c-blue-soft-rgb the backlog's entry rules. --c-ink has no companion —
-     nothing needs ink at an alpha here, and the rule that once did belonged to the superseded token
-     plan this rebuild replaced. tests/app/tokens.test.ts keeps each pair in sync with its hex. */
+  /* Bare channels for the colours a component needs at an alpha: --c-white-rgb backs the glass,
+     the focus halo and white-on-blue text; --c-blue-soft-rgb the backlog's entry rules. Neither
+     white nor ink has a hex counterpart here -- white is only ever used at an alpha, and nothing
+     needs ink at one. tests/app/tokens.test.ts keeps --c-blue-soft and its companion in sync. */
   --c-white-rgb: 255, 255, 255;
   --c-blue-soft-rgb: 122, 160, 255;
 
@@ -48,6 +44,13 @@
   --focus-ring: 2px solid var(--c-ink);
   --focus-ring-offset: 3px;
   --focus-halo: 0 0 0 7px rgba(var(--c-white-rgb), 0.92);
+
+  /* The octagon's chamfer, and the ring's inset expressed as arithmetic on it rather than as two
+     more literals. .pane's silhouette and .ring's outer loop must agree or the ring stops tracing
+     the panel, and nothing here could see them drift -- the same argument --rail-dash was extracted
+     on, with more numbers at stake. */
+  --octagon-chamfer: 18px;
+  --octagon-ring: 2px;
 
   /* The kit's dashed rail, on the dialogue box and the backlog. Defined once: the dash rhythm is
      as much part of the motif as the colour, and two hand-kept copies drift without any test here
