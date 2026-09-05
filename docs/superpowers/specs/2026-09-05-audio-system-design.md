@@ -495,10 +495,14 @@ exercised. Each item below is marked with what was actually established, not a s
   and reloading produced **three** `[audio] cue "…" unavailable` warnings, not one:
   `footstep.armour`, `jump.takeoff` and `jump.land` all warned, because the manifest (§5, `manifest.ts`)
   maps all three cue ids to that single file — one warning per affected cue id, not one per file. No
-  `[audio] could not start` appeared (the graph still built), no other cue warned (the other eight
-  manifest entries loaded and decoded fine), and `window.hub` / `window.hub.audio` were still present
-  after the reload — the scene stayed intact. Restoring the file and reloading again produced zero
-  `[audio]` warnings. The resilience property this item is really after — one missing asset cannot take
+  `[audio] could not start` appeared (the graph still built), no other cue warned, and `window.hub` /
+  `window.hub.audio` were still present after the reload — the scene stayed intact. Restoring the file
+  and reloading again produced zero `[audio]` warnings. That reading was taken against the manifest as
+  it then stood — eleven cues, `ambience.wind` and `ambience.water` among them — and has not been
+  re-run since §5.3a removed those two; what it observed is therefore "no *other* cue warned", not a
+  count of the cues that did not. The three cue ids `armor_step.ogg` backs are untouched by that
+  removal, so the three-warnings figure still describes this manifest.
+  The resilience property this item is really after — one missing asset cannot take
   down the graph or silence anything else — holds; "leaves one console warning" only holds for a cue
   whose file backs no other cue. That property no longer rests on this pass alone: it is pinned by
   `tests/presentation/soundBank.test.ts` (§6), along with the synchronous-throw guards this pass could

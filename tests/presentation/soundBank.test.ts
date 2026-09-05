@@ -241,7 +241,7 @@ describe('the sound bank, when the audio engine fails under it', () => {
   });
 
   /**
-   * Only `ui.type` (four variants) and `footstep.grass` (two) can fail *partly*; the other nine cues
+   * Only `ui.type` (four variants) and `footstep.grass` (two) can fail *partly*; the other seven cues
    * have a single file and settle the same way under either design. Both properties below were
    * unreachable while the load was a `Promise.all`, which rejects on the first file without cancelling
    * its siblings and then discards the ones that had already resolved.
