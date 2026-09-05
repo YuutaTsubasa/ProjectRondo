@@ -68,6 +68,14 @@
     if (session.isFinished) finish();
   }
 
+  // The typewriter is silent under a modal. A choice node carries its prompt line AND its choices,
+  // so entering one remounts <Line> with that prompt at the same moment <Choices> opens — and the
+  // panel is centred over the box and already shows the same text, in full, at once. The reveal
+  // still runs (inert does not stop an interval, and onBoxClick returns early while choices are
+  // open), so without this the player hears typing for text they are not reading and cannot skip,
+  // under the panel's own move and confirm cues. The backlog covers the box the same way.
+  const typed = () => { if (!modalOpen) playCue?.('ui.type'); };
+
   // Reset the typewriter-done flag whenever the line changes ({#key session.line} remounts <Line>).
   $effect(() => { session.line; lineDone = false; });
 
@@ -122,7 +130,7 @@
               bind:this={lineRef}
               text={session.line}
               onDone={() => (lineDone = true)}
-              onType={() => playCue?.('ui.type')}
+              onType={typed}
             />
           {/key}
         </div>
