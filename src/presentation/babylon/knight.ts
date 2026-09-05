@@ -5,9 +5,13 @@ import type { Shadows } from './shadows';
 import { ImportMeshAsync } from '@babylonjs/core/Loading/sceneLoader';
 import { Texture } from '@babylonjs/core/Materials/Textures/texture';
 import type { PBRMaterial } from '@babylonjs/core/Materials/PBR/pbrMaterial';
+import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
+// Side-effect: registers the StandardMaterial shader (tree-shaken deep imports need this; see crystals.ts).
+import '@babylonjs/core/Materials/standardMaterial';
 import { Quaternion, Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { Color3 } from '@babylonjs/core/Maths/math.color';
 import type { AbstractMesh } from '@babylonjs/core/Meshes/abstractMesh';
+import { TrailMesh } from '@babylonjs/core/Meshes/trailMesh';
 import { PhysicsRaycastResult } from '@babylonjs/core/Physics/physicsRaycastResult';
 import type { PhysicsEngine as PhysicsEngineV2 } from '@babylonjs/core/Physics/v2/physicsEngine';
 // Side-effect: registers the glTF loader plugin (with KHR_mesh_quantization / webp support).
@@ -36,6 +40,16 @@ export interface KnightMotionSample {
    * ever animating again.
    */
   readonly airborne: boolean;
+  /** `player.motion.homing !== null` — non-null exactly while a homing dash is in flight. Drives the
+   *  placeholder dash-spin pose and the trail below. */
+  readonly homing: boolean;
+  /**
+   * World-space vertical velocity, world units/s. Needed only to tell a homing bounce from a homing
+   * timeout on the frame `homing` clears: `characterMovement.step` sets it to `homingBounceSpeed` (positive)
+   * on arrival and to zero on timeout, and that is the only difference between the two — `homing` itself
+   * goes null either way.
+   */
+  readonly verticalSpeed: number;
 }
 
 /** Movement numbers the animation layer has to match, read live so `window.moveConfig` tuning applies. */
@@ -58,6 +72,12 @@ export interface Knight {
    * several centimetres, since it drops out for ~10% of frames while running.
    */
   planted: number;
+  /** The glTF root, exposed so {@link driveKnightAnimation} can spin it for the dash pose and reset it
+   *  when the dash ends. Also the trail's generator. */
+  readonly root: TransformNode;
+  /** Blue dash trail, started when `homing` turns on and stopped at the bounce or the timeout — see
+   *  {@link driveKnightAnimation}. Created once, hidden, in {@link loadKnight}. */
+  readonly trail: TrailMesh;
 }
 
 /**
@@ -76,6 +96,27 @@ const GROUND_PROBE_BELOW = 1;
 const TARGET_HEIGHT = 1.9;
 /** Fraction of the idle animation's motion to keep (0 = frozen, 1 = full sway). Kills the side rock. */
 const IDLE_SWAY_KEEP = 0.2;
+
+/**
+ * The knight's base orientation: the model faces +Z on import, so this turns its back to the
+ * third-person camera. Named so {@link driveKnightAnimation}'s dash-spin pose can restore exactly this
+ * when the dash ends, rather than the inline expression it was copied from.
+ */
+const KNIGHT_FACING = Quaternion.FromEulerAngles(0, Math.PI, 0);
+
+/**
+ * Blue emissive tint for the dash trail. Unlit and bright for the same reason as the crystal's
+ * emissive tint in crystals.ts: this needs to read as a streak across the field, not blend into the
+ * armour or the terrain.
+ */
+const TRAIL_EMISSIVE = new Color3(0.3, 0.65, 1);
+/**
+ * Trail ribbon width and history length (world units / ring segments). Sized by eye against the
+ * knight's {@link TARGET_HEIGHT} — not measured against the dash's actual speed or duration, since
+ * this is a placeholder look like the dash-spin pose below, not a tuned effect.
+ */
+const DASH_TRAIL_DIAMETER = 0.2;
+const DASH_TRAIL_LENGTH = 24;
 
 /**
  * How much of the albedo to add back as unlit light on the face.
@@ -695,6 +736,25 @@ function createGroundProbe(scene: Scene): (x: number, footY: number, z: number) 
   };
 }
 
+/**
+ * Builds the dash trail, hidden and stopped: {@link driveKnightAnimation} starts it when `homing` turns
+ * on and stops it at the bounce or the timeout.
+ *
+ * Unlit (`disableLighting`) rather than the crystal's lit-emissive combination in crystals.ts: a thin,
+ * fast-tapering ribbon catches shading artefacts at its degenerate edges that a solid polyhedron
+ * doesn't, and this effect only needs to read as a flat blue streak.
+ */
+function createDashTrail(scene: Scene, generator: TransformNode): TrailMesh {
+  const mat = new StandardMaterial('knightTrailMat', scene);
+  mat.emissiveColor = TRAIL_EMISSIVE;
+  mat.disableLighting = true;
+  const trail = new TrailMesh('knightDashTrail', generator, scene, DASH_TRAIL_DIAMETER, DASH_TRAIL_LENGTH, false);
+  trail.material = mat;
+  trail.isPickable = false;
+  trail.setEnabled(false);
+  return trail;
+}
+
 /** Rejects if `promise` has not settled within `ms`. The underlying work is not cancellable — Babylon's
  *  compile poll keeps running — so this bounds the *wait*, not the work. */
 function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
@@ -750,7 +810,7 @@ export async function loadKnight(
   // The scene is right-handed (see hubScene), so the glTF loads natively with no handedness
   // reflection — skinning stays correct under any parent yaw. The model faces +Z on import;
   // rotate 180° so its back is to the third-person camera.
-  root.rotationQuaternion = Quaternion.FromEulerAngles(0, Math.PI, 0);
+  root.rotationQuaternion = KNIGHT_FACING.clone();
 
   // Rough initial seating from the bind-pose bounds; refined below once the idle pose is evaluated.
   const bindBounds = root.getHierarchyBoundingVectors(true);
@@ -775,7 +835,8 @@ export async function loadKnight(
   for (const g of groups) g.stop();
   idle.play(true);
 
-  const knight: Knight = { animations: { idle, walk, run, jump }, planted: 1 };
+  const trail = createDashTrail(scene, root);
+  const knight: Knight = { animations: { idle, walk, run, jump }, planted: 1, root, trail };
 
   // Bind-pose bounds don't match the animated idle pose (the knight floated ~0.8u above the floor),
   // so re-seat once on the actual posed mesh after the first rendered frame.
@@ -906,6 +967,19 @@ const DIVISOR_FLOOR = 1e-3;
 const JUMP_LAUNCH_START = 0.72;
 const JUMP_FALL_END = 1.3;
 
+/**
+ * Where a homing bounce restarts the jump clip: the same seam measured above — 0.76s, where the hip
+ * curve passes back through standing and the rise begins — not {@link JUMP_LAUNCH_START}'s 0.72s.
+ *
+ * A bounce is the same problem `JUMP_LAUNCH_START` solves: the capsule is already moving (upward, at
+ * `homingBounceSpeed`) before any clip plays, so starting at the clip's head would show the
+ * anticipation crouch after the capsule has already left the ground — the knight winding up in
+ * mid-air. `JUMP_LAUNCH_START` accepts ~0.08s of residual dip because a real jump departs from a
+ * stand and the tiny crouch reads as part of that departure; a bounce has no stand to depart from, so
+ * there is no residue worth keeping and this starts exactly at the seam where the rise begins instead.
+ */
+const BOUNCE_RESTART = 0.76;
+
 /** Frame number `seconds` into a clip, in whatever frame units the glTF loader gave this group. */
 const frameAtSeconds = (group: AnimationGroup, seconds: number): number =>
   group.from + seconds * (group.targetedAnimations[0]?.animation.framePerSecond ?? 60);
@@ -925,6 +999,16 @@ const playSegment = (group: AnimationGroup, fromSeconds: number, toSeconds: numb
 };
 
 /**
+ * Placeholder dash pose: a fast roll about the model's own forward axis. Sonic curls into a ball for
+ * this move; the knight cannot, but a spin is a legible "this is not a jump" signal and costs no asset.
+ * Task 8 replaces it with the Flying Kick clip; when it does, delete this, `FORWARD_AXIS`, and the roll
+ * reset in {@link driveKnightAnimation}.
+ */
+const DASH_SPIN_RATE = 18; // rad/s
+/** Local axis the dash-spin pose rolls about — the model's own forward, independent of world facing. */
+const FORWARD_AXIS = new Vector3(0, 0, 1);
+
+/**
  * Drives the knight's pose from the player's motion each frame.
  *
  * **Locomotion** is one scalar `L`: 0 = idle, 1 = walk, 2 = run. It eases toward a target derived
@@ -936,6 +1020,14 @@ const playSegment = (group: AnimationGroup, fromSeconds: number, toSeconds: numb
  * **Jump** rides over the top as a one-shot: the launch→fall segment, started the moment `airborne`
  * turns on and retimed to fill the real airtime, fading the locomotion blend out and back by
  * `jumpWeight`. Touchdown just ends it — no landing clip is played (see {@link JUMP_FALL_END}).
+ *
+ * **Homing** layers on top of both, driven off `homing` rather than `airborne` (which stays true for
+ * the whole dash-plus-bounce, so it never re-fires the jump segment on its own): the placeholder spin
+ * pose plays and the trail runs for as long as `homing` is true, and on the frame it clears, a
+ * positive `verticalSpeed` (a bounce; see {@link KnightMotionSample.verticalSpeed}) restarts the jump
+ * clip from {@link BOUNCE_RESTART} so it rides the existing `jumpWeight` blend back into locomotion. A
+ * timeout (`verticalSpeed` not positive) plays nothing — the domain already zeroed the velocity, so
+ * the knight simply resumes falling under gravity next frame.
  */
 export function driveKnightAnimation(
   scene: Scene,
@@ -950,10 +1042,12 @@ export function driveKnightAnimation(
   let level = 0; // the locomotion scalar L
   let jumpWeight = 0;
   let wasAirborne = false;
+  let wasHoming = false;
+  let dashRoll = 0; // radians accumulated about FORWARD_AXIS while homing is true
 
   scene.onBeforeRenderObservable.add(() => {
     const dt = scene.getEngine().getDeltaTime() / 1000;
-    const { planarSpeed, airborne } = motion();
+    const { planarSpeed, airborne, homing, verticalSpeed } = motion();
     const { walk: walkSpeed, run: runSpeed, airtime } = tuning();
 
     // --- jump -----------------------------------------------------------------------------------
@@ -965,6 +1059,37 @@ export function driveKnightAnimation(
       playSegment(jump, JUMP_LAUNCH_START, JUMP_FALL_END, ratio);
     }
     wasAirborne = airborne;
+
+    // --- homing dash pose, trail and bounce seam -------------------------------------------------
+    // `airborne` stays true for the whole dash and the bounce that follows it (the capsule never
+    // touches ground in between), so the block above never re-fires on a bounce — `homing`'s own
+    // edges are what drive the pose and the clip restart here.
+    if (homing && !wasHoming) {
+      // Collapse the ribbon to the current position so it grows fresh from the dash's start, rather
+      // than snapping in a straight line from wherever it last trailed off.
+      knight.trail.reset();
+      knight.trail.setEnabled(true);
+      knight.trail.start();
+    }
+    if (homing) {
+      // See DASH_SPIN_RATE's doc: placeholder roll, deleted once Task 8's Flying Kick clip lands.
+      dashRoll += DASH_SPIN_RATE * dt;
+      knight.root.rotationQuaternion = KNIGHT_FACING.multiply(Quaternion.RotationAxis(FORWARD_AXIS, dashRoll));
+    }
+    if (!homing && wasHoming) {
+      knight.trail.stop();
+      knight.trail.setEnabled(false);
+      dashRoll = 0;
+      knight.root.rotationQuaternion = KNIGHT_FACING.clone();
+      // `characterMovement.step` clears `homing` on both a bounce and a timeout, so that alone can't
+      // tell them apart — a bounce also sets a positive vertical velocity (`homingBounceSpeed`), a
+      // timeout zeroes it (see KnightMotionSample.verticalSpeed's doc). Only a bounce restarts the
+      // clip; a timeout leaves the knight simply falling under gravity from here, with no clip played.
+      if (verticalSpeed > 0) {
+        playSegment(jump, BOUNCE_RESTART, JUMP_FALL_END, 1);
+      }
+    }
+    wasHoming = homing;
 
     // The segment is a one-shot, so a fall outlasting the clip stops the group mid-air. Let the weight
     // ease down either way rather than dropping the jump's influence to zero on the frame it stops:
