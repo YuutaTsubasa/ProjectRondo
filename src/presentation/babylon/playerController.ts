@@ -9,12 +9,15 @@ import {
 import { step } from '../../domain/hub/character/characterMovement';
 import { DEFAULT_CONFIG, type MovementConfig } from '../../domain/hub/character/movementConfig';
 import { IDLE, type CharacterMotion } from '../../domain/hub/character/characterMotion';
+import { selectHomingTarget } from '../../domain/hub/character/homingTarget';
+import { type Vec3, vec3 } from '../../domain/math/vec3';
 import { planarDirectionFromInput } from './cameraRelativeDirection';
 import { toBabylon, toVec3 } from './vectorConversions';
 import { CAPSULE_RADIUS, CAPSULE_HEIGHT } from './capsule';
 import { terrainHeight } from './terrainHeight';
 import type { FollowCamera } from './followCamera';
 import type { InputState } from './input';
+import type { Crystals } from './crystals';
 import { stepGroundContact, INITIAL_GROUND_CONTACT } from './groundContact';
 import { alignToSurface } from './slopeMotion';
 
@@ -60,6 +63,7 @@ export function createPlayer(
   root: TransformNode,
   follow: FollowCamera,
   input: InputState,
+  crystals: Crystals,
 ): Player {
   // Spawn the capsule's base ON the terrain surface (+ a small lift so it settles down onto it rather
   // than starting embedded — an embedded capsule pops through the one-sided MESH collider and falls).
@@ -85,10 +89,15 @@ export function createPlayer(
     const dt = Math.min(scene.getEngine().getDeltaTime() / 1000, MAX_DT);
     if (dt <= 0) return;
 
+    // The jump key is edge-triggered and consumed once. Airborne, it means "home"; grounded, it means
+    // "jump" -- the domain decides which, but only one of the two can be true, so the same press feeds
+    // both the ground-contact machine (below) and the homing decision, and `step` reads whichever
+    // applies.
+    const pressed = input.consumeJump();
     const support = controller.checkSupport(dt, DOWN);
     const contactResult = stepGroundContact(contact, {
       supported: support.supportedState === CharacterSupportedState.SUPPORTED,
-      jumpPressed: input.consumeJump(),
+      jumpPressed: pressed,
       verticalSpeed: player.motion.velocity.y,
       delta: dt,
     });
@@ -96,15 +105,15 @@ export function createPlayer(
     const { grounded, jumpRequested } = contactResult;
     player.airborne = contactResult.airborne;
 
+    const homingTarget = pressed && player.airborne
+      ? selectedOffset(root.getAbsolutePosition(), follow, crystals, config)
+      : null;
+
     const { right, forward } = follow.planarBasis();
     const direction = planarDirectionFromInput(input.axis(), right, forward);
     const next = step(
       { ...player.motion, isGrounded: grounded },
-      {
-        direction, jumpRequested, runRequested: input.isRunHeld(),
-        // Placeholder: Task 5 replaces this with the real camera-cone target selection. Not a decision.
-        homingTarget: null,
-      },
+      { direction, jumpRequested, runRequested: input.isRunHeld(), homingTarget },
       config,
       dt,
     );
@@ -140,4 +149,22 @@ export function createPlayer(
  */
 function faceRoot(root: TransformNode, facingX: number, facingY: number): void {
   root.rotation.y = Math.atan2(-facingX, -facingY);
+}
+
+/**
+ * The offset from the player to the crystal the camera is aiming at, or null.
+ *
+ * The aim vector is the camera's TRUE 3D forward — `target - position` — and deliberately not
+ * `follow.planarBasis().forward`, which is flattened to X/Z for locomotion. A climb is vertical: a
+ * crystal directly overhead is exactly the shot a flattened aim can never take.
+ */
+function selectedOffset(
+  from: Vector3, follow: FollowCamera, crystals: Crystals, config: MovementConfig,
+): Vec3 | null {
+  const cam = follow.camera;
+  const forward = cam.getTarget().subtract(cam.position);
+  const index = selectHomingTarget(toVec3(from), toVec3(forward), crystals.positions, config);
+  if (index === null) return null;
+  const target = crystals.positions[index];
+  return vec3(target.x - from.x, target.y - from.y, target.z - from.z);
 }

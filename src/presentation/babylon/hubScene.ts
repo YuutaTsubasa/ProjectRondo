@@ -99,7 +99,7 @@ export async function createHubScene(canvas: HTMLCanvasElement): Promise<HubScen
   createAtmosphere(scene, follow.camera);
 
   const input = createInput();
-  const player = createPlayer(scene, playerRoot, follow, input);
+  const player = createPlayer(scene, playerRoot, follow, input, crystals);
   const readMotion = (): KnightMotionSample => {
     const v = player.motion.velocity;
     return { planarSpeed: Math.hypot(v.x, v.z), airborne: player.airborne };
