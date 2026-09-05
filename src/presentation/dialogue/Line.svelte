@@ -1,5 +1,17 @@
+<script module lang="ts">
+  /**
+   * Shortest gap between two typing ticks, in milliseconds.
+   *
+   * The reveal runs a character every `charMs` — 24 by default — while the tick sample is 60 ms long,
+   * so one sound per character would stack three deep and read as a machine gun rather than as
+   * typing. 70 keeps consecutive ticks from overlapping at all.
+   */
+  const TYPE_MIN_MS = 70;
+</script>
+
 <script lang="ts">
-  let { text, charMs = 24, onDone }: { text: string; charMs?: number; onDone?: () => void } = $props();
+  let { text, charMs = 24, onDone, onType }:
+    { text: string; charMs?: number; onDone?: () => void; onType?: () => void } = $props();
   let shown = $state('');
   let complete = $state(false);
   let timer: ReturnType<typeof setInterval> | undefined;
@@ -9,9 +21,19 @@
   $effect(() => {
     shown = ''; complete = false;
     let i = 0;
+    // Starts at the threshold so the first character sounds: typing that begins with 70 ms of
+    // silence reads as a dropped cue rather than as a deliberate rhythm.
+    let sinceTick = TYPE_MIN_MS;
     clearInterval(timer);
     timer = setInterval(() => {
       i++; shown = text.slice(0, i);
+      // Accumulating `charMs` rather than reading a clock: it is the interval this timer was given,
+      // so the throttle stays right when a caller slows the reveal down — past TYPE_MIN_MS every
+      // character sounds, which is what a slow typewriter should do. `finish()` deliberately makes
+      // no sound: reveal-all draws the rest of the line at once, and one tick per skipped character
+      // is the burst this throttle exists to prevent.
+      sinceTick += charMs;
+      if (sinceTick >= TYPE_MIN_MS) { sinceTick = 0; onType?.(); }
       if (i >= text.length) finish();
     }, charMs);
     return () => clearInterval(timer);

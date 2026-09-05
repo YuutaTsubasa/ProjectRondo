@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 import { createDeferredAudio, type DeferredAudio } from '../../src/presentation/audio/deferredAudio';
 import type { MusicScene } from '../../src/domain/audio/musicDirector';
+import type { SoundCue } from '../../src/domain/audio/soundCue';
 
 /**
  * Pins the deferral in front of the audio graph.
@@ -20,16 +21,22 @@ import type { MusicScene } from '../../src/domain/audio/musicDirector';
 
 interface Fake extends DeferredAudio {
   readonly scenes: MusicScene[];
+  readonly cues: SoundCue[];
   disposals: number;
 }
 
 const makeFake = (): Fake => {
   const scenes: MusicScene[] = [];
+  const cues: SoundCue[] = [];
   return {
     scenes,
+    cues,
     disposals: 0,
     setMusicScene(scene) {
       scenes.push(scene);
+    },
+    play(cue) {
+      cues.push(cue);
     },
     dispose() {
       this.disposals += 1;
@@ -160,5 +167,48 @@ describe('the deferred audio handle', () => {
     expect(warn).toHaveBeenCalledTimes(1);
     expect(() => audio.setMusicScene('playing')).not.toThrow();
     expect(() => audio.dispose()).not.toThrow();
+  });
+});
+
+describe('createDeferredAudio, one-shot cues', () => {
+  it('drops a cue asked for before the graph exists, rather than holding it', async () => {
+    const deferred = deferBuild();
+    const audio = createDeferredAudio(deferred.build);
+    const fake = makeFake();
+
+    audio.play('ui.type');
+    deferred.settle(fake);
+    await vi.waitFor(() => expect(deferred.builds).toBe(1));
+    await Promise.resolve();
+
+    // The opposite of setMusicScene, and the reason both behaviours are pinned here: a scene is a
+    // state that is still true whenever the graph arrives, a cue is an event tied to the moment it
+    // happened. Replaying it would fire a typing tick seconds after its character was drawn.
+    expect(fake.cues).toEqual([]);
+  });
+
+  it('forwards a cue asked for once the graph is up', async () => {
+    const deferred = deferBuild();
+    const audio = createDeferredAudio(deferred.build);
+    const fake = makeFake();
+    deferred.settle(fake);
+    await vi.waitFor(() => expect(deferred.builds).toBe(1));
+    await Promise.resolve();
+
+    audio.play('ui.confirm');
+    expect(fake.cues).toEqual(['ui.confirm']);
+  });
+
+  it('drops a cue asked for after disposal', async () => {
+    const deferred = deferBuild();
+    const audio = createDeferredAudio(deferred.build);
+    const fake = makeFake();
+    deferred.settle(fake);
+    await vi.waitFor(() => expect(deferred.builds).toBe(1));
+    await Promise.resolve();
+
+    audio.dispose();
+    audio.play('ui.move');
+    expect(fake.cues).toEqual([]);
   });
 });

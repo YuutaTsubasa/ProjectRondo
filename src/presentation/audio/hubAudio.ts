@@ -4,7 +4,7 @@ import type { Nullable } from '@babylonjs/core/types';
 
 import { createFootstepCadence } from '../../domain/audio/footstepCadence';
 import { cadenceSample } from '../../domain/audio/locomotionGait';
-import { surfaceCue } from '../../domain/audio/soundCue';
+import { surfaceCue, type SoundCue } from '../../domain/audio/soundCue';
 import { WALK_THRESHOLD, type Knight, type KnightMotionSample } from '../babylon/knight';
 import { createGameAudio } from './audioEngine';
 import { phaseOf, weightOf } from './clipSample';
@@ -107,6 +107,18 @@ async function buildHubAudio(
     // test can reach it without a scene.
     const crossfade = createMusicCrossfade(soundBank);
 
+    // The manifest gives some cues several files — `ui.type` has four — and `soundBank.play` picks
+    // by an index its caller supplies, so something has to count. It counts here rather than at the
+    // call site because how many recordings back a cue is the manifest's business: the dialogue UI
+    // asks for "a typing tick" and has no reason to learn there are four of them. A cue with one
+    // file is unaffected, since `pick` takes the index modulo the file count.
+    const variants = new Map<SoundCue, number>();
+    const nextVariant = (cue: SoundCue) => {
+      const n = variants.get(cue) ?? 0;
+      variants.set(cue, n + 1);
+      return n;
+    };
+
     const cadence = createFootstepCadence();
     let wasAirborne = motion().airborne;
 
@@ -186,6 +198,9 @@ async function buildHubAudio(
     return {
       setMusicScene(next) {
         crossfade.setScene(next);
+      },
+      play(cue) {
+        soundBank.play(cue, { variant: nextVariant(cue) });
       },
       dispose() {
         stopWatchingForGestures();

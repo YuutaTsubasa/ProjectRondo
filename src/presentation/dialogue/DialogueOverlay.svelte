@@ -1,4 +1,5 @@
 <script lang="ts">
+  import type { SoundCue } from '../../domain/audio/soundCue';
   import type { DialogueSession } from './dialogueSession.svelte';
   import Portrait from './Portrait.svelte';
   import Nameplate from './Nameplate.svelte';
@@ -7,7 +8,9 @@
   import Controls from './Controls.svelte';
   import Backlog from './Backlog.svelte';
 
-  let { session, onFinished }: { session: DialogueSession; onFinished?: () => void } = $props();
+  let { session, onFinished, playCue }:
+    { session: DialogueSession; onFinished?: () => void; playCue?: (cue: SoundCue) => void } =
+      $props();
 
   /** How long AUTO waits after a line finishes revealing before advancing. */
   const AUTO_ADVANCE_MS = 1200;
@@ -44,7 +47,9 @@
     if (session.isFinished) { finish(); }
   }
   function finish() { auto = false; onFinished?.(); }
-  function onSelect(i: number) { session.select(i); }
+  // The confirm sounds before the selection, not after: `session.select` can end the dialogue, and
+  // this component is unmounted the moment it does.
+  function onSelect(i: number) { playCue?.('ui.confirm'); session.select(i); }
   function onBoxClick() {
     if (session.choices.length > 0) return;
     if (lineRef?.reveal()) return;
@@ -108,7 +113,12 @@
             <span class="on"></span><span class="on"></span><span class="on"></span><span></span><span></span>
           </div>
           {#key session.line}
-            <Line bind:this={lineRef} text={session.line} onDone={() => (lineDone = true)} />
+            <Line
+              bind:this={lineRef}
+              text={session.line}
+              onDone={() => (lineDone = true)}
+              onType={() => playCue?.('ui.type')}
+            />
           {/key}
         </div>
         <svg class="advance" width="30" height="18" viewBox="0 0 30 18" fill="none" aria-hidden="true"><path d="M0 9h26M20 3l6 6-6 6" /></svg>
@@ -124,7 +134,12 @@
        conditionally rather than self-hiding: a fresh mount is what makes their focus effect run on
        mount. Choices self-hiding behind an inner {#if} left the component permanently mounted, and
        its focus landed early enough for Chrome to blur it again. -->
-  {#if session.choices.length > 0}<Choices choices={session.choices} prompt={session.line} onSelect={onSelect} />{/if}
+  {#if session.choices.length > 0}<Choices
+      choices={session.choices}
+      prompt={session.line}
+      onSelect={onSelect}
+      onMove={() => playCue?.('ui.move')}
+    />{/if}
   {#if showLog}<Backlog entries={session.backlog} onClose={() => (showLog = false)} />{/if}
 </div>
 

@@ -5,6 +5,7 @@
   import { createDialogueSession } from '../presentation/dialogue/dialogueSession.svelte';
   import DialogueOverlay from '../presentation/dialogue/DialogueOverlay.svelte';
   import { createGameMode } from './gameMode.svelte';
+  import type { SoundCue } from '../domain/audio/soundCue';
   import introSource from '../content/dialogue/intro.dlg?raw';
 
   let canvas: HTMLCanvasElement;
@@ -52,6 +53,12 @@
     };
   });
 
+  // Reads `hub` at call time rather than closing over its value, so the AVG can sound its cues as
+  // soon as the audio graph is up without this component having to re-render when it is: the overlay
+  // mounts before `createHubScene` resolves, and every call here happens on a keystroke or a click,
+  // long after. A cue asked for before the graph exists is dropped, not queued — see `DeferredAudio`.
+  const playCue = (cue: SoundCue) => hub?.audio.play(cue);
+
   function finishIntro() {
     gameMode.toPlaying();
     hub?.suspendInput(false);                     // hand control back to gameplay
@@ -65,5 +72,5 @@
      element that is invisible behind it and paints no focus indicator. -->
 <canvas bind:this={canvas} tabindex="-1" style="width:100vw;height:100vh;display:block"></canvas>
 {#if session && !gameMode.isPlaying}
-  <DialogueOverlay {session} onFinished={finishIntro} />
+  <DialogueOverlay {session} {playCue} onFinished={finishIntro} />
 {/if}

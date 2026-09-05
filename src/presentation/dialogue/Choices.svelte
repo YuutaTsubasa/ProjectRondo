@@ -1,7 +1,28 @@
 <script lang="ts">
   import type { DialogueChoice } from '../../domain/dialogue/dialogueChoice';
-  let { choices, prompt, onSelect }:
-    { choices: readonly DialogueChoice[]; prompt: string; onSelect: (i: number) => void } = $props();
+  let { choices, prompt, onSelect, onMove }:
+    {
+      choices: readonly DialogueChoice[];
+      prompt: string;
+      onSelect: (i: number) => void;
+      onMove?: () => void;
+    } = $props();
+
+  /**
+   * The option the move cue last sounded for.
+   *
+   * Not `$state` — nothing renders from it. It exists to collapse the two events that both mean "the
+   * selection moved" into one sound: focus and pointer. A click fires `pointerenter` and then, after
+   * the selection, `focus` on the same option, which without this would sound the move twice around
+   * a single confirm. It starts at 0 so the panel's own mount focus, which lands on the first option,
+   * is not itself a move.
+   */
+  let sounded = 0;
+  const moved = (i: number) => {
+    if (i === sounded) return;
+    sounded = i;
+    onMove?.();
+  };
 
   // Same as the backlog: this modal cannot be dismissed and must be answered, so it takes focus
   // rather than leaving it on whatever inert has just switched off behind the scrim.
@@ -16,6 +37,10 @@
     // choices.length above zero, so the {#if} never remounts and panel never changes — and the
     // unkeyed {#each} can destroy the focused button, dropping focus to <body> while inert is on.
     choices;
+    // Reset with the option list, for the reason the dependency above exists: this component stays
+    // mounted across a branch whose target also branches, so index 1 of the old list and index 1 of
+    // the new one are different options.
+    sounded = 0;
     const first = panel?.querySelector('button');
     if (!first) return;
     const id = setTimeout(() => first.focus());
@@ -45,7 +70,12 @@
     </div>
     {#each choices as choice, i}
       <!-- Kit: a 1px frame with 4px padding around an inner block, and a caret prefix. -->
-      <button class="choice" onclick={() => onSelect(i)}>
+      <button
+        class="choice"
+        onclick={() => onSelect(i)}
+        onfocus={() => moved(i)}
+        onpointerenter={() => moved(i)}
+      >
         <span class="inner"><span class="caret" aria-hidden="true">❯</span><span>{choice.label}</span></span>
       </button>
     {/each}
