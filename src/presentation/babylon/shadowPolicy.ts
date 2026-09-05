@@ -13,10 +13,10 @@
  *  and it overlaps the body, which tops out at 0.8281. Nothing else comes near: the two of them are
  *  the only meshes above the body's ceiling.
  *
- *  That `Mesh_1` is specifically face + hair together and `Mesh_23` the inner head comes from
- *  rendering each alone during the character swap, not from the geometry above; what the geometry
- *  establishes is that the head is exactly these two. The eyes are painted into the face texture —
- *  there is no separate eyeball mesh to list, unlike the previous character.
+ *  That `Mesh_1` is specifically face + hair together and `Mesh_23` the inner head is inherited from
+ *  the character swap's own visual inspection and has not been re-derived here; what the geometry
+ *  above establishes is only that the head is exactly these two. Likewise the eyes being painted into
+ *  the face texture: what is checked is that there is no third mesh up here to be an eyeball.
  *
  *  Because `Mesh_23` overlaps the body's top, whatever it covers there does not receive shadows
  *  either — the same coupling `FACE_EMISSIVE` already lives with (see `knight.ts`).
