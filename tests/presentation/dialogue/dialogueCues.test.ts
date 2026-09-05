@@ -45,6 +45,10 @@ const SCRIPT = [':: greet', `里昂: ${NINE}`, '-> ask', ':: ask', '里昂: 走�
 // holds, and <Choices> re-focuses itself in place instead. `intro.dlg` has no such node today.
 const CHAINED = [':: greet', `里昂: ${NINE}`, '-> ask', ':: ask', '里昂: 走哪？', '* 左 -> again', '* 右 -> again', ':: again', '里昂: 真的？', '* 是 -> l', '* 否 -> r', ':: l', '旁白: 左。', ':: r', '旁白: 右。', ''].join('\n');
 
+// One line and nothing after it, so a press on the finished line ends the dialogue instead of
+// starting another one.
+const ONE_LINE = [':: greet', `里昂: ${NINE}`, ''].join('\n');
+
 const mounted: ReturnType<typeof mount>[] = [];
 
 function render(script = SCRIPT) {
@@ -134,6 +138,24 @@ describe('the typing cue', () => {
     expect(countOf(playCue, 'ui.type')).toBe(finished + 1);
   });
 
+  it('sounds the press that ends the dialogue, though that one puts no text on screen', () => {
+    vi.useFakeTimers();
+    const { session, playCue } = render(ONE_LINE);
+    tick(0);
+    tick(CHAR_MS * NINE.length);
+    expect(revealed()).toBe(NINE);
+    const finished = countOf(playCue, 'ui.type');
+
+    // The third thing a press can do, and the one the box's comment used to leave out: the line is
+    // complete and it is the last one, so the press falls through reveal() and advance() into
+    // finish(), where App.svelte's {#if} takes the overlay away. It sounds like the other two --
+    // the tick answers the press, not what the press turned out to do.
+    q<HTMLButtonElement>('.hit')!.click();
+    flushSync();
+    expect(session.isFinished).toBe(true);
+    expect(countOf(playCue, 'ui.type')).toBe(finished + 1);
+  });
+
   it('stays silent while the choices cover the box', () => {
     vi.useFakeTimers();
     const { session, playCue } = render();
@@ -168,6 +190,68 @@ describe('the choice cues', () => {
     return { ...rendered, options };
   };
 
+  /**
+   * Spends the panel's opening arrival, on the option it already selected so that nothing about the
+   * selection changes. The pointer's first arrival on a question is the panel settling rather than a
+   * move -- see Choices' pointerenter handler -- so a test about pointer moves has to get past it
+   * before the pointer means anything.
+   */
+  const arrive = (option: HTMLButtonElement, playCue: ReturnType<typeof vi.fn>) => {
+    option.dispatchEvent(new Event('pointerenter'));
+    flushSync();
+    expect(countOf(playCue, 'ui.move')).toBe(0);
+  };
+
+  it('sounds nothing when the panel opens under a pointer already resting on an option', () => {
+    const { playCue, options } = atChoices();
+
+    // The mount focus has landed on option 0 by now, and the pointer never moved: the panel appeared
+    // under it, and Chrome re-resolved hover afterwards. The enter arrives with focus already inside
+    // the panel, which is exactly what a keyboard move looks like -- and it must still be silent.
+    options[1].dispatchEvent(new Event('pointerenter'));
+    flushSync();
+    expect(document.activeElement).toBe(options[1]);
+    expect(countOf(playCue, 'ui.move')).toBe(0);
+  });
+
+  it('keeps the pointer\'s option, silently, when the enter beats the mount focus', () => {
+    vi.useFakeTimers();
+    const { session, playCue } = render();
+    tick(0);
+    session.advance();
+    // Flushed but not advanced: the panel is mounted and its mount-focus task is queued, so this is
+    // the other order the same resting pointer can produce. Neither is pinned by anything in the
+    // platform, and neither may sound a move.
+    tick(0);
+    const options = [...document.querySelectorAll<HTMLButtonElement>('.choice')];
+    expect(options).toHaveLength(2);
+    expect(document.activeElement).not.toBe(options[0]);
+    playCue.mockClear();
+
+    options[1].dispatchEvent(new Event('pointerenter'));
+    flushSync();
+    expect(document.activeElement).toBe(options[1]);
+
+    // And the mount focus is cancelled rather than pulling the selection back to the first option.
+    tick(1000);
+    expect(document.activeElement).toBe(options[1]);
+    expect(countOf(playCue, 'ui.move')).toBe(0);
+  });
+
+  it('sounds the pointer arriving once the keyboard has moved the selection', () => {
+    const { playCue, options } = atChoices();
+
+    // A keyboard move settles the panel too: the opening's silent arrival is spent by whatever moves
+    // the selection first, so a mouse brought in after walking the list is a move like any other.
+    options[1].focus();
+    expect(countOf(playCue, 'ui.move')).toBe(1);
+
+    options[0].dispatchEvent(new Event('pointerenter'));
+    flushSync();
+    expect(document.activeElement).toBe(options[0]);
+    expect(countOf(playCue, 'ui.move')).toBe(2);
+  });
+
   it('does not sound the panel taking its own focus', () => {
     vi.useFakeTimers();
     const { session, playCue } = render();
@@ -194,6 +278,7 @@ describe('the choice cues', () => {
 
   it('sounds a move once when the pointer selects another option, and not twice around the click', () => {
     const { session, playCue, options } = atChoices();
+    arrive(options[0], playCue);
 
     // The pointer moves the selection rather than sounding beside it, so entering the option both
     // focuses it and sounds exactly one move.
@@ -245,6 +330,7 @@ describe('the choice cues', () => {
 
   it('sounds nothing when the pointer re-enters the option it already selected', () => {
     const { playCue, options } = atChoices();
+    arrive(options[0], playCue);
 
     options[1].dispatchEvent(new Event('pointerenter'));
     flushSync();

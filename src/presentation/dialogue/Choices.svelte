@@ -14,28 +14,37 @@
    * The panel has one selection, and it is the focused option: `pointerenter` below moves focus
    * rather than reporting a second kind of selection beside it, so "the selection moved" has exactly
    * one event and there is nothing to de-duplicate. `relatedTarget` on a focus event is the element
-   * that lost it, which tells two of the three non-moves apart from a move without remembering
-   * anything: a first mount's focus arrives from outside the panel (`<body>`, or null), and clicking
-   * the option the pointer already selected fires no focus event at all.
+   * that lost it, which tells two of the non-moves apart from a move without remembering anything:
+   * a first mount's focus arrives from outside the panel (`<body>`, or null), and clicking the
+   * option the pointer already selected fires no focus event at all.
    *
-   * The third is the panel re-focusing itself, and `relatedTarget` cannot see it — which is what
-   * `takingFocus` is for. When a choice's target is itself a choice node the panel is not remounted
-   * (see the effect below), so the re-focus moves focus off the option just answered and onto the
-   * first option of the new question: from one option to another, inside the panel, indistinguishable
-   * from the player walking the list. It is the panel posing a question, not the player answering
-   * one — and without this, answering on the second row sounded a move that answering on the first
-   * did not, because there the unkeyed `{#each}` re-uses a button that already has focus and no
-   * focus event fires at all.
+   * The other two arrive from inside the panel and `relatedTarget` cannot tell them from a move,
+   * so each is silenced at its source by `silentFocus`. One is the panel re-focusing itself: when a
+   * choice's target is itself a choice node the panel is not remounted (see the effect below), so
+   * the re-focus moves focus off the option just answered and onto the first option of the new
+   * question. It is the panel posing a question, not the player answering one — and without this,
+   * answering on the second row sounded a move that answering on the first did not, because there
+   * the unkeyed `{#each}` re-uses a button that already has focus and no focus event fires at all.
+   * The other is the pointer's first arrival on a question, which the handler below explains.
    */
-  let takingFocus = false;
+  let silentFocus = false;
   const moved = (from: EventTarget | null) => {
-    if (takingFocus) return;
-    if (from instanceof Node && panel?.contains(from)) onMove?.();
+    if (silentFocus) return;
+    if (from instanceof Node && panel?.contains(from)) {
+      // The selection has been moved by something other than the pointer, so the panel is no longer
+      // opening and the pointer's arrival stops being part of that: bringing the mouse in after
+      // walking the list with the keyboard is a move, and sounds like one.
+      opening = false;
+      onMove?.();
+    }
   };
 
   // Same as the backlog: this modal cannot be dismissed and must be answered, so it takes focus
   // rather than leaving it on whatever inert has just switched off behind the scrim.
   let panel: HTMLDivElement | undefined = $state();
+  // True until this question's selection has settled on the option it opens with. Reset per question
+  // rather than per mount, because a chained question re-uses the panel — see the effect below.
+  let opening = true;
   // Held so the pointer can cancel it: a panel that opens under a resting pointer gets a
   // `pointerenter` on the option beneath it, which selects that option, and the mount focus landing
   // afterwards would move the selection back to the first one — a move the player did not make.
@@ -52,14 +61,15 @@
     choices;
     const first = panel?.querySelector('button');
     if (!first) return;
+    opening = true;
     mountFocus = setTimeout(() => {
       // `focus()` dispatches the focus event synchronously, so the flag covers exactly this panel's
       // own arrival and nothing the player does. `finally` because a focus handler may throw.
-      takingFocus = true;
+      silentFocus = true;
       try {
         first.focus();
       } finally {
-        takingFocus = false;
+        silentFocus = false;
       }
     });
     return () => clearTimeout(mountFocus);
@@ -94,11 +104,30 @@
         onfocus={(e) => moved(e.relatedTarget)}
         onpointerenter={(e) => {
           // The pointer moves the selection instead of running beside it, which is what a menu does
-          // and what the fill already implied: hover and focus paint the same row the same way, so
-          // two of them at once used to show two selected options. preventScroll because the scrim
-          // scrolls -- a hover must not jump a partly visible option into view under the pointer.
+          // and what the fill now follows: the fill is on :focus, so there is one selected row and
+          // this is what puts the pointer's row in it. preventScroll because the scrim scrolls -- a
+          // hover must not jump a partly visible option into view under the pointer.
+          //
+          // The pointer's first arrival on a question is silent, and cancels the mount focus if that
+          // has not run yet. A panel opening under a resting pointer gets a `pointerenter` for a
+          // pointer that never moved, and nothing on the event tells that apart from the player
+          // moving onto an option: either way it is one enter, with the mount focus either already
+          // on another row or still queued. Nor is the order of those two pinned -- a zero-delay
+          // task usually runs before the rendering lifecycle in which Chrome re-resolves hover after
+          // a layout change, but nothing promises it -- so the opening is spent on whichever of them
+          // arrives, and neither ordering can sound a move. The cost is one cue: a player who moves
+          // onto the panel before touching anything else hears nothing for that first row. The
+          // alternative is a move cue for a pointer that never moved, every time the panel opens
+          // under one -- which is most times, since the press that opens it leaves the pointer over
+          // the middle of the screen where the panel appears.
           clearTimeout(mountFocus);
-          e.currentTarget.focus({ preventScroll: true });
+          silentFocus = opening;
+          opening = false;
+          try {
+            e.currentTarget.focus({ preventScroll: true });
+          } finally {
+            silentFocus = false;
+          }
         }}
       >
         <span class="inner"><span class="caret" aria-hidden="true">❯</span><span>{choice.label}</span></span>
@@ -210,21 +239,28 @@
      the glass over a black scene: the 0.42 wash sits under it too and only lightens the ground
      (rgb(178,184,199), where the two are 3.14:1 and 7.41:1), so the floor is what to hold to. */
   .caret { color: var(--c-blue-deep); }
-  /* Hover fills the inner block and cuts its bottom-right corner. White on a solid --c-blue block
-     is 6.26:1; blue text on the glass would be 2.34:1, so the fill carries the colour. */
-  .choice:hover .inner,
-  .choice:focus-visible .inner {
+  /* The selected option fills its inner block and cuts its bottom-right corner. White on a solid
+     --c-blue block is 6.26:1; blue text on the glass would be 2.34:1, so the fill carries the colour.
+
+     :focus, not :hover and :focus-visible. The selection is the focused option and the pointer moves
+     focus to what it enters, so :focus alone paints the row the pointer is on AND the row the
+     keyboard walked to -- one filled row, and always the one Enter confirms. The pair it replaces
+     could not promise either: :hover paints on its own wherever the pointer happens to rest, so
+     Shift+Tab away from a hovered row filled two rows at once; and :focus-visible does not match a
+     pointer's focus, so after a click on a chained question the only filled row was the hovered one,
+     which is not the option focus was moved to. */
+  .choice:focus .inner {
     background: var(--c-blue);
     color: rgb(var(--c-white-rgb));
     font-weight: 700;
     clip-path: polygon(0 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%);
   }
-  .choice:hover .caret,
-  .choice:focus-visible .caret { color: rgb(var(--c-white-rgb)); }
-  /* Hover and focus are the same option now -- the pointer moves focus rather than lighting a second
-     row -- but focus still needs an indicator of its own: forced-colors mode overrides the fill
-     while still honouring outline: none, and :focus-visible does not match a pointer's focus, so the
-     ring is what a keyboard user has and the fill is what both have. */
+  .choice:focus .caret { color: rgb(var(--c-white-rgb)); }
+  /* The fill above already marks the focused option, but focus still needs an indicator of its own:
+     forced-colors mode overrides the fill while still honouring outline: none. :focus-visible rather
+     than :focus, because that is the whole difference between the two -- a pointer user is told
+     where the selection is by the fill and does not need a ring following the mouse; a keyboard user
+     gets both. */
   .choice:focus-visible {
     outline: var(--focus-ring);
     outline-offset: var(--focus-ring-offset);
