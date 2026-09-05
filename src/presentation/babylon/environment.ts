@@ -26,15 +26,26 @@ const AMBIENT_GROUND_SCALE = 0.3;
 const IBL_FACE_SIZE = 128;
 
 /** Scales the environment's contribution to every PBR material. 1.0 would be the panorama's own baked
- *  radiance (see the generator, referenced below); 1.4 is tuned live against the armour mask — it lifts
- *  the plate's mean luma to ~117/255 (from ~113 at 1.0) to match the pre-IBL brightness the old
- *  no-environment workaround reached, while keeping blown highlights at 0% (1.6 starts clipping them).
+ *  radiance; 1.4 is tuned live against the armour mask.
+ *
+ *  **This doc is the one place the shipped plate's brightness is recorded.** Measured during this
+ *  branch's tuning pass on the stylized-knight armour, hide-the-body diff mask (85 687 px), scene
+ *  frozen, at `BODY_METALLIC = 1` and `BODY_DIRECT_INTENSITY = 1`: the plate's mean luma is ~117/255,
+ *  up from ~113 at IBL 1.0 — matching the pre-IBL brightness the old no-environment workaround reached
+ *  — with blown highlights at 0% (1.6 starts clipping them) and ~2% of pixels below luma 30, down from
+ *  7.7% pre-IBL.
+ *
+ *  It says "one place" because there were three, in two files, and they disagreed: this ~117, a second
+ *  ~117 on `BODY_DIRECT_INTENSITY`, and a `BODY_METALLIC` note recording the same shipped configuration
+ *  as 114.3 — which then justified this 1.4 as compensating for the ~4 luma between them, so the two
+ *  numbers were arguing in a circle. None of the three could be re-measured while reconciling them (the
+ *  mask measurement needs the scene running), so the pair that agreed is what survives, stated once,
+ *  here. Treat it as inherited from that tuning pass rather than independently confirmed.
  *
  *  This is the lever to reach for if the plate reads too hot or too dim, in preference to the panorama's
  *  absolute levels or the per-material `BODY_METALLIC` (which stays at the physically-correct 1 now that
- *  there is an environment to reflect — see `knight.ts`). Measured on the stylized-knight armour with a
- *  hide-the-body diff mask (85 687 px), scene frozen; the figures move with the model, so re-measure on
- *  a character swap. */
+ *  there is an environment to reflect — see `knight.ts`). The figures move with the model, so re-measure
+ *  on a character swap. */
 const IBL_INTENSITY = 1.4;
 
 /** A vertical gradient painted on a DynamicTexture for the unlit skydome; stop 1.0 renders at the

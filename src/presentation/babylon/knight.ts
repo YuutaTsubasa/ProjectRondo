@@ -136,14 +136,19 @@ const BODY_MR_URL = '/models/knight_mr.webp?v=2';
  * this was the fix for the "darker than Tripo3D" report (Tripo's viewer lights the model with an HDRI;
  * this scene had none).
  *
- * Measured on the stylized-knight armour with a hide-the-body diff mask (85 687 px), scene frozen, at
- * `IBL_INTENSITY`: at the packed map's roughness (near 1 over most of the plate) the metallic value
- * barely moves brightness — rough-metal specular ≈ the diffuse irradiance it replaces, so 0.6→1.0
- * shifts the mask mean only ~118.6→114.3 — so 1 costs almost nothing in luma while restoring correct
- * energy and crisper highlights where the map's roughness is low. Brightness is set by `IBL_INTENSITY`
- * (raised to 1.4 to compensate for that ~4-luma give-back), not by this number.
+ * At the packed map's roughness (near 1 over most of the plate) the metallic value barely moves
+ * brightness — rough-metal specular is close to the diffuse irradiance it replaces — so 1 costs little
+ * in luma while restoring correct energy and crisper highlights where the map's roughness is low.
+ * Brightness is set by `IBL_INTENSITY` in `environment.ts`, not by this number, and that constant's doc
+ * is the single place the shipped plate's measured luma lives.
  *
- * The "~36%" metal-texel figure above, and `BODY_DIRECT_INTENSITY`'s figures below, were measured
+ * An earlier note here put the 0.6→1.0 sweep at ~118.6→114.3 and used the gap to justify raising
+ * `IBL_INTENSITY` to 1.4. That put the shipped configuration at 114.3 where two other notes put it at
+ * ~117, and made the two constants justify each other in a circle. It could not be re-measured (the
+ * mask measurement needs the running scene), so it is withdrawn rather than left standing as a third
+ * disagreeing figure.
+ *
+ * The "~36%" metal-texel figure above, and `IBL_INTENSITY`'s luma figures, were measured
  * through the *lossy* `knight_mr.webp` that ships today (its header is `VP8 `, not `VP8L` — see the
  * README's regeneration recipe). Lossy WebP chroma-subsamples and cross-contaminates the G/B channels
  * this map packs roughness and metallic into, so re-packing losslessly per that recipe changes the
@@ -162,9 +167,9 @@ const BODY_METALLIC = 1.0;
  * would double-count the fill the environment already supplies and blow out the sunlit plates. The
  * environment now carries the fill, so this returns to 1.0 and `IBL_INTENSITY` is the brightness lever.
  *
- * Measured with the same hide-the-body mask as `BODY_METALLIC`, scene frozen: at IBL 1.4 the armour
- * mask reaches ~117 mean luma with 0% blown highlights and only ~2% of pixels below luma 30 (from 7.7%
- * pre-IBL). The lossy-`knight_mr.webp` caveat on `BODY_METALLIC` applies to this figure too.
+ * What the armour actually measures at this value is recorded once, on `IBL_INTENSITY` in
+ * `environment.ts`, rather than restated here: three copies of that figure across two files had
+ * drifted apart. The lossy-`knight_mr.webp` caveat on `BODY_METALLIC` applies to it too.
  */
 const BODY_DIRECT_INTENSITY = 1.0;
 
