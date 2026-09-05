@@ -25,3 +25,7 @@ node_modules/
 dist/
 src-tauri/target/
 src-tauri/gen/
+
+# Superpowers scratch (SDD ledgers, briefs, review packages, brainstorm mockups)
+# — working files, not artefacts
+.superpowers/

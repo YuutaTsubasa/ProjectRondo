@@ -22,15 +22,16 @@ functional core, reactive UI**, plus the project's **18 code-quality principles*
 
 | Path | What |
 | --- | --- |
-| `src/domain/` | Pure TS: `hub/character/*` (movement), `dialogue/*` (dialogue graph + DSL), `math/`, `kernel/`. No engine imports. Vitest-covered. |
+| `src/domain/` | Pure TS: `hub/character/*` (movement), `dialogue/*` (dialogue graph + DSL), `audio/` (footstep cadence + contact phases, gait selection, music director), `math/`, `kernel/`. No engine imports. Vitest-covered. |
 | `src/presentation/babylon/` | The 3D scene: `hubScene`, `terrainHeight` (pure) + `terrain`, `scatter`, `trees`, `knight`, `playerController`, `followCamera`, `input`, `environment`, `capsule`. |
+| `src/presentation/audio/` | AudioV2 wiring: `audioEngine` (engine + buses), `manifest` (cue → file/bus/volume), `soundBank` (loading + missing-asset policy), `musicCrossfade` (which track plays, and the handover), `clipSample` (the rig's animation state read as phases and weights), `deferredAudio` (the handle handed back while the graph is still building), `hubAudio` (per-frame scene wiring). |
 | `src/presentation/dialogue/` + `src/app/` | Svelte AVG UI + app entry (`App.svelte`, `gameMode`). |
 | `tests/` | Vitest specs — mirror the domain, plus pure presentation fns (`terrainHeight`, `cameraRelativeDirection`). |
 | `docs/superpowers/specs/` + `plans/` | **Every feature has a design spec and an implementation plan here.** Read these for the "why". |
 | `docs/engineering-principles.md` | The 18 principles (canonical). |
 | `docs/superpowers/specs/2026-08-18-refined-hub-world-roadmap.md` | **The roadmap** — current milestone + what's next. |
 | `__prototype__/` | Original Godot 4.7.1 (mono/C#) project — parity reference; also holds the GLB export tools (`tools/export_web_glb.gd`). |
-| `public/` | Assets: `models/knight_web.glb`, `models/knight_mr.webp`, `models/tree.glb`, `textures/grass.jpg`, `portraits/`, `fonts/`. |
+| `public/` | Assets: `models/knight_web.glb`, `models/knight_mr.webp`, `models/tree.glb`, `textures/grass.jpg`, `portraits/`, `fonts/`, `audio/{music,sfx,ambience}` (+ `audio/CREDITS.md`). |
 | `src-tauri/` | Tauri v2 desktop shell (Rust). |
 
 ## 3. Setup on a new machine
@@ -44,7 +45,12 @@ functional core, reactive UI**, plus the project's **18 code-quality principles*
   unhandled rejection and a blank canvas: the scene loads empty. Only if the GLB pulled correctly but
   `knight_mr.webp` (the armour's metallic/roughness map) is still a pointer does the failure stay local:
   that one texture fetch fails, and the scene loads with the knight's armour stuck matte and a console
-  warning instead of empty. (`.png`/`.jpg`/fonts are normal binaries and clone fine.)
+  warning instead of empty. (`.png`/`.jpg`/fonts are normal binaries and clone fine.) `.mp3`/`.ogg` are
+  LFS-tracked too: every file under `public/audio/` left as a pointer fails to decode individually, and
+  `soundBank.ts`'s missing-asset policy treats that exactly like a missing file — one `[audio] cue "…"
+  unavailable` warning per affected cue, the game stays silent for those cues, and nothing else breaks.
+  A contributor who skipped `git lfs pull` gets **a silent game with console warnings, not a broken
+  one** — that's the missing-asset policy working as designed, not a second bug to chase.
 - **Rust toolchain** — only needed for `pnpm tauri` desktop builds. Not needed to run in the browser.
 - **Godot 4.7.1 (mono)** — only needed to *regenerate* the knight/tree GLBs from the prototype (rare).
   On the old machine it was at `/Applications/Godot_mono.app`; install wherever on the new one.
@@ -434,6 +440,39 @@ These are hard-won; several cost a debugging session each.
   leaving pixel/image comparisons untouched, since throttling changes *when* a frame is produced, not
   *what* it contains. Check `document.hidden` before trusting any timing number; if it's `true`, the
   numbers are worthless no matter how tight the IQR looks.
+
+- **The dev server dies on `EBUSY` from `.claude/worktrees/`.** Vite watches the whole project root,
+  including other sessions' worktrees, and a locked file in one takes the server down mid-session.
+  It is a loud crash rather than a silent one, but it looks like your change broke the preview.
+
+### Checks that were green over real defects
+
+The §7 entries above are about the engine. These are about the *verification*, and they cost most of
+PR #33's 18 review rounds — each one is a case where a check reported success over something broken.
+
+- **`element.click()` dispatches no pointer events.** It does not reproduce pointer-focus behaviour,
+  so it cannot verify anything about focus after a click. A defect that only appeared on the click
+  path was "verified fixed" with it in round 9 of PR #33, and stayed broken until round 11 drove a
+  real pointer click. Use the
+  Browser pane's own click action when focus is what you are testing.
+- **`svelte-check` and `vite build` have both been green over broken markup.** `svelte-check`
+  reported zero errors over a file Vite's compiler rejected outright; and both were green over a CSS
+  rule spliced into the *markup* by a bad edit, because Svelte took it as text content and rendered
+  it. When an edit is structural, re-read the file — no tool here will tell you.
+- **Vite's watcher silently misses file replacements on this machine.** `perl -0pi` and similar
+  rewrite the file rather than editing in place, and the dev server kept serving the old module —
+  same Svelte scope hash, old computed values. If a measurement contradicts the source, check the
+  scope hash and restart the server before believing the measurement.
+- **A hidden Browser pane changes what runs.** `requestAnimationFrame` never fires (the page never
+  paints), `elementFromPoint` returns `null`, `innerWidth`/`innerHeight` read `0`, and long async
+  probes time out. This is the same class as the `document.hidden` timing trap in §7's performance
+  notes. It also caught a real bug: an rAF-deferred focus call would never have run for a user with
+  the tab in the background.
+- **A test can pass while the code it pins is broken.** Two cases written specifically to pin the
+  modal focus machinery passed with that machinery deliberately reverted — one because all fake
+  timers were advanced before Svelte ever re-ran its effects, one because an unkeyed `{#each}` reused
+  the button so focus appeared to survive. **Break the code and watch the test fail** before
+  believing a new test. It is one command and it has been wrong more often than not here.
 
 ## 8. Claude's local memory (optional, but valuable for continuity)
 

@@ -17,10 +17,13 @@ Engineering approach: **TDD + DDD + Functional + Reactive**.
 | Path | Purpose |
 | --- | --- |
 | `src/domain/` | Pure TypeScript domain — no engine/UI imports. Movement, kernel types. The single source of truth, independently testable. |
+| `src/domain/audio/` | Pure audio logic: footstep cadence + measured foot-contact phases, the music director's scene → track decision. No engine imports. |
 | `src/presentation/babylon/` | babylon.js scene: hub, follow camera, Havok character controller, glTF knight. Reads input → calls the domain → applies the result to the physics body. |
+| `src/presentation/audio/` | AudioV2 wiring: engine + buses, the cue manifest, the sound bank (load + missing-asset policy), and the per-frame hub audio wiring. |
 | `src/app/` | Svelte entry + full-window canvas. |
 | `tests/` | Vitest specs (mirror the domain's former xUnit tests). |
 | `public/models/` | `knight_web.glb` (baked Idle/Walk, texture-only optimized), `knight_mr.webp` (packed metallic/roughness map). |
+| `public/audio/` | Shipped `music/`, `sfx/`, `ambience/` (Vorbis/MP3), plus `CREDITS.md` for source provenance. Regenerated from raw sources by `tools/audio/preprocess.mjs`, not hand-edited. |
 | `src-tauri/` | Tauri v2 shell (desktop/mobile packaging). |
 | `__prototype__/` | The original Godot 4.7.1 (mono/C#) project, kept as a parity reference. |
 
@@ -38,6 +41,13 @@ scatter (grass, wildflowers, rocks, bushes). A third-person, mouse-look knight (
 jump, click to capture the mouse) walks the field: movement is driven by the pure domain, the character
 is a Havok capsule, and the knight is a glTF model with Idle/Walk animation blended by speed. Entering
 the hub plays an AVG dialogue intro.
+
+It's also audible: the hub theme crossfades in once the intro ends, footsteps play as a two-layer
+sound (armour plus the grass surface underfoot) locked to each foot's contact phase, and jumps get
+their own take-off and landing cue. Ambience (a wind bed, water at the pond) is built and shipped but
+**not currently wired in** — the beds loop without an audible seam, but a 6–8 s bed built from a 1–2 s
+source still repeats at the source's own period, and on the first listen the ear finds it. Longer
+recordings are the fix, not a better loop; see the audio design spec §5.3a.
 
 ## Develop
 
@@ -107,6 +117,18 @@ these anywhere, so the values are coming from somewhere in step 1 or 2 above tha
 exported GLB's JSON chunk against its spec default before shipping a regeneration, and drop the
 corresponding load-time correction in `knight.ts` once a regenerated file ships the correct defaults
 (or no key at all) on its own.
+
+### Regenerating the audio assets
+
+`public/audio/` is built from raw sources by `tools/audio/preprocess.mjs`, not hand-edited:
+
+```bash
+node tools/audio/preprocess.mjs [sourceDir]   # default source dir: ~/Downloads
+```
+
+Needs **ffmpeg** with **libvorbis**. The raw sources themselves are not committed — they're supplied
+separately and passed as `sourceDir` — so `public/audio/CREDITS.md` is where their provenance
+(source/author/licence) is recorded; fill it in when adding or replacing a source.
 
 ### Regenerating the knight's metallic/roughness map
 
@@ -199,6 +221,73 @@ Idle/Walk data), and the mono build needs the .NET 8 SDK present or it crashes o
 resolution; `npm install @gltf-transform/cli@4.4.2` into a scratch dir instead, with an
 `overrides: { "sharp": "0.34.5" }` pin (its transitive `sharp@0.35.x` throws
 `colourspace: parameter space not set` on the 8192² source textures).
+
+### Regenerating the AVG portrait assets
+
+`public/portraits/` holds four files, and the code depends on properties of each that no build step
+enforces — see `tests/presentation/dialogue/portraitAssets.test.ts`, which asserts them.
+
+**Two ffmpeg traps make this pipeline easy to get wrong in ways every obvious check survives**, so
+read these before re-encoding anything:
+
+1. **ffmpeg's native `vp9` decoder silently drops this source's alpha**, decoding to `yuv420p`. Every
+   downstream encode then inherits an opaque background and the portrait renders as a black
+   rectangle over the scene. `-c:v libvpx-vp9` **on the input** reads it correctly. This shipped
+   once.
+2. **`ffprobe` and "extract a frame to RGBA" both report alpha on a file that has none** — the first
+   reports the decoder's output format, the second pads alpha to 255. Only sampling a decoded
+   pixel's alpha is honest. A 1x1 `crop` also rounds to zero on subsampled video, so convert with
+   `format=rgba` first.
+
+The source is the background-removed idle clip from the character hand-off (768x1344, VP9 with
+alpha, 24fps, 124 frames, 5.192s). **It is not committed** — the same gap the metallic/roughness map
+above describes, and the three knight encodings cannot be reproduced without it. The probe is the
+exception and the one that matters most: it is synthesised from nothing, so its recipe below is
+complete on its own.
+
+```bash
+SRC=magnific_video-background-removal_8aHGVd3IrU.webm   # not in the repo
+
+# knight_idle.webm — VP9 with alpha, the upgrade path. 514x900 (from -2:900), 12fps, 62 frames.
+ffmpeg -c:v libvpx-vp9 -i "$SRC" -vf 'scale=-2:900,fps=12' \
+  -c:v libvpx-vp9 -pix_fmt yuva420p -b:v 0 -crf 34 -row-mt 1 -an \
+  -fflags +bitexact -flags:v +bitexact public/portraits/knight_idle.webm
+
+# knight_idle.webp — animated WebP, the universal baseline. Same geometry and length, ~6x the bytes.
+ffmpeg -c:v libvpx-vp9 -i "$SRC" -vf 'scale=-2:900,fps=12' \
+  -c:v libwebp_anim -pix_fmt yuva420p -lossless 0 -q:v 35 -loop 0 -an public/portraits/knight_idle.webp
+
+# knight_idle_still.webp — frame 0, shown while the probe runs, under prefers-reduced-motion, and as
+# the <video> poster. Every cold load fetches it, on every path, so quality is chosen against the
+# frame that replaces it: at q90 the mean RGB delta from the WebM's frame 0 is 2.57/255 where a
+# lossless encode reaches 1.98 — the floor, since the reference is itself lossy VP9 — for a third of
+# the bytes. If a re-encode of this file comes out opaque, it is trap #1, not the lossy encoder.
+ffmpeg -c:v libvpx-vp9 -i "$SRC" -vf 'scale=-2:900,fps=12' -frames:v 1 \
+  -c:v libwebp -lossless 0 -q:v 90 -pix_fmt bgra public/portraits/knight_idle_still.webp
+
+# vp9-alpha-probe.webm — 2x2, one frame, every pixel fully transparent. Decoded to a canvas at
+# runtime to find out whether the engine honours VP9's alpha at all; if this file is ever opaque the
+# probe answers "supported" everywhere and the black rectangle ships. Needs no source.
+ffmpeg -f lavfi -i 'color=c=black@0.0:s=2x2:r=1:d=1,format=rgba' \
+  -c:v libvpx-vp9 -pix_fmt yuva420p -frames:v 1 \
+  -fflags +bitexact -flags:v +bitexact public/portraits/vp9-alpha-probe.webm
+```
+
+**This is a reconstruction, and it was checked rather than remembered: re-running all four against
+the source reproduces the shipped files byte-for-byte.** That is worth having rather than
+approximating, because it means any diff at all after a re-encode is a real change and not noise to
+squint past.
+
+Getting there needed the `bitexact` flags on the two WebM encodes. Without them the matroska muxer
+writes a randomly generated `TrackUID` (element `0x73C5`) twice, and two runs over identical input
+differ in exactly those 16 bytes — at offsets 283 and 407 — with every byte of encoded video
+identical. libvpx itself is deterministic here; only the container was not.
+
+After regenerating, run `pnpm test` with ffmpeg **and ffprobe** on PATH. Four asset cases skip
+silently without them, and they are the ones that would catch a lost alpha channel in any of the
+three portraits or in the probe, a WebM frozen on one frame, and a WebM whose loop no longer runs as
+long as the WebP it stands in for. (The check that the *still* has not become animated reads its
+chunks directly, so that one runs either way.)
 
 ## Milestones
 

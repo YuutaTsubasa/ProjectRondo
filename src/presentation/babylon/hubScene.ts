@@ -27,6 +27,7 @@ import { createWater } from './water';
 import { createClouds } from './clouds';
 import { createLandmark } from './landmark';
 import { createCrystals } from './crystals';
+import { createHubAudio, type HubAudio } from '../audio/hubAudio';
 
 /**
  * Test crystals for the homing attack, placed by hand near spawn so the move can be exercised without
@@ -49,6 +50,8 @@ export interface HubScene {
   readonly follow: FollowCamera;
   readonly player: Player;
   readonly knight: Knight;
+  /** Music and character sound. `App.svelte` drives the music scene through this. */
+  readonly audio: HubAudio;
   /** Suspends (on=true) or resumes (on=false) gameplay input and camera look, e.g. during an AVG overlay. */
   suspendInput(on: boolean): void;
   /** Tears the scene down: stops the render loop, removes DOM listeners, disposes the engine. */
@@ -118,6 +121,13 @@ export async function createHubScene(canvas: HTMLCanvasElement): Promise<HubScen
     airtime: (2 * player.config.jumpSpeed) / player.config.gravity,
   }));
   await loadTrees(scene, shadows);
+  // Not awaited, and `createHubAudio` is not async: audio must never be able to hold up first render.
+  // See its doc comment — a streaming music cue whose media element never fires `canplaythrough`
+  // would otherwise leave this line pending for good, and with it the render loop below.
+  // `readMotion` again, not a second function built beside it: the footsteps and the locomotion blend
+  // they have to land on answer "how fast, and airborne?" from one source. Each layer's observer calls
+  // it for itself, so the sample is built twice a frame — one *source*, not one sample.
+  const audio = createHubAudio(scene, readMotion, knight);
 
   engine.runRenderLoop(() => scene.render());
   // Size the drawing buffer to the canvas now; the resize event only fires on later changes.
@@ -129,6 +139,7 @@ export async function createHubScene(canvas: HTMLCanvasElement): Promise<HubScen
     window.removeEventListener('resize', onResize);
     input.dispose();
     follow.dispose();
+    audio.dispose();
     // engine.dispose() tears down the scene, physics, meshes, observers and the render loop.
     engine.dispose();
   };
@@ -138,5 +149,5 @@ export async function createHubScene(canvas: HTMLCanvasElement): Promise<HubScen
     follow.setEnabled(!on);
   };
 
-  return { engine, scene, follow, player, knight, suspendInput, dispose };
+  return { engine, scene, follow, player, knight, audio, suspendInput, dispose };
 }

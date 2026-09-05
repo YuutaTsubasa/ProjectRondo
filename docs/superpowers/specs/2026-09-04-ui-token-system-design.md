@@ -1,0 +1,371 @@
+# UI token system — design
+
+> **Superseded** by `docs/superpowers/specs/2026-09-05-vn-ui-kit-design.md` and the branch that
+> implements it. Kept for the reasoning and the measurements, which still hold; the *decisions* do
+> not. This document's palette, fonts and tokens are all gone — `--c-lime`, `--c-yellow`,
+> `--c-ink-rgb`, `--surface-border` and `--font-ui` are no longer declared, Poppins and JetBrains
+> Mono were replaced by Chakra Petch and Archivo Black, and its "no layout or behavioural change"
+> constraint is the opposite of what the VN UI Kit rebuild does. Read it as history, not as a plan.
+
+Establish a design-token layer for ProjectRondo's UI and re-skin the existing AVG/dialogue
+components onto it, following the "BLUE HORIZON — AVG UI SYSTEM" style sheet the user supplied.
+
+Layout is **not** in scope. Every component keeps its current position, size, and structure; only
+the visual vocabulary changes. No new components are built.
+
+## 1. The problem
+
+The eight dialogue components under `src/presentation/dialogue/` carry **21 hard-coded hex
+literals across 5 distinct values**:
+
+| Value | Count | What it is |
+|---|---|---|
+| `#d8ff00` | 9 | lime accent |
+| `#0b0b0d` | 4 | near-black text |
+| `#0000ff` | 4 | pure blue rail |
+| `#f2f3f5` | 2 | off-white text |
+| `#eef0f2` | 2 | off-white board |
+
+Nothing names these, nothing shares them, and nothing stops the sixth value from appearing. The
+style sheet supplies a different palette, so every one of the 21 has to be touched regardless —
+which makes this the moment to put a name in front of each.
+
+### 1a. The components are not one visual system
+
+Two independent inconsistencies exist today and are invisible until the values are lined up.
+
+**Polarity.** Five components are dark, two are light:
+
+| Component | Surface | Text |
+|---|---|---|
+| `DialogueOverlay` `.box` | `rgba(10,10,12,.55)` dark glass | — |
+| `Line` | — | `#f2f3f5` near-white |
+| `Choices` `.choice` | `rgba(10,10,12,.62)` dark glass | `#f2f3f5` |
+| `Backlog` `.log` | `rgba(10,10,12,.6)` dark glass | `rgba(238,240,242,.85)` |
+| `Controls` `button` | `rgba(255,255,255,.72)` **light** glass | `#0b0b0d` |
+| `Nameplate` `.body` | `#eef0f2` **light** board | `#0b0b0d` |
+
+The nameplate sits directly on top of the dialogue box, so a light board on a dark box is the
+most visible instance. It reads as two UIs, because it is.
+
+**Glass parameters.** Five glass surfaces, five different sets of numbers, none of them derived
+from the others:
+
+| Where | Backdrop alpha | Blur | Saturate |
+|---|---|---|---|
+| `DialogueOverlay` `.box` | .55 | 28px | 140% |
+| `Choices` `.scrim` | .55 | 12px | 120% |
+| `Choices` `.choice` | .62 | 26px | 140% |
+| `Backlog` `.log` | .60 | 30px | 140% |
+| `Controls` button | .72 | 18px | 160% |
+
+### 1b. Two fonts are shipped and effectively unused
+
+`public/fonts/` carries `chakra-petch-700.woff2` (9.9 KB) and `archivo-800.woff2` (14 KB). Both
+are self-hosted for two components each. Neither survives the re-skin.
+
+## 2. Goals and non-goals
+
+**Goals**
+
+- One named source of truth for colour, type, and surface treatment.
+- Zero hard-coded hex in `src/presentation/dialogue/`, enforced by a test.
+- The eight components read as one visual system.
+- The dialogue box stays legible over the bright outdoor hub scene — measured, not assumed.
+
+**Non-goals**
+
+- Layout, sizing, spacing, or animation changes.
+- New components from the style sheet (quick menu, system menu, slider, toggle, status panel).
+  The style sheet shows them; this pass does not build them.
+- Theming or a dark-mode switch. One theme.
+- Any behavioural change. This is a re-skin: no component gains a new state, branch, or input.
+- Any change outside `src/presentation/dialogue/`, `src/app/`, and `public/fonts/`.
+
+## 3. Approach: CSS custom properties
+
+Tokens live in `src/app/tokens.css` as custom properties on `:root`, imported once from
+`main.ts`. Components consume them through `var(--...)` inside their existing scoped `<style>`
+blocks.
+
+Considered and rejected: a TypeScript token module (values would have to cross into CSS through
+inline styles or a runtime write to `document.documentElement.style`, both worse than a
+stylesheet); and Svelte `:global` in `App.svelte` (same effect, but hides the tokens inside a
+component instead of naming a file for them).
+
+## 4. Design
+
+### 4a. Colour tokens
+
+```
+--c-blue:   #145BFF   replaces #0000ff
+--c-lime:   #B6FF00   replaces #d8ff00
+--c-pale:   #E8F1FF   replaces #eef0f2
+--c-white:  #FFFFFF
+--c-yellow: #FFF200
+--c-ink:    #0b1020   replaces #0b0b0d and #f2f3f5
+```
+
+Roles:
+
+- `--c-blue` — structure. Rails, ticks, small UI text on light surfaces.
+- `--c-lime` — affirmative / active. **Fill only** (see 4d).
+- `--c-yellow` — attention / undecided. **Currently unused** (see 4f).
+- `--c-pale` — tinted off-white board; the direct replacement for `#eef0f2`.
+- `--c-white` — pure white; consumed by `--surface-glass`, never used raw.
+- `--c-ink` — text on light surfaces. It takes over `#f2f3f5`'s two sites as well, because
+  those are text on panels that flip light (see 4e).
+
+Two of these get a bare-channel companion, `--c-ink-rgb` and `--c-white-rgb`, because secondary
+text and hover states need the same colour at a different alpha and `rgba()` cannot take a hex
+custom property. A companion that drifts from its hex would silently mis-colour every `rgba()`
+built from it, so a test asserts the pairs stay equal.
+
+### 4b. Font tokens
+
+```
+--font-headline   Poppins 700              new, OFL, self-hosted
+--font-body       Noto Sans TC             existing, unchanged
+--font-ui         JetBrains Mono 400/800   new, OFL, self-hosted
+```
+
+The style sheet names Nexa Bold, which is commercial. Poppins was chosen from a four-way
+comparison (Outfit / Poppins / Space Grotesk / Chakra Petch) rendered in the positions the
+headline face actually occupies.
+
+`chakra-petch-700.woff2` and `archivo-800.woff2` are deleted along with their `@font-face`
+blocks. Nothing else references them.
+
+### 4c. Surface tokens
+
+```
+--surface-glass    background of a glass panel
+--surface-blur     backdrop-filter value
+--surface-border   1px border colour
+```
+
+One set of values replaces the five in 1a. The two modal scrims are deliberately excluded — see
+4e.
+
+### 4d. Lime is a fill, never text
+
+Lime against white is roughly 1.2:1 — `#d8ff00` computes to 1.15:1 and the replacement
+`#B6FF00` to 1.21:1, so changing the token does not rescue it. Two places use lime as *text*
+today, and both become illegible once the panels flip light:
+
+- `DialogueOverlay` `.hint` — 12px `color: #d8ff00` -> `--c-blue`
+- `Backlog` `.who` — speaker name -> `--c-blue`
+
+A third site is the same defect and is sanctioned by this section even though it is not named
+above: `DialogueOverlay` `.hit:focus-visible`'s `outline` was lime at 0.6 alpha, about 1.2:1 on
+a light panel — an invisible focus ring. It moves off lime alongside `.hint` and `.who`.
+
+Every other lime occurrence is a block, tick, rail, or cut corner and simply becomes `--c-lime`.
+
+(All three sites' final colour, and why `--c-blue` itself turned out not to be the answer, is
+recorded in section 6's `--c-blue` correction.)
+
+### 4e. The panels flip light; the scrims stay dark
+
+Per 1a, five components are dark today. All of them become light glass with `--c-ink` text.
+
+The two modal scrims — `Choices` `rgba(6,7,10,.55)` and `Backlog` `rgba(6,7,10,.45)` — stay
+dark. A scrim's job is to push the 3D scene back behind a modal; a light scrim over a bright
+outdoor scene would raise the background luminance rather than lower it, and the knight would
+wash out. This is an intentional exception and is commented as one in `tokens.css`.
+
+It follows that anything drawn **on** a scrim rather than on a panel keeps light text. `Choices`
+`.head` is the one such element: `.panel` has no background, so that label sits directly on the
+scrim. Flipping it to ink would make it dark-on-dark — the same defect 4d fixes for lime-on-white,
+in the opposite direction.
+
+The flip to a light panel also drops each panel's `box-shadow` alpha, sanctioned here though only
+the plan named the numbers: `DialogueOverlay` `.box` goes from 0.45 to 0.25, and `Backlog` `.log`
+from 0.50 to 0.28. A dark drop-shadow at its old alpha reads as grime under a pale panel; both
+values were lowered to match.
+
+### 4f. `--c-yellow` is defined and unused, on purpose
+
+The style sheet's backlog renders `REI` in blue and `???` in yellow-green, which reads as a
+known/unknown speaker distinction. **It is not implementable as a re-skin.** `Speaker` is a
+branded string (`src/domain/dialogue/speaker.ts:3`) and the domain has no unknown-speaker state;
+an empty speaker is a parse error (`src/domain/dialogue/script/parser.ts:44`). The style sheet's
+`???` is an ordinary name a script author typed, not a state the code can detect. Implementing
+it would mean either comparing against the literal `'???'` inside `Backlog.svelte` — encoding a
+script convention in a component, and new behaviour rather than a re-skin — or changing the
+domain, which section 2 excludes.
+
+So `--c-yellow` is defined for palette completeness and consumed by nothing. `tokens.css` says
+so, and says that the first component to use it is what fixes its meaning.
+
+### 4g. Component mapping
+
+| Component | Changes | Flips |
+|---|---|---|
+| `DialogueOverlay` | `.box` glass -> surface tokens; `.mark.on` -> `--c-lime`; `.hint` -> `--c-blue` + `--font-ui`; `.overlay` font -> `--font-body`; `.mark` dim -> ink alpha | yes |
+| `Line` | `#f2f3f5` -> `--c-ink` | yes |
+| `Choices` | `.choice` glass -> surface tokens; text -> `--c-ink`; `.rail` -> `--c-blue`; hover rail and `.head .mark` -> `--c-lime`; `.head` text stays light — it sits on the scrim, not a panel; `'Archivo'` -> `--font-ui` | yes |
+| `Backlog` | `.log` glass -> surface tokens; header gradient -> `--c-lime` / `--c-pale`; `.rail` -> `--c-blue`; `.title` -> `--font-headline`; `.who` -> `--c-blue`; `.text` -> ink alpha | yes |
+| `Nameplate` | rail and tick -> `--c-blue`; cut corner -> `--c-lime`; board -> `--c-pale`; text -> `--c-ink`; `'Chakra Petch'` -> `--font-headline` | already light |
+| `Controls` | glass -> surface tokens; text -> `--c-ink`; `.active .mark` -> `--c-lime`; `'Archivo'` -> `--font-ui` | already light |
+| `Portrait` | none — no colour, only a drop-shadow | — |
+| `App` | none | — |
+
+## 5. Verification
+
+### 5a. No hard-coded hex (automated)
+
+A vitest case scans `src/presentation/dialogue/*.svelte` and fails on any `#rgb` / `#rrggbb`
+literal. `tokens.css` is the only place a hex may appear.
+
+**Limit, stated plainly:** this catches hard-coded hex. It does **not** catch a token used with
+the wrong meaning — `--c-yellow` on a confirm button passes green. Token semantics are a review
+concern, not a test concern.
+
+Two further gaps exist and are worth naming honestly rather than leaving implicit:
+
+- **Hex is not colour.** `rgb(216, 255, 0)`, a named colour like `rebeccapurple`, `oklch()` and
+  `color-mix()` all pass the guard just as cleanly as a bare hex literal would have. `rgba()` is
+  allowed on purpose — shadows and the scrims need it — but that allowance is the hole: it is why
+  Task 5's lime focus ring, an `rgba()`, had to be caught by eye rather than by this test.
+- **Only `.svelte` files are scanned.** `dialogueSession.svelte.ts` and `portraitLibrary.ts`, in
+  the same `src/presentation/dialogue/` directory, are not, even though section 2's "zero
+  hard-coded hex in `src/presentation/dialogue/`" goal is stated for the directory, not the
+  extension.
+
+Neither gap is currently violated by anything in the directory; this is a documented limit, not
+a defect to fix.
+
+### 5b. Dialogue-box contrast (measured; this is the one that can overturn the design)
+
+Text pixels are not measured — antialiasing mixes edge greys in and the number means nothing.
+Instead the box's **composited backdrop** is sampled in an empty region and its WCAG ratio
+against `--c-ink` is computed.
+
+- Sample where the scene behind is **sky** — the brightest case.
+- 20px body text is not WCAG "large" (that needs 24px regular / 18.66px bold), so the threshold
+  is **4.5:1**.
+- Below threshold, `--surface-glass` alpha rises and the measurement repeats.
+
+`scene.animationsEnabled = false` before sampling — otherwise the scene moves between reads.
+See `docs/HANDOFF.md` section 7 for the catalogue of ways this project's pixel harness has
+produced false readings.
+
+### 5c. Fonts actually load (silent-failure guard)
+
+A wrong `src` path falls back to `system-ui` without an error, and the result looks plausible.
+`document.fonts.check('700 16px Poppins')` and the same for JetBrains Mono must both return
+`true`.
+
+### 5d. Byte budget
+
+Chakra Petch and Archivo removed (-24 KB); Poppins 700 and JetBrains Mono 400/800 added.
+The weights are the ones the components declare, not the 700/800 + 400/700 the first draft
+guessed at.
+Estimated net around +45 KB; the actual figure is recorded in section 6 after implementation.
+Noto Sans TC (~2 MB) is untouched.
+
+### 5e. Screenshots
+
+Before/after for: dialogue box, `Choices` open, `Backlog` open. Evidence for the user, not an
+automated check.
+
+### 5f. Existing suite
+
+All 131 existing tests stay green (21 files, measured 2026-09-04).
+
+## 6. Measurements
+
+Recorded during implementation.
+
+Task 2 font sizes (measured 2026-09-04, `du -b`): `poppins-700.woff2` 7,816 bytes,
+`jetbrains-mono-400.woff2` 21,168 bytes, `jetbrains-mono-800.woff2` 21,236 bytes (50,220 bytes
+added total). Against the 24,316 bytes removed (`chakra-petch-700.woff2` 9,900 +
+`archivo-800.woff2` 14,416), the net change is +25,904 bytes (~+25.3 KB), not the +45 KB
+estimated in 5d.
+
+### Task 9 — fonts load (2026-09-04)
+
+All three faces load from their real files. `document.fonts.load()` then `check()`:
+`700 16px Poppins` → loaded, `400 16px "JetBrains Mono"` → loaded, `800 16px "JetBrains Mono"`
+→ loaded. All seven `@font-face` rules are registered, so no `src` path is wrong.
+
+**5c's method as written is unsound and is corrected here.** `document.fonts.check()` on its own
+returns `false` for a `font-display: swap` face that nothing has requested yet — the face sits at
+status `unloaded`. `JetBrains Mono 400` read `false` on the first attempt for exactly that reason:
+it is used only by `Choices` `.head` and `DialogueOverlay` `.hint`, neither of which was on screen.
+That is a false negative, not a missing font. `document.fonts.load(spec)` must precede the check.
+
+### Task 9 — dialogue-box contrast (2026-09-04)
+
+**Bounded analytically rather than sampled, and the bound is the stronger result.** The Browser
+pane could not be displayed in this session, so the page was not compositing frames and no
+screenshot could be taken. Rather than sample one pixel of one scene, the composite was bounded
+over *every* possible backdrop.
+
+`--surface-glass` is `rgba(255, 255, 255, 0.72)`, so the panel is 72% opaque white over whatever
+the 3D scene composites to. The backdrop can contribute at most 28%, which brackets the panel
+between pure white (scene white) and `rgb(184, 184, 184)` (scene black). Against `--c-ink`:
+
+| Measured | Ratio | Threshold |
+|---|---|---|
+| Box text on the brightest possible panel | 18.93:1 | 4.5:1 |
+| Box text on the darkest possible panel | 9.50:1 | 4.5:1 |
+| `Backlog` `.text` (ink at 0.85, the weakest text on a panel) on the darkest panel | 7.26:1 | 4.5:1 |
+
+**`--surface-glass` stays at 0.72; no tuning was needed.** For `--c-ink` text, the threshold
+cannot be violated at that alpha for any scene, which a single sample could not have
+established — it would only have tested the scene as it happened to look. `backdrop-filter:
+saturate(140%)` shifts backdrop channels but cannot escape the bound, since the bound already
+spans black to white. This bound is specific to `--c-ink`; it does not extend to every colour
+used as text — see the next sub-section.
+
+Arithmetic was computed in-page rather than by hand; see `docs/HANDOFF.md` section 7 for why
+hand-computed luminance is not trusted in this project.
+
+### Task 9 — `--c-blue` fails as text; corrected to `--c-blue-deep` and `--c-ink`
+
+4d moved two lime text sites (`DialogueOverlay` `.hint`, `Backlog` `.who`) to `--c-blue` on the
+premise that lime was the only defect. That premise was correct but the replacement was never
+measured, and `--c-blue` (`#145BFF`) is itself too light as text on `--surface-glass`:
+
+| Site | worst-case panel rgb(184) | over lit grass | over the backlog's own scrim |
+|---|---|---|---|
+| `--c-blue` (as shipped) | **2.65:1** | **4.11:1** | **3.44:1** |
+| `--c-ink` | 9.50:1 | 14.72:1 | 12.30:1 |
+| `--c-blue-deep` (`#0A2E99`) | 5.66:1 | 8.76:1 | 7.32:1 |
+
+All three sit below the 4.5:1 threshold for `--c-blue` as text, and `--c-blue` also fails the
+3:1 non-text threshold at the floor, which caught `.hit:focus-visible`'s outline as well as the
+two text sites. The fix: `.hint` and `.hit:focus-visible` were never named in 4d as text/outline
+changes distinct from `.who` — see 4d's correction below — and all three move off `--c-blue`.
+`.hint` becomes `--c-ink` (it is a secondary UI label, matching `Controls` and `Backlog` `.text`);
+`.who` and `.hit:focus-visible`'s outline become `--c-blue-deep`, a darker token added
+specifically to clear 4.5:1 (text) and 3:1 (non-text) everywhere the glass can composite,
+while keeping blue as the speaker-name colour the style sheet specifies. Every other `--c-blue`
+use — the rails, the nameplate tick, and the panel border — is a fill, not text, and was unaffected.
+
+### Task 9 — one pre-existing contrast failure, not introduced here
+
+`Choices` `.head` ("SELECT AN ACTION") is white at 0.6 alpha on the scrim, and the scrim is
+`rgba(6, 7, 10, 0.55)` over the scene. Over a bright sky that composites to **2.70:1** — below the
+4.5:1 threshold for its 11px text.
+
+This is unchanged from before the branch: the scrim and the label are both as they were, and 4e's
+correction restored the label to its original value byte-for-byte after it was briefly flipped to
+ink. Fixing it would mean darkening the scrim or raising the label's opacity, both of which are
+visual-design changes this pass excludes. Recorded for a later pass, not deferred silently.
+
+### Task 9 — screenshots not captured
+
+5e's before/after screenshots could not be taken: the Browser pane was not displayable, so the page
+composited no frames. The visual result is unverified by eye. This is the one acceptance item in
+section 5 that is outstanding.
+
+## 7. Follow-ups deliberately left out
+
+- The remaining style-sheet components (quick menu, system menu, slider, toggle, status panel).
+- Applying tokens outside the dialogue system.
+- Any layout change implied by the style sheet.
+- A real unknown-speaker state in the dialogue domain, which is what `--c-yellow` would need
+  before 4f's blue/yellow distinction could be built.

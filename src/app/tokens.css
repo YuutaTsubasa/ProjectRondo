@@ -1,0 +1,68 @@
+/*
+ * Design tokens — the single source of truth for colour, type, and surface treatment.
+ * Imported once from main.ts; consumed as var(--...) inside components' scoped <style> blocks.
+ * tests/presentation/dialogueTokens.test.ts fails if a hex literal reappears in
+ * src/presentation/dialogue/; tests/app/tokens.test.ts pins this list and checks the -rgb
+ * companions against their hex. Values come from the VN UI Kit (Light); see
+ * docs/superpowers/specs/2026-09-05-vn-ui-kit-design.md.
+ */
+:root {
+  --c-blue: #1f45ff;
+  /* A blue dark enough to be TEXT or a focus indicator on --surface-glass. --c-blue itself is
+     2.34:1 there, under both the 4.5:1 text and 3:1 non-text-UI thresholds; this is 5.52:1 at the
+     worst backdrop the glass can produce. Used for the typing caret and the focus rings, which are
+     the places the kit colours blue but which are glyphs and indicators, not fills. */
+  --c-blue-deep: #0a1f6b;
+  --c-ink: #0a1440;
+  --c-blue-soft: #7aa0ff;
+  --c-pale: #eef2ff;
+  /* Bare channels for the colours a component needs at an alpha: --c-white-rgb backs the glass,
+     the focus halo and white-on-blue text; --c-blue-soft-rgb the backlog's entry rules. Neither
+     white nor ink has a hex counterpart here -- white is only ever used at an alpha, and nothing
+     needs ink at one. tests/app/tokens.test.ts keeps --c-blue-soft and its companion in sync. */
+  --c-white-rgb: 255, 255, 255;
+  --c-blue-soft-rgb: 122, 160, 255;
+
+  /* Chakra Petch carries the kit's UI voice (name tag, HUD labels, panel headers) and is used at
+     700 only. Noto Sans TC carries dialogue and choice text. Both self-hosted; the kit's own
+     Google Fonts link would be blocked by the app's CSP. */
+  --font-headline: 'Chakra Petch', 'Noto Sans TC', system-ui, sans-serif;
+  --font-body: 'Noto Sans TC', system-ui, sans-serif;
+  /* Outlined display face, used stroked rather than filled (see Backlog). */
+  --font-display: 'Archivo Black', 'Noto Sans TC', system-ui, sans-serif;
+
+  /* One glass value throughout the kit. The alpha is load-bearing: --c-ink clears 4.5:1 against the
+     darkest panel this produces at 6.61:1, with no room to weaken it further (see the design doc,
+     section 8). --c-blue is 2.34:1 as text on the same panel, so blue is a FILL only — rails, the
+     inset ring, the name tag's background, the diamonds. Text on blue is white on a blue block. */
+  --surface-glass: rgba(var(--c-white-rgb), 0.62);
+  --surface-blur: blur(12px);
+
+  /* The focus indicator, defined once because its three parts interlock: the halo's spread must
+     exceed outline-offset + outline-width, or the ring stops sitting inside the halo and the
+     WCAG 2.4.11 argument for it collapses. Both the dialogue box and the HUD tiles use it. */
+  --focus-ring: 2px solid var(--c-ink);
+  --focus-ring-offset: 3px;
+  --focus-halo: 0 0 0 7px rgba(var(--c-white-rgb), 0.92);
+
+  /* The panel-title treatment, shared by the backlog's and the choices' headings. Both are meant
+     to match -- Backlog's comment says so in prose -- and nothing else could hold them together:
+     the guards check that var() resolves and that no hex appears, so 17px becoming 18px in one of
+     the two panels would be invisible. The shorthand carries weight, size and family; tracking is
+     not part of it, so it is a second token. */
+  --font-panel-title: 700 17px var(--font-headline);
+  --panel-title-tracking: 3px;
+
+  /* The octagon's chamfer, and the ring's inset expressed as arithmetic on it rather than as two
+     more literals. .pane's silhouette and .ring's outer loop must agree or the ring stops tracing
+     the panel, and nothing here could see them drift -- the same argument --rail-dash was extracted
+     on, with more numbers at stake. */
+  --octagon-chamfer: 18px;
+  --octagon-ring: 2px;
+
+  /* The kit's dashed rail, on the dialogue box and the backlog. Defined once: the dash rhythm is
+     as much part of the motif as the colour, and two hand-kept copies drift without any test here
+     being able to see it -- the guards check that var() resolves and that no hex appears, neither
+     of which notices 3px becoming 4px in one of two places. */
+  --rail-dash: repeating-linear-gradient(to bottom, var(--c-blue) 0 3px, transparent 3px 6px);
+}

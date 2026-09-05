@@ -987,7 +987,7 @@ function dampenSwayTowardMean(group: AnimationGroup, keep: number): void {
 }
 
 /** Planar speed above which the knight is at least walking (mirrors Godot's WalkAnimationThreshold). */
-const WALK_THRESHOLD = 0.6;
+export const WALK_THRESHOLD = 0.6;
 /** Locomotion cross-fade rate; one clip's worth of blend takes ~0.2s (mirrors Godot's AnimationBlend). */
 const BLEND_PER_SECOND = 1 / 0.2;
 /** Jump blends over the locomotion faster than clips blend into each other — a jump must read as immediate. */

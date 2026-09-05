@@ -17,6 +17,28 @@
   let showLog = $state(false);
   let lineDone = $state(false);
 
+  // A modal is open, so the scene UI behind it must neither take focus nor act on Enter.
+  const modalOpen = $derived(showLog || session.choices.length > 0);
+
+  // Focus has to move INTO a modal and come back out. inert does not blur what it covers -- Chrome
+  // leaves focus exactly where it was, which is now inside the inert subtree and so non-interactive
+  // and out of the accessibility tree. The modals focus themselves on mount; this half remembers
+  // where focus came from so it can be handed back.
+  //
+  // The capture runs in $effect.pre, before the DOM update applies inert: a normal $effect runs
+  // after, by which point an engine that *does* implement the spec's focus fixup has already moved
+  // activeElement to <body> and the saved value is useless.
+  let focusBeforeModal: HTMLElement | null = null;
+  $effect.pre(() => {
+    if (modalOpen) focusBeforeModal ??= document.activeElement as HTMLElement | null;
+  });
+  $effect(() => {
+    if (modalOpen || !focusBeforeModal) return;
+    const target = focusBeforeModal;
+    focusBeforeModal = null;
+    if (target.isConnected) target.focus();
+  });
+
   function advance() {
     session.advance();
     if (session.isFinished) { finish(); }
@@ -27,9 +49,6 @@
     if (session.choices.length > 0) return;
     if (lineRef?.reveal()) return;
     advance();
-  }
-  function onBoxKeydown(e: KeyboardEvent) {
-    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onBoxClick(); }
   }
   function skip() {
     // Bail after nodeCount steps: a terminating fast-forward visits each node at most once, so
@@ -45,7 +64,7 @@
   // AUTO: once the line finishes revealing, advance after a pause (only when not awaiting a choice).
   // Setting auto = false (e.g. via finish()) re-runs this effect and fires the cleanup.
   $effect(() => {
-    if (auto && lineDone && session.choices.length === 0 && !session.isFinished) {
+    if (auto && lineDone && !modalOpen && !session.isFinished) {
       const t = setTimeout(advance, AUTO_ADVANCE_MS);
       return () => clearTimeout(t);
     }
@@ -54,36 +73,58 @@
 
 <!-- Transparent layer over the live 3D hub — only the panels are opaque, so the scene shows through. -->
 <div class="overlay">
-  <!-- Standing character 立繪, behind the dialogue box and over the live 3D hub. -->
-  <Portrait portrait={session.portrait} />
+  <!-- Everything the two modals cover. Both are opaque full-screen panels, so without inert a Tab
+       walks straight out of them onto controls nobody can see -- and Enter on the dialogue box would
+       advance the session behind the panel the user is reading. -->
+  <div class="scene-ui" inert={modalOpen}>
+    <!-- Standing character 立繪, behind the dialogue box and over the live 3D hub. -->
+    <Portrait portrait={session.portrait} />
 
-  <Controls {auto} onToggleAuto={() => (auto = !auto)} onSkip={skip} onToggleLog={() => (showLog = !showLog)} />
+    <Controls {auto} onToggleAuto={() => (auto = !auto)} onSkip={skip} onToggleLog={() => (showLog = !showLog)} />
 
-  <!-- Choices take over screen-centre with a full-screen frosted scrim (see Choices.svelte). -->
-  <Choices choices={session.choices} onSelect={onSelect} />
-
-  <div class="dock">
-    <Nameplate speaker={session.speaker} />
-    <div class="box">
-      <div
-        class="hit"
-        role="button"
-        tabindex="0"
-        onclick={onBoxClick}
-        onkeydown={onBoxKeydown}
-        aria-label="advance dialogue"
-      >
-        {#key session.line}
-          <Line bind:this={lineRef} text={session.line} onDone={() => (lineDone = true)} />
-        {/key}
-      </div>
-      <div class="footer">
-        <span class="mark" class:on={auto}></span>
-        {#if auto}<span class="hint">AUTO</span>{/if}
+    <div class="dock">
+      <Nameplate speaker={session.speaker} />
+      <!-- .box is a plain container. The advance affordance is the <button class="hit"> at the end,
+           stretched over the whole box: a role="button" wrapper would prune everything inside it
+           from the accessibility tree (button has presentational children) and its aria-label would
+           replace the name, so the dialogue line — the primary content on screen — became
+           unreachable. Keeping them siblings gives the line a path to assistive technology and still
+           makes every pixel of the box, padding and arrow included, an advance target. -->
+      <div class="box">
+        <!-- The glass and the octagon silhouette. Separate from .box so .box stays unclipped and can
+             paint its focus outline. -->
+        <div class="pane" aria-hidden="true"></div>
+        <!-- The inset ring: an evenodd clip-path over a solid fill, the outer octagon minus one
+             inset by --octagon-ring. That inset is exact on the straight edges and about 1.41x
+             wider across the four chamfers, since it is applied per axis rather than along the
+             edge normal — which is what the kit's own artwork does too. -->
+        <div class="ring" aria-hidden="true"></div>
+        <!-- Positioned, so it paints above .pane. In-flow content would not: a positioned sibling
+             with z-index auto paints after non-positioned content, so the glass would cover the text. -->
+        <div class="content" aria-live="polite" aria-atomic="true">
+          <!-- Five markers, static. The kit shows three filled and two hollow; nothing in the dialogue
+               domain maps to them, so they are decoration rather than an invented progress readout. -->
+          <div class="marks" aria-hidden="true">
+            <span class="on"></span><span class="on"></span><span class="on"></span><span></span><span></span>
+          </div>
+          {#key session.line}
+            <Line bind:this={lineRef} text={session.line} onDone={() => (lineDone = true)} />
+          {/key}
+        </div>
+        <svg class="advance" width="30" height="18" viewBox="0 0 30 18" fill="none" aria-hidden="true"><path d="M0 9h26M20 3l6 6-6 6" /></svg>
+        <div class="rail" aria-hidden="true"></div>
+        <!-- Last, so it takes the clicks; stretched over the box so its padding and the arrow are
+             part of the target. Carries the focus ring for the box. -->
+        <button class="hit" onclick={onBoxClick} aria-label="advance dialogue"></button>
       </div>
     </div>
   </div>
 
+  <!-- Both modals sit outside the inert wrapper, so they keep their own focus, and both are mounted
+       conditionally rather than self-hiding: a fresh mount is what makes their focus effect run on
+       mount. Choices self-hiding behind an inner {#if} left the component permanently mounted, and
+       its focus landed early enough for Chrome to blur it again. -->
+  {#if session.choices.length > 0}<Choices choices={session.choices} prompt={session.line} onSelect={onSelect} />{/if}
   {#if showLog}<Backlog entries={session.backlog} onClose={() => (showLog = false)} />{/if}
 </div>
 
@@ -93,45 +134,106 @@
     inset: 0;
     z-index: 10;
     pointer-events: none; /* let clicks fall through to the 3D canvas except on the panels below */
-    font-family: 'Noto Sans TC', system-ui, sans-serif;
+    font-family: var(--font-body);
+    color: var(--c-ink);
   }
-  /* Bottom-anchored dialogue dock, matching the design's inset panels. */
+  /* Geometrically identical to .overlay, so the absolutely positioned children inside it resolve
+     against the same box. It exists only to carry inert. */
+  .scene-ui { position: absolute; inset: 0; pointer-events: none; }
+  /* Bottom-anchored dialogue dock, centred. The kit insets the box at left:140 right:34 of 960 to
+     leave room for the standing portrait, but that 11-point asymmetry reads as a right-shift at
+     other aspect ratios. These insets keep the kit's box WIDTH -- 786 of 960, ~82% -- and centre
+     it instead. */
   .dock {
     position: absolute;
-    left: 28px;
-    right: 28px;
+    left: 9%;
+    right: 9%;
     bottom: 28px;
     display: flex;
     flex-direction: column;
     align-items: flex-start;
-    gap: 10px;
     pointer-events: none;
   }
+  /* The octagon lives on .pane, not here. clip-path clips an element's whole rendering, outline
+     included, so a clipped .box could not paint a focus ring: outline-offset puts the ring outside
+     the border box, which is exactly the region the clip removes. Keeping .box unclipped is what
+     makes the focus indicator visible at all. */
   .box {
     align-self: stretch;
-    /* Fixed, taller VN textbox: consistent height regardless of line length. */
-    height: clamp(180px, 24vh, 240px);
-    display: flex;
-    flex-direction: column;
+    position: relative;
     box-sizing: border-box;
-    background: rgba(10, 10, 12, 0.55);
-    backdrop-filter: blur(28px) saturate(140%);
-    -webkit-backdrop-filter: blur(28px) saturate(140%);
-    border: 1px solid rgba(255, 255, 255, 0.14);
-    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.45);
-    padding: 22px 26px;
+    min-height: clamp(150px, 20vh, 200px);
+    padding: 20px 24px 28px;
     pointer-events: auto;
   }
-  .hit { flex: 1; cursor: pointer; outline: none; }
-  .hit:focus-visible { outline: 1px solid rgba(216, 255, 0, 0.6); outline-offset: 4px; }
-  .footer { display: flex; align-items: center; gap: 12px; margin-top: auto; min-height: 3px; }
-  .mark { width: 20px; height: 3px; background: rgba(255, 255, 255, 0.22); display: block; }
-  .mark.on { background: #d8ff00; }
-  .hint {
-    margin-left: auto;
-    font-family: 'Archivo', system-ui, sans-serif;
-    font-size: 12px;
-    letter-spacing: 0.16em;
-    color: #d8ff00;
+  /* Stretched over the whole box, and last in the DOM so it is above the content for hit-testing.
+     Transparent: the box's own layers draw everything. */
+  .hit {
+    position: absolute;
+    inset: 0;
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    outline: none;
+  }
+  .pane {
+    position: absolute;
+    inset: 0;
+    background: var(--surface-glass);
+    backdrop-filter: var(--surface-blur);
+    -webkit-backdrop-filter: var(--surface-blur);
+    clip-path: polygon(var(--octagon-chamfer) 0, calc(100% - var(--octagon-chamfer)) 0, 100% var(--octagon-chamfer), 100% calc(100% - var(--octagon-chamfer)), calc(100% - var(--octagon-chamfer)) 100%, var(--octagon-chamfer) 100%, 0 calc(100% - var(--octagon-chamfer)), 0 var(--octagon-chamfer));
+    pointer-events: none;
+  }
+  .ring {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: var(--c-blue);
+    clip-path: polygon(evenodd, var(--octagon-chamfer) 0, calc(100% - var(--octagon-chamfer)) 0, 100% var(--octagon-chamfer), 100% calc(100% - var(--octagon-chamfer)), calc(100% - var(--octagon-chamfer)) 100%, var(--octagon-chamfer) 100%, 0 calc(100% - var(--octagon-chamfer)), 0 var(--octagon-chamfer), var(--octagon-chamfer) 0, calc(var(--octagon-chamfer) + var(--octagon-ring)) var(--octagon-ring), calc(100% - var(--octagon-chamfer) - var(--octagon-ring)) var(--octagon-ring), calc(100% - var(--octagon-ring)) calc(var(--octagon-chamfer) + var(--octagon-ring)), calc(100% - var(--octagon-ring)) calc(100% - var(--octagon-chamfer) - var(--octagon-ring)), calc(100% - var(--octagon-chamfer) - var(--octagon-ring)) calc(100% - var(--octagon-ring)), calc(var(--octagon-chamfer) + var(--octagon-ring)) calc(100% - var(--octagon-ring)), var(--octagon-ring) calc(100% - var(--octagon-chamfer) - var(--octagon-ring)), var(--octagon-ring) calc(var(--octagon-chamfer) + var(--octagon-ring)), calc(var(--octagon-chamfer) + var(--octagon-ring)) var(--octagon-ring));
+  }
+  .content { position: relative; }
+  .marks {
+    display: flex;
+    gap: 5px;
+    margin-bottom: 12px;
+  }
+  .marks span {
+    width: 8px;
+    height: 8px;
+    background: var(--c-ink);
+    transform: rotate(45deg);
+    display: block;
+  }
+  .marks span.on { background: var(--c-blue); }
+  /* The ring sits OUTSIDE the glass -- outline-offset puts it beyond .box's border box, while the
+     glass is .pane at inset 0 -- so its backdrop is the live 3D scene, not the panel any of this
+     file's contrast figures were measured against. A single colour cannot clear 3:1 against a
+     backdrop that changes with the camera. The halo fixes that: the ring's adjacent colour is the
+     white band it sits inside, not the scene, so the indicator carries its own contrast. */
+  .hit:focus-visible {
+    outline: var(--focus-ring);
+    outline-offset: var(--focus-ring-offset);
+    box-shadow: var(--focus-halo);
+  }
+  .advance {
+    position: absolute;
+    right: 26px;
+    bottom: 16px;
+    stroke: var(--c-ink);
+    stroke-width: 1.6;
+    pointer-events: none;
+  }
+  /* The kit's dashed rail down the right edge. */
+  .rail {
+    position: absolute;
+    right: 8px;
+    top: 12px;
+    bottom: 12px;
+    width: 11px;
+    border: 1px solid var(--c-blue);
+    background: var(--rail-dash);
+    pointer-events: none;
   }
 </style>
