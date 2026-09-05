@@ -45,8 +45,9 @@ the hub plays an AVG dialogue intro.
 It's also audible: the hub theme crossfades in once the intro ends, footsteps play as a two-layer
 sound (armour plus the grass surface underfoot) locked to each foot's contact phase, and jumps get
 their own take-off and landing cue. Ambience (a wind bed, water at the pond) is built and shipped but
-**not currently wired in** — both source recordings are too short to loop without reading as a pulse;
-see the audio design spec §5.3.
+**not currently wired in** — the beds loop without an audible seam, but a 6–8 s bed built from a 1–2 s
+source still repeats at the source's own period, and on the first listen the ear finds it. Longer
+recordings are the fix, not a better loop; see the audio design spec §5.3a.
 
 ## Develop
 
