@@ -5,6 +5,7 @@ import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
 import '@babylonjs/core/Materials/standardMaterial';
 import { Color3 } from '@babylonjs/core/Maths/math.color';
 import { type Vec3, vec3 } from '../../domain/math/vec3';
+import { HOMING_RED_RGB } from './homingColors';
 
 /**
  * The `size` passed to {@link CreatePolyhedron} below. **Not a world-unit dimension**: Babylon's
@@ -40,14 +41,11 @@ const CRYSTAL_EMISSIVE = new Color3(0.35, 0.75, 0.95);
  * Emissive colour a crystal snaps to when `flash()` is called, eased back to `CRYSTAL_EMISSIVE` by the
  * decay observer below.
  *
- * **Untuned**: plain saturated red, chosen only so a hit reads unambiguously against the crystal's own
- * cyan `CRYSTAL_EMISSIVE` — and to read as a continuation of `homingReticle.ts`'s red ring rather than
- * a new colour vocabulary for "this crystal matters right now". It HAS been watched in the browser — a
- * hit crystal snaps to this red on the bounce frame and reads unmistakably — but that only confirmed
- * the value is legible, which was never the doubt: it was compared against no other red and against no
- * non-red, so nothing has been chosen. Retune by eye against the running scene.
+ * The homing red ({@link HOMING_RED_RGB}), not a red of this module's own: the reticle draws the same
+ * one, and the shared definition is what holds a hit's colour to the aim's rather than a comment
+ * saying they match. Its Untuned marking, and the retune, live there.
  */
-const FLASH_EMISSIVE = new Color3(1, 0, 0);
+const FLASH_EMISSIVE = new Color3(...HOMING_RED_RGB);
 
 /**
  * How long a flash takes to ease back to `CRYSTAL_EMISSIVE`, in seconds.

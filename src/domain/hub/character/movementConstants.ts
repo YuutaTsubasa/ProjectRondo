@@ -19,8 +19,9 @@ export const MovementConstants = {
   maxSpeed: 4, runSpeed: 8, turnRate: 10, acceleration: 13, deceleration: 17, gravity: 24, jumpSpeed: 9,
 
   /**
-   * Homing attack. ALL FIVE ARE UNTUNED — these are derived starting points, and no pass has changed
-   * any of them. That is not the same as no evidence: the 2026-09-05 browser pass exercised all five
+   * Homing attack. ALL FIVE ARE UNTUNED — four are derived starting points and `homingRange` is a
+   * plain guess, and no pass has changed any of them. That is not the same as no evidence: the
+   * 2026-09-05 browser pass exercised all five
    * and every check passed at its derived value, which is why none was retuned. But it ran at commit
    * `d3b64cb`, before `05f1923` made the dash correct course toward its target every frame, and it
    * covered less than the list of names suggests — no check measures dash speed by eye, for instance.
@@ -30,7 +31,12 @@ export const MovementConstants = {
    *
    * `homingSpeed` 24 is 3x `runSpeed`, so the dash reads as a dash rather than a fast run.
    * `homingBounceSpeed` 9 equals `jumpSpeed`, so a chain gains the height the player already has an
-   * intuition for. `homingRange` 12 is three of the knight's jump apexes. `homingConeHalfAngle`
+   * intuition for. `homingRange` 12 is derived from nothing — a guess at "far enough to be worth
+   * aiming at, near enough that the dash is not a teleport". It is the one of the five with no
+   * argument behind it, so it is the first to retune. For scale while doing so: the knight's jump
+   * apex is `jumpSpeed²/(2*gravity)` = 1.6875 u (the run/jump design spec records the measured arc as
+   * +1.70 u), so 12 u is ~7 apexes, and a running jump covers `runSpeed * 2*jumpSpeed/gravity` = 6 u
+   * of ground, so it is two of those. `homingConeHalfAngle`
    * 0.61 rad is 35 degrees — wide enough to forgive a roughly-aimed camera, narrow enough that two
    * crystals at different headings stay distinguishable, which is the number route choice lives or
    * dies on. `homingMaxDuration` 0.6 s is the 0.5 s it takes to cross `homingRange` at `homingSpeed`

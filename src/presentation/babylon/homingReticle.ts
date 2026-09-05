@@ -10,6 +10,7 @@ import { Color3 } from '@babylonjs/core/Maths/math.color';
 import { type Vec3 } from '../../domain/math/vec3';
 import { toBabylon } from './vectorConversions';
 import { CRYSTAL_EXTENT } from './crystals';
+import { HOMING_RED_RGB } from './homingColors';
 
 /**
  * Reticle diameter, as a multiple of a crystal's own full extent ({@link CRYSTAL_EXTENT}).
@@ -60,15 +61,11 @@ const RETICLE_TEXTURE_SIZE = 128;
 /**
  * Reticle tint. Unlit and saturated so it reads as a HUD marker rather than scenery.
  *
- * **Untuned**: plain red, chosen only to be unambiguous against the crystal's own cyan
- * `CRYSTAL_EMISSIVE` (`crystals.ts`) — a hit crystal flashes this same red (`crystals.ts`'s
- * `FLASH_EMISSIVE`), so the two are meant to read as one colour vocabulary ("this crystal matters"),
- * not independently chosen. The ring has been watched in the browser across the three rounds of
- * adjustment that settled {@link RETICLE_EXTENT_RATIO} and {@link RETICLE_ALPHA}, and the red held up
- * against the crystal's cyan each time — but every round changed the ring's size or its opacity, never
- * its colour, so this value has been confirmed legible rather than chosen. Retune by eye.
+ * The homing red ({@link HOMING_RED_RGB}), not a red of this module's own: the hit flash uses the same
+ * one, and the shared definition is what holds aim and arrival to one colour rather than a comment
+ * saying they match. Its Untuned marking, and the retune, live there.
  */
-const RETICLE_EMISSIVE = new Color3(1, 0, 0);
+const RETICLE_EMISSIVE = new Color3(...HOMING_RED_RGB);
 
 /**
  * Opacity of the whole ring, multiplied on top of the texture's own alpha.

@@ -33,10 +33,21 @@ export interface HomingLockConfig extends HomingSelectionConfig {
 export interface HomingLockInput {
   /** `CharacterMotion.homing !== null` from last frame's result: a dash is already under way. */
   readonly dashInFlight: boolean;
-  /** The jump key-press consumed this frame. Airborne it asks for a dash; grounded it is a jump. */
+  /** The jump key-press consumed this frame. Off the ground it asks for a dash; grounded it is a jump. */
   readonly jumpPressed: boolean;
-  /** `groundContact`'s verdict, not the raw support probe — the same one the visuals read. */
-  readonly airborne: boolean;
+  /**
+   * The complement of what the domain is handed as `isGrounded` this frame — i.e.
+   * `!GroundContactResult.grounded`, which already folds coyote time and the takeoff guard in.
+   *
+   * Deliberately NOT `GroundContactResult.airborne`: that is the *animation* debounce, held false
+   * for `FALL_GRACE_SECONDS` 0.2 s so a two-frame hop does not throw a fall pose, while `grounded`
+   * stops accepting the press as a jump at `COYOTE_SECONDS` 0.15 s. Gating on the
+   * debounce therefore left the 0.15–0.2 s of an uncommanded fall refusing both — the press was
+   * consumed, became no jump, and never reached this machine either. Reading the same boolean the
+   * domain reads partitions every frame between the two: exactly one of a jump and a dash takes the
+   * press, never neither.
+   */
+  readonly offGround: boolean;
   /** The player's world position this frame. */
   readonly from: Vec3;
   /**
@@ -80,7 +91,7 @@ export const stepHomingLock = (
   // Not asked while a dash is in flight: the lock is committed and the trail already says what is
   // happening, and grounded the same button is an ordinary jump, so pointing a reticle at a crystal
   // there would lie about what the press does.
-  const candidate = input.airborne && !input.dashInFlight
+  const candidate = input.offGround && !input.dashInFlight
     ? selectHomingTarget(input.from, input.cameraForward, input.candidates, config)
     : null;
   const crystal = input.dashInFlight ? lock.crystal : (input.jumpPressed ? candidate : null);

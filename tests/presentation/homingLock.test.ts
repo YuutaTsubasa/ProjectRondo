@@ -2,6 +2,9 @@ import { describe, it, expect } from 'vitest';
 import {
   stepHomingLock, NO_HOMING_LOCK, type HomingLockConfig, type HomingLockInput,
 } from '../../src/presentation/babylon/homingLock';
+import {
+  stepGroundContact, INITIAL_GROUND_CONTACT, COYOTE_SECONDS, FALL_GRACE_SECONDS,
+} from '../../src/presentation/babylon/groundContact';
 import { vec3, ZERO3 } from '../../src/domain/math/vec3';
 
 // The shipped homing tuning; `homingSpeed` is what the entry estimate divides by.
@@ -16,7 +19,7 @@ const BEHIND = vec3(0, 0, 8);
 const frame = (overrides: Partial<HomingLockInput> = {}): HomingLockInput => ({
   dashInFlight: false,
   jumpPressed: false,
-  airborne: true,
+  offGround: true,
   from: ZERO3,
   cameraForward: FORWARD,
   candidates: [NEAR, FAR, BEHIND],
@@ -46,7 +49,7 @@ describe('stepHomingLock', () => {
 
   it('locks nothing on the ground — the same press is an ordinary jump there', () => {
     const { lock, preview } = stepHomingLock(
-      NO_HOMING_LOCK, frame({ jumpPressed: true, airborne: false }), C,
+      NO_HOMING_LOCK, frame({ jumpPressed: true, offGround: false }), C,
     );
     expect(lock.crystal).toBeNull();
     // And the reticle stays hidden, rather than pointing at a crystal the press will not fly to.
@@ -81,7 +84,7 @@ describe('stepHomingLock', () => {
     expect(released.target).toBeNull();
   });
 
-  it('previews what a press would hit on every airborne frame, press or not', () => {
+  it('previews what a press would hit on every off-the-ground frame, press or not', () => {
     expect(stepHomingLock(NO_HOMING_LOCK, frame(), C).preview).toBe(0);
   });
 
@@ -94,5 +97,56 @@ describe('stepHomingLock', () => {
     const input = frame({ candidates: [FAR, NEAR] }); // nearest is index 1, so this is not index luck
     expect(stepHomingLock(NO_HOMING_LOCK, input, C).preview)
       .toBe(stepHomingLock(NO_HOMING_LOCK, { ...input, jumpPressed: true }, C).lock.crystal);
+  });
+});
+
+/**
+ * `stepGroundContact` and `stepHomingLock` share one edge-triggered press, and the two gates the
+ * press is offered to have to cover every frame between them: a press that becomes neither a jump
+ * nor a dash is a frame in which the button does nothing at all.
+ *
+ * They did not always. The lock used to read `GroundContactResult.airborne` — the animation debounce,
+ * false until an *uncommanded* fall outlasts FALL_GRACE_SECONDS — while a jump stops being legal at
+ * the shorter COYOTE_SECONDS, so the 0.05 s between them refused both. This drives the two shipped
+ * machines against each other, which is the only place that gap is visible.
+ */
+describe('stepHomingLock composed with stepGroundContact', () => {
+  const DT = 1 / 60;
+  const FALLING = {
+    supported: false, jumpPressed: false, verticalSpeed: -5, bounced: false, delta: DT,
+  };
+
+  /** Walks off a ledge (no jump, so `jumpSpent` is false), falls for `seconds`, then presses. */
+  const pressAfterFalling = (seconds: number) => {
+    let contact = INITIAL_GROUND_CONTACT;
+    for (let t = 0; t < seconds; t += DT) contact = stepGroundContact(contact, FALLING).state;
+
+    const ground = stepGroundContact(contact, { ...FALLING, jumpPressed: true });
+    const { lock } = stepHomingLock(
+      NO_HOMING_LOCK, frame({ jumpPressed: true, offGround: !ground.grounded }), C,
+    );
+    if (ground.jumpRequested && lock.crystal !== null) return 'both';
+    if (ground.jumpRequested) return 'jump';
+    return lock.crystal === null ? 'nothing' : 'dash';
+  };
+
+  // Well past FALL_GRACE_SECONDS, so the sweep covers the whole of both gates and the gap between.
+  const FALL = Array.from({ length: 30 }, (_, i) => i * DT);
+
+  it('gives every press of an uncommanded fall to exactly one of the two', () => {
+    const answered = FALL.map((t) => ({ t, answer: pressAfterFalling(t) }));
+    expect(answered.filter(({ answer }) => answer === 'nothing' || answer === 'both')).toEqual([]);
+  });
+
+  it('turns the press into a dash across the window that used to swallow it', () => {
+    // The measured failure: 0.150 / 0.167 / 0.183 s all produced neither a jump nor a dash.
+    for (let t = COYOTE_SECONDS; t <= FALL_GRACE_SECONDS; t += DT) {
+      expect(pressAfterFalling(t)).toBe('dash');
+    }
+  });
+
+  it('still spends the press on a jump while coyote time is open', () => {
+    expect(pressAfterFalling(0)).toBe('jump');
+    expect(pressAfterFalling(COYOTE_SECONDS / 2)).toBe('jump');
   });
 });

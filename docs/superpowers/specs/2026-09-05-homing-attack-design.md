@@ -53,7 +53,7 @@ selectHomingTarget(
   from: Vec3,
   cameraForward: Vec3,
   candidates: readonly Vec3[],
-  config: HomingConfig,
+  config: HomingSelectionConfig,
 ): number | null
 ```
 
@@ -161,8 +161,10 @@ harmless. In the tower it is a level-design lever, and the tower's spec owns it.
 `homingRange`, `homingConeHalfAngle`, `homingSpeed`, `homingBounceSpeed`, `homingMaxDuration`, beside
 the existing movement constants.
 
-Each shipped with a **derived** starting value and an explicit **Untuned** marking, in the house style
-this repo's review has repeatedly enforced: a constant may not claim a tuning that did not happen.
+Each shipped with an explicit **Untuned** marking, in the house style this repo's review has
+repeatedly enforced: a constant may not claim a tuning that did not happen. Four of the five also
+shipped with a **derived** starting value; `homingRange` did not, and its doc says so rather than
+offering a derivation — a constant may not claim a reasoning that did not happen either.
 The browser pass (2026-09-05, full report at `.superpowers/sdd/2026-09-05-homing-attack/task-7-report.md`)
 ran all four objective checks from the task brief against `window.hub`/`window.moveConfig` in the dev
 build, using console-driven teleports and a manually-stepped render loop (`scene.render()`) rather than

@@ -119,16 +119,14 @@ export function createPlayer(
     if (dt <= 0) return;
 
     // The jump key is edge-triggered and consumed once, then offered to BOTH the ground-contact
-    // machine below and the homing lock; each decides for itself whether this press is for it. Their
-    // gates are NOT disjoint: `stepGroundContact` moves `contact` to `rising` before it reads
-    // `airborne` off it, so the frame an ordinary jump launches reports `jumpRequested` and `airborne`
-    // together, and the lock does commit a crystal on that press. What stops it becoming a dash is the
-    // domain's own gate — `isHomingFrame` requires `!motion.isGrounded`, and a launch frame reports
-    // grounded (that is what lets the domain accept the jump at all) — after which the lock, offered no
-    // press next frame, releases the crystal again. So that `isGrounded` check is load-bearing here,
-    // not a redundant second guard.
+    // machine below and the homing lock. The two gates are one boolean and its complement — the lock
+    // is handed `!grounded`, the same answer the domain gets as `isGrounded` — so every press goes to
+    // exactly one of them and none can fall between. That partition is the fix for a window in which
+    // one did: the lock used to be gated on `player.airborne`, the FALL_GRACE_SECONDS animation
+    // debounce, which lags `grounded`'s COYOTE_SECONDS by 0.05 s, and a press inside that lag was
+    // consumed, refused as a jump and never offered as a dash. See `HomingLockInput.offGround`.
     //
-    // Acting on it is not the same as consuming it, though. `stepGroundContact` arms its
+    // Acting on a press is not the same as consuming it, though. `stepGroundContact` arms its
     // `JUMP_BUFFER_SECONDS` buffer from every press it is handed, including one spent on a dash or on
     // nothing, and that buffered press can only be spent if the character becomes jumpable inside the
     // window — which after a dash it does not. So a chain press made a few frames early is dropped,
@@ -155,7 +153,7 @@ export function createPlayer(
     const lockResult = stepHomingLock(homingLock, {
       dashInFlight: player.motion.homing !== null,
       jumpPressed: pressed,
-      airborne: player.airborne,
+      offGround: !grounded,
       // The physics capsule's position, NOT `root`'s: `root.position.y` is `visualY`, the smoothed
       // visual height, and the filter's steady-state lag while the capsule climbs at `homingSpeed` 24
       // is 1.92 u at 60 fps (2.14 u at the MAX_DT clamp). Everything `stepHoming` derives from this
