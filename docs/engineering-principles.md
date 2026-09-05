@@ -43,12 +43,15 @@ prototype; on the TypeScript side they are upheld by `tsc` strict mode and revie
 
 The 18 above are about how code is written. This section is about what has actually gone wrong here.
 
-PR #33 (the VN UI kit) took **18 review rounds and 55 findings** to reach a clean verdict. They were
-not 55 independent problems — they were about six mistakes, each made several times, mostly in code
-that every automated check passed. These are written as **checks to run**, not rules to remember,
-because the rule was not the missing part: `tokens.css` said "`--c-blue` is a fill only" in a comment,
-and the same PR then broke it at four sites -- the typing caret and two focus rings, all fixed
-together in `3035f7a`, and the choice list's caret glyph, found five rounds later in `1b756b5`.
+PR #33 (the VN UI kit) took **18 review rounds and 58 findings** to reach a clean verdict — 4 from
+the automated review that opened it, and 54 across the 17 rounds after that (51 anchored to a line,
+3 in review bodies). They were not 58 independent problems. They were about six mistakes, each made
+several times, mostly in code that every automated check passed.
+
+These are written as **checks to run**, not rules to remember, because the rule was never the
+missing part: `tokens.css` said "`--c-blue` is a fill only" in a comment, and the same PR then broke
+it at four sites — the typing caret and two focus rings, fixed together in `3035f7a`, and the choice
+list's caret glyph, found four rounds later in `1b756b5`.
 
 ### Colour used as text or as an indicator
 

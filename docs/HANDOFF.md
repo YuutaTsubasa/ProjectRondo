@@ -445,8 +445,9 @@ The §7 entries above are about the engine. These are about the *verification*, 
 PR #33's 18 review rounds — each one is a case where a check reported success over something broken.
 
 - **`element.click()` dispatches no pointer events.** It does not reproduce pointer-focus behaviour,
-  so it cannot verify anything about focus after a click. A defect that only appears on the click
-  path was "verified fixed" with it, twice, before a real pointer click showed otherwise. Use the
+  so it cannot verify anything about focus after a click. A defect that only appeared on the click
+  path was "verified fixed" with it in round 9 of PR #33, and stayed broken until round 11 drove a
+  real pointer click. Use the
   Browser pane's own click action when focus is what you are testing.
 - **`svelte-check` and `vite build` have both been green over broken markup.** `svelte-check`
   reported zero errors over a file Vite's compiler rejected outright; and both were green over a CSS
@@ -466,6 +467,7 @@ PR #33's 18 review rounds — each one is a case where a check reported success 
   timers were advanced before Svelte ever re-ran its effects, one because an unkeyed `{#each}` reused
   the button so focus appeared to survive. **Break the code and watch the test fail** before
   believing a new test. It is one command and it has been wrong more often than not here.
+
 ## 8. Claude's local memory (optional, but valuable for continuity)
 
 The richest operational notes live in **Claude's machine-local memory**, not in git:
