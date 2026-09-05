@@ -131,7 +131,7 @@ const load = async (audio: GameAudio, cue: SoundCue, spec: CueSpec): Promise<Loa
         : 'unavailable, it will be silent';
     console.warn(
       `[audio] cue "${cue}" ${what}:`,
-      failed.map((result: PromiseRejectedResult) => result.reason),
+      failed.map((result) => result.reason),
     );
   }
 
