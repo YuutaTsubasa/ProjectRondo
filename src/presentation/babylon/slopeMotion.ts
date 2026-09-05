@@ -42,3 +42,38 @@ export const alignToSurface = (velocity: Vec3, normal: Vec3): Vec3 => {
   const intoSlope = velocity.x * normal.x + velocity.z * normal.z;
   return vec3(velocity.x, -intoSlope / normal.y, velocity.z);
 };
+
+/** What a frame has to say about itself before {@link alignToSurface} may be applied to it. */
+export interface SolverFrame {
+  /** `groundContact`'s verdict, the same one the domain was handed as `isGrounded`. */
+  readonly grounded: boolean;
+  /**
+   * The domain decided this frame's vertical velocity itself, instead of leaving it at the 0 that
+   * ordinary grounded locomotion produces: a jump, or any frame of a homing dash — including the
+   * arrival frame, whose velocity is the bounce.
+   */
+  readonly ownsClimb: boolean;
+}
+
+/**
+ * The velocity to hand the character controller for one frame.
+ *
+ * {@link alignToSurface} *replaces* `velocity.y` with the climb the surface demands rather than adding
+ * to it, so it may only be shown a velocity whose vertical component is the surface's to decide.
+ * Grounded locomotion is the only such frame: `nextVerticalSpeed` returns 0 for it, and the climb is
+ * then entirely a fact about the ground. Every other velocity the domain emits carries a vertical
+ * speed that the substitution would throw away — a jump's `jumpSpeed`, a dash's climb toward an
+ * overhead crystal, an arrival's `homingBounceSpeed`.
+ *
+ * Both homing cases genuinely reach a grounded frame, which is why the jump alone is not enough of a
+ * guard: `stepGroundContact` moves an `airborne` contact to `grounded` on any supported frame, while
+ * `isHomingFrame` keeps a dash alive regardless of `isGrounded`. A dash skimming ground on its way to
+ * an overhead crystal was flattened to horizontal for as long as the probe held support, and a bounce
+ * — purely vertical, so its `intoSlope` is 0 — was replaced with `(0, 0, 0)` before Havok saw it,
+ * while the crystal still flashed and the knight still restarted its jump clip.
+ */
+export const solverVelocity = (
+  velocity: Vec3,
+  surfaceNormal: Vec3,
+  { grounded, ownsClimb }: SolverFrame,
+): Vec3 => (grounded && !ownsClimb ? alignToSurface(velocity, surfaceNormal) : velocity);

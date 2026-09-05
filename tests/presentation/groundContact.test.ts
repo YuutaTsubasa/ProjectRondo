@@ -14,7 +14,9 @@ const frames = (seconds: number) => Math.ceil(seconds / DT) + 1;
 
 /** One frame with everything quiet unless overridden. */
 const frame = (state: GroundContactState, over: Partial<Parameters<typeof stepGroundContact>[1]> = {}) =>
-  stepGroundContact(state, { supported: true, jumpPressed: false, verticalSpeed: 0, delta: DT, ...over });
+  stepGroundContact(state, {
+    supported: true, jumpPressed: false, verticalSpeed: 0, bounced: false, delta: DT, ...over,
+  });
 const settle = (state: GroundContactState, n: number, over = {}) => {
   let s = state;
   for (let i = 0; i < n; i += 1) s = frame(s, over).state;
@@ -79,6 +81,22 @@ describe('stepGroundContact', () => {
       const stopped = frame(s, { supported: true, verticalSpeed: -0.1 });
       expect(stopped.grounded).toBe(true);
       expect(stopped.airborne).toBe(false);
+    });
+  });
+
+  describe('a homing bounce', () => {
+    it('is not cancelled by ground the probe finds under the crystal', () => {
+      // The bounce is a climb the domain owns, exactly like a jump — and the domain zeroes the
+      // vertical speed of any motion it is handed as grounded, so grounding here would delete the
+      // rise one frame after Havok was given it, while the crystal had already flashed for it.
+      const r = frame(INITIAL_GROUND_CONTACT, { supported: true, bounced: true, verticalSpeed: 12 });
+      expect(r.grounded).toBe(false);
+      expect(r.airborne).toBe(true);
+    });
+
+    it('lands again as soon as the bounce stops rising', () => {
+      const s = frame(INITIAL_GROUND_CONTACT, { supported: true, bounced: true, verticalSpeed: 12 }).state;
+      expect(frame(s, { supported: true, verticalSpeed: -0.1 }).grounded).toBe(true);
     });
   });
 

@@ -124,14 +124,13 @@ export function createCrystals(scene: Scene, spots: readonly Vec3[]): Crystals {
 
   scene.onBeforeRenderObservable.add(() => {
     const dt = scene.getEngine().getDeltaTime() / 1000;
-    for (let i = 0; i < flashElapsed.length; i++) {
-      const elapsed = flashElapsed[i];
-      if (elapsed === null) continue; // at rest — skip the lerp entirely, not just clamp it to a no-op
+    flashElapsed.forEach((elapsed, i) => {
+      if (elapsed === null) return; // at rest — skip the lerp entirely, not just clamp it to a no-op
       const next = elapsed + dt;
       const t = Math.min(1, next / FLASH_DECAY_SECONDS);
       Color3.LerpToRef(FLASH_EMISSIVE, CRYSTAL_EMISSIVE, t, materials[i].emissiveColor);
       flashElapsed[i] = t >= 1 ? null : next; // done easing — stop paying for this crystal's lerp
-    }
+    });
   });
 
   return {

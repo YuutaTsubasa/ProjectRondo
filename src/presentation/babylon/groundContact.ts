@@ -24,7 +24,10 @@
  * 4. **Ground re-acquired mid-climb cancelled the jump.** Jumping while running uphill lifts the
  *    capsule clear, then the rising ground ahead comes back within probe reach while the character is
  *    still going up. Grounding there makes the domain zero the climb and the character sticks to the
- *    slope. The `rising` state below ignores the probe entirely until the climb is over.
+ *    slope. The `rising` state below ignores the probe entirely until the climb is over. A homing
+ *    bounce is the same shape of climb — the domain hands out `homingBounceSpeed` and then, from a
+ *    grounded motion, zeroes it on the very next frame — and a crystal low enough that the probe
+ *    finds floor under the arrival is exactly the case, so a bounce enters `rising` too.
  */
 
 /** How long after losing ground support a jump is still allowed. Covers the probe's 1-8 frame gaps. */
@@ -60,10 +63,11 @@ export type GroundContact =
   /** Standing on something. The only state a jump can start from without coyote time. */
   | { readonly kind: 'grounded' }
   /**
-   * A jump is under way and still climbing. The support probe is deliberately ignored here: it
-   * re-acquires as soon as ground comes back within reach, and grounding mid-climb would cancel the
-   * jump. Ends when the character stops rising — so a jump into a low ceiling cannot latch — or at
-   * {@link MAX_RISING_SECONDS}, whichever comes first.
+   * A climb the domain started — a jump, or the bounce off a homing arrival — is under way and still
+   * going up. The support probe is deliberately ignored here: it re-acquires as soon as ground comes
+   * back within reach, and grounding mid-climb would cancel the climb. Ends when the character stops
+   * rising — so a jump into a low ceiling cannot latch — or at {@link MAX_RISING_SECONDS}, whichever
+   * comes first.
    */
   | { readonly kind: 'rising'; readonly seconds: number }
   /** Off the ground and not climbing. `seconds` feeds coyote time and the fall grace. */
@@ -87,6 +91,12 @@ export interface GroundContactInput {
   readonly jumpPressed: boolean;
   /** Last frame's post-solve vertical velocity; positive is rising. */
   readonly verticalSpeed: number;
+  /**
+   * A homing dash arrived and the domain handed out its bounce on the PREVIOUS frame
+   * (`Player.homingBounced`). One frame late for the same reason {@link verticalSpeed} is: the domain
+   * step that decides it runs after this machine has already answered for the frame.
+   */
+  readonly bounced: boolean;
   readonly delta: number;
 }
 
@@ -105,13 +115,13 @@ export interface GroundContactResult {
 
 export const stepGroundContact = (
   state: GroundContactState,
-  { supported, jumpPressed, verticalSpeed, delta }: GroundContactInput,
+  { supported, jumpPressed, verticalSpeed, bounced, delta }: GroundContactInput,
 ): GroundContactResult => {
   const buffered = jumpPressed ? JUMP_BUFFER_SECONDS : Math.max(0, state.bufferedJumpFor - delta);
   const settled = advance(state.contact, supported, verticalSpeed, delta);
 
   const jumpRequested = buffered > 0 && canJump(settled);
-  const contact: GroundContact = jumpRequested ? { kind: 'rising', seconds: 0 } : settled;
+  const contact: GroundContact = jumpRequested || bounced ? { kind: 'rising', seconds: 0 } : settled;
 
   return {
     state: { contact, bufferedJumpFor: jumpRequested ? 0 : buffered },

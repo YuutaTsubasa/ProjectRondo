@@ -20,7 +20,7 @@ import type { Crystals } from './crystals';
 import { createHomingReticle } from './homingReticle';
 import { stepGroundContact, INITIAL_GROUND_CONTACT } from './groundContact';
 import { stepHomingLock, NO_HOMING_LOCK } from './homingLock';
-import { alignToSurface } from './slopeMotion';
+import { solverVelocity } from './slopeMotion';
 
 /**
  * Frame-time clamp. A backgrounded tab stalls the render loop; on return the first frame's
@@ -63,10 +63,12 @@ export interface Player {
    * A homing dash ARRIVED at its crystal on this frame, as opposed to timing out. The two ends of a
    * dash are otherwise indistinguishable downstream — `motion.homing` goes null either way — and the
    * difference cannot be recovered later from `motion.velocity`, which by then holds Havok's
-   * POST-SOLVE velocity: collide-and-slide can cancel or project the bounce away (a crystal under an
-   * overhang, an arrival frame the support probe called SUPPORTED). Decided once here, from the
-   * domain's own result, so the crystal flash and the knight's jump-clip restart cannot disagree
-   * about whether a bounce happened.
+   * POST-SOLVE velocity: collide-and-slide can cancel or project the bounce away, as a ceiling over a
+   * crystal under an overhang does. Decided once here, from the domain's own result, so the crystal
+   * flash and the knight's jump-clip restart cannot disagree about whether a bounce happened.
+   *
+   * Also fed back into `stepGroundContact` on the following frame, so that ground found under the
+   * crystal cannot cancel the rise this flash promises — see `GroundContactInput.bounced`.
    */
   homingBounced: boolean;
 }
@@ -139,6 +141,10 @@ export function createPlayer(
       supported: support.supportedState === CharacterSupportedState.SUPPORTED,
       jumpPressed: pressed,
       verticalSpeed: player.motion.velocity.y,
+      // Still last frame's value: it is only reassigned further down, after the domain step that
+      // decides it. That is the frame the bounce was emitted on, and this is the first frame the
+      // ground machine can protect the climb from a probe that has found floor under the crystal.
+      bounced: player.homingBounced,
       delta: dt,
     });
     contact = contactResult.state;
@@ -177,10 +183,15 @@ export function createPlayer(
     };
     // Asked of the domain before the step, not read back off the result: a dash whose crystal is
     // within `homingSpeed * dt` at entry arrives on its own entry frame, so `motion.homing` is never
-    // once non-null for it. Deriving "a dash ran" from the motion would make that dash — a specified
-    // behaviour the domain pins with its own test — invisible to the flash, the trail and the pose,
-    // while the player still receives the full `homingBounceSpeed`. It is reachable: the threshold is
-    // `homingSpeed * MAX_DT` = 0.8 units, and a crystal's own extent is 1.273.
+    // once non-null for it — and it is reachable, since the threshold is `homingSpeed * MAX_DT` = 0.8
+    // units against a crystal's own extent of 1.273. The player receives the full `homingBounceSpeed`
+    // for it either way, so the two things that must not miss it are the flash, which says a crystal
+    // was hit, and the solver routing below, which is what lets the bounce leave the ground.
+    //
+    // It reaches those two and nothing else. The trail and the Flying Kick pose come from
+    // `hubScene`'s `homing: player.motion.homing !== null`, which such a dash never raises — a
+    // one-frame ribbon and a clip retimed onto ~0.02s would be a flicker rather than feedback, so
+    // giving them a separate entry-frame path is a feel decision, on a move nobody has played yet.
     const dashRan = isHomingFrame(domainMotion, movementInput);
     const next = step(domainMotion, movementInput, config, dt);
 
@@ -195,12 +206,13 @@ export function createPlayer(
       else console.warn('[playerController] a homing dash bounced with no locked crystal to flash — this should be unreachable.');
     }
 
-    // Following the ground means adding the climb the surface demands — see slopeMotion. A jump is
-    // the one grounded frame that must keep its own vertical velocity, so it skips this.
-    const solverVelocity = grounded && !jumpRequested
-      ? alignToSurface(next.velocity, toVec3(support.averageSurfaceNormal))
-      : next.velocity;
-    controller.setVelocity(toBabylon(solverVelocity));
+    // Following the ground means adding the climb the surface demands — see slopeMotion, which also
+    // says why a jump and a dash have to be kept away from it.
+    const forSolver = solverVelocity(next.velocity, toVec3(support.averageSurfaceNormal), {
+      grounded,
+      ownsClimb: jumpRequested || dashRan,
+    });
+    controller.setVelocity(toBabylon(forSolver));
     controller.integrate(dt, support, NO_GRAVITY);
     const solved = controller.getPosition();
     root.position.x = solved.x;

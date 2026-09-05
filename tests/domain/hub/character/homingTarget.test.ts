@@ -26,12 +26,15 @@ describe('selectHomingTarget', () => {
     expect(selectHomingTarget(AT_ORIGIN, FORWARD, candidates, C)).toBe(1);
   });
 
-  it('breaks an exact distance tie by lower index, so it is deterministic', () => {
-    const candidates = [vec3(1, 0, -5), vec3(-1, 0, -5)];
-    const first = selectHomingTarget(AT_ORIGIN, FORWARD, candidates, C);
-    const second = selectHomingTarget(AT_ORIGIN, FORWARD, candidates, C);
-    expect(first).toBe(0);
-    expect(second).toBe(0);
+  // Both candidates are exactly the same distance away, so nothing but the rule decides between
+  // them. Asked from both input orders, because the reduce meets them in array order: only keeping
+  // the incumbent on a tie answers 0 either way, where `<` in place of `<=` would answer whichever
+  // was seen last.
+  it('breaks an exact distance tie by lower index', () => {
+    const left = vec3(-1, 0, -5);
+    const right = vec3(1, 0, -5);
+    expect(selectHomingTarget(AT_ORIGIN, FORWARD, [left, right], C)).toBe(0);
+    expect(selectHomingTarget(AT_ORIGIN, FORWARD, [right, left], C)).toBe(0);
   });
 
   it('returns null for an empty candidate list', () => {

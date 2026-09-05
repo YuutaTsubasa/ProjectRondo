@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { alignToSurface } from '../../src/presentation/babylon/slopeMotion';
+import { alignToSurface, solverVelocity } from '../../src/presentation/babylon/slopeMotion';
 import { vec3 } from '../../src/domain/math/vec3';
 
 const P = 6;
@@ -59,5 +59,40 @@ describe('alignToSurface', () => {
     expect(r.x).toBeCloseTo(0, P);
     expect(r.y).toBeCloseTo(0, P);
     expect(r.z).toBeCloseTo(0, P);
+  });
+});
+
+describe('solverVelocity', () => {
+  const SLOPE = slopeNormal(20);
+
+  it('follows the ground on an ordinary grounded frame', () => {
+    const r = solverVelocity(vec3(8, 0, 0), SLOPE, { grounded: true, ownsClimb: false });
+    expect(r.y).toBeCloseTo(8 * Math.tan(radians(20)), P);
+  });
+
+  it('leaves an airborne velocity alone — there is no surface under it to follow', () => {
+    expect(solverVelocity(vec3(8, -12, 0), SLOPE, { grounded: false, ownsClimb: false }))
+      .toEqual(vec3(8, -12, 0));
+  });
+
+  it('lets a jump leave a slope with the speed the domain gave it', () => {
+    expect(solverVelocity(vec3(8, 9, 0), SLOPE, { grounded: true, ownsClimb: true }))
+      .toEqual(vec3(8, 9, 0));
+  });
+
+  // `alignToSurface` REPLACES velocity.y. A bounce is purely vertical, so its `intoSlope` is 0 and the
+  // substitution handed the solver (0, 0, 0): the crystal flashed and the knight restarted its jump
+  // clip for a rise Havok was never asked to make. Reachable whenever the probe finds floor under the
+  // crystal, which grounds the contact on that very frame.
+  it('keeps a homing bounce whole on an arrival frame the probe called SUPPORTED', () => {
+    expect(solverVelocity(vec3(0, 14, 0), SLOPE, { grounded: true, ownsClimb: true }))
+      .toEqual(vec3(0, 14, 0));
+  });
+
+  // The same substitution flattened a dash climbing toward an overhead crystal into a horizontal
+  // skim, for as many frames as the probe kept reporting support beneath it.
+  it('keeps a dash climbing while the probe still reports support beneath it', () => {
+    expect(solverVelocity(vec3(3, 23, 0), SLOPE, { grounded: true, ownsClimb: true }))
+      .toEqual(vec3(3, 23, 0));
   });
 });

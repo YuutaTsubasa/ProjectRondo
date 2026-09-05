@@ -1109,10 +1109,12 @@ const playSegment = (group: AnimationGroup, fromSeconds: number, toSeconds: numb
  * retimed onto `homingEntrySeconds` the same way the jump segment is retimed onto `airtime` — a dash
  * is bounded at `homingMaxDuration` (0.6s) and typically shorter, well under the clip's full 1.5s, so
  * playing it unretimed at natural rate would show only its wind-up and never the kick itself (see
- * {@link KICK_STRIKE_START}'s doc). The trail runs for as long as `homing` is true, and both the clip
- * and the trail fade in and out by `kickWeight` the same way the jump segment fades by `jumpWeight` —
- * and, since a dash can only start while already airborne, the jump segment can still be
- * mid-fade when a dash starts, so `kickWeight` also cuts into the jump's *rendered* weight (not
+ * {@link KICK_STRIKE_START}'s doc). The clip fades in and out by `kickWeight` the same way the jump
+ * segment fades by `jumpWeight`; the trail does not fade with it, and has no alpha to fade — it is a
+ * ribbon, switched on outright on `homing`'s rising edge and off on its falling one, so it simply
+ * runs for exactly as long as the dash does. And, since a dash can only start while already airborne,
+ * the jump segment can still be mid-fade when a dash starts, so `kickWeight` also cuts into the
+ * jump's *rendered* weight (not
  * locomotion's, which is already zeroed by `jumpInfluence` whenever a jump is live) so the two
  * one-shots do not fight over the same bones. {@link KnightMotionSample.bounced} restarts the jump
  * clip from {@link BOUNCE_RESTART} so it rides the existing `jumpWeight` blend back into locomotion;

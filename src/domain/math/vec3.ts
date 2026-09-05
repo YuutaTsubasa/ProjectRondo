@@ -11,8 +11,10 @@ export const length = (a: Vec3): number => Math.sqrt(lengthSquared(a));
 export const normalize = (a: Vec3): Vec3 => {
   const len = length(a);
   // Intentional: return ZERO3 (not NaN) for a zero vector, the same convention `vec2.normalize`
-  // documents. Callers here guard against zero before it matters — `homingTarget` treats a
-  // zero-length direction as "not in the cone" — and NaN would silently propagate through the
-  // comparison instead of failing.
+  // documents. NaN spreads without ever announcing itself — every comparison against it is false, so
+  // a cone test would quietly reject and a distance test quietly accept — where ZERO3 stays a number
+  // the caller can reason about. It is not a substitute for a caller's own guard: the one input that
+  // can genuinely arrive zero-length is `selectHomingTarget`'s `cameraForward`, and its coincident
+  // *candidates* are rejected on `distance > 0` before reaching here, for the reason its doc gives.
   return len === 0 ? ZERO3 : scale(a, 1 / len);
 };

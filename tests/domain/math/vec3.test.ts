@@ -24,8 +24,9 @@ describe('vec3 arithmetic', () => {
   });
 
   // Mirrors vec2.normalize, which returns ZERO rather than NaN for a zero vector and documents that
-  // as intentional. The homing cone relies on it: a crystal exactly at the player has a zero-length
-  // direction, and NaN there would poison the whole comparison.
+  // as intentional. Not something the homing cone leans on — `selectHomingTarget` rejects a
+  // coincident candidate on its distance before normalizing it — but `cameraForward` reaches here
+  // unguarded, and a NaN aim would make every dot comparison false and silently empty the cone.
   it('normalizes the zero vector to zero rather than NaN', () => {
     expect(normalize(ZERO3)).toEqual(ZERO3);
   });
