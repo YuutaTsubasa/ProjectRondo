@@ -172,14 +172,33 @@ real-time play, because the Browser pane's compositor throttles `requestAnimatio
 when not the foreground surface — `scene.render()` steps the same domain/physics code deterministically
 regardless.
 
-**That pass ran at `d3b64cb`**, before seven later reworks, none of which has been checked in the
-browser since landing:
+**That pass ran at `d3b64cb`**, and fifteen commits have landed on this branch since — every commit
+after it that touches code, documentation-only ones aside. (The merge at `79b97d0` is not one of them:
+it brought `main`'s audio and UI work, and the only lines it changed in this feature's files wire the
+audio layer in and export a threshold.) **None of the fifteen has been put back through the four
+objective checks below.** Three were watched on screen for something else — that is how the reticle's
+size and opacity were settled — and their bullets say so; watching a ring is not re-running a check.
+
+The list is exhaustive on purpose. Judging a commit harmless and leaving it out is how it came to be
+short twice, so the bar for a bullet is "touched the code", not "changed what a check measures":
 
 - `05f1923` — `stepHoming` derives its direction and remaining distance from a live offset supplied
   every frame, rather than from a fixed entry direction dead-reckoned down. The shipped dash therefore
   corrects course toward its target continuously, where every check below exercised a straight line
   decided at the press.
 - `57489fe` — the placeholder spin replaced by the Flying Kick clip.
+- `8b63f69` — that clip retimed onto the dash's real screen time, so a dash bounded at 0.6s shows the
+  kick itself rather than only its wind-up. Pose, which no check below looks at.
+- `38e396f` — the dash trail re-anchored, and the target reticle and the crystal hit flash added. All
+  three are on-screen feedback that did not exist when the checks ran, so none of them was watched
+  during the pass at all.
+- `b78325c` — the reticle drawn in its own rendering group, over the crystal it marks rather than
+  half-swallowed by it, and the trail blue deepened. Watched on screen at the time.
+- `c51e8cb` — the ring tightened from 1.35 to 1.1 crystal extents. Watched on screen: that is how the
+  value was chosen.
+- `94bffa2` — the ring shrunk again to 0.5 extents, inside the crystal's silhouette, and made
+  translucent at `RETICLE_ALPHA` 0.6. Watched the same way — and the alpha still carries an Untuned
+  marking, because being adjusted until it stopped looking wrong is not being measured.
 - `84d256b` — the bounce decided from the domain's own result (`Player.homingBounced`) rather than
   from Havok's post-solve velocity, and gated on `isHomingFrame` rather than on `motion.homing`, so a
   dash that arrives on its own entry frame now flashes and bounces like any other.
@@ -194,6 +213,15 @@ browser since landing:
 - `32072ec` — the press refused outright on the frames a dash owns, so one made on the bounce frame
   reaches the lock as a chain dash rather than coming back as an ordinary jump. The chaining bullet
   below is the check that exercises exactly this input path.
+- `0d007cc` — the reticle gated on `!jumpAvailable` rather than on `!grounded`, so the ring now lights
+  through the `COYOTE_SECONDS` window of an uncommanded fall exactly where a press would dash. What
+  the player sees the ring do, on frames no check below covers.
+- `7cbdf24` — the jump clip's seam on a low-crystal arrival: the restart at `BOUNCE_RESTART` is no
+  longer discarded a frame later by the airborne rising edge, and the feet no longer ease toward
+  planted mid-flight. Pose again, and the chaining bullet below reads position, not pose.
+- `e30b664` — the reticle's shared red handed to its material as a clone, and its stroke thickness
+  named. Nothing on screen changes: same colour, same `0.08`. Listed because it touches the code, per
+  the rule above.
 
 The bullets below are recorded as measurements of the `d3b64cb` build, not the shipped one.
 
@@ -251,6 +279,7 @@ stays the project owner's call and is untouched here.
 | `src/presentation/babylon/playerController.ts` | edit | Wire the press and the lock into the domain step; flash the crystal on the bounce |
 | `src/presentation/babylon/groundContact.ts` | edit | Keep the bounce's climb off the probe, and keep a press on a frame a dash owns out of the jump (`GroundContactInput.bounced`, `dashInFlight`) |
 | `src/presentation/babylon/slopeMotion.ts` | edit | `solverVelocity`: keep the surface's climb off a jump's and a dash's own vertical velocity |
+| `src/presentation/babylon/jumpPose.ts` | new | One off-ground signal for the pose, and which seam the jump clip starts from — the probe finds floor mid-dash and under a low crystal, so `airborne` alone gets the bounce wrong |
 | `src/presentation/babylon/knight.ts` | edit | Dash animation, the bounce's clip seam, the trail |
 | `src/presentation/babylon/hubScene.ts` | edit | Build the test crystals |
 
