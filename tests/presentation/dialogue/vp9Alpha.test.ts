@@ -66,10 +66,16 @@ const canvasFor = ({
   return { width: 0, height: 0, getContext: () => (noContext ? null : context) };
 };
 
+/** `MediaError` codes. jsdom defines neither the interface nor the constants. */
+const MEDIA_ERR_NETWORK = 2;
+const MEDIA_ERR_DECODE = 3;
+const MEDIA_ERR_SRC_NOT_SUPPORTED = 4;
+
 /** Stands the DOM up so the probe meets a video that has decoded `frame`, and returns its triggers. */
 const stubDom = (frame: Frame) => {
   const real = document.createElement.bind(document);
   const videos: HTMLVideoElement[] = [];
+  let mediaError: { code: number } | null = null;
   vi.spyOn(document, 'createElement').mockImplementation((tag: string) => {
     if (tag === 'canvas') return canvasFor(frame) as unknown as HTMLCanvasElement;
     const element = real(tag);
@@ -78,14 +84,20 @@ const stubDom = (frame: Frame) => {
         videoWidth: { value: frame.width ?? 2 },
         videoHeight: { value: frame.height ?? 2 },
         readyState: { value: frame.readyState ?? HTMLMediaElement.HAVE_CURRENT_DATA },
+        error: { get: () => mediaError },
       });
       videos.push(element as HTMLVideoElement);
     }
     return element;
   });
+  const latest = () => videos[videos.length - 1];
   return {
-    decode: () => videos[videos.length - 1].dispatchEvent(new Event('loadeddata')),
-    fail: () => videos[videos.length - 1].dispatchEvent(new Event('error')),
+    decode: () => latest().dispatchEvent(new Event('loadeddata')),
+    /** `code` omitted means the element reports no MediaError at all, which browsers do allow. */
+    fail: (code?: number) => {
+      mediaError = code === undefined ? null : { code };
+      latest().dispatchEvent(new Event('error'));
+    },
     probes: () => videos.length,
   };
 };
@@ -208,7 +220,21 @@ describe('supportsVp9Alpha remembers only what it settled', () => {
     expect(dom.probes()).toBe(2);
   });
 
-  it('probes again after the clip failed to load', async () => {
+  it('probes again after the fetch failed on the network', async () => {
+    vi.useFakeTimers();
+    const dom = stubDom({ frameAlpha: 0 });
+    const supports = await load();
+    const first = supports();
+    dom.fail(MEDIA_ERR_NETWORK);
+    await expect(first).resolves.toBe(false);
+
+    const second = supports();
+    dom.decode();
+    await expect(second).resolves.toBe(true);
+    expect(dom.probes()).toBe(2);
+  });
+
+  it('probes again when the element reports no error code at all', async () => {
     vi.useFakeTimers();
     const dom = stubDom({ frameAlpha: 0 });
     const supports = await load();
@@ -220,6 +246,23 @@ describe('supportsVp9Alpha remembers only what it settled', () => {
     dom.decode();
     await expect(second).resolves.toBe(true);
     expect(dom.probes()).toBe(2);
+  });
+
+  // An engine with no VP9 never reaches `loadeddata`; it errors. That is the cheapest certain "no"
+  // the probe can obtain, so treating it as inconclusive would discard the clearest answer of all
+  // and re-fetch on every later mount to be told the same thing again.
+  it.each([
+    ['the source outright', MEDIA_ERR_SRC_NOT_SUPPORTED],
+    ['the decode', MEDIA_ERR_DECODE],
+  ])('remembers the answer when the engine rejected %s', async (_label, code) => {
+    vi.useFakeTimers();
+    const dom = stubDom({ frameAlpha: 0 });
+    const supports = await load();
+    const first = supports();
+    dom.fail(code);
+    await expect(first).resolves.toBe(false);
+    await expect(supports()).resolves.toBe(false);
+    expect(dom.probes()).toBe(1);
   });
 });
 

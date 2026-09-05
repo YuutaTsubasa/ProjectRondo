@@ -31,6 +31,11 @@ type Answer = { supported: boolean; decisive: boolean };
 const NO = { supported: false, decisive: true } as const;
 const UNDECIDED = { supported: false, decisive: false } as const;
 
+// `MediaError`'s codes, spelled out because the interface is not a global everywhere this runs --
+// jsdom, where the probe's tests live, does not define it.
+const MEDIA_ERR_DECODE = 3;
+const MEDIA_ERR_SRC_NOT_SUPPORTED = 4;
+
 let cached: Promise<Answer> | undefined;
 
 function probe(): Promise<Answer> {
@@ -50,8 +55,16 @@ function probe(): Promise<Answer> {
     video.preload = 'auto';
 
     const timer = setTimeout(() => finish(UNDECIDED), TIMEOUT_MS);
-    // The clip failing to arrive says something about this load, not about the decoder.
-    video.addEventListener('error', () => { clearTimeout(timer); finish(UNDECIDED); });
+    // One event, two unrelated failures, and only the element's own MediaError tells them apart.
+    // An engine that cannot decode VP9 at all arrives here rather than at `loadeddata`, and that is
+    // the cheapest certain negative the probe can get -- discarding it as inconclusive would throw
+    // away the clearest answer of the lot. An abort or a network fault is a fact about one fetch.
+    video.addEventListener('error', () => {
+      clearTimeout(timer);
+      const code = video.error?.code;
+      const rejectedTheFormat = code === MEDIA_ERR_DECODE || code === MEDIA_ERR_SRC_NOT_SUPPORTED;
+      finish(rejectedTheFormat ? NO : UNDECIDED);
+    });
     video.addEventListener('loadeddata', () => {
       clearTimeout(timer);
       try {

@@ -112,6 +112,27 @@ describe('Portrait source selection', () => {
     expect(shown().src).not.toBe(WEBM);
   });
 
+  // What makes this element a portrait rather than a video player, and each one fails silently:
+  // without `muted` autoplay is blocked and the poster sits frozen; without `playsinline` iOS and
+  // WKWebView hand the clip to the fullscreen player, on the very engine this feature is built
+  // around; without `loop` the idle stops after 5.166s; without `autoplay` it never starts.
+  it('plays the idle unattended and in place', async () => {
+    render();
+    await settle(true);
+    const video = target.querySelector('video')!;
+    // Properties, not attributes: Svelte compiles `muted` on a media element to a property
+    // assignment, and the content attribute would set `defaultMuted` anyway. The autoplay policy
+    // reads the property, so that is the one worth asserting -- confirmed against Chromium, where
+    // the element carries no muted attribute and plays regardless.
+    expect({
+      autoplay: video.autoplay,
+      loop: video.loop,
+      muted: video.muted,
+      playsInline: video.playsInline,
+      controls: video.controls,
+    }).toEqual({ autoplay: true, loop: true, muted: true, playsInline: true, controls: false });
+  });
+
   it('keeps the decorative video out of the accessibility tree, as the <img> already is', async () => {
     render();
     await settle(true);
