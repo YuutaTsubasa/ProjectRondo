@@ -1,7 +1,7 @@
 import { type CharacterMotion } from './characterMotion';
 import { type MovementInput } from './movementInput';
 import { type MovementConfig } from './movementConfig';
-import { type Vec2, vec2, scale, normalize, length, moveToward, rotateToward, ZERO } from '../../math/vec2';
+import { type Vec2, vec2, scale, normalize, length, lengthSquared, moveToward, rotateToward, ZERO } from '../../math/vec2';
 import { type Vec3, vec3, ZERO3, length as length3, normalize as normalize3, scale as scale3 } from '../../math/vec3';
 import { moveToward as moveTowardScalar } from '../../math/scalar';
 import { isZero } from '../../kernel/normalizedPlanarDirection';
@@ -23,8 +23,9 @@ export const step = (
   config: MovementConfig,
   delta: number,
 ): CharacterMotion => {
-  if (motion.homing) return stepHoming(motion, motion.homing.elapsed, input.homingTarget, config, delta);
-  if (canEnterHoming(motion, input)) return stepHoming(motion, 0, input.homingTarget, config, delta);
+  if (isHomingFrame(motion, input)) {
+    return stepHoming(motion, motion.homing?.elapsed ?? 0, input.homingTarget, config, delta);
+  }
 
   const facing = nextFacing(motion, input, config, delta);
   const planar = nextPlanarVelocity(motion, input, config, delta, facing);
@@ -40,20 +41,21 @@ export const step = (
 };
 
 /**
- * A press only becomes a dash in the air, and only when it came with a target offset. On the ground
- * the same button is an ordinary jump, which the normal path below handles.
+ * Whether {@link step} spends this frame dashing rather than moving normally: a dash already in
+ * flight continues, and an airborne press that came with a target offset starts one. On the ground
+ * the same button is an ordinary jump.
  *
- * A zero-length offset is deliberately NOT filtered here. It used to be, but that guard was untested
- * and unreachable in play: `selectHomingTarget` already rejects a candidate coincident with the
- * player (a zero direction dots to 0, below any `cos` under 90°), so presentation can never hand this
- * function a same-point target. Worse, it disagreed with `stepHoming`'s own handling of the identical
- * input arriving mid-dash instead of at entry — there, a zero offset satisfies `travelled >= remaining`
- * immediately and bounces. Falling through to `stepHoming` here instead makes both paths agree: a
- * zero-length offset always bounces, whether it shows up at entry or mid-flight, rather than silently
- * downgrading an entry-frame zero into an ordinary jump.
+ * Exported because presentation cannot recover this from the result. A dash whose target is within
+ * `homingSpeed * delta` at entry arrives on its own entry frame, so `CharacterMotion.homing` is never
+ * once non-null for it — yet it still bounces, and the trail, the crystal flash and the knight's pose
+ * all have to know it happened (`playerController` asks this before calling `step`).
+ *
+ * A zero-length offset is deliberately not filtered out: {@link stepHoming} reads one as an arrival
+ * and bounces, so entry and mid-flight agree rather than an entry-frame zero silently degrading into
+ * an ordinary jump.
  */
-const canEnterHoming = (motion: CharacterMotion, input: MovementInput): boolean =>
-  !motion.isGrounded && input.homingTarget !== null;
+export const isHomingFrame = (motion: CharacterMotion, input: MovementInput): boolean =>
+  motion.homing !== null || (!motion.isGrounded && input.homingTarget !== null);
 
 /**
  * The dash frame. `offset` is presentation's LIVE offset from the player to the locked crystal,
@@ -110,9 +112,6 @@ const stepHoming = (
     velocity: scale3(direction, config.homingSpeed),
     facing: dashFacing(motion, direction),
     isGrounded: false,
-    // `direction` and `remaining - travelled` are NOT republished onto `homing` — see HomingDash's
-    // doc comment. They still did their job this frame (velocity, facing); only `elapsed` needs to
-    // outlive it.
     homing: { elapsed },
   };
 };
@@ -121,12 +120,19 @@ const stepHoming = (
  * Spec §4: "facing turns to the dash direction." `facing` is planar (X maps to world X, Y to world
  * Z — see the doc comment on `IDLE`), so this is the normalized X/Z projection of the 3D dash
  * direction. A dash straight up or down projects to a zero-length vector — `normalize` would return
- * `ZERO`, a meaningless facing — so that degenerate case keeps the previous facing instead. It is
- * reachable: the hub's test crystals include ones directly overhead.
+ * `ZERO`, a meaningless facing that `faceRoot` would hand to `atan2(0, 0)` and snap to a fixed yaw —
+ * so that degenerate case keeps the previous facing instead. It is reachable: the hub's test crystals
+ * include ones directly overhead.
+ *
+ * The degenerate case is detected on the projection's own length, not on the identity of what
+ * `normalize` returns for it. `vec2.normalize` promises the zero *value*, and today happens to hand
+ * back the module-level `ZERO` singleton; rewriting its zero branch as a fresh `vec2(0, 0)` is a
+ * refactor with no reason to look risky, and an identity check would silently start letting `(0, 0)`
+ * through.
  */
 const dashFacing = (motion: CharacterMotion, direction: Vec3): Vec2 => {
-  const projected = normalize(vec2(direction.x, direction.z));
-  return projected === ZERO ? motion.facing : projected;
+  const projected = vec2(direction.x, direction.z);
+  return lengthSquared(projected) === 0 ? motion.facing : normalize(projected);
 };
 
 /**

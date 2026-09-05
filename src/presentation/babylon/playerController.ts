@@ -6,11 +6,10 @@ import {
   CharacterSupportedState,
 } from '@babylonjs/core/Physics/v2/characterController';
 
-import { step } from '../../domain/hub/character/characterMovement';
+import { step, isHomingFrame } from '../../domain/hub/character/characterMovement';
 import { DEFAULT_CONFIG, type MovementConfig } from '../../domain/hub/character/movementConfig';
 import { IDLE, type CharacterMotion } from '../../domain/hub/character/characterMotion';
-import { selectHomingTarget } from '../../domain/hub/character/homingTarget';
-import { type Vec3, vec3, length as vecLength } from '../../domain/math/vec3';
+import type { MovementInput } from '../../domain/hub/character/movementInput';
 import { planarDirectionFromInput } from './cameraRelativeDirection';
 import { toBabylon, toVec3 } from './vectorConversions';
 import { CAPSULE_RADIUS, CAPSULE_HEIGHT } from './capsule';
@@ -20,6 +19,7 @@ import type { InputState } from './input';
 import type { Crystals } from './crystals';
 import { createHomingReticle } from './homingReticle';
 import { stepGroundContact, INITIAL_GROUND_CONTACT } from './groundContact';
+import { stepHomingLock, NO_HOMING_LOCK } from './homingLock';
 import { alignToSurface } from './slopeMotion';
 
 /**
@@ -53,15 +53,22 @@ export interface Player {
   /** The live movement config — the same object `window.moveConfig` mutates, so readers track dev tuning. */
   readonly config: MovementConfig;
   /**
-   * Expected duration of the CURRENT homing dash, in seconds, or `null` while none is locked: the
-   * straight-line offset length to the crystal at the moment it locked, divided by `homingSpeed`. Set
-   * once per dash and held fixed — recomputing it every frame would fight the point of a dash that
-   * corrects course (design spec §4), since the live offset it would divide by keeps changing as the
-   * capsule curves toward the target. `knight.ts` reads this to retime the Flying Kick clip onto the
-   * dash's real screen time, the same way `KnightTuning.airtime` retimes the jump segment onto the
-   * jump's actual airtime — see `KnightMotionSample.homingEntrySeconds`.
+   * Expected duration of the CURRENT homing dash, in seconds, or `null` while none is locked — see
+   * `HomingLock.entrySeconds`, which decides it. `knight.ts` reads this to retime the Flying Kick clip
+   * onto the dash's real screen time, the same way `KnightTuning.airtime` retimes the jump segment
+   * onto the jump's actual airtime.
    */
   homingEntrySeconds: number | null;
+  /**
+   * A homing dash ARRIVED at its crystal on this frame, as opposed to timing out. The two ends of a
+   * dash are otherwise indistinguishable downstream — `motion.homing` goes null either way — and the
+   * difference cannot be recovered later from `motion.velocity`, which by then holds Havok's
+   * POST-SOLVE velocity: collide-and-slide can cancel or project the bounce away (a crystal under an
+   * overhang, an arrival frame the support probe called SUPPORTED). Decided once here, from the
+   * domain's own result, so the crystal flash and the knight's jump-clip restart cannot disagree
+   * about whether a bounce happened.
+   */
+  homingBounced: boolean;
 }
 
 /**
@@ -92,31 +99,36 @@ export function createPlayer(
   // The Havok controller itself, for probing its solver settings live in dev.
   if (import.meta.env.DEV) (window as unknown as { charController: unknown }).charController = controller;
 
-  const player: Player = { root, motion: IDLE, airborne: false, config, homingEntrySeconds: null };
+  const player: Player = {
+    root, motion: IDLE, airborne: false, config, homingEntrySeconds: null, homingBounced: false,
+  };
   // Coyote time, jump buffering and the takeoff guard all live in this pure state — see groundContact.
   let contact = INITIAL_GROUND_CONTACT;
-  // The crystal a homing dash is locked onto, held across frames for as long as `player.motion.homing`
-  // stays non-null — cleared the instant it goes null, so the next press is free to pick anew. This is
-  // what lets `homingTarget` below report the LIVE offset every frame instead of the press-frame
-  // snapshot: `characterMovement.stepHoming` needs the live distance to tell a dash still closing on
-  // its target apart from one a wall has stopped (see the design spec §5 and that function's comment).
-  let homingCrystal: number | null = null;
+  // Which crystal a dash is committed to, its entry estimate, and the reticle's separate selection —
+  // all decided by one tested machine rather than inline here. See homingLock.
+  let homingLock = NO_HOMING_LOCK;
 
-  // The red target ring the owner asked for. Deliberately fed a SEPARATE selection below
-  // (`previewCrystal`), not `homingCrystal`: `homingCrystal` is the committed lock for a dash already
-  // in flight and must not be reassigned mid-dash (see its own comment above), while the reticle needs
-  // an answer to "what would a press hit right now" on every frame, including frames with no press at
-  // all.
+  // The red target ring the owner asked for, fed `preview` rather than the committed lock — see
+  // `HomingLockResult.preview`.
   const reticle = createHomingReticle(scene);
 
   scene.onBeforeRenderObservable.add(() => {
     const dt = Math.min(scene.getEngine().getDeltaTime() / 1000, MAX_DT);
     if (dt <= 0) return;
 
-    // The jump key is edge-triggered and consumed once. Airborne, it means "home"; grounded, it means
-    // "jump" -- the domain decides which, but only one of the two can be true, so the same press feeds
-    // both the ground-contact machine (below) and the homing decision, and `step` reads whichever
-    // applies.
+    // The jump key is edge-triggered and consumed once, then offered to BOTH the ground-contact
+    // machine below and the homing lock; each decides for itself whether this press is for it. At most
+    // one can act on it, because their gates are disjoint: `groundContact.canJump` is false for the
+    // whole `rising`/`jumpSpent` window that its own `airborne` — the homing lock's precondition —
+    // covers.
+    //
+    // Acting on it is not the same as consuming it, though. `stepGroundContact` arms its
+    // `JUMP_BUFFER_SECONDS` buffer from every press it is handed, including one spent on a dash or on
+    // nothing, and that buffered press can only be spent if the character becomes jumpable inside the
+    // window — which after a dash it does not. So a chain press made a few frames early is dropped,
+    // where the identical press aimed at an ordinary jump would have been remembered. Feeding the
+    // homing lock from that buffer instead is a feel decision on a mechanic nobody has played yet
+    // (see `MovementConstants`' homing block), so it is left as it is rather than guessed at.
     const pressed = input.consumeJump();
     const support = controller.checkSupport(dt, DOWN);
     const contactResult = stepGroundContact(contact, {
@@ -129,53 +141,45 @@ export function createPlayer(
     const { grounded, jumpRequested } = contactResult;
     player.airborne = contactResult.airborne;
 
-    // `player.motion.homing` reflects last frame's result. Not mid-dash: a fresh press picks a new
-    // crystal (or nothing locks). Mid-dash: keep the SAME crystal — a dash never retargets mid-flight,
-    // only recomputes its distance to the one it already locked.
-    if (player.motion.homing === null) {
-      homingCrystal = pressed && player.airborne
-        ? pickHomingCrystal(root.getAbsolutePosition(), follow, crystals, config)
-        : null;
-      // This block only runs while no dash is in flight, so a non-null result here is always a FRESH
-      // lock, never a mid-dash re-read — safe to (re)compute the entry estimate every time it runs.
-      player.homingEntrySeconds = homingCrystal === null
-        ? null
-        : vecLength(homingOffset(root.getAbsolutePosition(), crystals, homingCrystal)) / config.homingSpeed;
-    }
-    const homingTarget = homingCrystal === null
-      ? null
-      : homingOffset(root.getAbsolutePosition(), crystals, homingCrystal);
-
-    // The reticle shows only when a press would actually DO something: airborne (grounded, the same
-    // button is an ordinary jump — showing a target there would lie about what it does), not already
-    // mid-dash (the lock is committed and the trail already says what is happening), and a candidate
-    // actually in the camera's cone. `player.motion.homing` here is still last frame's value — the same
-    // one the `homingCrystal` block above reads — so "not mid-dash" means the same thing in both places.
-    const previewCrystal = player.airborne && player.motion.homing === null
-      ? pickHomingCrystal(root.getAbsolutePosition(), follow, crystals, config)
-      : null;
-    if (previewCrystal === null) reticle.hide();
-    else reticle.showAt(crystals.positions[previewCrystal]);
+    const cam = follow.camera;
+    const lockResult = stepHomingLock(homingLock, {
+      dashInFlight: player.motion.homing !== null,
+      jumpPressed: pressed,
+      airborne: player.airborne,
+      from: toVec3(root.getAbsolutePosition()),
+      cameraForward: toVec3(cam.getTarget().subtract(cam.position)),
+      candidates: crystals.positions,
+    }, config);
+    homingLock = lockResult.lock;
+    player.homingEntrySeconds = homingLock.entrySeconds;
+    if (lockResult.preview === null) reticle.hide();
+    else reticle.showAt(crystals.positions[lockResult.preview]);
 
     const { right, forward } = follow.planarBasis();
-    const direction = planarDirectionFromInput(input.axis(), right, forward);
-    const next = step(
-      { ...player.motion, isGrounded: grounded },
-      { direction, jumpRequested, runRequested: input.isRunHeld(), homingTarget },
-      config,
-      dt,
-    );
+    const domainMotion = { ...player.motion, isGrounded: grounded };
+    const movementInput: MovementInput = {
+      direction: planarDirectionFromInput(input.axis(), right, forward),
+      jumpRequested,
+      runRequested: input.isRunHeld(),
+      homingTarget: lockResult.target,
+    };
+    // Asked of the domain before the step, not read back off the result: a dash whose crystal is
+    // within `homingSpeed * dt` at entry arrives on its own entry frame, so `motion.homing` is never
+    // once non-null for it. Deriving "a dash ran" from the motion would make that dash — a specified
+    // behaviour the domain pins with its own test — invisible to the flash, the trail and the pose,
+    // while the player still receives the full `homingBounceSpeed`. It is reachable: the threshold is
+    // `homingSpeed * MAX_DT` = 0.8 units, and a crystal's own extent is 1.273.
+    const dashRan = isHomingFrame(domainMotion, movementInput);
+    const next = step(domainMotion, movementInput, config, dt);
 
-    // A crystal flashes on the BOUNCE, not on the dash simply ending: `next.homing` goes null on both
-    // a bounce (arrival) and a timeout (`characterMovement.step`'s two ways out of the dash branch —
-    // design spec §4-5), and only the bounce actually hit something. `next.velocity.y > 0` is what
-    // separates them: arrival sets it to `homingBounceSpeed`, a timeout zeroes it — `knight.ts`'s
-    // `driveKnightAnimation` uses this exact discriminator to decide whether to restart the jump clip,
-    // and this reuses it for the same reason. `homingCrystal` still holds the index that was locked for
-    // the dash that just ended: it is only cleared the NEXT frame, when `player.motion.homing === null`
-    // makes the block above re-run — so it is still the right crystal to flash here.
-    if (player.motion.homing !== null && next.homing === null && next.velocity.y > 0) {
-      if (homingCrystal !== null) crystals.flash(homingCrystal);
+    // A crystal flashes on the BOUNCE, not on the dash simply ending: `stepHoming` clears `homing` on
+    // both an arrival and a timeout (design spec §4-5), and only the arrival hit something. The
+    // domain's own `next.velocity.y` is what separates them — arrival sets `homingBounceSpeed`, a
+    // timeout zeroes it — and it is read HERE, before `player.motion` below replaces it with Havok's
+    // post-solve velocity. See `Player.homingBounced`.
+    player.homingBounced = dashRan && next.homing === null && next.velocity.y > 0;
+    if (player.homingBounced) {
+      if (homingLock.crystal !== null) crystals.flash(homingLock.crystal);
       else console.warn('[playerController] a homing dash bounced with no locked crystal to flash — this should be unreachable.');
     }
 
@@ -212,31 +216,3 @@ function faceRoot(root: TransformNode, facingX: number, facingY: number): void {
   root.rotation.y = Math.atan2(-facingX, -facingY);
 }
 
-/**
- * The index of the crystal the camera is aiming at, or null. Called from two places in the render loop
- * above: once on the frame a fresh press needs to actually LOCK one (the `homingCrystal` block), and
- * once every frame — press or not — to answer "what would a press hit right now" for the reticle
- * (`previewCrystal`). Both calls run the identical selection; only what the caller does with the result
- * differs.
- *
- * The aim vector is the camera's TRUE 3D forward — `target - position` — and deliberately not
- * `follow.planarBasis().forward`, which is flattened to X/Z for locomotion. A climb is vertical: a
- * crystal directly overhead is exactly the shot a flattened aim can never take.
- */
-function pickHomingCrystal(
-  from: Vector3, follow: FollowCamera, crystals: Crystals, config: MovementConfig,
-): number | null {
-  const cam = follow.camera;
-  const forward = cam.getTarget().subtract(cam.position);
-  return selectHomingTarget(toVec3(from), toVec3(forward), crystals.positions, config);
-}
-
-/**
- * The current offset from `from` to the locked crystal `index` — recomputed every frame the dash is
- * (or is about to be) in flight, not just on the press frame, so `characterMovement.stepHoming` always
- * sees the real remaining distance rather than one dead-reckoned forward from entry.
- */
-function homingOffset(from: Vector3, crystals: Crystals, index: number): Vec3 {
-  const target = crystals.positions[index];
-  return vec3(target.x - from.x, target.y - from.y, target.z - from.z);
-}

@@ -53,12 +53,13 @@ export interface KnightMotionSample {
    */
   readonly homingEntrySeconds: number | null;
   /**
-   * World-space vertical velocity, world units/s. Needed only to tell a homing bounce from a homing
-   * timeout on the frame `homing` clears: `characterMovement.step` sets it to `homingBounceSpeed` (positive)
-   * on arrival and to zero on timeout, and that is the only difference between the two — `homing` itself
-   * goes null either way.
+   * A homing dash arrived at its crystal on THIS frame, as opposed to timing out — `Player.homingBounced`,
+   * decided there from the domain's own result. Not derived from a vertical velocity read here: by the
+   * time this layer sees `motion.velocity`, collide-and-slide has already had it, so an arrival whose
+   * upward velocity the solver cancelled would read as a timeout. Also true for a dash short enough to
+   * arrive on its entry frame, which never sets {@link KnightMotionSample.homing} at all.
    */
-  readonly verticalSpeed: number;
+  readonly bounced: boolean;
 }
 
 /** Movement numbers the animation layer has to match, read live so `window.moveConfig` tuning applies. */
@@ -111,12 +112,9 @@ const IDLE_SWAY_KEEP = 0.2;
  * "the import correction" instead of a bare `Quaternion.FromEulerAngles(0, Math.PI, 0)` a reader would
  * have to re-derive the reason for.
  *
- * Named a second reason once, too: `driveKnightAnimation` had a dash-spin placeholder that restored
- * this exact orientation when a dash ended, so both call sites needed the same value. `57489fe`
- * deleted that placeholder along with the Flying Kick clip that replaced it, leaving the import
- * assignment as the only reader — the `.clone()` there is cheap insurance against a future second
- * reader mutating this module-level instance in place (Babylon's `rotationQuaternion` is more often
- * mutated via `.copyFrom`/`.set` than reassigned), not evidence that one still exists today.
+ * That call site assigns a `.clone()`: Babylon's `rotationQuaternion` is more often mutated via
+ * `.copyFrom`/`.set` than reassigned, so handing out this module-level instance would let a later
+ * reader rewrite the correction itself.
  */
 const KNIGHT_FACING = Quaternion.FromEulerAngles(0, Math.PI, 0);
 
@@ -1060,7 +1058,7 @@ const BOUNCE_RESTART = 0.76;
  * `KICK_STRIKE_END` cuts at the measured trough (0.97s), the same way `JUMP_FALL_END` cuts at
  * touchdown rather than playing a landing: from there the leg visibly retracts toward a stand over the
  * next half-second, and by the time that retraction would be on screen the caller already knows
- * whether the dash ends in a bounce or a timeout (`KnightMotionSample.verticalSpeed`) and has its own
+ * whether the dash ends in a bounce or a timeout (`KnightMotionSample.bounced`) and has its own
  * clip queued — the retraction would fight it rather than lead into it.
  *
  * The segment is therefore 0.57s of the 1.50s clip. See `driveKnightAnimation`'s use of
@@ -1109,14 +1107,13 @@ const playSegment = (group: AnimationGroup, fromSeconds: number, toSeconds: numb
  * playing it unretimed at natural rate would show only its wind-up and never the kick itself (see
  * {@link KICK_STRIKE_START}'s doc). The trail runs for as long as `homing` is true, and both the clip
  * and the trail fade in and out by `kickWeight` the same way the jump segment fades by `jumpWeight` —
- * and, since `canEnterHoming` only fires while already airborne, the jump segment can still be
+ * and, since a dash can only start while already airborne, the jump segment can still be
  * mid-fade when a dash starts, so `kickWeight` also cuts into the jump's *rendered* weight (not
  * locomotion's, which is already zeroed by `jumpInfluence` whenever a jump is live) so the two
- * one-shots do not fight over the same bones. On the frame `homing` clears, a positive `verticalSpeed`
- * (a bounce; see {@link KnightMotionSample.verticalSpeed}) restarts the jump clip from
- * {@link BOUNCE_RESTART} so it rides the existing `jumpWeight` blend back into locomotion. A timeout
- * (`verticalSpeed` not positive) plays nothing — the domain already zeroed the velocity, so the knight
- * simply resumes falling under gravity next frame.
+ * one-shots do not fight over the same bones. {@link KnightMotionSample.bounced} restarts the jump
+ * clip from {@link BOUNCE_RESTART} so it rides the existing `jumpWeight` blend back into locomotion;
+ * a timeout plays nothing — the domain already zeroed the velocity, so the knight simply resumes
+ * falling under gravity next frame.
  */
 export function driveKnightAnimation(
   scene: Scene,
@@ -1136,7 +1133,7 @@ export function driveKnightAnimation(
 
   scene.onBeforeRenderObservable.add(() => {
     const dt = scene.getEngine().getDeltaTime() / 1000;
-    const { planarSpeed, airborne, homing, verticalSpeed, homingEntrySeconds } = motion();
+    const { planarSpeed, airborne, homing, bounced, homingEntrySeconds } = motion();
     const { walk: walkSpeed, run: runSpeed, airtime } = tuning();
 
     // --- jump -----------------------------------------------------------------------------------
@@ -1176,21 +1173,20 @@ export function driveKnightAnimation(
     if (!homing && wasHoming) {
       knight.trail.stop();
       knight.trail.setEnabled(false);
-      // `characterMovement.step` clears `homing` on both a bounce and a timeout, so that alone can't
-      // tell them apart — a bounce also sets a positive vertical velocity (`homingBounceSpeed`), a
-      // timeout zeroes it (see KnightMotionSample.verticalSpeed's doc). Only a bounce restarts the
-      // clip; a timeout leaves the knight simply falling under gravity from here, with no clip played.
-      if (verticalSpeed > 0) {
-        // Untuned, unlike `ratio` above: retiming this the same way would need a bounce-specific
-        // airtime, and `KnightTuning` exposes none. Reusing the ordinary jump's `airtime` would
-        // misrepresent the bounce — that value is derived from `jumpSpeed`, while a bounce rises at
-        // `homingBounceSpeed`, a different speed with a different real duration. Plays at the clip's
-        // natural rate for now; a later task tunes it by eye in the browser.
-        const bounceRatio = 1;
-        playSegment(jump, BOUNCE_RESTART, JUMP_FALL_END, bounceRatio);
-      }
     }
     wasHoming = homing;
+    // Driven by `bounced`, not by the `homing` edge above: `homing` clears on a timeout too, and a
+    // dash short enough to arrive on its own entry frame never raises `homing` at all — yet it still
+    // bounces, and the knight still has to come out of the kick pose (see KnightMotionSample.bounced).
+    if (bounced) {
+      // Untuned, unlike `ratio` above: retiming this the same way would need a bounce-specific
+      // airtime, and `KnightTuning` exposes none. Reusing the ordinary jump's `airtime` would
+      // misrepresent the bounce — that value is derived from `jumpSpeed`, while a bounce rises at
+      // `homingBounceSpeed`, a different speed with a different real duration. Plays at the clip's
+      // natural rate for now; a later task tunes it by eye in the browser.
+      const bounceRatio = 1;
+      playSegment(jump, BOUNCE_RESTART, JUMP_FALL_END, bounceRatio);
+    }
 
     // The segment is a one-shot, so a fall outlasting the clip stops the group mid-air. Let the weight
     // ease down either way rather than dropping the jump's influence to zero on the frame it stops:
@@ -1204,7 +1200,7 @@ export function driveKnightAnimation(
       kick.setWeightForAllAnimatables(kickWeight);
       if (!homing && kickWeight <= WEIGHT_EPSILON) kick.stop();
     }
-    // `canEnterHoming` only fires while already airborne, so the jump segment can still be live —
+    // A dash can only start while already airborne, so the jump segment can still be live —
     // and its weight still ramping — on the frame a dash starts. Cut kick's share out of jump's
     // *rendered* weight (not `jumpWeight` itself, which still governs the stop-out-of-airborne check
     // below) so the two one-shots don't compete for the same bones; locomotion needs no equivalent

@@ -11,6 +11,13 @@ export interface HomingSelectionConfig {
   readonly homingConeHalfAngle: number;
 }
 
+/** A candidate paired with the offset from the player to it, so distance is measured once. */
+interface MeasuredCandidate {
+  readonly index: number;
+  readonly offset: Vec3;
+  readonly distance: number;
+}
+
 /**
  * Picks which candidate a homing attack should fly to, or `null` for none.
  *
@@ -27,6 +34,11 @@ export interface HomingSelectionConfig {
  * The cone is a true 3D test, not a planar one. A climb is vertical, so a crystal directly overhead
  * has to be selectable when the player looks up at it; flattening the comparison to X/Z the way
  * `followCamera.planarBasis()` does for locomotion would make exactly that shot impossible.
+ *
+ * A candidate exactly at `from` is rejected outright rather than left to the cone test. Its direction
+ * normalizes to `ZERO3`, which dots to 0 — below the cosine of any half-angle under 90°, but not of a
+ * wider one, so relying on the cone would make "you cannot home onto the point you are standing on"
+ * depend on how `homingConeHalfAngle` happens to be tuned.
  */
 export const selectHomingTarget = (
   from: Vec3,
@@ -36,22 +48,23 @@ export const selectHomingTarget = (
 ): number | null => {
   const aim = normalize(cameraForward);
   const minCos = Math.cos(config.homingConeHalfAngle);
+  const qualifies = ({ offset, distance }: MeasuredCandidate): boolean =>
+    distance > 0 && distance <= config.homingRange && dot(normalize(offset), aim) >= minCos;
+  // A later candidate only wins on a strictly shorter distance, which is what sends an exact tie to
+  // the lower index.
+  const nearer = (best: MeasuredCandidate | null, candidate: MeasuredCandidate): MeasuredCandidate =>
+    best !== null && best.distance <= candidate.distance ? best : candidate;
 
-  let best: number | null = null;
-  let bestDistance = Infinity;
+  const nearest = candidates
+    .map((candidate, index) => measure(index, sub(candidate, from)))
+    .filter(qualifies)
+    .reduce<MeasuredCandidate | null>(nearer, null);
 
-  for (let i = 0; i < candidates.length; i++) {
-    const offset = sub(candidates[i], from);
-    const distance = length(offset);
-    if (distance > config.homingRange) continue;
-    // A candidate exactly at `from` normalizes to ZERO3, whose dot with `aim` is 0. That is below
-    // any cos of a half-angle under 90 degrees, so it falls out here as "not in the cone" rather
-    // than producing NaN — which is why this comparison is safe without a separate zero guard.
-    if (dot(normalize(offset), aim) < minCos) continue;
-    if (distance < bestDistance) {
-      best = i;
-      bestDistance = distance;
-    }
-  }
-  return best;
+  return nearest === null ? null : nearest.index;
 };
+
+const measure = (index: number, offset: Vec3): MeasuredCandidate => ({
+  index,
+  offset,
+  distance: length(offset),
+});

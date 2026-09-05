@@ -45,6 +45,17 @@ describe('selectHomingTarget', () => {
     expect(result).toBeNull();
   });
 
+  // The zero-length direction dots to 0, which clears the cosine of any half-angle of 90 degrees or
+  // more. So a coincident candidate must be rejected on its distance, not left to the cone test —
+  // otherwise "you cannot home onto the point you are standing on" would quietly depend on how
+  // `homingConeHalfAngle` happens to be tuned.
+  it('still rejects a coincident candidate when the cone is opened past 90 degrees', () => {
+    const WIDE: HomingSelectionConfig = { ...C, homingConeHalfAngle: Math.PI };
+    expect(selectHomingTarget(AT_ORIGIN, FORWARD, [AT_ORIGIN], WIDE)).toBeNull();
+    // Sanity: the wide cone is genuinely wide — a candidate behind the camera is accepted.
+    expect(selectHomingTarget(AT_ORIGIN, FORWARD, [vec3(0, 0, 5)], WIDE)).toBe(0);
+  });
+
   // A non-unit `cameraForward` must not widen the cone. This candidate is 60 degrees off axis at
   // distance 6, so normalized it dots to 0.5 — below cos(35 deg) = 0.819, correctly rejected. Left
   // un-normalized against a length-100 forward it would dot to 50, clearing any threshold and being

@@ -78,10 +78,9 @@ export interface Crystals {
  * Polyhedron type 1 is an octahedron — two square pyramids base to base, which is a crystal shape
  * without a model, a texture, or anything entering Git LFS.
  *
- * `spots` takes plain `Vec3`s rather than a dedicated spot type: a separate `CrystalSpot` interface
- * once lived here, structurally identical to the `Vec3` this file already imports for its return type
- * — two names for the same `{x, y, z}` shape in one file. `Vec3`'s `readonly` fields are exactly what
- * a fixed placement needs.
+ * `spots` takes plain `Vec3`s rather than a dedicated spot type: a placement is a point, `Vec3`'s
+ * `readonly` fields are exactly what a fixed one needs, and this file already imports `Vec3` for its
+ * return type — a second name for the same `{x, y, z}` shape would buy nothing.
  *
  * **Each crystal gets its own `StandardMaterial`** rather than sharing one, so `flash()` can change one
  * crystal's emissive without touching the rest. That is a real trade-off, not a free upgrade: at the

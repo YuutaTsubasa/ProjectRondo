@@ -110,7 +110,7 @@ export async function createHubScene(canvas: HTMLCanvasElement): Promise<HubScen
       airborne: player.airborne,
       homing: player.motion.homing !== null,
       homingEntrySeconds: player.homingEntrySeconds,
-      verticalSpeed: v.y,
+      bounced: player.homingBounced,
     };
   };
   const knight = await loadKnight(scene, playerRoot, shadows);

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { step } from '../../../../src/domain/hub/character/characterMovement';
+import { step, isHomingFrame } from '../../../../src/domain/hub/character/characterMovement';
 import { DEFAULT_CONFIG as C } from '../../../../src/domain/hub/character/movementConfig';
 import { NONE_INPUT, type MovementInput } from '../../../../src/domain/hub/character/movementInput';
 import { IDLE, type CharacterMotion } from '../../../../src/domain/hub/character/characterMotion';
@@ -37,10 +37,10 @@ describe('homing dash', () => {
     const start = vec3(0, 0, -6);
     const dashing = step(AIRBORNE, pressTowards(start), C, dt);
     // Presentation re-supplies the live offset every frame the dash is in flight (see
-    // playerController's `homingCrystal` lock) — never NONE_INPUT's null, which now means "nothing to
-    // report" and ends the dash. `HomingDash` no longer republishes `direction`/`remaining` (nothing
-    // reads them back in production — see its doc comment), so track the closing offset the same way
-    // presentation does: subtract however far this frame's own velocity would have carried the capsule.
+    // presentation's `homingLock`) — never NONE_INPUT's null, which means "nothing to report" and ends
+    // the dash. `HomingDash` carries only `elapsed` (see its doc comment), so track the closing offset
+    // the same way presentation does: subtract however far this frame's own velocity would have
+    // carried the capsule.
     const offset = sub(start, scale(dashing.velocity, dt));
     const next = step(dashing, pressTowards(offset), C, dt);
     // A plain airborne frame would subtract gravity*dt from velocity.y; a dash must not.
@@ -152,10 +152,9 @@ describe('homing dash', () => {
   });
 
   it('bounces immediately on a zero-length offset at entry, agreeing with the same offset arriving mid-dash', () => {
-    // `canEnterHoming` used to filter this out and fall through to an ordinary jump instead — untested,
-    // unreachable via `selectHomingTarget` (which already rejects a coincident candidate), and
-    // disagreeing with `stepHoming`'s own handling of a zero offset reached mid-flight (which arrives
-    // and bounces). Entry now falls through to `stepHoming` unfiltered, so both paths agree.
+    // Entry is not filtered for a zero-length offset, so it agrees with `stepHoming`'s handling of the
+    // same offset reached mid-flight: both arrive and bounce, rather than an entry-frame zero silently
+    // degrading into an ordinary jump.
     const r = step(AIRBORNE, pressTowards(ZERO3), C, 1 / 60);
     expect(r.homing).toBeNull();
     expect(r.velocity.y).toBeCloseTo(C.homingBounceSpeed, P);
@@ -172,5 +171,35 @@ describe('homing dash', () => {
   it('leaves facing unchanged for a straight-up dash, whose planar projection is zero', () => {
     const r = step(AIRBORNE, pressTowards(vec3(0, 6, 0)), C, 1 / 60);
     expect(r.facing).toEqual(AIRBORNE.facing);
+  });
+});
+
+// Presentation cannot always tell that a dash ran by looking at what `step` returned, so it asks
+// beforehand instead. These pin the cases where the two answers differ.
+describe('isHomingFrame', () => {
+  it('is false on the ground, where the same press is an ordinary jump', () => {
+    expect(isHomingFrame(IDLE, pressTowards(vec3(0, 0, -6)))).toBe(false);
+  });
+
+  it('is false airborne with no target to fly to', () => {
+    expect(isHomingFrame(AIRBORNE, NONE_INPUT)).toBe(false);
+  });
+
+  it('is true for a dash already in flight, whatever this frame supplies', () => {
+    const dashing = step(AIRBORNE, pressTowards(vec3(0, 0, -6)), C, 1 / 60);
+    expect(dashing.homing).not.toBeNull();
+    expect(isHomingFrame(dashing, NONE_INPUT)).toBe(true);
+  });
+
+  it('is true for a dash that starts AND arrives inside one frame — the case the result cannot show', () => {
+    // `homingSpeed * delta` covers the whole offset, so `step` returns `homing: null` and the bounce
+    // velocity together: nothing downstream can see that a dash happened. This is reachable in play —
+    // `homingSpeed * MAX_DT` is 0.8 units and a crystal's own extent is 1.273 — so the crystal flash,
+    // the trail and the knight's pose all read this predicate instead of the result.
+    const input = pressTowards(vec3(0, 0, -0.1));
+    expect(isHomingFrame(AIRBORNE, input)).toBe(true);
+    const r = step(AIRBORNE, input, C, 1 / 60);
+    expect(r.homing).toBeNull();
+    expect(r.velocity.y).toBeCloseTo(C.homingBounceSpeed, P);
   });
 });
