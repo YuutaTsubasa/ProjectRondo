@@ -9,17 +9,50 @@ import { DynamicTexture } from '@babylonjs/core/Materials/Textures/dynamicTextur
 import { Color3 } from '@babylonjs/core/Maths/math.color';
 import { type Vec3 } from '../../domain/math/vec3';
 import { toBabylon } from './vectorConversions';
-import { CRYSTAL_SIZE } from './crystals';
+import { CRYSTAL_EXTENT } from './crystals';
 
 /**
- * Reticle diameter, in world units.
+ * Reticle diameter, as a multiple of a crystal's own full extent ({@link CRYSTAL_EXTENT}).
  *
- * **Untuned**: derived, not measured — `CRYSTAL_SIZE` (0.45) is the crystal's own half-height, so
- * `CRYSTAL_SIZE * 2` is roughly the crystal's own full extent. `2.4x` that leaves a visible gap around
- * the crystal so the ring reads as "marking this object" rather than "roughly this object's own size,
- * maybe bigger, maybe smaller". Nobody has watched this against the running scene; retune by eye.
+ * This is deliberately > 1: the ring is centred on the crystal, so at 1.0 its stroke would land exactly
+ * on the crystal's own silhouette and read as an outline rather than a marker. The margin is what makes
+ * it read as "this object is targeted".
+ *
+ * Scaling off `CRYSTAL_EXTENT` rather than `CRYSTAL_SIZE` matters: `CRYSTAL_SIZE` is a polyhedron-builder
+ * scale factor, not a dimension (see its doc in `crystals.ts`), and an earlier version of this constant
+ * multiplied it as if it were the crystal's half-height — which produced a ring 1.08 units across around
+ * a 1.27-unit crystal, i.e. a "marker" smaller than the thing it marked.
+ *
+ * **Untuned**: 1.35 is a guess at "clearly outside the silhouette, not a halo". Retune by eye.
  */
-const RETICLE_DIAMETER = CRYSTAL_SIZE * 2.4;
+const RETICLE_EXTENT_RATIO = 1.35;
+
+/**
+ * How much of the plane's width the drawn ring actually spans — {@link ringTexture} strokes its circle
+ * at this fraction of the texture, leaving the rest transparent padding.
+ *
+ * {@link RETICLE_DIAMETER} divides by this so that `RETICLE_EXTENT_RATIO` means what it says: without
+ * the division, a nominal 1.35x margin renders as 1.35 * 0.8 = 1.08x — measured in the browser as a
+ * 1.374-unit ring around a 1.273-unit crystal, i.e. a stroke landing almost exactly on the silhouette,
+ * which is the reading `RETICLE_EXTENT_RATIO` exists to avoid.
+ */
+const RING_TEXTURE_FRACTION = 0.8;
+
+/** Plane size, in world units. The *visible* ring is `CRYSTAL_EXTENT * RETICLE_EXTENT_RATIO` across;
+ *  the plane is wider by the transparent padding {@link RING_TEXTURE_FRACTION} accounts for. */
+const RETICLE_DIAMETER = (CRYSTAL_EXTENT * RETICLE_EXTENT_RATIO) / RING_TEXTURE_FRACTION;
+
+/**
+ * Rendering group the reticle draws in. Babylon renders groups in ascending order and, by default,
+ * clears the depth buffer between them — so a mesh alone in group 1 is drawn over every group-0 mesh
+ * regardless of depth. That is exactly what this marker wants: the ring is centred *on* the crystal,
+ * so with a shared depth buffer the crystal's near faces occlude the near half of the ring and it
+ * reads as a broken arc from most angles. A HUD-ish marker should not be hidden by the thing it marks.
+ *
+ * Not tuning — the specific number only has to be greater than the default group 0 that everything
+ * else in the hub renders in (nothing else in this codebase sets `renderingGroupId` today).
+ */
+const RETICLE_RENDERING_GROUP = 1;
 
 /** Ring texture resolution, in pixels. Arbitrary, not tuning: large enough that the stroked circle
  *  below doesn't pixellate at `RETICLE_DIAMETER` on screen; nothing about the reticle's look depends
@@ -48,7 +81,10 @@ function ringTexture(scene: Scene): DynamicTexture {
   ctx.strokeStyle = '#ffffff';
   ctx.lineWidth = size * 0.08;
   ctx.beginPath();
-  ctx.arc(size / 2, size / 2, size * 0.4, 0, Math.PI * 2);
+  // Radius, not diameter — hence the halving. Derived from RING_TEXTURE_FRACTION rather than written
+  // as its own literal so the two cannot drift apart: RETICLE_DIAMETER's sizing maths assumes the ring
+  // drawn here spans exactly that fraction of the texture.
+  ctx.arc(size / 2, size / 2, (size * RING_TEXTURE_FRACTION) / 2, 0, Math.PI * 2);
   ctx.stroke();
   tex.update(true);
   tex.hasAlpha = true;
@@ -74,6 +110,9 @@ export interface HomingReticle {
  * camera looks down on it from above — it must always read as a flat, full-size ring, whatever the
  * camera angle.
  *
+ * Drawn over the scene rather than into it, via {@link RETICLE_RENDERING_GROUP} — the crystal it marks
+ * would otherwise occlude the near half of the ring, since the ring is centred inside it.
+ *
  * Not pickable, casts and receives no shadows (never registered with `shadows`, the same reasoning
  * `crystals.ts` gives for its own crystals), and has no physics body — it is a pure visual marker.
  */
@@ -92,6 +131,7 @@ export function createHomingReticle(scene: Scene): HomingReticle {
   mesh.material = mat;
   mesh.isPickable = false;
   mesh.billboardMode = Mesh.BILLBOARDMODE_ALL;
+  mesh.renderingGroupId = RETICLE_RENDERING_GROUP;
   mesh.setEnabled(false);
 
   return {

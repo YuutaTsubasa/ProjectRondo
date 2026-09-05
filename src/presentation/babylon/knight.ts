@@ -124,8 +124,14 @@ const KNIGHT_FACING = Quaternion.FromEulerAngles(0, Math.PI, 0);
  * Blue emissive tint for the dash trail. Unlit and bright for the same reason as the crystal's
  * emissive tint in crystals.ts: this needs to read as a streak across the field, not blend into the
  * armour or the terrain.
+ *
+ * **Untuned**: deliberately a deep, saturated blue rather than the pale sky-blue `(0.3, 0.65, 1)` this
+ * started as — watched on screen, the pale version sat too close to the crystal's own cyan
+ * `CRYSTAL_EMISSIVE` and to the sky behind it, so the streak read as a wash rather than a stroke.
+ * Dropping red and green while keeping blue near full pushes it away from both without dimming it
+ * (an unlit emissive is only as visible as its brightest channel). Retune by eye.
  */
-const TRAIL_EMISSIVE = new Color3(0.3, 0.65, 1);
+const TRAIL_EMISSIVE = new Color3(0.08, 0.22, 0.95);
 /**
  * Trail ribbon width and history length. `DASH_TRAIL_LENGTH` is a ring-segment count, dimensionless.
  * `DASH_TRAIL_DIAMETER` is NOT a world-unit width, even though it reads like one next to

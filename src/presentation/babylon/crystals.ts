@@ -6,10 +6,28 @@ import '@babylonjs/core/Materials/standardMaterial';
 import { Color3 } from '@babylonjs/core/Maths/math.color';
 import { type Vec3, vec3 } from '../../domain/math/vec3';
 
-/** Half-height of a crystal, in world units. The knight is ~1.9 tall, so this reads as a held object.
- *  Exported so `homingReticle.ts` can size the preview ring off the same number rather than guessing
- *  a second one that could drift out of proportion with it. */
+/**
+ * The `size` passed to {@link CreatePolyhedron} below. **Not a world-unit dimension**: Babylon's
+ * polyhedron builder scales its unit template by `size`, and the type-1 octahedron's template has
+ * vertices at `±1` on each axis of a 45°-rotated square, so the mesh's full extent works out at
+ * `2 * sqrt(2) * size` — see {@link CRYSTAL_EXTENT}. Measured in the browser to confirm: at `0.45`
+ * every crystal's bounding box is 1.273 units on all three axes (1.273 / 0.45 = 2.8289 ≈ 2√2).
+ *
+ * **Untuned**: 0.45 was picked when this constant was believed to be the crystal's half-height, i.e.
+ * intending a ~0.9-unit crystal against the ~1.9-unit knight. What it actually produces is a 1.27-unit
+ * crystal — two thirds of the knight's height. That may be fine (a homing target wants to be seen from
+ * across the field) but nobody has chosen it deliberately; retune by eye. `0.25` would restore roughly
+ * the originally intended proportion.
+ */
 export const CRYSTAL_SIZE = 0.45;
+
+/**
+ * A crystal's actual full extent, in world units, on every axis — the number to reason about when
+ * sizing anything against a crystal. Exported so `homingReticle.ts` can scale its ring off the real
+ * dimension and stay in proportion automatically if {@link CRYSTAL_SIZE} is ever retuned, rather than
+ * carrying its own guess at how big a crystal is.
+ */
+export const CRYSTAL_EXTENT = CRYSTAL_SIZE * 2 * Math.SQRT2;
 
 /**
  * Emissive tint. Bright and unlit so a crystal reads as a target from across the field rather than
