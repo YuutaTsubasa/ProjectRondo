@@ -1,4 +1,3 @@
-import type { AnimationGroup } from '@babylonjs/core/Animations/animationGroup';
 import type { Scene } from '@babylonjs/core/scene';
 
 import { createFootstepCadence } from '../../domain/audio/footstepCadence';
@@ -7,6 +6,7 @@ import type { MusicScene } from '../../domain/audio/musicDirector';
 import { surfaceCue } from '../../domain/audio/soundCue';
 import { WALK_THRESHOLD, type Knight, type KnightMotionSample } from '../babylon/knight';
 import { createGameAudio } from './audioEngine';
+import { phaseOf, weightOf } from './clipSample';
 import { createMusicCrossfade } from './musicCrossfade';
 import { loadSoundBank, type SoundBank } from './soundBank';
 
@@ -30,19 +30,6 @@ export interface HubAudio {
   setMusicScene(scene: MusicScene): void;
   dispose(): void;
 }
-
-/** A clip's playback position in [0, 1), or `null` when it is not playing. */
-const phaseOf = (group: AnimationGroup): number | null => {
-  if (!group.isPlaying || group.animatables.length === 0) return null;
-  const span = group.to - group.from;
-  if (span <= 0) return null;
-  const p = (group.animatables[0].masterFrame - group.from) / span;
-  return ((p % 1) + 1) % 1;
-};
-
-/** How much of the pose this clip is contributing right now. Zero when it is not playing at all. */
-const weightOf = (group: AnimationGroup): number =>
-  group.isPlaying && group.animatables.length > 0 ? group.animatables[0].weight : 0;
 
 /**
  * Connects the scene to the audio.

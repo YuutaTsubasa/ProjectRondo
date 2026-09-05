@@ -24,7 +24,7 @@ functional core, reactive UI**, plus the project's **18 code-quality principles*
 | --- | --- |
 | `src/domain/` | Pure TS: `hub/character/*` (movement), `dialogue/*` (dialogue graph + DSL), `audio/` (footstep cadence + contact phases, gait selection, music director), `math/`, `kernel/`. No engine imports. Vitest-covered. |
 | `src/presentation/babylon/` | The 3D scene: `hubScene`, `terrainHeight` (pure) + `terrain`, `scatter`, `trees`, `knight`, `playerController`, `followCamera`, `input`, `environment`, `capsule`. |
-| `src/presentation/audio/` | AudioV2 wiring: `audioEngine` (engine + buses), `manifest` (cue → file/bus/volume), `soundBank` (loading + missing-asset policy), `musicCrossfade` (which track plays, and the handover), `hubAudio` (per-frame scene wiring). |
+| `src/presentation/audio/` | AudioV2 wiring: `audioEngine` (engine + buses), `manifest` (cue → file/bus/volume), `soundBank` (loading + missing-asset policy), `musicCrossfade` (which track plays, and the handover), `clipSample` (the rig's animation state read as phases and weights), `hubAudio` (per-frame scene wiring). |
 | `src/presentation/dialogue/` + `src/app/` | Svelte AVG UI + app entry (`App.svelte`, `gameMode`). |
 | `tests/` | Vitest specs — mirror the domain, plus pure presentation fns (`terrainHeight`, `cameraRelativeDirection`). |
 | `docs/superpowers/specs/` + `plans/` | **Every feature has a design spec and an implementation plan here.** Read these for the "why". |

@@ -38,6 +38,7 @@ src/presentation/audio/    thin
   manifest.ts        cue -> file(s), bus, volume, streaming
   soundBank.ts       loading, and the missing-asset policy
   musicCrossfade.ts  which track is playing, and the handover between two of them
+  clipSample.ts      the rig's animation state -> the phases and weights the domain reads
   hubAudio.ts        the per-frame wiring; the only file that touches the scene
 public/audio/{music,sfx,ambience}/
 tools/audio/preprocess.mjs  the source -> shipped-asset recipe
@@ -379,7 +380,21 @@ The decision logic is pure, so it is unit-tested rather than debugged in the bro
 - **`audioMixer`** — mute overrides everything, values clamp, master multiplies.
 - **`surfaceCue`** — the surface → cue mapping, and that what it returns is a `SoundCue`.
 
-Four things that are not pure are tested anyway, because none of them has a cheap way to be seen:
+Five things that are not pure are tested anyway, because none of them has a cheap way to be seen:
+
+- **`clipSample`** (`tests/presentation/clipSample.test.ts`) — `phaseOf` and `weightOf`, the whole
+  conversion from the animation rig into the four numbers `cadenceSample` consumes. They live in
+  their own module rather than inside `hubAudio.ts` precisely so a test can reach them: both are pure
+  functions of four plain properties (`isPlaying`, `from`, `to`, `animatables[0].masterFrame`/
+  `.weight`), so the fake is an object literal — no `vi.mock`, no `Scene`, no loaded knight, and the
+  compiler is what checks that a real `AnimationGroup` satisfies the shape. Pins the `from` offset
+  (the clips are segments of one baked timeline), the wrap at and past `to`, the `((p % 1) + 1) % 1`
+  normalisation of a frame *below* `from` — a bare `p % 1` returns a negative phase, since `%` keeps
+  the sign of its left operand — `null` rather than 0 for a stopped or empty clip and for a span that
+  is empty or inverted, and that the weight is read off the animatable (where
+  `setWeightForAllAnimatables` puts it) and is 0 for a stopped group holding its last weight. Every
+  one of these leaves the domain suite green while putting each footfall at the wrong point in the
+  cycle.
 
 - **`audioEngine`** (`tests/presentation/audioEngine.test.ts`) — the two babylon `Create*Async`
   factories are `vi.mock`ed behind recording fakes, the same seam `soundBank`'s test uses. Pins the
@@ -422,13 +437,16 @@ rendering window. The Task 9 in-scene pass ran with the browser pane hidden, whi
 so nothing that depends on the game actually running (walking, jumping, elapsed real time) could be
 exercised. Each item below is marked with what was actually established, not a summary judgement.
 
-- **Verified** — `pnpm test` green, including the cases in §6: 36 test files, 215 tests, all passing.
+- **Verified** — `pnpm test` green, including the cases in §6: 37 test files, 222 tests, all passing.
   That is the whole suite, not this branch's share of it: `vitest run` counts every file under
   `tests/`, so the figure moves whenever `main` does and is re-measured, not carried forward.
 - **Unverified (listening + a rendering scene)** — walking and running producing footsteps in step
   with the visible feet at both gaits; nothing firing while airborne; take-off and landing each
-  sounding once. `footstepCadence`'s airborne/landing rules are unit-tested in isolation (§6), but
-  whether the sound lands with the visible foot needs eyes and ears on a running scene.
+  sounding once. `footstepCadence`'s airborne/landing rules are unit-tested in isolation (§6), and so
+  now is the reading that feeds them — `clipSample`'s `phaseOf`/`weightOf` were the one link in this
+  chain with nothing pinning them, and their arithmetic no longer needs a scene to check (§6). What
+  still does is whether the phases the domain fires on are the phases the *visible* feet land on:
+  that is a property of the clips, not of the code, and it needs eyes and ears on a running scene.
 - **Unverified (listening)** — repeated steps not reading as a machine gun. The playback-rate jitter
   exists in code; how it sounds was not and could not be judged here.
 - **Partially verified, with a correction to this item's own wording** — in the live scene,
