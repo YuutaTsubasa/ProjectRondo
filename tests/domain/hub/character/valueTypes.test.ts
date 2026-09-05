@@ -8,6 +8,7 @@ describe('character value types', () => {
   it('DEFAULT_CONFIG matches MovementConstants', () => {
     expect(DEFAULT_CONFIG).toEqual({
       maxSpeed: 4, runSpeed: 8, turnRate: 10, acceleration: 13, deceleration: 17, gravity: 24, jumpSpeed: 9,
+      homingRange: 12, homingConeHalfAngle: 0.6109, homingSpeed: 24, homingBounceSpeed: 9, homingMaxDuration: 0.6,
     });
   });
   it('NONE_INPUT has no direction, no jump and no run', () => {

@@ -100,7 +100,11 @@ export function createPlayer(
     const direction = planarDirectionFromInput(input.axis(), right, forward);
     const next = step(
       { ...player.motion, isGrounded: grounded },
-      { direction, jumpRequested, runRequested: input.isRunHeld() },
+      {
+        direction, jumpRequested, runRequested: input.isRunHeld(),
+        // Placeholder: Task 5 replaces this with the real camera-cone target selection. Not a decision.
+        homingTarget: null,
+      },
       config,
       dt,
     );

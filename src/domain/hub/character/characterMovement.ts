@@ -42,13 +42,9 @@ export const step = (
 /**
  * A press only becomes a dash in the air. On the ground the same button is an ordinary jump, which
  * the normal path below handles — so this returns null there and nothing else has to know.
- *
- * The `homingTarget` check is `== null` (not `===`) on purpose: `MovementInput` gained this field
- * after callers already existed, and nothing at runtime stops an older literal from omitting it
- * entirely, which reads back as `undefined` rather than `null`. Both mean "no target".
  */
 const enterHoming = (motion: CharacterMotion, input: MovementInput): HomingDash | null => {
-  if (motion.isGrounded || input.homingTarget == null) return null;
+  if (motion.isGrounded || input.homingTarget === null) return null;
   const distance = length3(input.homingTarget);
   if (distance === 0) return null; // coincident target: nothing to fly toward
   return { direction: normalize3(input.homingTarget), remaining: distance, elapsed: 0 };
