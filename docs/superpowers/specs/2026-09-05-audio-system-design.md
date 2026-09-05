@@ -438,9 +438,13 @@ rendering window. The Task 9 in-scene pass ran with the browser pane hidden, whi
 so nothing that depends on the game actually running (walking, jumping, elapsed real time) could be
 exercised. Each item below is marked with what was actually established, not a summary judgement.
 
-- **Verified** — `pnpm test` green, including the cases in §6: 37 test files, 222 tests, all passing.
-  That is the whole suite, not this branch's share of it: `vitest run` counts every file under
-  `tests/`, so the figure moves whenever `main` does and is re-measured, not carried forward.
+- **Verified** — `pnpm test` green, including every case in §6, and `pnpm typecheck` clean. No count
+  is pinned here on purpose: `vitest run` counts every file under `tests/`, so the total moves
+  whenever `main` does *or* whenever a later commit on this branch adds a case — a number written
+  into this document is stale the moment either happens, and it went stale three times before this
+  sentence replaced it. What §6 lists is what this branch covers; what the suite totals is whatever a
+  fresh `vitest run` says, and the PR description carries that figure because it is re-measured per
+  push rather than living in a file.
 - **Unverified (listening + a rendering scene)** — walking and running producing footsteps in step
   with the visible feet at both gaits; nothing firing while airborne; take-off and landing each
   sounding once. `footstepCadence`'s airborne/landing rules are unit-tested in isolation (§6), and so
@@ -486,10 +490,11 @@ exercised. Each item below is marked with what was actually established, not a s
   pass.
 - **Partially verified by static read, not measurement** — the footstep path allocates **two** small
   object literals on *every* frame, not only on an actual footfall, so "no per-frame allocation in the
-  wiring" does not hold literally. `hubAudio.ts:162-171` builds the `LocomotionReading` it hands to
-  `cadenceSample({...})`, and `cadenceSample` then returns a fresh `CadenceSample` from
-  `locomotionGait.ts:45-46` — the early-return `{ gait: 'idle', phase: 0, airborne, elapsed }` branch
-  and the normal `{ gait, phase, airborne, elapsed }` branch — which is what reaches `cadence.step`.
+  wiring" does not hold literally. `hubAudio.ts`'s per-frame observer builds the `LocomotionReading`
+  literal it hands to `cadenceSample({...})`, and `cadenceSample` (`locomotionGait.ts`) then returns a
+  fresh `CadenceSample` from either of its two exits — the early-return
+  `{ gait: 'idle', phase: 0, airborne, elapsed }` branch and the normal
+  `{ gait, phase, airborne, elapsed }` branch — which is what reaches `cadence.step`.
   Both are small, short-lived objects and neither one's actual cost was measured.
   `bank.play(...)`'s options objects are allocated only on a footfall, not every frame.
   **Unverified**: frame budget / frame rate itself, since the hidden pane never renders a frame to
