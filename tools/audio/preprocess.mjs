@@ -37,8 +37,11 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const SRC = process.argv[2] ?? join(homedir(), 'Downloads');
 const OUT = join(ROOT, 'public', 'audio');
 
+// `||`, not `??`: an exported-but-empty `FFMPEG=` is how a shell reports "I have no value for this",
+// and `??` would take that empty string as a path and hand it to execFileSync, which fails as a spawn
+// error rather than as "ffmpeg not found". Whitespace goes the same way.
 const FFMPEG =
-  process.env.FFMPEG ??
+  process.env.FFMPEG?.trim() ||
   [
     'ffmpeg',
     join(
