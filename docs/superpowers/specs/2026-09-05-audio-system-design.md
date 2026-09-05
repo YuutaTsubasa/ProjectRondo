@@ -350,16 +350,39 @@ against the running scene and records the result.
 
 ## 6. Testing
 
-Pure, so unit-tested rather than debugged in the browser:
+The decision logic is pure, so it is unit-tested rather than debugged in the browser:
 
 - **`footstepCadence`** — fires at the measured contact phases; handles the 1 → 0 wrap; fires nothing
   while `airborne`, and does not fire a stored step on landing; re-seeds across a gait change instead
   of comparing phases across clips; the minimum-interval guard absorbs a walk↔run double-fire; a
   frame long enough to span a whole cycle (a tab switch, a hitch) fires **at most one** step rather
   than a burst.
+- **`locomotionGait`** — reads the phase of whichever clip carries the most weight; stays on walk
+  while the run clip is playing but not yet driving the pose, and gives an exact weight tie to walk;
+  is idle at or below the walk threshold however the clips are blended, and when the dominant clip
+  has no phase to read it goes idle rather than falling back to the other clip.
 - **`musicDirector`** — intro → playing changes track exactly once, and is idempotent while the state
   holds.
 - **`audioMixer`** — mute overrides everything, values clamp, master multiplies.
+- **`surfaceCue`** — the surface → cue mapping, and that what it returns is a `SoundCue`.
+
+Two things that are not pure are tested anyway, because neither has a cheap way to be seen:
+
+- **`soundBank`** (`tests/presentation/soundBank.test.ts`) — the babylon factory module is `vi.mock`ed
+  behind a recording fake sound, which is enough to reach the bank's own bookkeeping and its failure
+  paths without an `AudioContext`. Pins one-owner-per-sound (a restart retires the previous handle,
+  whose `setVolume`/`stop` then do nothing; `dispose` retires every outstanding handle), and the
+  contract the module is shaped around — **it never throws and never rejects**: a rejecting
+  `CreateSoundAsync` still lets `loadSoundBank` resolve and silences only that cue (and still resolves
+  when *no* cue loads), and a sound throwing synchronously from `play`, from a loop's start, from the
+  takeover `stop`, from `setVolume` on either the immediate or the fading path, or from a handle's own
+  `stop`, is swallowed with the bookkeeping left consistent. §7's file-deletion pass reaches the load
+  failure only; the synchronous throws — the ones that would stop the render loop for good — are
+  reachable nowhere else.
+- **The manifest against the disk** (`tests/presentation/audioManifest.test.ts`) — every cue names a
+  file that exists under `public/`, and every path is served from the public root. `manifest.ts`'s
+  `satisfies` gets as far as "each entry is a string"; this is what makes a path that names nothing a
+  build failure rather than a silent cue discovered in play.
 
 ## 7. Definition of done
 
@@ -369,7 +392,7 @@ rendering window. The Task 9 in-scene pass ran with the browser pane hidden, whi
 so nothing that depends on the game actually running (walking, jumping, elapsed real time) could be
 exercised. Each item below is marked with what was actually established, not a summary judgement.
 
-- **Verified** — `pnpm test` green, including the cases in §6: 25 test files, 156 tests, all passing.
+- **Verified** — `pnpm test` green, including the cases in §6: 28 test files, 176 tests, all passing.
 - **Unverified (listening + a rendering scene)** — walking and running producing footsteps in step
   with the visible feet at both gaits; nothing firing while airborne; take-off and landing each
   sounding once. `footstepCadence`'s airborne/landing rules are unit-tested in isolation (§6), but
@@ -400,7 +423,9 @@ exercised. Each item below is marked with what was actually established, not a s
   after the reload — the scene stayed intact. Restoring the file and reloading again produced zero
   `[audio]` warnings. The resilience property this item is really after — one missing asset cannot take
   down the graph or silence anything else — holds; "leaves one console warning" only holds for a cue
-  whose file backs no other cue.
+  whose file backs no other cue. That property no longer rests on this pass alone: it is pinned by
+  `tests/presentation/soundBank.test.ts` (§6), along with the synchronous-throw guards this pass could
+  not reach.
 - **Unverified (listening, and needs a user gesture to test against)** — silent before the first
   gesture, correct after it.
 - **Not established** — the mix balance. Every `volume` in `manifest.ts` is still §5.5's untuned
