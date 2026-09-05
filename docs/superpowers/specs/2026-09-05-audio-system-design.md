@@ -40,6 +40,7 @@ src/presentation/audio/    thin
   soundBank.ts       loading, and the missing-asset policy
   musicCrossfade.ts  which track is playing, and the handover between two of them
   clipSample.ts      the rig's animation state -> the phases and weights the domain reads
+  deferredAudio.ts   the handle handed back while the graph is still building
   hubAudio.ts        the per-frame wiring; the only file that touches the scene
 public/audio/{music,sfx,ambience}/
 tools/audio/preprocess.mjs  the source -> shipped-asset recipe
@@ -145,6 +146,14 @@ contributor without `git lfs pull` gets a quiet game rather than a broken one.
 
 The only file that touches the scene. Per frame it reads the knight's gait, clip phase and `airborne`
 and plays what the cadence machine returns.
+
+`createHubAudio` is **synchronous**: nothing about the scene may wait on audio, so it starts the build
+in the background and returns a handle to it at once — a music cue whose media element never fires
+`canplaythrough` would otherwise leave `createHubScene` pending for good, and with it the render loop.
+The bookkeeping that buys — holding a `setMusicScene` that arrives before the graph exists, and
+disposing a graph whose build outlived the scene — is `deferredAudio.ts`, lifted out for the same
+reason `musicCrossfade` was: in here it is reachable only with a live scene, and every way of getting
+it wrong is silent (§6).
 
 Jump take-off and landing fire off the **edges of the same `airborne` flag the animation uses** —
 not off a second reading of the ground probe. `groundContact.ts` exists precisely because two
@@ -381,7 +390,7 @@ The decision logic is pure, so it is unit-tested rather than debugged in the bro
 - **`audioMixer`** — mute overrides everything, values clamp, master multiplies.
 - **`surfaceCue`** — the surface → cue mapping, and that what it returns is a `SoundCue`.
 
-Five things that are not pure are tested anyway, because none of them has a cheap way to be seen:
+Six things that are not pure are tested anyway, because none of them has a cheap way to be seen:
 
 - **`clipSample`** (`tests/presentation/clipSample.test.ts`) — `phaseOf` and `weightOf`, the whole
   conversion from the animation rig into the four numbers `cadenceSample` consumes. They live in
@@ -425,6 +434,17 @@ Five things that are not pure are tested anyway, because none of them has a chea
   retries it; and `dispose` stops both tracks and cancels the timer that would otherwise fire a full
   fade later, into sounds the bank has disposed. Every one of those failures is inaudible-by-omission
   rather than a throw, which is what makes them worth a test rather than a listen.
+- **`deferredAudio`** (`tests/presentation/deferredAudio.test.ts`) — the bookkeeping in front of the
+  graph, which exists because `createHubAudio` is synchronous (§4.3) and so has to answer for a window
+  in which the graph does not exist yet. The build is an argument, so the fake is a plain object and a
+  promise the test settles by hand; no `vi.mock` and no `AudioContext`. Pins that a `setMusicScene`
+  arriving mid-build is held and replayed once the graph exists — `App.svelte` asks exactly once, from
+  the scene-load callback, so dropping it costs the session all of its music — that only the latest
+  request is replayed, that a later one reaches the live graph, that a `dispose` landing mid-build
+  disposes the graph the build goes on to finish and does *not* start music on it, that a repeated
+  dispose cannot double-dispose or restart, and that a rejected build is warned and swallowed with the
+  handle still usable. Every one of those fails inaudibly: no throw, just a silent game or an
+  `AudioContext` outliving the page.
 - **The manifest against the disk** (`tests/presentation/audioManifest.test.ts`) — every cue names a
   file that exists under `public/`, and every path is served from the public root. `manifest.ts`'s
   `satisfies` gets as far as "each entry is a string"; this is what makes a path that names nothing a

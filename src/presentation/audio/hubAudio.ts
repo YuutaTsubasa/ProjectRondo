@@ -4,11 +4,11 @@ import type { Nullable } from '@babylonjs/core/types';
 
 import { createFootstepCadence } from '../../domain/audio/footstepCadence';
 import { cadenceSample } from '../../domain/audio/locomotionGait';
-import type { MusicScene } from '../../domain/audio/musicDirector';
 import { surfaceCue } from '../../domain/audio/soundCue';
 import { WALK_THRESHOLD, type Knight, type KnightMotionSample } from '../babylon/knight';
 import { createGameAudio } from './audioEngine';
 import { phaseOf, weightOf } from './clipSample';
+import { createDeferredAudio, type DeferredAudio } from './deferredAudio';
 import { createMusicCrossfade } from './musicCrossfade';
 import { loadSoundBank, type SoundBank } from './soundBank';
 
@@ -28,10 +28,11 @@ const LAND_RATE = 0.88;
  */
 const GESTURE_EVENTS = ['pointerdown', 'keydown', 'touchend'] as const;
 
-export interface HubAudio {
-  setMusicScene(scene: MusicScene): void;
-  dispose(): void;
-}
+/**
+ * What `hubScene` holds. The same shape the deferral speaks, named here so the scene keeps importing
+ * the handle from the module that builds it.
+ */
+export type HubAudio = DeferredAudio;
 
 /**
  * Connects the scene to the audio.
@@ -55,6 +56,10 @@ export interface HubAudio {
  * A failure in the background build therefore means a silent game, not a broken one — the same
  * contract as before, now with "never settles" covered as well as "rejects".
  *
+ * The bookkeeping that deferral needs — holding a `setMusicScene` that arrives before the build
+ * finishes, and disposing a graph whose build outlived the scene — lives in `deferredAudio.ts`, where
+ * a test can reach it without a `Scene`. All that is left here is what the build itself needs.
+ *
  * `motion` is the reading the animation layer already takes — the *same* function `hubScene` hands to
  * `driveKnightAnimation`, not a second one built beside it. `groundContact.ts` exists because two
  * consumers deciding "is it on the ground" independently drifted apart, and planar speed beside it is
@@ -66,40 +71,7 @@ export function createHubAudio(
   motion: () => KnightMotionSample,
   knight: Knight,
 ): HubAudio {
-  let live: HubAudio | null = null;
-  let disposed = false;
-  let pending: MusicScene | null = null;
-
-  const start = async () => {
-    try {
-      const audio = await buildHubAudio(scene, motion, knight);
-      // The scene can be torn down while the build is still in flight; without this the graph it
-      // just finished building would outlive the page it belongs to.
-      if (disposed) {
-        audio.dispose();
-        return;
-      }
-      live = audio;
-      if (pending !== null) audio.setMusicScene(pending);
-    } catch (error) {
-      console.warn('[audio] could not start; the game will be silent:', error);
-    }
-  };
-  void start();
-
-  return {
-    // Held rather than dropped: `App.svelte` asks for the intro track the moment the scene resolves,
-    // which is now normally *before* the graph is ready.
-    setMusicScene(next) {
-      pending = next;
-      live?.setMusicScene(next);
-    },
-    dispose() {
-      disposed = true;
-      live?.dispose();
-      live = null;
-    },
-  };
+  return createDeferredAudio(() => buildHubAudio(scene, motion, knight));
 }
 
 async function buildHubAudio(
