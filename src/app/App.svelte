@@ -21,7 +21,8 @@
     // attachControl, which assigns engine.canvasTabIndex (default 1). This app binds all game input
     // on window (presentation/babylon/input.ts), so the canvas never needs to be a tab stop -- and
     // as a sibling of the overlay it sits outside the modals' inert wrapper, giving Tab a way out of
-    // an open modal onto an element hidden behind an opaque panel that paints no focus indicator.
+    // an open modal onto an element that paints no focus indicator: hidden altogether behind the
+    // opaque backlog, and behind the choices visible through their 0.42 wash but not clickable.
     // A *positive* tabindex is worse still: it sorts ahead of every tabindex=0 element on the page.
     //
     // Reset twice, and both are needed. The Scene constructor runs synchronously before
@@ -69,7 +70,8 @@
 <!-- tabindex="-1": babylon makes the canvas focusable, but all game input is bound on window
      (see presentation/babylon/input.ts), so it never needs to be a tab stop -- and as a sibling of
      the overlay it sits outside the inert wrapper, giving Tab a way out of an open modal onto an
-     element that is invisible behind it and paints no focus indicator. -->
+     element that paints no focus indicator -- unseen behind the opaque backlog, and seen through the
+     choices' wash but not usable. -->
 <canvas bind:this={canvas} tabindex="-1" style="width:100vw;height:100vh;display:block"></canvas>
 {#if session && !gameMode.isPlaying}
   <DialogueOverlay {session} {playCue} onFinished={finishIntro} />
