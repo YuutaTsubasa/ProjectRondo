@@ -53,9 +53,13 @@
   function onBoxClick() {
     if (session.choices.length > 0) return;
     // The press sounds with the typewriter tick rather than a cue of its own, and before the branch
-    // below because both of its outcomes are the same event: pressing the box puts text on screen,
-    // whether by finishing the reveal or by starting the next line. Line.svelte holds the first tick
-    // of a new line back by one throttle window so this and it do not land on top of each other.
+    // below because the tick belongs to the press, not to what the press turns out to do. There are
+    // three of those: finishing the reveal, starting the next line, and -- on a completed final line
+    // -- falling through `advance()` into `finish()`, which unmounts this component. The last one
+    // puts no text on screen, and still sounds: the box acknowledges every press the same way, and
+    // going silent on the one press that takes the box away would read as a press that missed.
+    // Line.svelte holds the first tick of a new line back by one throttle window so this and it do
+    // not land on top of each other.
     playCue?.('ui.type');
     if (lineRef?.reveal()) return;
     advance();
