@@ -1,5 +1,11 @@
 extends SceneTree
 
+# Foot calibration is NOT done here. tools/knight-feet/calibrate.mjs levels the boot soles on the
+# exported GLB, after this script has run. This script bakes exactly one rotation, the ADDUCT_DEG
+# thigh correction below, and it has never baked an ankle or foot rotation in any revision in this
+# repository's history — so pass 0 as calibrate.mjs's pre-rotation argument for anything exported
+# from here.
+
 const SRC := {
 	"Idle": "res://Assets/Animations/Idle.fbx",
 	"Walk": "res://Assets/Animations/Walking.fbx",
@@ -14,13 +20,9 @@ const ADDUCT_DEG := -5.0
 const L_THIGH := "Skeleton3D:LeftUpperLeg"
 const R_THIGH := "Skeleton3D:RightUpperLeg"
 
-# Foot calibration is applied to the exported GLB by tools/knight-feet/calibrate.mjs, not here.
-# This script bakes exactly one rotation: the ADDUCT_DEG thigh correction below. It has never baked
-# an ankle or foot rotation in any revision in this repository's history, so pass 0 as calibrate.mjs's
-# pre-rotation argument for anything exported from here.
-
 # World fore-aft (Z) axis expressed in the thighs' parent frame; the true adduction axis.
 var _adduct_axis := Vector3(0, 0, 1)
+
 func _initialize():
 	var knight: Node = load("res://Assets/Characters/WebKnight/knight.fbx").instantiate()
 	var ksk := _find(knight, "Skeleton3D") as Skeleton3D

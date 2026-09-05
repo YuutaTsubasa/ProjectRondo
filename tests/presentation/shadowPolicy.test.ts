@@ -46,8 +46,9 @@ describe('the shipped knight GLB', () => {
 describe('HEAD_MESHES against the shipped knight GLB', () => {
 
   // In beforeAll rather than the describe body: loading at collection time meant a missing or
-  // unfetched LFS object failed this whole file, including the three suites above, which are pure
-  // and touch no GLB. This file's header sells those as node-testable, and that has to stay true.
+  // unfetched LFS object failed this whole file, including the two `knightReceivesShadow` suites at
+  // the top, which are pure and touch no GLB. This file's header sells those as node-testable, and
+  // that has to stay true. (The suite directly above does read the GLB — that is its whole job.)
   /** Babylon names each runtime mesh after the glTF **node**, so that is what to count here. */
   let names: string[];
   beforeAll(() => {
@@ -56,10 +57,6 @@ describe('HEAD_MESHES against the shipped knight GLB', () => {
     names = g.j.nodes
       .filter((n: { mesh?: number }) => n.mesh !== undefined)
       .map((n: { name: string }) => n.name);
-  });
-
-  it('is a real GLB on disk, not an unfetched LFS pointer', () => {
-    expect(readFileSync(GLB).toString('ascii', 0, 4)).toBe('glTF');
   });
 
   it('ships 42 mesh-bearing nodes', () => {

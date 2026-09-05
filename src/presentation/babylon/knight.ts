@@ -130,17 +130,23 @@ const BODY_MR_URL = '/models/knight_mr.webp?v=2';
  * A metal has no diffuse — its albedo becomes the specular F0 — so it can only show what it reflects,
  * and the scene now gives it something to reflect: `createEnvironment` (in `environment.ts`) sets
  * `scene.environmentTexture` to a neutral studio IBL. Before that environment existed this was held at
- * 0.6, trading physical correctness for brightness, because at `metallic = 1` the ~36% of texels the
- * packed map flags as metal had nothing to reflect but the sun's specular lobe and rendered near-black.
+ * 0.6, trading physical correctness for brightness, because at `metallic = 1` the majority of the
+ * plate — 76.4% of the packed map's texels read metallic > 0.5, and 84.8% area-weighted through the
+ * body's UVs — had nothing to reflect but the sun's specular lobe and rendered near-black.
  * With the IBL in place that concession is no longer needed and the plate reads as true silver steel —
  * this was the fix for the "darker than Tripo3D" report (Tripo's viewer lights the model with an HDRI;
  * this scene had none).
  *
- * At the packed map's roughness (near 1 over most of the plate) the metallic value barely moves
- * brightness — rough-metal specular is close to the diffuse irradiance it replaces — so 1 costs little
- * in luma while restoring correct energy and crisper highlights where the map's roughness is low.
- * Brightness is set by `IBL_INTENSITY` in `environment.ts`, not by this number, and that constant's doc
- * is the single place the shipped plate's measured luma lives.
+ * What justifies 1 is the environment, not the roughness. An earlier version of this note argued that
+ * the map is "near 1 rough over most of the plate", so rough-metal specular stands in for the diffuse
+ * irradiance it replaces and the change costs little luma. That is false of this map: sampled through
+ * the body meshes' own `TEXCOORD_0` and weighted by triangle area, mean roughness is **0.320**, 64.2%
+ * of the surface is below 0.3, and **none** of it is above 0.8 (whole-image, only 8.5% of texels
+ * exceed 0.8). Line ~437 of this file already said as much — "the 0.25-0.6 the G channel actually
+ * carries" — so the two were contradicting each other. The premise is withdrawn; 1 is correct because
+ * a metal's energy is its reflection and there is now something to reflect, and the luma it costs is
+ * whatever `IBL_INTENSITY` was tuned against. Brightness is set there, not by this number, and that
+ * constant's doc is the single place the shipped plate's measured luma lives.
  *
  * An earlier note here put the 0.6→1.0 sweep at ~118.6→114.3 and used the gap to justify raising
  * `IBL_INTENSITY` to 1.4. That put the shipped configuration at 114.3 where two other notes put it at
@@ -148,8 +154,10 @@ const BODY_MR_URL = '/models/knight_mr.webp?v=2';
  * mask measurement needs the running scene), so it is withdrawn rather than left standing as a third
  * disagreeing figure.
  *
- * The "~36%" metal-texel figure above, and `IBL_INTENSITY`'s luma figures, were measured
- * through the *lossy* `knight_mr.webp` that ships today (its header is `VP8 `, not `VP8L` — see the
+ * The metal-texel and roughness figures above were measured on the `knight_mr.webp` **this PR
+ * ships** (`?v=2`), which is not the map the pre-PR numbers came from: the swap took metallic > 0.5
+ * from 53.3% to 76.4% of texels. They, and `IBL_INTENSITY`'s luma figures, were measured
+ * through that *lossy* map (its header is `VP8 `, not `VP8L` — see the
  * README's regeneration recipe). Lossy WebP chroma-subsamples and cross-contaminates the G/B channels
  * this map packs roughness and metallic into, so re-packing losslessly per that recipe changes the
  * inputs these numbers came from; re-measure after re-packing rather than trusting them against the new
