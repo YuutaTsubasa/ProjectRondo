@@ -9,13 +9,14 @@ describe('createVariantRotation', () => {
 
   it('counts each cue on its own', () => {
     const rotation = createVariantRotation();
-    // Interleaved, which is how they actually arrive: a typing tick between two footfalls must not
-    // push the footsteps' feet along, or the left/right alternation the caller derives from this
-    // index stops alternating.
+    // Interleaved, which is how they actually arrive: `hubAudio`'s `play` is the only caller, and
+    // every cue that reaches it goes through this one rotation. A move sounding between two typing
+    // ticks must not push `ui.type` along, or its four recordings stop being handed out in order and
+    // the repetition this exists to hide comes back.
     expect(rotation.next('ui.type')).toBe(0);
-    expect(rotation.next('footstep.grass')).toBe(0);
+    expect(rotation.next('ui.move')).toBe(0);
     expect(rotation.next('ui.type')).toBe(1);
-    expect(rotation.next('footstep.grass')).toBe(1);
+    expect(rotation.next('ui.move')).toBe(1);
     expect(rotation.next('ui.type')).toBe(2);
   });
 
