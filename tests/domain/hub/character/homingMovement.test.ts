@@ -83,4 +83,15 @@ describe('homing dash', () => {
     expect(r.homing).toBeNull();
     expect(r.velocity.y).toBeLessThan(0); // still just falling
   });
+
+  it('turns facing to the planar projection of a sideways dash direction', () => {
+    const r = step(AIRBORNE, pressTowards(vec3(6, 0, 0)), C, 1 / 60);
+    expect(r.facing.x).toBeCloseTo(1, P);
+    expect(r.facing.y).toBeCloseTo(0, P);
+  });
+
+  it('leaves facing unchanged for a straight-up dash, whose planar projection is zero', () => {
+    const r = step(AIRBORNE, pressTowards(vec3(0, 6, 0)), C, 1 / 60);
+    expect(r.facing).toEqual(AIRBORNE.facing);
+  });
 });

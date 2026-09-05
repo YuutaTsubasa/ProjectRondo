@@ -86,10 +86,22 @@ const stepHoming = (
 
   return {
     velocity: scale3(dash.direction, config.homingSpeed),
-    facing: motion.facing,
+    facing: dashFacing(motion, dash),
     isGrounded: false,
     homing: { direction: dash.direction, remaining: dash.remaining - travelled, elapsed },
   };
+};
+
+/**
+ * Spec §4: "facing turns to the dash direction." `facing` is planar (X maps to world X, Y to world
+ * Z — see the doc comment on `IDLE`), so this is the normalized X/Z projection of the 3D dash
+ * direction. A dash straight up or down projects to a zero-length vector — `normalize` would return
+ * `ZERO`, a meaningless facing — so that degenerate case keeps the previous facing instead. It is
+ * reachable: the hub's test crystals include ones directly overhead.
+ */
+const dashFacing = (motion: CharacterMotion, dash: HomingDash): Vec2 => {
+  const projected = normalize(vec2(dash.direction.x, dash.direction.z));
+  return projected === ZERO ? motion.facing : projected;
 };
 
 /**
