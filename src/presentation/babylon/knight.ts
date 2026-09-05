@@ -1079,6 +1079,8 @@ export function driveKnightAnimation(
     if (!homing && wasHoming) {
       knight.trail.stop();
       knight.trail.setEnabled(false);
+      // Part of the placeholder dash-spin pose — see DASH_SPIN_RATE's doc for what to delete (this
+      // reset included) once Task 8's Flying Kick clip lands.
       dashRoll = 0;
       knight.root.rotationQuaternion = KNIGHT_FACING.clone();
       // `characterMovement.step` clears `homing` on both a bounce and a timeout, so that alone can't
@@ -1086,7 +1088,13 @@ export function driveKnightAnimation(
       // timeout zeroes it (see KnightMotionSample.verticalSpeed's doc). Only a bounce restarts the
       // clip; a timeout leaves the knight simply falling under gravity from here, with no clip played.
       if (verticalSpeed > 0) {
-        playSegment(jump, BOUNCE_RESTART, JUMP_FALL_END, 1);
+        // Untuned, unlike `ratio` above: retiming this the same way would need a bounce-specific
+        // airtime, and `KnightTuning` exposes none. Reusing the ordinary jump's `airtime` would
+        // misrepresent the bounce — that value is derived from `jumpSpeed`, while a bounce rises at
+        // `homingBounceSpeed`, a different speed with a different real duration. Plays at the clip's
+        // natural rate for now; a later task tunes it by eye in the browser.
+        const bounceRatio = 1;
+        playSegment(jump, BOUNCE_RESTART, JUMP_FALL_END, bounceRatio);
       }
     }
     wasHoming = homing;
