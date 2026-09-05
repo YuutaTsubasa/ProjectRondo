@@ -150,6 +150,42 @@ Ambience is two things: a non-positional wind bed, and a **spatial** emitter at 
 (`POND` is (−15, −0.95, −5), radius 12 — `src/domain/hub/waterBody.ts`), so the water is audible near
 the shore and gone across the field.
 
+### 4.4 AudioV2 has two volumes, and they multiply
+
+The trap that silenced the music for a whole review cycle, written down so it cannot happen twice.
+
+A sound in AudioV2 carries a volume in **two** places, and the signal passes through both:
+
+- `play({ volume })` sets a **per-instance** `GainNode` — `webAudioStaticSound.js` assigns
+  `this._volumeNode.gain.value = options.volume` when the instance starts. It defaults to 1.
+- `sound.volume` / `sound.setVolume(...)` set the **sound's own** volume subnode, a separate node
+  further down the chain.
+
+They multiply. So a loop started with `play({ volume: 0 })` is muted by its instance gain, and no
+amount of ramping `sound.setVolume` can ever bring it back — which is exactly what happened when the
+music crossfade was first written to start silent and fade up. Everything downstream looked correct:
+the file loaded, the media element played, the ramp ran to the right target, and nothing warned.
+
+**The rule this leaves:** a one-shot puts its level on the *instance* (overlapping footsteps each need
+their own), and a loop puts its level on the *sound* (it has exactly one instance, and its handle
+ramps the sound). `soundBank.ts` does both, and says so at each site.
+
+Verified in the running scene by hooking `GainNode` construction and reading every gain in the graph:
+20 nodes, none at 0, values 0.55 (the AVG theme's manifest volume) and 1. Driving a crossfade then
+leaves the incoming track at 0.5 (the hub theme's) and the outgoing at 0.
+
+### 4.5 Music cannot start before the first gesture
+
+The two tracks are **streaming** sounds, which AudioV2 backs with an `HTMLMediaElement`. A browser
+*rejects* a media element's playback outright before a user gesture, where a decoded buffer is merely
+scheduled on a suspended context and becomes audible when that context resumes. `App.svelte` asks for
+the intro track the moment the scene finishes loading — long before the player has clicked anything —
+so the request lands in the one window where it cannot be honoured.
+
+`hubAudio` therefore remembers the requested scene and starts it when `engine.unlockAsync()` resolves.
+This is also why footsteps and ambience were audible in early testing while music was not: those are
+static sounds, and only the streaming path has this constraint.
+
 ## 5. The assets
 
 ### 5.1 What the sources actually were

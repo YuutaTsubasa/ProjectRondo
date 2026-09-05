@@ -127,7 +127,15 @@ export async function loadSoundBank(audio: GameAudio): Promise<SoundBank> {
       const spec = MANIFEST[cue];
       try {
         if (options.position) sound.spatial.position = options.position;
-        sound.play({ loop: true, volume: spec.volume * (options.gain ?? 1) });
+        // **A loop's level lives on the sound, not on the instance.** `play({ volume })` sets a
+        // per-instance GainNode that *multiplies* the sound's own volume subnode, and the
+        // `setVolume` handed back below ramps the latter — so a loop started with an instance gain
+        // of 0 can never be faded up, and stays silent for good however far the ramp travels. That
+        // is exactly how the music was silenced when the crossfade was first written. A loop has one
+        // instance, so nothing is lost by putting its level on the sound; `play` above keeps using
+        // the instance gain, which is what lets overlapping footsteps each carry their own.
+        sound.setVolume(spec.volume * (options.gain ?? 1), { shape: AudioParameterRampShape.None });
+        sound.play({ loop: true });
       } catch (error) {
         console.warn(`[audio] cue "${cue}" failed to start looping:`, error);
         return null;

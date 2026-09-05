@@ -92,6 +92,15 @@ async function buildHubAudio(
     // player sees, and the third-person camera sits several units behind the knight.
     audio.engine.listener.attach(camera);
 
+    // Music is deferred until the audio engine actually unlocks. The tracks are *streaming* sounds
+    // — HTMLMediaElements — and a browser rejects their playback outright before a user gesture,
+    // rather than scheduling it on a suspended context the way a decoded buffer is. `App.svelte` asks
+    // for the intro track the moment the scene finishes loading, which is long before the player has
+    // clicked anything, so without this the request lands in the one window where it cannot be
+    // honoured and is never retried.
+    let unlocked = false;
+    let desiredScene: MusicScene | null = null;
+
     const cadence = createFootstepCadence();
     let wasAirborne = player.airborne;
     let music: LoopHandle | null = null;
@@ -145,10 +154,10 @@ async function buildHubAudio(
       });
     });
 
-    return {
-      setMusicScene(next) {
-        const change = musicChange(playingTrack, next);
-        if (!change) return;
+    const applyMusic = () => {
+      if (!unlocked || desiredScene === null) return;
+      const change = musicChange(playingTrack, desiredScene);
+      if (!change) return;
 
         // A real crossfade, not a cut: the outgoing track keeps playing while the new one fades in
         // under it, and only stops once it has faded fully out.
@@ -168,7 +177,21 @@ async function buildHubAudio(
             const i = fadingOut.indexOf(outgoing);
             if (i >= 0) fadingOut.splice(i, 1);
           }, change.fadeSeconds * 1000);
-        }
+      }
+    };
+
+    void audio.engine
+      .unlockAsync()
+      .then(() => {
+        unlocked = true;
+        applyMusic();
+      })
+      .catch((error: unknown) => console.warn('[audio] engine never unlocked; music stays silent:', error));
+
+    return {
+      setMusicScene(next) {
+        desiredScene = next;
+        applyMusic();
       },
       dispose() {
         if (observer) scene.onBeforeRenderObservable.remove(observer);
