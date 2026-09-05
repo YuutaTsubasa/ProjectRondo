@@ -20,8 +20,45 @@ const STILL = '/portraits/knight_idle_still.webp';
 const ANIMATED = '/portraits/knight_idle.webp';
 const WEBM = '/portraits/knight_idle.webm';
 
+type Listener = (event: MediaQueryListEvent) => void;
+
+/**
+ * A prefers-reduced-motion stub that can change its mind afterwards.
+ *
+ * `legacy` is Safari before 14, where `MediaQueryList` is not an `EventTarget`: `addEventListener`
+ * is absent rather than inert, so a component that reaches for it throws. That is WKWebView, which
+ * is the whole reason the VP9 probe next door exists, so both shapes are worth having here.
+ */
+const stubMatchMedia = (initial: boolean, { legacy = false } = {}) => {
+  const listeners = new Set<Listener>();
+  const modern = {
+    addEventListener: (_: string, fn: Listener) => { listeners.add(fn); },
+    removeEventListener: (_: string, fn: Listener) => { listeners.delete(fn); },
+  };
+  const old = {
+    addListener: (fn: Listener) => { listeners.add(fn); },
+    removeListener: (fn: Listener) => { listeners.delete(fn); },
+  };
+  const query = {
+    matches: initial,
+    media: '(prefers-reduced-motion: reduce)',
+    onchange: null,
+    dispatchEvent: () => false,
+    ...(legacy ? old : modern),
+  };
+  window.matchMedia = (() => query) as unknown as typeof window.matchMedia;
+  return {
+    change(matches: boolean) {
+      query.matches = matches;
+      listeners.forEach((fn) => fn({ matches } as MediaQueryListEvent));
+      flushSync();
+    },
+    listening: () => listeners.size,
+  };
+};
+
 let target: HTMLElement;
-let component: Record<string, unknown>;
+let component: Record<string, unknown> | undefined;
 
 const render = () => {
   component = mount(Portrait, { target, props: { portrait: 'neutral' } });
@@ -41,13 +78,11 @@ const settle = async (supported: boolean) => {
 beforeEach(() => {
   target = document.createElement('div');
   document.body.append(target);
-  // jsdom has no matchMedia, and the component follows prefers-reduced-motion through it.
-  window.matchMedia = vi.fn().mockReturnValue({
-    matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn(),
-  }) as unknown as typeof window.matchMedia;
+  stubMatchMedia(false); // jsdom has no matchMedia, and the component reads it on mount
 });
 afterEach(() => {
   if (component) unmount(component);
+  component = undefined;
   target.remove();
 });
 
@@ -77,12 +112,58 @@ describe('Portrait source selection', () => {
     expect(shown().src).not.toBe(WEBM);
   });
 
-  it('holds the still under prefers-reduced-motion, even on an engine that passes', async () => {
-    window.matchMedia = vi.fn().mockReturnValue({
-      matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn(),
-    }) as unknown as typeof window.matchMedia;
+  it('keeps the decorative video out of the accessibility tree, as the <img> already is', async () => {
+    render();
+    await settle(true);
+    const video = target.querySelector('video')!;
+    expect(video.getAttribute('aria-hidden')).toBe('true');
+    expect(video.tabIndex).toBe(-1);
+  });
+});
+
+describe('Portrait and prefers-reduced-motion', () => {
+  it('holds the still when the setting is already on at mount', async () => {
+    stubMatchMedia(true);
     render();
     await settle(true);
     expect(shown()).toMatchObject({ tag: 'IMG', src: STILL });
+  });
+
+  it('drops the animation when the setting is turned on mid-session', async () => {
+    const media = stubMatchMedia(false);
+    render();
+    await settle(true);
+    expect(shown().tag).toBe('VIDEO');
+    media.change(true);
+    expect(shown()).toMatchObject({ tag: 'IMG', src: STILL });
+  });
+
+  it('picks the animation back up when the setting is turned off again', async () => {
+    const media = stubMatchMedia(true);
+    render();
+    await settle(true);
+    media.change(false);
+    expect(shown()).toMatchObject({ tag: 'VIDEO', src: WEBM });
+  });
+
+  it('subscribes through the pre-14 WebKit API when addEventListener is absent', async () => {
+    const media = stubMatchMedia(false, { legacy: true });
+    render();
+    await settle(true);
+    expect(media.listening()).toBe(1);
+    media.change(true);
+    expect(shown()).toMatchObject({ tag: 'IMG', src: STILL });
+  });
+
+  it('unsubscribes on teardown, through whichever API it subscribed with', async () => {
+    for (const legacy of [false, true]) {
+      const media = stubMatchMedia(false, { legacy });
+      render();
+      await settle(true);
+      expect(media.listening()).toBe(1);
+      unmount(component!);
+      component = undefined;
+      expect(media.listening()).toBe(0);
+    }
   });
 });

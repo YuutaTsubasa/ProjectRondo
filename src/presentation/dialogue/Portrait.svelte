@@ -4,6 +4,23 @@
 
   let { portrait }: { portrait: string } = $props();
 
+  /**
+   * Subscribes to a media query, returning its unsubscribe.
+   *
+   * Safari before 14 exposes `MediaQueryList` without `EventTarget`, so `addEventListener` is
+   * simply absent and calling it throws -- taking the whole portrait down with it. That is
+   * WKWebView, the same engine the VP9 probe next door exists to accommodate, so the older pair is
+   * worth keeping rather than assuming the floor is Safari 14.
+   */
+  const follow = (query: MediaQueryList, onChange: (event: MediaQueryListEvent) => void) => {
+    if (typeof query.addEventListener === 'function') {
+      query.addEventListener('change', onChange);
+      return () => query.removeEventListener('change', onChange);
+    }
+    query.addListener(onChange);
+    return () => query.removeListener(onChange);
+  };
+
   // An animated <img> cannot be paused, so honouring prefers-reduced-motion means showing the still
   // instead of the loop. Followed rather than read once: the setting can be changed while the game
   // is running, and this query is the only thing that says so.
@@ -11,9 +28,7 @@
   $effect(() => {
     const query = window.matchMedia('(prefers-reduced-motion: reduce)');
     reduceMotion = query.matches;
-    const onChange = (event: MediaQueryListEvent) => { reduceMotion = event.matches; };
-    query.addEventListener('change', onChange);
-    return () => query.removeEventListener('change', onChange);
+    return follow(query, (event) => { reduceMotion = event.matches; });
   });
 
   // Three states, not two: `undefined` means the probe has not answered yet. A boolean here would
@@ -37,10 +52,24 @@
   );
 </script>
 
-<!-- Full-body 立繪 standing from the floor at the left, behind the dialogue box, over the 3D scene. -->
+<!--
+  Full-body 立繪 standing from the floor at the left, behind the dialogue box, over the 3D scene.
+  Decorative in both branches: the <img> says so with `alt=""`, and the <video> needs `aria-hidden`
+  to match, or the branch a screen reader meets depends on whether the engine passed the probe.
+-->
 {#if webm}
   <!-- svelte-ignore a11y_media_has_caption -->
-  <video class="portrait" src={webm} poster={still} autoplay loop muted playsinline></video>
+  <video
+    class="portrait"
+    src={webm}
+    poster={still}
+    autoplay
+    loop
+    muted
+    playsinline
+    aria-hidden="true"
+    tabindex="-1"
+  ></video>
 {:else}
   <img class="portrait" src={image} alt="" draggable="false" />
 {/if}

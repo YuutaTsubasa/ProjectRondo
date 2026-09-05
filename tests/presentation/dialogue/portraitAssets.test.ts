@@ -14,8 +14,7 @@ const src = (name: string) =>
 
 const KEYS = ['neutral', 'anything-unmapped'];
 const urls = () =>
-  [...new Set(KEYS.flatMap((k) => [resolvePortrait(k), resolvePortraitAnimated(k), resolvePortraitWebm(k)]))]
-    .filter((u): u is string => typeof u === 'string');
+  [...new Set(KEYS.flatMap((k) => [resolvePortrait(k), resolvePortraitAnimated(k), resolvePortraitWebm(k)]))];
 
 const fileFor = (url: string) => DIR + url.replace('/portraits/', '');
 
@@ -61,9 +60,20 @@ describe('portrait assets', () => {
     expect(readdirSync(DIR).filter((f) => !referenced.has(f))).toEqual([]);
   });
 
+  /** An animated WebP carries one ANMF chunk per frame; a single-image one carries none. */
+  const isAnimated = (url: string) => readFileSync(fileFor(url)).includes(Buffer.from('ANMF'));
+
   it('the animated WebP is actually animated', () => {
-    const animated = resolvePortraitAnimated('neutral')!;
-    expect(readFileSync(fileFor(animated)).indexOf(Buffer.from('ANMF'))).toBeGreaterThan(-1);
+    expect(isAnimated(resolvePortraitAnimated('neutral'))).toBe(true);
+  });
+
+  // The still is the frame shown under prefers-reduced-motion, where an <img> could not be stopped
+  // if it did move, and it is also the video's poster. The two files sit in one directory and
+  // differ by a "_still" suffix, so swapping an animated encode into it is an easy accident -- and
+  // one every other check here survives: it still exists, is still referenced, and its first
+  // frame's corner is still transparent.
+  it('the still is a single frame, since nothing downstream could stop it moving', () => {
+    expect(isAnimated(resolvePortrait('neutral'))).toBe(false);
   });
 
   // The portrait stands over the live 3D scene. Without a usable alpha the removed background comes
@@ -82,7 +92,7 @@ describe('portrait assets', () => {
   // belongs here is that the files the ungated paths point at are safe everywhere.
   it('keeps every ungated path on a format that carries alpha universally', () => {
     const ungated = KEYS.flatMap((k) => [resolvePortrait(k), resolvePortraitAnimated(k)]);
-    expect(ungated.filter((u) => !u?.endsWith('.webp'))).toEqual([]);
+    expect(ungated.filter((u) => !u.endsWith('.webp'))).toEqual([]);
   });
 
   it('offers VP9 only through the gated accessor', () => {

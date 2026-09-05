@@ -27,8 +27,8 @@ const webmByKey: Record<string, string> = {};
 
 export const resolvePortrait = (key: string): string => stillByKey[key] ?? NEUTRAL_STILL;
 
-export const resolvePortraitAnimated = (key: string): string | undefined =>
+export const resolvePortraitAnimated = (key: string): string =>
   animatedByKey[key] ?? NEUTRAL_ANIMATED;
 
-export const resolvePortraitWebm = (key: string): string | undefined =>
+export const resolvePortraitWebm = (key: string): string =>
   webmByKey[key] ?? NEUTRAL_WEBM;
