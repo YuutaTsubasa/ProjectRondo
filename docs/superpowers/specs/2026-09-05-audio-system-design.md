@@ -314,7 +314,7 @@ returns. It currently carries nothing.
 Encoded Vorbis q4, all one-shots peak-normalised to −3 dBFS so the mix balance lives in the manifest
 and re-cutting one sound cannot silently change the others.
 
-Sizes below are KiB (1024 B), which is what `ls -l` and a file browser show.
+Sizes below are KiB (1024 B), which is what `ls -lh` and a file browser show — `ls -l` prints raw bytes instead.
 
 | File | Size | Detail |
 | --- | --- | --- |
