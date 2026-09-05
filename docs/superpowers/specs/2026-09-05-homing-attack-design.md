@@ -82,8 +82,11 @@ Vitest, red before green:
 
 ## 4. Domain: the dash
 
-`CharacterMotion` gains `homing: { readonly target: Vec3 } | null`, and `characterMovement.step`
-branches on it. The alternative — a separate module composed alongside `step` in the presentation
+`CharacterMotion` gains `homing: HomingDash | null`, where `HomingDash` carries only
+`elapsed: number` — not a stored target or direction; §5 explains why direction and remaining distance
+are recomputed from presentation's live offset every frame instead of carried in this state — and
+`characterMovement.step` branches on whether `homing` is null. The alternative — a separate module
+composed alongside `step` in the presentation
 layer — was rejected because it would give **velocity two owners in the same frame**. That is the
 mistake the run/jump work already paid for and fixed by giving ground contact a single pure owner
 (`groundContact.ts`); repeating it here would be repeating a known defect.
@@ -165,6 +168,13 @@ real-time play, because the Browser pane's compositor throttles `requestAnimatio
 when not the foreground surface — `scene.render()` steps the same domain/physics code deterministically
 regardless.
 
+**That pass ran at `d3b64cb`**, before two later reworks: `05f1923` changed `stepHoming` to derive its
+direction and remaining distance from a live offset supplied every frame, rather than a fixed entry
+direction dead-reckoned down — so the shipped dash corrects course toward its target continuously,
+where every check below exercised a straight line decided at the press; and `57489fe` replaced the
+placeholder spin with the Flying Kick clip. Neither rework has been checked against in the browser since
+landing — the bullets below are recorded as measurements of the `d3b64cb` build, not the shipped one.
+
 **Every check passed at the derived value, so every constant keeps its Untuned marking. None was
 changed.** Task 7's own rule is to tune only when a check fails and a constant change fixes it; here
 no check that a constant can fix failed, so touching any of the five would have been an unjustified
@@ -173,27 +183,37 @@ edit this repo's review already treats as a defect.
 - `homingRange` (12) and `homingConeHalfAngle` (0.6109 rad): checked against the `(3,4,-10)` /
   `(-3,4,-10)` pair. Positioned so one crystal was centred in the fixed camera cone and the other was
   not, the dash reliably reached the aimed-at crystal and never the other (arrival within ~0.05 units
-  of each), across both sides of the pair. Left untuned.
+  of each), across both sides of the pair. **Measured against `d3b64cb`'s straight-line dash** — the
+  shipped dash curves toward its target instead, so this exercised a different path than what now
+  ships. The conclusion is probably still right (arrival tolerance follows from distance and cone aim,
+  not path shape), but it has not been re-checked against the curving dash. Left untuned.
 - `homingSpeed` (24, 3x `runSpeed`): every dash in every check completed in well under half a second and
   read only in domain telemetry, not by eye (see the "art direction" note in the report). No check
-  measures dash speed. Left untuned.
+  measures dash speed. Also measured at `d3b64cb`, before the course-correcting rework. Left untuned.
 - `homingBounceSpeed` (9, equal to `jumpSpeed`): checked by chaining `(0,3,-8) -> (0,5.5,-13) ->
   (0,8,-18)`. Both bounces cleared enough height and forward distance for the next crystal to be
-  in range and cone from the landing spot; the chain completed end to end. Left untuned.
+  in range and cone from the landing spot; the chain completed end to end. **Also measured against
+  `d3b64cb`'s straight-line dash** — a curving dash can in principle arrive from a slightly different
+  approach angle, though nothing about the rework changes arrival position by more than a
+  course-correction's worth of drift. Left untuned.
 - `homingMaxDuration` (0.6s): checked with a physical obstruction placed on the direct line to a
-  crystal. **Finding, not a tuning call:** `homingMaxDuration`'s abort branch
-  (`characterMovement.ts`'s `stepHoming`) never fires for any in-range target, obstructed or not,
-  because `remaining` is dead-reckoned from `homingSpeed * delta` alone — it has no way to know the
-  capsule is physically stuck. Since a selectable target is always within `homingRange` (12), the
-  dead-reckoned "arrival" always resolves within `homingRange / homingSpeed` = 0.5s, strictly before
+  crystal. **Finding, since fixed:** at `d3b64cb`, `homingMaxDuration`'s abort branch
+  (`characterMovement.ts`'s `stepHoming`) never fired for any in-range target, obstructed or not,
+  because `remaining` was dead-reckoned from `homingSpeed * delta` alone — it had no way to know the
+  capsule was physically stuck. Since a selectable target is always within `homingRange` (12), the
+  dead-reckoned "arrival" always resolved within `homingRange / homingSpeed` = 0.5s, strictly before
   `homingMaxDuration`'s 0.6s. Measured: dashing into an obstruction 4 units out on the way to `(0,3,-8)`
   stopped the capsule dead at the obstruction (position frozen while `homing.remaining` kept counting
   down regardless), then at `remaining <= 0` (elapsed ~0.34s, not 0.6s) the knight bounced straight up
-  from the obstruction rather than falling. No value of `homingMaxDuration` changes this outcome: any
-  value large enough not to clip legitimate max-range dashes (i.e. above 0.5s) is by definition never
-  reached first. This is a structural property of `stepHoming`'s arrival check being time-based rather
-  than position-based, not a badly-chosen constant, so it is left untuned and out of Task 7's scope
-  (constants and this doc only) — see the report for the follow-up this should become.
+  from the obstruction rather than falling. No value of `homingMaxDuration` would have changed that
+  outcome: any value large enough not to clip legitimate max-range dashes (i.e. above 0.5s) is by
+  definition never reached first — a structural property of `stepHoming`'s arrival check being
+  time-based rather than position-based, not a badly-chosen constant. **Commit `05f1923` fixed the
+  mechanism**: `stepHoming` now derives `remaining` from presentation's live offset every frame instead
+  of dead-reckoning it, so a dash a wall has actually stopped has an offset that stops shrinking too,
+  and the elapsed-time bound is what ends it — see §5, which now documents this as shipped rather than
+  as a follow-up. The fix touched the mechanism, not this constant; `homingMaxDuration` itself was not
+  retuned and keeps its Untuned marking.
 
 None of this is the art-direction pass — "does the dash read as decisive", the trail, the spin — which
 stays the project owner's call and is untouched here.

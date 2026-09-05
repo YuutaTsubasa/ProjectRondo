@@ -1,11 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { vec3, ZERO3, add, sub, scale, lengthSquared, length, normalize, dot } from '../../../src/domain/math/vec3';
+import { vec3, ZERO3, sub, scale, lengthSquared, length, normalize, dot } from '../../../src/domain/math/vec3';
 
 const P = 10;
 
 describe('vec3 arithmetic', () => {
-  it('adds and subtracts componentwise', () => {
-    expect(add(vec3(1, 2, 3), vec3(10, 20, 30))).toEqual(vec3(11, 22, 33));
+  it('subtracts componentwise', () => {
     expect(sub(vec3(10, 20, 30), vec3(1, 2, 3))).toEqual(vec3(9, 18, 27));
   });
 

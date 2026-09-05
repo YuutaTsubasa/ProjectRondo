@@ -1110,6 +1110,104 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 
 ---
 
+### Task 9: Fix the dead-code timeout — live offset, not dead reckoning
+
+**Files:**
+- Modify: `src/domain/hub/character/characterMotion.ts` (`HomingDash` doc comment)
+- Modify: `src/domain/hub/character/characterMovement.ts` (`step`, `stepHoming`)
+- Modify: `src/presentation/babylon/playerController.ts` (`homingCrystal` lock, live offset)
+- Modify: `tests/domain/hub/character/homingMovement.test.ts`
+- Modify: `docs/superpowers/specs/2026-09-05-homing-attack-design.md` (§4, §5)
+
+**Not in the original plan.** Task 7's browser pass (at `d3b64cb`) found that `homingMaxDuration`'s
+abort branch could never fire: `enterHoming` fixed `HomingDash.direction` at entry and `stepHoming`
+decremented `remaining` by `homingSpeed * delta` every frame, regardless of whether the capsule had
+actually moved. Since a selectable target is always within `homingRange` (12), that dead-reckoned
+distance always hit zero within `homingRange / homingSpeed` = 0.5s, strictly before `homingMaxDuration`'s
+0.6s — a dash blocked by terrain "arrived" and bounced off the obstacle instead of timing out, which
+contradicts §5's claim that the bound is mandatory. This task is that fix, added after Task 8 landed
+and reviewed on its own (commit `05f1923`) because it changes an input contract Tasks 3 and 5 already
+passed review on.
+
+**Interfaces:**
+- Changes: `HomingDash` narrows from `{direction, remaining, elapsed}` to `{elapsed}` — direction and
+  remaining are no longer carried on the domain's returned state, only derived internally each frame.
+- Changes: `characterMovement.step` no longer builds a `HomingDash` before dashing; it calls
+  `stepHoming(motion, elapsedSoFar, input.homingTarget, config, delta)` whether entering
+  (`elapsedSoFar = 0`) or continuing (`elapsedSoFar = motion.homing.elapsed`), and `stepHoming` derives
+  both `direction` and `remaining` fresh from the offset argument every frame.
+- Changes: `playerController.ts` holds a `homingCrystal: number | null` closure variable across frames
+  for as long as `player.motion.homing` is non-null, and recomputes the LIVE offset from the player's
+  current position to that same crystal every frame the dash is in flight — not only on the press
+  frame — feeding it into `MovementInput.homingTarget`.
+
+- [ ] **Step 1: Update the failing/changed tests first**
+
+In `tests/domain/hub/character/homingMovement.test.ts`: a dash whose supplied offset stops shrinking
+(frozen, simulating a capsule pinned against a wall) must now time out rather than arrive; an offset
+that keeps shrinking must still arrive and bounce, unchanged; a `null` offset mid-dash must end the
+dash safely rather than continue on stale data; a changed offset frame-to-frame must steer the dash
+(course correction) without resetting `elapsed`. `suspends gravity while dashing` and
+`ignores steering input while dashing` must feed the continuing frame a live (shrinking) offset instead
+of `NONE_INPUT`, since `NONE_INPUT`'s null `homingTarget` now legitimately ends the dash.
+`cannot restart while already dashing` — which asserted a fixed entry direction ignores a second
+offset — is replaced with `does not restart the dash from scratch when the live offset changes frame to
+frame`, since the old assertion is false by design once the dash is genuinely homing.
+
+- [ ] **Step 2: Narrow `HomingDash` and rewrite `stepHoming`**
+
+`characterMotion.ts`'s `HomingDash` keeps only `elapsed`. `characterMovement.ts`'s `stepHoming` takes
+`(motion, elapsedSoFar, offset, config, delta)`: a `null` offset ends the dash exactly like a timeout;
+otherwise `remaining = length3(offset)` and `direction = normalize3(offset)` are computed fresh, arrival
+is still checked before the timeout (arriving should beat a timeout landing on the same frame), and only
+`elapsed` is carried onto the returned `homing`.
+
+- [ ] **Step 3: Supply the live offset from presentation**
+
+`playerController.ts`: lock `homingCrystal` on a fresh press exactly as before, but stop computing the
+offset once at entry — recompute `homingOffset(root.getAbsolutePosition(), crystals, homingCrystal)`
+every frame the dash is in flight and pass that into `MovementInput.homingTarget` each frame, not only
+the press frame.
+
+- [ ] **Step 4: Update the spec**
+
+§4 and §5 of `docs/superpowers/specs/2026-09-05-homing-attack-design.md`: describe the live-offset
+mechanism as shipped, not as a proposed follow-up. §7 (Task 7's historical measurement log) is left
+untouched here — it is an accurate record of what Task 7 found at the time, not a spec of current
+behaviour — but see the final-review fix wave for why it needed its own pass once §5 and §7 started
+disagreeing.
+
+- [ ] **Step 5: Typecheck and run the suite**
+
+Run: `pnpm exec tsc --noEmit`
+Expected: clean.
+
+Run: `pnpm test`
+Expected: 26 files, 166 tests (163 + 3 net new: the previously-impossible blocked-dash case, the
+null-offset-mid-dash case, and the course-correction case).
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add src/domain/hub/character/characterMotion.ts src/domain/hub/character/characterMovement.ts \
+  src/presentation/babylon/playerController.ts tests/domain/hub/character/homingMovement.test.ts \
+  docs/superpowers/specs/2026-09-05-homing-attack-design.md
+git commit -m "fix(homing): make remaining track a live offset, not dead reckoning
+
+homingMaxDuration's abort branch could never fire: remaining was dead-
+reckoned from homingSpeed * delta regardless of whether the capsule had
+actually moved, so a dash blocked by terrain always 'arrived' within 0.5s,
+strictly before the 0.6s timeout. stepHoming now derives direction and
+remaining from a live offset presentation supplies every frame instead of
+carrying a fixed entry direction forward, so a dash a wall has actually
+stopped has an offset that stops shrinking too -- and, as a side effect,
+the dash now genuinely corrects course toward its target each frame.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
+```
+
+---
+
 ## Self-Review
 
 **Spec coverage.** §2's settled decisions → Tasks 3 (bounce, trigger, no-air-dash), 4 (crystals

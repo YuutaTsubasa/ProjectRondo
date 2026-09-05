@@ -2,21 +2,26 @@ import { type Vec3, ZERO3 } from '../../math/vec3';
 import { type Vec2, vec2 } from '../../math/vec2';
 
 /**
- * An in-flight homing dash. `direction` and `remaining` are NOT carried forward frame to frame —
- * `characterMovement.stepHoming` recomputes both every frame from presentation's live offset to the
- * locked crystal, so what is stored here is only the last frame's snapshot, useful to a caller but not
- * read back as input. `elapsed` is the one field that genuinely persists: it is what the timeout in
- * `characterMovement.step` reads, and the live offset has no way to supply it.
+ * An in-flight homing dash. Carries only `elapsed` — the one thing that genuinely persists frame to
+ * frame, because it is what the timeout in `characterMovement.step` reads and the live offset has no
+ * way to supply it.
  *
- * Recomputing `direction`/`remaining` from the live offset (rather than fixing `direction` at entry
- * and dead-reckoning `remaining` down by `homingSpeed * delta`) is deliberate on two counts: it is
- * what makes the dash home for real — correcting course toward the target every frame, not flying the
- * straight line decided at the press (design spec §4) — and it is what makes `remaining` reflect
- * whether the capsule is actually moving, which is the timeout's whole reason to exist (§5).
+ * `direction` and `remaining` used to live here too, computed by `characterMovement.stepHoming` and
+ * stored on the returned motion. Neither ever had a production reader: `step` reads only
+ * `motion.homing.elapsed`, presentation's `KnightMotionSample.homing` reads only `!== null`, and the
+ * per-frame offset presentation feeds back in (`playerController`'s `homingOffset`) is computed fresh
+ * from `root.getAbsolutePosition()` and the locked crystal, never from anything read off this
+ * interface. Their only consumers were this module's own tests, which multiplied them back together
+ * to synthesise the next frame's offset — dead reckoning the domain had just stopped doing internally,
+ * reintroduced at the call site. The tests now track that offset themselves (subtracting each frame's
+ * `velocity * delta`, the same arithmetic presentation performs by re-reading world position), so the
+ * fields could be dropped rather than kept for a reader that turned out to be the test file itself.
+ *
+ * `direction` and `remaining` are still recomputed from the live offset every frame *inside*
+ * `stepHoming` — that is what makes the dash home for real (design spec §4) and what makes the
+ * timeout reachable at all (§5) — this interface just no longer republishes them.
  */
 export interface HomingDash {
-  readonly direction: Vec3;
-  readonly remaining: number;
   readonly elapsed: number;
 }
 

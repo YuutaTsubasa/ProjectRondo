@@ -2,7 +2,10 @@ export interface Vec3 { readonly x: number; readonly y: number; readonly z: numb
 export const vec3 = (x: number, y: number, z: number): Vec3 => ({ x, y, z });
 export const ZERO3: Vec3 = vec3(0, 0, 0);
 
-export const add = (a: Vec3, b: Vec3): Vec3 => vec3(a.x + b.x, a.y + b.y, a.z + b.z);
+// No `add`, unlike `vec2.ts`: `vec2.add` is load-bearing (`vec2.moveToward` calls it), but nothing in
+// `src/` ever needed to add two Vec3s — every 3D consumer only subtracts (an offset), scales (a
+// velocity) or measures (length/dot). Add it back the day something needs it rather than for parity
+// with a sibling module that has an actual caller for its own copy.
 export const sub = (a: Vec3, b: Vec3): Vec3 => vec3(a.x - b.x, a.y - b.y, a.z - b.z);
 export const scale = (a: Vec3, k: number): Vec3 => vec3(a.x * k, a.y * k, a.z * k);
 export const dot = (a: Vec3, b: Vec3): number => a.x * b.x + a.y * b.y + a.z * b.z;

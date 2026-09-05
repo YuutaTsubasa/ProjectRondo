@@ -42,9 +42,18 @@ export const step = (
 /**
  * A press only becomes a dash in the air, and only when it came with a target offset. On the ground
  * the same button is an ordinary jump, which the normal path below handles.
+ *
+ * A zero-length offset is deliberately NOT filtered here. It used to be, but that guard was untested
+ * and unreachable in play: `selectHomingTarget` already rejects a candidate coincident with the
+ * player (a zero direction dots to 0, below any `cos` under 90°), so presentation can never hand this
+ * function a same-point target. Worse, it disagreed with `stepHoming`'s own handling of the identical
+ * input arriving mid-dash instead of at entry — there, a zero offset satisfies `travelled >= remaining`
+ * immediately and bounces. Falling through to `stepHoming` here instead makes both paths agree: a
+ * zero-length offset always bounces, whether it shows up at entry or mid-flight, rather than silently
+ * downgrading an entry-frame zero into an ordinary jump.
  */
 const canEnterHoming = (motion: CharacterMotion, input: MovementInput): boolean =>
-  !motion.isGrounded && input.homingTarget !== null && length3(input.homingTarget) !== 0;
+  !motion.isGrounded && input.homingTarget !== null;
 
 /**
  * The dash frame. `offset` is presentation's LIVE offset from the player to the locked crystal,
@@ -101,7 +110,10 @@ const stepHoming = (
     velocity: scale3(direction, config.homingSpeed),
     facing: dashFacing(motion, direction),
     isGrounded: false,
-    homing: { direction, remaining: remaining - travelled, elapsed },
+    // `direction` and `remaining - travelled` are NOT republished onto `homing` — see HomingDash's
+    // doc comment. They still did their job this frame (velocity, facing); only `elapsed` needs to
+    // outlive it.
+    homing: { elapsed },
   };
 };
 

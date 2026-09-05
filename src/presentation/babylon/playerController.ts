@@ -10,7 +10,7 @@ import { step } from '../../domain/hub/character/characterMovement';
 import { DEFAULT_CONFIG, type MovementConfig } from '../../domain/hub/character/movementConfig';
 import { IDLE, type CharacterMotion } from '../../domain/hub/character/characterMotion';
 import { selectHomingTarget } from '../../domain/hub/character/homingTarget';
-import { type Vec3, vec3 } from '../../domain/math/vec3';
+import { type Vec3, vec3, length as vecLength } from '../../domain/math/vec3';
 import { planarDirectionFromInput } from './cameraRelativeDirection';
 import { toBabylon, toVec3 } from './vectorConversions';
 import { CAPSULE_RADIUS, CAPSULE_HEIGHT } from './capsule';
@@ -51,6 +51,16 @@ export interface Player {
   airborne: boolean;
   /** The live movement config — the same object `window.moveConfig` mutates, so readers track dev tuning. */
   readonly config: MovementConfig;
+  /**
+   * Expected duration of the CURRENT homing dash, in seconds, or `null` while none is locked: the
+   * straight-line offset length to the crystal at the moment it locked, divided by `homingSpeed`. Set
+   * once per dash and held fixed — recomputing it every frame would fight the point of a dash that
+   * corrects course (design spec §4), since the live offset it would divide by keeps changing as the
+   * capsule curves toward the target. `knight.ts` reads this to retime the Flying Kick clip onto the
+   * dash's real screen time, the same way `KnightTuning.airtime` retimes the jump segment onto the
+   * jump's actual airtime — see `KnightMotionSample.homingEntrySeconds`.
+   */
+  homingEntrySeconds: number | null;
 }
 
 /**
@@ -81,7 +91,7 @@ export function createPlayer(
   // The Havok controller itself, for probing its solver settings live in dev.
   if (import.meta.env.DEV) (window as unknown as { charController: unknown }).charController = controller;
 
-  const player: Player = { root, motion: IDLE, airborne: false, config };
+  const player: Player = { root, motion: IDLE, airborne: false, config, homingEntrySeconds: null };
   // Coyote time, jump buffering and the takeoff guard all live in this pure state — see groundContact.
   let contact = INITIAL_GROUND_CONTACT;
   // The crystal a homing dash is locked onto, held across frames for as long as `player.motion.homing`
@@ -118,6 +128,11 @@ export function createPlayer(
       homingCrystal = pressed && player.airborne
         ? pickHomingCrystal(root.getAbsolutePosition(), follow, crystals, config)
         : null;
+      // This block only runs while no dash is in flight, so a non-null result here is always a FRESH
+      // lock, never a mid-dash re-read — safe to (re)compute the entry estimate every time it runs.
+      player.homingEntrySeconds = homingCrystal === null
+        ? null
+        : vecLength(homingOffset(root.getAbsolutePosition(), crystals, homingCrystal)) / config.homingSpeed;
     }
     const homingTarget = homingCrystal === null
       ? null

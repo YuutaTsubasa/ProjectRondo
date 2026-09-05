@@ -3,7 +3,7 @@ import { step } from '../../../../src/domain/hub/character/characterMovement';
 import { DEFAULT_CONFIG as C } from '../../../../src/domain/hub/character/movementConfig';
 import { NONE_INPUT, type MovementInput } from '../../../../src/domain/hub/character/movementInput';
 import { IDLE, type CharacterMotion } from '../../../../src/domain/hub/character/characterMotion';
-import { vec3, scale } from '../../../../src/domain/math/vec3';
+import { vec3, ZERO3, scale, sub } from '../../../../src/domain/math/vec3';
 import { fromRaw } from '../../../../src/domain/kernel/normalizedPlanarDirection';
 import { vec2 } from '../../../../src/domain/math/vec2';
 
@@ -20,7 +20,9 @@ describe('homing dash', () => {
   it('starts when airborne and a target offset is supplied', () => {
     const r = step(AIRBORNE, pressTowards(vec3(0, 0, -6)), C, 1 / 60);
     expect(r.homing).not.toBeNull();
-    expect(r.homing!.remaining).toBeLessThan(6);
+    // `HomingDash` carries only `elapsed` (see its doc comment) — check that, not a `remaining` this
+    // interface no longer has.
+    expect(r.homing!.elapsed).toBeCloseTo(1 / 60, 6);
   });
 
   it('travels at homingSpeed along the offset direction', () => {
@@ -31,21 +33,26 @@ describe('homing dash', () => {
   });
 
   it('suspends gravity while dashing', () => {
-    const dashing = step(AIRBORNE, pressTowards(vec3(0, 0, -6)), C, 1 / 60);
+    const dt = 1 / 60;
+    const start = vec3(0, 0, -6);
+    const dashing = step(AIRBORNE, pressTowards(start), C, dt);
     // Presentation re-supplies the live offset every frame the dash is in flight (see
     // playerController's `homingCrystal` lock) — never NONE_INPUT's null, which now means "nothing to
-    // report" and ends the dash. Simulate an unobstructed capsule closing the same distance the domain
-    // itself just reported.
-    const offset = scale(dashing.homing!.direction, dashing.homing!.remaining);
-    const next = step(dashing, pressTowards(offset), C, 1 / 60);
+    // report" and ends the dash. `HomingDash` no longer republishes `direction`/`remaining` (nothing
+    // reads them back in production — see its doc comment), so track the closing offset the same way
+    // presentation does: subtract however far this frame's own velocity would have carried the capsule.
+    const offset = sub(start, scale(dashing.velocity, dt));
+    const next = step(dashing, pressTowards(offset), C, dt);
     // A plain airborne frame would subtract gravity*dt from velocity.y; a dash must not.
     expect(next.velocity.y).toBeCloseTo(0, P);
   });
 
   it('ignores steering input while dashing', () => {
-    const dashing = step(AIRBORNE, pressTowards(vec3(0, 0, -6)), C, 1 / 60);
-    const offset = scale(dashing.homing!.direction, dashing.homing!.remaining);
-    const steered = step(dashing, { ...pressTowards(offset), direction: fromRaw(vec2(1, 0)) }, C, 1 / 60);
+    const dt = 1 / 60;
+    const start = vec3(0, 0, -6);
+    const dashing = step(AIRBORNE, pressTowards(start), C, dt);
+    const offset = sub(start, scale(dashing.velocity, dt));
+    const steered = step(dashing, { ...pressTowards(offset), direction: fromRaw(vec2(1, 0)) }, C, dt);
     expect(steered.velocity.x).toBeCloseTo(0, P);
     expect(steered.velocity.z).toBeCloseTo(-C.homingSpeed, P);
   });
@@ -65,15 +72,18 @@ describe('homing dash', () => {
   it('aborts at homingMaxDuration and lets gravity resume — target too far to reach in time, but the offset genuinely keeps shrinking', () => {
     // A target far outside `homingRange` cannot really be selected in play, but the domain does not
     // know that; this checks the timeout still fires for an honestly-closing dash that simply cannot
-    // finish in 0.6s. Presentation would supply this by re-deriving the offset each frame; here that is
-    // simulated by feeding back the previous frame's own (direction, remaining) report.
-    let m: CharacterMotion = step(AIRBORNE, pressTowards(vec3(0, 0, -1000)), C, 1 / 60);
+    // finish in 0.6s. Presentation would supply this by re-deriving the offset each frame from world
+    // position; simulated here by tracking the offset locally and subtracting each frame's own
+    // velocity*dt from it — `HomingDash` itself no longer carries `direction`/`remaining` to read back.
+    const dt = 1 / 60;
+    let offset = vec3(0, 0, -1000);
+    let m: CharacterMotion = step(AIRBORNE, pressTowards(offset), C, dt);
     for (let i = 0; i < 200 && m.homing; i++) {
-      const offset = scale(m.homing.direction, m.homing.remaining);
-      m = step(m, pressTowards(offset), C, 1 / 60);
+      offset = sub(offset, scale(m.velocity, dt));
+      m = step(m, pressTowards(offset), C, dt);
     }
     expect(m.homing).toBeNull();
-    const falling = step(m, NONE_INPUT, C, 1 / 60);
+    const falling = step(m, NONE_INPUT, C, dt);
     expect(falling.velocity.y).toBeLessThan(0);
   });
 
@@ -96,10 +106,12 @@ describe('homing dash', () => {
   });
 
   it('still arrives and bounces when the offset keeps shrinking across several frames — the normal path is unchanged', () => {
-    let m: CharacterMotion = step(AIRBORNE, pressTowards(vec3(0, 0, -6)), C, 1 / 60);
+    const dt = 1 / 60;
+    let offset = vec3(0, 0, -6);
+    let m: CharacterMotion = step(AIRBORNE, pressTowards(offset), C, dt);
     for (let i = 0; i < 200 && m.homing; i++) {
-      const offset = scale(m.homing.direction, m.homing.remaining);
-      m = step(m, pressTowards(offset), C, 1 / 60);
+      offset = sub(offset, scale(m.velocity, dt));
+      m = step(m, pressTowards(offset), C, dt);
     }
     expect(m.homing).toBeNull();
     expect(m.velocity.y).toBeCloseTo(C.homingBounceSpeed, P);
@@ -137,6 +149,18 @@ describe('homing dash', () => {
     const r = step(AIRBORNE, NONE_INPUT, C, 1 / 60);
     expect(r.homing).toBeNull();
     expect(r.velocity.y).toBeLessThan(0); // still just falling
+  });
+
+  it('bounces immediately on a zero-length offset at entry, agreeing with the same offset arriving mid-dash', () => {
+    // `canEnterHoming` used to filter this out and fall through to an ordinary jump instead — untested,
+    // unreachable via `selectHomingTarget` (which already rejects a coincident candidate), and
+    // disagreeing with `stepHoming`'s own handling of a zero offset reached mid-flight (which arrives
+    // and bounces). Entry now falls through to `stepHoming` unfiltered, so both paths agree.
+    const r = step(AIRBORNE, pressTowards(ZERO3), C, 1 / 60);
+    expect(r.homing).toBeNull();
+    expect(r.velocity.y).toBeCloseTo(C.homingBounceSpeed, P);
+    expect(r.velocity.x).toBeCloseTo(0, P);
+    expect(r.velocity.z).toBeCloseTo(0, P);
   });
 
   it('turns facing to the planar projection of a sideways dash direction', () => {

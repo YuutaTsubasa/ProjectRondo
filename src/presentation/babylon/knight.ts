@@ -45,6 +45,14 @@ export interface KnightMotionSample {
    *  Flying Kick clip and the trail below. */
   readonly homing: boolean;
   /**
+   * Expected duration of the CURRENT dash, in seconds, or `null` while none is locked —
+   * `Player.homingEntrySeconds`: the straight-line offset length to the crystal at lock time, divided
+   * by `homingSpeed`, held fixed for the dash's whole flight (see that field's doc for why it is not
+   * recomputed every frame). Read exactly once, on the frame `homing` turns on, to retime the Flying
+   * Kick clip onto the dash's real screen time — see {@link KICK_STRIKE_START}.
+   */
+  readonly homingEntrySeconds: number | null;
+  /**
    * World-space vertical velocity, world units/s. Needed only to tell a homing bounce from a homing
    * timeout on the frame `homing` clears: `characterMovement.step` sets it to `homingBounceSpeed` (positive)
    * on arrival and to zero on timeout, and that is the only difference between the two — `homing` itself
@@ -73,8 +81,6 @@ export interface Knight {
    * several centimetres, since it drops out for ~10% of frames while running.
    */
   planted: number;
-  /** The glTF root; the trail's generator. */
-  readonly root: TransformNode;
   /** Blue dash trail, started when `homing` turns on and stopped at the bounce or the timeout — see
    *  {@link driveKnightAnimation}. Created once, hidden, in {@link loadKnight}. */
   readonly trail: TrailMesh;
@@ -99,8 +105,18 @@ const IDLE_SWAY_KEEP = 0.2;
 
 /**
  * The knight's base orientation: the model faces +Z on import, so this turns its back to the
- * third-person camera. Named so {@link driveKnightAnimation}'s dash-spin pose can restore exactly this
- * when the dash ends, rather than the inline expression it was copied from.
+ * third-person camera (the hub is right-handed and third-person cameras trail the character, so the
+ * model's front has to face away from the rig). Named rather than inlined at its one call site
+ * (`root.rotationQuaternion = KNIGHT_FACING.clone()` in {@link loadKnight}) so that assignment reads as
+ * "the import correction" instead of a bare `Quaternion.FromEulerAngles(0, Math.PI, 0)` a reader would
+ * have to re-derive the reason for.
+ *
+ * Named a second reason once, too: `driveKnightAnimation` had a dash-spin placeholder that restored
+ * this exact orientation when a dash ended, so both call sites needed the same value. `57489fe`
+ * deleted that placeholder along with the Flying Kick clip that replaced it, leaving the import
+ * assignment as the only reader — the `.clone()` there is cheap insurance against a future second
+ * reader mutating this module-level instance in place (Babylon's `rotationQuaternion` is more often
+ * mutated via `.copyFrom`/`.set` than reassigned), not evidence that one still exists today.
  */
 const KNIGHT_FACING = Quaternion.FromEulerAngles(0, Math.PI, 0);
 
@@ -111,9 +127,18 @@ const KNIGHT_FACING = Quaternion.FromEulerAngles(0, Math.PI, 0);
  */
 const TRAIL_EMISSIVE = new Color3(0.3, 0.65, 1);
 /**
- * Trail ribbon width and history length (world units / ring segments). Sized by eye against the
- * knight's {@link TARGET_HEIGHT} — not measured against the dash's actual speed or duration, since
- * this is a placeholder look like the dash-spin pose below, not a tuned effect.
+ * Trail ribbon width and history length. `DASH_TRAIL_LENGTH` is a ring-segment count, dimensionless.
+ * `DASH_TRAIL_DIAMETER` is NOT a world-unit width, even though it reads like one next to
+ * {@link TARGET_HEIGHT}: `TrailMesh._updateSectionVectors` builds each ribbon section from `diameter`
+ * and then transforms it by `generator.getWorldMatrix()` (`createDashTrail` passes the glTF `root` as
+ * the generator), and `root.scaling` is set in {@link loadKnight} to `TARGET_HEIGHT / rawHeight` — a
+ * factor that is not 1 by construction (that line exists precisely because the raw model isn't 1.9
+ * units tall). So `0.2` is in the GLB's own local units, and the on-screen ribbon width is
+ * `0.2 * root.scaling`, whatever that multiple happens to be — not directly comparable to
+ * `TARGET_HEIGHT` or any other world-space measurement in this file. Nobody has watched the trail on
+ * screen; retune this by eye in local units against an actual screenshot, or compute the world-space
+ * width wanted and divide by `root.scaling` at the call site, rather than treating this number as if
+ * it were already in world units.
  */
 const DASH_TRAIL_DIAMETER = 0.2;
 const DASH_TRAIL_LENGTH = 24;
@@ -837,7 +862,7 @@ export async function loadKnight(
   idle.play(true);
 
   const trail = createDashTrail(scene, root);
-  const knight: Knight = { animations: { idle, walk, run, jump, kick }, planted: 1, root, trail };
+  const knight: Knight = { animations: { idle, walk, run, jump, kick }, planted: 1, trail };
 
   // Bind-pose bounds don't match the animated idle pose (the knight floated ~0.8u above the floor),
   // so re-seat once on the actual posed mesh after the first rendered frame.
@@ -981,6 +1006,43 @@ const JUMP_FALL_END = 1.3;
  */
 const BOUNCE_RESTART = 0.76;
 
+/**
+ * Flying Kick clip segment, in seconds into the imported clip's 1.500s range — measured the same way
+ * as {@link JUMP_LAUNCH_START} above, but by parsing `public/models/knight_web.glb`'s animation
+ * samplers directly rather than eyeballing playback, since no browser pass has ever watched this clip
+ * (see the note on `DASH_TRAIL_DIAMETER`). Read off the `Hips` translation and the right leg's
+ * rotation tracks (`RightUpperLeg`, `RightLowerLeg`), the knee-fold angle being each frame's rotation
+ * distance from frame 0's:
+ *
+ * | phase | time | hip height | knee-fold angle |
+ * | --- | --- | --- | --- |
+ * | stand | 0.00s | 0.824 | 0° |
+ * | vertical leap, knee chambering | 0.00 - 0.37s | rises to apex **1.444** | rises to **80.1°** |
+ * | knee snaps straight — the kick | 0.40 - 0.53s | 1.435 -> 1.294 | 74.9° -> **4.2°** |
+ * | leg held out, sailing forward and down | 0.53 - 0.97s | 1.294 -> trough **0.763** | stays 4-22° |
+ * | recovery, leg retracts | 0.97 - 1.50s | rises then settles at 0.846 | eases back up |
+ *
+ * `homingSpeed` already has the capsule travelling in the dash's own direction from the first frame of
+ * the dash — same situation `JUMP_LAUNCH_START` exists for. Playing the clip's own 0.37s vertical leap
+ * after that would read as the knight launching straight up mid-flight, on top of whatever direction
+ * the dash actually points. `KICK_STRIKE_START` skips it, starting one sampled frame past the 80.1°
+ * chamber peak (74.9°, 0.40s) — leg still cocked, about to snap straight — the same "leave a little
+ * residual anticipation" call `JUMP_LAUNCH_START` makes, here reading as the wind-up for the kick
+ * itself rather than a stray leap.
+ *
+ * `KICK_STRIKE_END` cuts at the measured trough (0.97s), the same way `JUMP_FALL_END` cuts at
+ * touchdown rather than playing a landing: from there the leg visibly retracts toward a stand over the
+ * next half-second, and by the time that retraction would be on screen the caller already knows
+ * whether the dash ends in a bounce or a timeout (`KnightMotionSample.verticalSpeed`) and has its own
+ * clip queued — the retraction would fight it rather than lead into it.
+ *
+ * The segment is therefore 0.57s of the 1.50s clip. See `driveKnightAnimation`'s use of
+ * `KnightMotionSample.homingEntrySeconds` for how this gets retimed onto the dash's actual screen
+ * time, the same way `JUMP_LAUNCH_START`/`JUMP_FALL_END` get retimed onto `airtime`.
+ */
+const KICK_STRIKE_START = 0.4;
+const KICK_STRIKE_END = 0.97;
+
 /** Frame number `seconds` into a clip, in whatever frame units the glTF loader gave this group. */
 const frameAtSeconds = (group: AnimationGroup, seconds: number): number =>
   group.from + seconds * (group.targetedAnimations[0]?.animation.framePerSecond ?? 60);
@@ -1013,17 +1075,21 @@ const playSegment = (group: AnimationGroup, fromSeconds: number, toSeconds: numb
  * `jumpWeight`. Touchdown just ends it — no landing clip is played (see {@link JUMP_FALL_END}).
  *
  * **Homing** layers on top of both, driven off `homing` rather than `airborne` (which stays true for
- * the whole dash-plus-bounce, so it never re-fires the jump segment on its own): the Flying Kick clip
- * plays once from its start and the trail runs for as long as `homing` is true, both fading in and out
- * by `kickWeight` the same way the jump segment fades by `jumpWeight` — and, since `canEnterHoming`
- * only fires while already airborne, the jump segment can still be mid-fade when a dash starts, so
- * `kickWeight` also cuts into the jump's *rendered* weight (not locomotion's, which is already zeroed
- * by `jumpInfluence` whenever a jump is live) so the two one-shots do not fight over the same bones.
- * On the frame `homing` clears, a positive `verticalSpeed` (a bounce; see
- * {@link KnightMotionSample.verticalSpeed}) restarts the jump clip from {@link BOUNCE_RESTART} so it
- * rides the existing `jumpWeight` blend back into locomotion. A timeout (`verticalSpeed` not positive)
- * plays nothing — the domain already zeroed the velocity, so the knight simply resumes falling under
- * gravity next frame.
+ * the whole dash-plus-bounce, so it never re-fires the jump segment on its own): the
+ * [{@link KICK_STRIKE_START}, {@link KICK_STRIKE_END}] slice of the Flying Kick clip plays once,
+ * retimed onto `homingEntrySeconds` the same way the jump segment is retimed onto `airtime` — a dash
+ * is bounded at `homingMaxDuration` (0.6s) and typically shorter, well under the clip's full 1.5s, so
+ * playing it unretimed at natural rate would show only its wind-up and never the kick itself (see
+ * {@link KICK_STRIKE_START}'s doc). The trail runs for as long as `homing` is true, and both the clip
+ * and the trail fade in and out by `kickWeight` the same way the jump segment fades by `jumpWeight` —
+ * and, since `canEnterHoming` only fires while already airborne, the jump segment can still be
+ * mid-fade when a dash starts, so `kickWeight` also cuts into the jump's *rendered* weight (not
+ * locomotion's, which is already zeroed by `jumpInfluence` whenever a jump is live) so the two
+ * one-shots do not fight over the same bones. On the frame `homing` clears, a positive `verticalSpeed`
+ * (a bounce; see {@link KnightMotionSample.verticalSpeed}) restarts the jump clip from
+ * {@link BOUNCE_RESTART} so it rides the existing `jumpWeight` blend back into locomotion. A timeout
+ * (`verticalSpeed` not positive) plays nothing — the domain already zeroed the velocity, so the knight
+ * simply resumes falling under gravity next frame.
  */
 export function driveKnightAnimation(
   scene: Scene,
@@ -1043,7 +1109,7 @@ export function driveKnightAnimation(
 
   scene.onBeforeRenderObservable.add(() => {
     const dt = scene.getEngine().getDeltaTime() / 1000;
-    const { planarSpeed, airborne, homing, verticalSpeed } = motion();
+    const { planarSpeed, airborne, homing, verticalSpeed, homingEntrySeconds } = motion();
     const { walk: walkSpeed, run: runSpeed, airtime } = tuning();
 
     // --- jump -----------------------------------------------------------------------------------
@@ -1066,11 +1132,19 @@ export function driveKnightAnimation(
       knight.trail.reset();
       knight.trail.setEnabled(true);
       knight.trail.start();
-      // The clip is a one-shot over its whole imported range (see NON_LOOPING in extract_anims.gd) —
-      // `stop()` first for the same reason `playSegment` does: `AnimationGroup.start()` silently
-      // no-ops on an already-playing group, which would leave a second dash mid-flight with no clip.
-      kick.stop();
-      kick.start(false, 1);
+      // Retime [KICK_STRIKE_START, KICK_STRIKE_END] onto the dash's expected screen time, the same way
+      // the jump segment above is retimed onto `airtime` — see KICK_STRIKE_START's doc for why playing
+      // this clip unretimed would only ever show its wind-up. `homingEntrySeconds` should always be
+      // set here (a dash cannot start without a freshly-locked crystal, which is what sets it — see
+      // `Player.homingEntrySeconds`), but fall back to natural rate with a warning rather than divide
+      // by a missing number if that invariant is ever wrong.
+      if (homingEntrySeconds === null) {
+        console.warn('[knight] homing dash started with no homingEntrySeconds — playing the kick at natural rate.');
+      }
+      const kickRatio = (KICK_STRIKE_END - KICK_STRIKE_START) / Math.max(homingEntrySeconds ?? (KICK_STRIKE_END - KICK_STRIKE_START), DIVISOR_FLOOR);
+      // `playSegment` calls `stop()` first for the same reason its own doc gives: `AnimationGroup.start()`
+      // silently no-ops on an already-playing group, which would leave a second dash mid-flight with no clip.
+      playSegment(kick, KICK_STRIKE_START, KICK_STRIKE_END, kickRatio);
     }
     if (!homing && wasHoming) {
       knight.trail.stop();
@@ -1099,7 +1173,6 @@ export function driveKnightAnimation(
     jumpWeight = moveToward(jumpWeight, airborne && jump.isPlaying ? 1 : 0, JUMP_BLEND_PER_SECOND * dt);
     // Same fast ease as the jump: a dash pose has to read as immediate, not cross-fade in.
     kickWeight = moveToward(kickWeight, homing && kick.isPlaying ? 1 : 0, JUMP_BLEND_PER_SECOND * dt);
-    const kickInfluence = kickWeight;
     if (kick.isPlaying) {
       kick.setWeightForAllAnimatables(kickWeight);
       if (!homing && kickWeight <= WEIGHT_EPSILON) kick.stop();
@@ -1110,7 +1183,7 @@ export function driveKnightAnimation(
     // below) so the two one-shots don't compete for the same bones; locomotion needs no equivalent
     // term because `jumpInfluence` already zeroes it whenever a jump is live.
     if (jump.isPlaying) {
-      jump.setWeightForAllAnimatables(jumpWeight * (1 - kickInfluence));
+      jump.setWeightForAllAnimatables(jumpWeight * (1 - kickWeight));
       if (!airborne && jumpWeight <= WEIGHT_EPSILON) jump.stop();
     }
     const jumpInfluence = jumpWeight;
@@ -1132,7 +1205,7 @@ export function driveKnightAnimation(
       Math.max(0, 1 - level),
       Math.max(0, 1 - Math.abs(level - 1)),
       Math.max(0, level - 1),
-    ].map((w) => w * (1 - jumpInfluence) * (1 - kickInfluence));
+    ].map((w) => w * (1 - jumpInfluence) * (1 - kickWeight));
 
     for (const [i, group] of locomotion.entries()) {
       const want = weights[i] > WEIGHT_EPSILON;

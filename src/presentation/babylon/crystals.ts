@@ -16,8 +16,6 @@ const CRYSTAL_SIZE = 0.45;
  */
 const CRYSTAL_EMISSIVE = new Color3(0.35, 0.75, 0.95);
 
-export interface CrystalSpot { readonly x: number; readonly y: number; readonly z: number }
-
 export interface Crystals {
   /** World positions, in the order given — the index `selectHomingTarget` returns indexes into. */
   readonly positions: readonly Vec3[];
@@ -32,8 +30,13 @@ export interface Crystals {
  *
  * Polyhedron type 1 is an octahedron — two square pyramids base to base, which is a crystal shape
  * without a model, a texture, or anything entering Git LFS.
+ *
+ * `spots` takes plain `Vec3`s rather than a dedicated spot type: a separate `CrystalSpot` interface
+ * once lived here, structurally identical to the `Vec3` this file already imports for its return type
+ * — two names for the same `{x, y, z}` shape in one file. `Vec3`'s `readonly` fields are exactly what
+ * a fixed placement needs.
  */
-export function createCrystals(scene: Scene, spots: readonly CrystalSpot[]): Crystals {
+export function createCrystals(scene: Scene, spots: readonly Vec3[]): Crystals {
   const mat = new StandardMaterial('crystalMat', scene);
   mat.diffuseColor = new Color3(0.1, 0.3, 0.4);
   mat.emissiveColor = CRYSTAL_EMISSIVE;
