@@ -1,15 +1,86 @@
-import {bounds} from './glb.mjs';
-export const mean=p=>[0,1,2].map(k=>p.reduce((s,v)=>s+v[k],0)/p.length);
-export const sub=(a,b)=>a.map((x,i)=>x-b[i]);
-export const dot=(a,b)=>a.reduce((s,x,i)=>s+x*b[i],0);
-export const cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];
-export const unit=a=>a.map(x=>x/Math.hypot(...a));
-export const dir=(m,p)=>[0,1,2].map(i=>m[i]*p[0]+m[4+i]*p[1]+m[8+i]*p[2]);
-export function landmarks(g){return g.meshes.filter(m=>['Mesh_7','Mesh_26'].includes(m.name)).map(m=>{
- const p=g.skin(g.evaluate(null),m),foot=m.name==='Mesh_7'?'LeftFoot':'RightFoot',node=g.j.nodes.findIndex(n=>n.name===foot);
- // Use fixed original surface vertex IDs for before/after measurements.
- const heel=p.map((v,i)=>({v,i})).filter(x=>x.v[2]<-.035&&x.v[1]<.035).map(x=>x.i),toe=p.map((v,i)=>({v,i})).filter(x=>x.v[2]>.055&&x.v[1]<.012).map(x=>x.i);
- if (node < 0 || heel.length < 50 || toe.length < 50) throw Error('This calibration requires the current knight boot geometry');
- return {m,node,foot,heel,toe};
-});}
-export function measured(g,lm,s){const m=g.meshes.find(m=>m.name===lm.m.name),p=g.skin(s,m),h=mean(lm.heel.map(i=>p[i])),t=mean(lm.toe.map(i=>p[i])),v=sub(t,h);return {pitch:Math.atan2(v[1],Math.hypot(v[0],v[2]))*180/Math.PI,heel:h,toe:t,min:bounds(p).min};}
+/**
+ * Locating the knight's boot soles, and measuring how level they sit.
+ *
+ * The whole calibration rests on one number: **sole pitch**, the angle above horizontal of the line
+ * from the heel patch's centroid to the toe patch's centroid, in degrees, positive when the toes are
+ * higher than the heel. Everything else in `calibrate.mjs` is a search for the ankle rotation that
+ * drives that number to zero.
+ *
+ * Why a vertex patch and not the ankle bone: the boot's sole extends well below the ankle joint and
+ * is not parallel to any bone axis, so a bone-space angle is not the angle a player sees the foot
+ * make with the ground. The patches are picked **once**, from the rest pose, and then the *same
+ * vertex indices* are re-measured in every other pose — so before/after comparisons are of the same
+ * physical piece of leather, not of whatever happens to be lowest in each pose.
+ */
+import { bounds } from './glb.mjs';
+
+/** Centroid of a list of points. */
+const mean = (p) => [0, 1, 2].map((k) => p.reduce((s, v) => s + v[k], 0) / p.length);
+
+/** Component-wise `a - b`. */
+export const sub = (a, b) => a.map((x, i) => x - b[i]);
+
+/** Unit-length copy of a vector. */
+export const unit = (a) => a.map((x) => x / Math.hypot(...a));
+
+/**
+ * The two boot meshes, with the heel and toe vertex patches to measure them by.
+ *
+ * `Mesh_7` (the left boot, at +x) and `Mesh_26` (the right boot, at -x) are the stylized fantasy
+ * knight's boots, by glTF **node** name — which is what Babylon names the runtime mesh, so these are
+ * the same names `src/` uses.
+ *
+ * The patches are cut with fixed thresholds in the rest pose's world space, where the knight stands
+ * at the origin facing +Z with the soles on y = 0 (measured: the model's lowest rest vertex is y = 0
+ * to four decimals, and the boots span z -0.068 to +0.093):
+ *   - heel: `z < -0.035` and `y < 0.035` — behind the ankle, low on the boot.
+ *   - toe:  `z > 0.055` and `y < 0.012` — ahead of the ankle, and tighter in y because the toe box
+ *     curves upward, so a looser ceiling would drag the upper into the patch and tilt the centroid.
+ *
+ * Both are cut *below* any part of the boot's shaft, so the pair spans the sole rather than the boot.
+ * The counts are asserted (>= 50 each) because these thresholds are geometry-specific: a different
+ * boot silhouette would quietly select a handful of vertices, or none, and still produce a plausible
+ * finite angle. On the shipped GLB they select 272 heel / 307 toe vertices on the left boot and
+ * 237 / 290 on the right.
+ *
+ * @returns one entry per boot: `{ m, node, foot, heel, toe }`, where `node` is the index of the
+ *   `LeftFoot`/`RightFoot` ankle node whose rotation the calibration corrects, and `heel`/`toe` are
+ *   vertex indices into that mesh's POSITION accessor.
+ */
+export function landmarks(g) {
+  return g.meshes
+    .filter((m) => ['Mesh_7', 'Mesh_26'].includes(m.name))
+    .map((m) => {
+      const p = g.skin(g.evaluate(null), m);
+      const foot = m.name === 'Mesh_7' ? 'LeftFoot' : 'RightFoot';
+      const node = g.j.nodes.findIndex((n) => n.name === foot);
+      const pick = (keep) => p.map((v, i) => ({ v, i })).filter((x) => keep(x.v)).map((x) => x.i);
+      const heel = pick((v) => v[2] < -0.035 && v[1] < 0.035);
+      const toe = pick((v) => v[2] > 0.055 && v[1] < 0.012);
+      if (node < 0 || heel.length < 50 || toe.length < 50) {
+        throw Error('This calibration requires the current knight boot geometry');
+      }
+      return { m, node, foot, heel, toe };
+    });
+}
+
+/**
+ * Sole pitch (and the pieces it is made of) for one boot under one pose.
+ *
+ * `s` is a pose from `glb.mjs`'s `evaluate`. The mesh is re-skinned from scratch here rather than
+ * cached, because the caller is usually asking about a *hypothetical* pose (an ankle rotation the
+ * file does not carry yet).
+ *
+ * @returns `{ pitch, heel, toe, min }` — pitch in degrees, the two patch centroids in world space,
+ *   and the whole mesh's lowest corner, which is what tells you the boot has not sunk through y = 0.
+ */
+export function measured(g, lm, s) {
+  const m = g.meshes.find((m) => m.name === lm.m.name);
+  const p = g.skin(s, m);
+  const h = mean(lm.heel.map((i) => p[i]));
+  const t = mean(lm.toe.map((i) => p[i]));
+  const v = sub(t, h);
+  // atan2(rise, horizontal run): the angle the heel->toe line makes with the ground plane, so it is
+  // independent of which way the knight is facing.
+  return { pitch: (Math.atan2(v[1], Math.hypot(v[0], v[2])) * 180) / Math.PI, heel: h, toe: t, min: bounds(p).min };
+}
