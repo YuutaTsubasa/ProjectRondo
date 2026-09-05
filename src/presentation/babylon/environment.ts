@@ -137,21 +137,45 @@ export function createEnvironment(scene: Scene): Environment {
   // StandardMaterial and are untouched. The only other PBR material, the toon face, opts out with its
   // own `environmentIntensity = 0` (see `knight.ts`) so IBL cannot disturb the hand-lit face.
   //
-  // generateHarmonics=true bakes the diffuse irradiance SH; gammaSpace=false because RGBE is linear;
-  // prefilterOnLoad=true builds the roughness mip chain so rough steel reflects a blurred environment.
+  // Five of the six positional arguments below only exist to reach `prefilterOnLoad`, which is the
+  // one that differs from `HDRCubeTexture`'s own defaults (`noMipmap=false`, `generateHarmonics=true`,
+  // `gammaSpace=false`, `onLoad=null`); they are labelled rather than left as a run of bare literals.
+  // Set from `onError`, and checked after construction: a synchronous failure would otherwise clear
+  // `scene.environmentTexture` before the assignment below puts the dead texture straight back.
+  let iblFailed = false;
   const ibl = new HDRCubeTexture(
     '/env/studio.hdr',
     scene,
     IBL_FACE_SIZE,
-    false,
-    true,
-    false,
-    true,
-    undefined,
-    (message, exception) =>
-      console.warn(`[environment] studio IBL failed to load — armour falls back to matte metal. ${message ?? ''}`, exception),
+    /* noMipmap */ false, // default; the roughness mip chain below is built from these mips
+    /* generateHarmonics */ true, // default; bakes the diffuse irradiance SH
+    /* gammaSpace */ false, // default; RGBE is already linear
+    /* prefilterOnLoad */ true, // NOT the default: builds the roughness mip chain, so rough steel reflects a blurred environment
+    /* onLoad */ undefined,
+    /* onError */ (message, exception) => {
+      // Dropping the failed texture is load-bearing, not tidying. `PBRBaseMaterial.isReadyForSubMesh`
+      // requires `_getReflectionTexture().isReadyOrNotBlocking()`, and `_getReflectionTexture()` falls
+      // back to `scene.environmentTexture` for any material without its own — i.e. every PBR material
+      // in this scene. `isReadyOrNotBlocking()` is `!isBlocking || isReady() || loadingError`;
+      // `EnvCubeTexture` sets `_isBlocking = true`, `_loadingError` is only ever set by `Texture`
+      // (never on the cube path), and the raw-cube URL loader leaves `isReady` false and just calls
+      // this callback. So all three terms stay false forever, the material never becomes ready, and
+      // `Mesh.render` returns early — the knight, body *and* face, would simply never be drawn. Only
+      // the PBR materials are affected; the terrain, sky, water and foliage are StandardMaterial.
+      //
+      // With the texture cleared the readiness gate is skipped and the knight renders again, but as
+      // metal with nothing to reflect: dark, the pre-IBL look that `BODY_METALLIC = 1` gave up on the
+      // assumption an environment would always be there. That is a visible degradation, not a
+      // fallback, hence the warning.
+      iblFailed = true;
+      scene.environmentTexture = null;
+      console.warn(
+        `[environment] studio IBL failed to load — dropped so the PBR materials can still render; the armour will read as dark, unlit metal until it is fixed. ${message ?? ''}`,
+        exception,
+      );
+    },
   );
-  scene.environmentTexture = ibl;
+  if (!iblFailed) scene.environmentTexture = ibl;
   scene.environmentIntensity = IBL_INTENSITY;
 
   return { sun };
