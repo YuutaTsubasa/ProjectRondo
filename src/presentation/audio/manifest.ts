@@ -53,17 +53,6 @@ export const MANIFEST: Record<SoundCue, CueSpec> = {
   'ui.move': { files: [`${AUDIO}/sfx/ui_move.ogg`], bus: 'sfx', volume: 0.5 },
   'ui.confirm': { files: [`${AUDIO}/sfx/ui_confirm.ogg`], bus: 'sfx', volume: 0.6 },
 
-  'ambience.wind': { files: [`${AUDIO}/ambience/wind_field.ogg`], bus: 'ambience', volume: 0.35, loop: true },
-  // Positioned at the pond. maxDistance is a little past the pond's radius of 12, so the sound is
-  // gone by the time the water is a feature in the distance rather than a place you are standing at.
-  'ambience.water': {
-    files: [`${AUDIO}/ambience/water_pond.ogg`],
-    bus: 'ambience',
-    volume: 0.6,
-    loop: true,
-    spatial: { maxDistance: 30 },
-  },
-
   'music.hub': { files: [`${AUDIO}/music/hub_theme.mp3`], bus: 'music', volume: 0.5, loop: true, streaming: true },
   'music.avg': { files: [`${AUDIO}/music/avg_theme.mp3`], bus: 'music', volume: 0.55, loop: true, streaming: true },
 };

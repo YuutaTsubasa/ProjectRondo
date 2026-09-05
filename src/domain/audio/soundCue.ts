@@ -13,8 +13,6 @@ export type SoundCue =
   | 'ui.type'
   | 'ui.move'
   | 'ui.confirm'
-  | 'ambience.wind'
-  | 'ambience.water'
   | 'music.hub'
   | 'music.avg';
 

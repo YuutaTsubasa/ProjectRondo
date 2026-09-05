@@ -32,7 +32,7 @@ export interface HubScene {
   readonly follow: FollowCamera;
   readonly player: Player;
   readonly knight: Knight;
-  /** Music, footsteps and ambience. `App.svelte` drives the music scene through this. */
+  /** Music and character sound. `App.svelte` drives the music scene through this. */
   readonly audio: HubAudio;
   /** Suspends (on=true) or resumes (on=false) gameplay input and camera look, e.g. during an AVG overlay. */
   suspendInput(on: boolean): void;

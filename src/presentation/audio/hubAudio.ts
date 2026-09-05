@@ -1,12 +1,10 @@
 import type { AnimationGroup } from '@babylonjs/core/Animations/animationGroup';
 import type { Camera } from '@babylonjs/core/Cameras/camera';
 import type { Scene } from '@babylonjs/core/scene';
-import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 
 import { createFootstepCadence, type Gait } from '../../domain/audio/footstepCadence';
 import { musicChange, type MusicScene } from '../../domain/audio/musicDirector';
 import { surfaceCue, type SoundCue } from '../../domain/audio/soundCue';
-import { POND } from '../../domain/hub/waterBody';
 import { WALK_THRESHOLD, type Knight } from '../babylon/knight';
 import type { Player } from '../babylon/playerController';
 import { createGameAudio } from './audioEngine';
@@ -70,13 +68,11 @@ async function buildHubAudio(
   const audio = await createGameAudio();
 
   // Everything built below this point has to be torn down if a later step throws — otherwise a
-  // failure at, say, `listener.attach` or a `startLoop` leaves the AudioContext, every decoded cue,
-  // and any ambience loop already started alive for the life of the page: `createHubAudio`'s catch
-  // only ever sees `SILENT`, whose `dispose` is a no-op, so nothing built before the throw is ever
-  // reachable again. Tracked here and released in the `catch` below, before the error is rethrown for
-  // `createHubAudio` to turn into the `SILENT` stub.
+  // failure at, say, `listener.attach` leaves the AudioContext and every decoded cue alive for the
+  // life of the page: `createHubAudio`'s catch only ever sees `SILENT`, whose `dispose` is a no-op,
+  // so nothing built before the throw is ever reachable again. Tracked here and released in the
+  // `catch` below, before the error is rethrown for `createHubAudio` to turn into the `SILENT` stub.
   let bank: SoundBank | undefined;
-  const loops: LoopHandle[] = [];
   let observer: ReturnType<Scene['onBeforeRenderObservable']['add']> | null = null;
 
   try {
@@ -88,13 +84,6 @@ async function buildHubAudio(
     // The listener rides the camera, not the character: what the player hears should match what the
     // player sees, and the third-person camera sits several units behind the knight.
     audio.engine.listener.attach(camera);
-
-    const wind = soundBank.startLoop('ambience.wind');
-    if (wind) loops.push(wind);
-    const water = soundBank.startLoop('ambience.water', {
-      position: new Vector3(POND.centreX, POND.surfaceY, POND.centreZ),
-    });
-    if (water) loops.push(water);
 
     const cadence = createFootstepCadence();
     let wasAirborne = player.airborne;
@@ -169,7 +158,6 @@ async function buildHubAudio(
         if (observer) scene.onBeforeRenderObservable.remove(observer);
         music?.stop();
         for (const handle of fadingOut) handle.stop();
-        for (const loop of loops) loop.stop();
         soundBank.dispose();
         audio.dispose();
       },
@@ -178,7 +166,6 @@ async function buildHubAudio(
     // Tear down whatever got built before the throw — see the comment above this `try` — then rethrow
     // so `createHubAudio`'s own catch logs it and hands back the `SILENT` stub.
     if (observer) scene.onBeforeRenderObservable.remove(observer);
-    for (const loop of loops) loop.stop();
     bank?.dispose();
     audio.dispose();
     throw error;

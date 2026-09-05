@@ -43,9 +43,10 @@ is a Havok capsule, and the knight is a glTF model with Idle/Walk animation blen
 the hub plays an AVG dialogue intro.
 
 It's also audible: the hub theme crossfades in once the intro ends, footsteps play as a two-layer
-sound (armour plus the grass surface underfoot) locked to each foot's contact phase, jumps get their
-own take-off and landing cue, a wind bed carries across the whole field, and water is audible near the
-pond.
+sound (armour plus the grass surface underfoot) locked to each foot's contact phase, and jumps get
+their own take-off and landing cue. Ambience (a wind bed, water at the pond) is built and shipped but
+**not currently wired in** — both source recordings are too short to loop without reading as a pulse;
+see the audio design spec §5.3.
 
 ## Develop
 

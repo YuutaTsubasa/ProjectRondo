@@ -17,6 +17,9 @@ because it barely touches the files the two in-flight branches own (§8).
 **Scope:** BGM, character movement SFX, ambience, and AVG/UI cues. **Out:** a volume settings panel
 and its persistence (§9).
 
+**Amended after the first listen:** the two ambience beds are **shipped but not wired in** — see
+§5.3a. Everything else stands.
+
 ## 2. Architecture
 
 The project's non-negotiable split applies unchanged: a pure `src/domain/` core decides *what should
@@ -136,6 +139,9 @@ not off a second reading of the ground probe. `groundContact.ts` exists precisel
 consumers deciding "is it on the ground" independently drifted into disagreeing; sound and pose stay
 on one source for the same reason.
 
+Ambience *was* two things — a non-positional wind bed, and a **spatial** emitter at the pond — and
+is currently wired to neither (§5.3a). What follows describes what the wiring does when it returns.
+
 Ambience is two things: a non-positional wind bed, and a **spatial** emitter at the pond
 (`POND` is (−15, −0.95, −5), radius 12 — `src/domain/hub/waterBody.ts`), so the water is audible near
 the shore and gone across the field.
@@ -192,6 +198,28 @@ are measured after the Vorbis round trip, which is the shipped path.
 second of stream. Replacing the two ambience sources with longer recordings is the only real fix, and
 re-running the tool is the whole cost of doing it.
 
+### 5.3a …and they are shipped but switched off
+
+**On the first listen both beds read as too repetitive, and they are no longer wired in.** That is
+§5.3's stated limitation arriving exactly where it was predicted: three detuned layers of a one-second
+stream is still one second of stream, and the ear finds the period whatever the loop point does. The
+seams are genuinely inaudible — that part worked — but seamlessness was never the problem.
+
+What was removed is only the wiring: `hubAudio` no longer starts either loop, and the two cue ids and
+their manifest entries are gone, so nothing fetches or decodes them. **The assets, the recipe and the
+credits stay** — `public/audio/ambience/` still holds both files and `tools/audio/preprocess.mjs` still
+builds them.
+
+Bringing ambience back is a small change on top of longer source recordings: re-run the tool, restore
+the two `SoundCue` members and their manifest entries, and start the loops in `buildHubAudio` (the
+pond emitter's position comes from `POND` in `src/domain/hub/waterBody.ts`). **Do not restore the
+wiring without new sources** — the code was never the problem, and the same one-second stream will
+sound the same way again.
+
+The `ambience` mixer bus and its `AudioBusId` member are deliberately kept: the bus is part of the
+mix model a settings panel will bind to (§3.4), and it is what ambience will route through when it
+returns. It currently carries nothing.
+
 ### 5.4 What ships
 
 Encoded Vorbis q4, all one-shots peak-normalised to −3 dBFS so the mix balance lives in the manifest
@@ -206,8 +234,8 @@ and re-cutting one sound cannot silently change the others.
 | `sfx/ui_type_01..04.ogg` | 4.4–4.5 KB | 0.060 s mono |
 | `sfx/ui_move.ogg` | 6.5 KB | 0.300 s mono |
 | `sfx/ui_confirm.ogg` | 8.2 KB | 0.450 s mono |
-| `ambience/wind_field.ogg` | 131 KB | 8 s stereo, seamless |
-| `ambience/water_pond.ogg` | 57 KB | 6 s mono (spatial ⇒ mono), seamless |
+| `ambience/wind_field.ogg` | 131 KB | 8 s stereo, seamless — **shipped, not wired (§5.3a)** |
+| `ambience/water_pond.ogg` | 57 KB | 6 s mono (spatial ⇒ mono), seamless — **shipped, not wired** |
 
 SFX and ambience total **≈ 240 KB**; the two music tracks are 6.9 MB. `*.mp3` and `*.ogg` join the
 LFS-tracked extensions in `.gitattributes`.
@@ -260,12 +288,11 @@ exercised. Each item below is marked with what was actually established, not a s
   either way. **Unverified (listening)**: that the AVG intro actually starts `avg_theme`, that
   finishing the intro triggers the crossfade in real play (rather than a direct call), and that the
   crossfade sounds like a fade rather than a cut.
-- **Unverified (listening + a rendering scene)** — the wind bed audible across the field; the water
-  audible near the pond and gone at distance. Nothing here exercises player position or world-space
-  attenuation.
-- **Unverified (listening + a rendering scene, elapsed real time)** — neither ambience bed having an
-  audible seam over several minutes. The wind loops at 8 s and the water at 6 s; confirming a seamless
-  loop needs the scene running in real time, which the hidden pane cannot provide.
+- **Moot, and the reason is now known** — the wind bed audible across the field, the water audible
+  near the pond and gone at distance, and neither bed having an audible seam. Both beds were listened
+  to after this record was first written and **both read as too repetitive**, so neither is wired in
+  any more (§5.3a). The seam was never the problem; the one-second and two-second sources are. These
+  items return only with longer recordings, and would need re-verifying then.
 - **Verified, with a correction to this item's own wording** — removing `public/audio/sfx/armor_step.ogg`
   and reloading produced **three** `[audio] cue "…" unavailable` warnings, not one:
   `footstep.armour`, `jump.takeoff` and `jump.land` all warned, because the manifest (§5, `manifest.ts`)
@@ -311,7 +338,8 @@ Two branches are in flight: `claude/ui-token-system` owns `src/app/*.css`, `main
   but menus and save/load remain deferred, and the UI files are contended right now.
 - **Per-surface footsteps beyond grass.** The cue id carries the surface; there is one surface sound.
 - **Ambient creature sounds** (birds, insects) — P4's territory.
-- **Re-recording the ambience sources.** Noted as the real fix for §5.3's residual repetition.
+- **Re-recording the ambience sources.** The real fix for §5.3's residual repetition, and now the
+  precondition for wiring ambience back in at all (§5.3a).
 
 ## 10. Asset provenance
 
