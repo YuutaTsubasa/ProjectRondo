@@ -476,3 +476,23 @@ about it, which is why it is written down rather than quietly fixed.
 Also from this round: `afterEach` cleared `innerHTML` without unmounting, so every test left a live
 overlay behind with its effects, its typewriter interval and its `svelte:window` Escape listener
 still attached — isolation was coming from test ordering. It calls `unmount` now.
+
+## 23. Landmarks and target size in the backlog
+
+Round 15 (first round with no Major). Two things in `Backlog`:
+
+- **`<header>` inside the dialog was a page-level `banner` landmark.** A `div[role="dialog"]` is not
+  a sectioning root — only the `<dialog>` *element* is — so the header's nearest sectioning root was
+  `<body>` and HTML-AAM mapped it to `banner`, nested inside the modal. Landmark navigation in the
+  open panel therefore landed on a site-level banner. It is a plain `div` now, and its title is an
+  `<h2>` rather than a `<span>`, matching `Choices` and giving browse mode something to land on. The
+  heading's UA margins and size are overridden so nothing moves.
+- **The close button was a 16x16 hit area**, against 72x72 for every HUD tile in the same UI. Escape
+  is keyboard-only, so on a touch pointer this was the panel's sole dismissal. It is padded out to
+  44x44 with an equal negative margin, so the icon does not move.
+
+A methodology note, because it nearly produced a false negative: after editing, the running app
+still reported `padding: 0` and the **same svelte scope hash** as before the edit. Vite's watcher had
+missed the change — this project has hit Windows watcher problems before, and `perl -0pi` replaces
+the file rather than writing in place. Restarting the dev server showed the real values. When a
+measurement disagrees with the source, check that the server is serving the source.

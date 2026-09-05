@@ -31,12 +31,15 @@
     aria-modal="true"
     aria-labelledby="backlog-head"
   >
-    <header>
-      <span id="backlog-head">BACKLOG</span>
+    <!-- A div, not <header>: a div[role=dialog] is not a sectioning root (only the <dialog> element
+         is), so a <header> here maps to the page's banner landmark, nested inside the modal. And an
+         h2 rather than a span, so browse mode has something to land on -- matching Choices. -->
+    <div class="head">
+      <h2 id="backlog-head">BACKLOG</h2>
       <button class="close" bind:this={closeButton} onclick={onClose} aria-label="close log">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M4 4l16 16M20 4L4 20" /></svg>
       </button>
-    </header>
+    </div>
     <!-- The kit's stroked display word, sitting behind the list. -->
     <span class="stamp" aria-hidden="true">LOG</span>
     <ol>
@@ -75,7 +78,7 @@
     flex-direction: column;
     overflow: hidden;
   }
-  header {
+  .head {
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -85,10 +88,20 @@
     letter-spacing: 3px;
     color: var(--c-blue);
   }
+  /* UA heading margins and size overridden: the change is semantic only. */
+  .head h2 {
+    margin: 0;
+    font: inherit;
+    letter-spacing: inherit;
+  }
   .close {
     background: none;
     border: none;
-    padding: 0;
+    /* Padding out to a 44px target, pulled back by an equal negative margin so the icon does not
+       move. At padding: 0 this was a 16px hit area -- against 72px HUD tiles in the same UI, and on
+       a touch pointer it is the panel's only dismissal, since Escape is keyboard-only. */
+    padding: 14px;
+    margin: -14px;
     cursor: pointer;
     display: flex;
     stroke: var(--c-blue);
