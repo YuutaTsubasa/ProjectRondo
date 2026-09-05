@@ -132,8 +132,13 @@
      whatever the camera is pointing at. --c-ink is 6.61:1 on it and --c-blue-deep 5.52:1
      (tokens.css). Nothing carrying meaning is left on the wash itself.
 
-     What the wash still decides is the outline of the panel: the glass blocks and the gaps between
-     them run from about 4.6:1 over a dark scene to 1.9:1 over a bright one. That is the silhouette
+     What the wash still decides is the outline of the panel: the glass blocks against the gaps
+     between them run from 4.87:1 over a black scene down to 1.26:1 over a white one. Both ends are
+     the composite, not the token -- over white the gap is rgb(199,215,255) and the block
+     rgb(234,240,255) -- and they are pure black and pure white on purpose, the same two extremes
+     the frame's 1.5:1 / 4.4:1 pair further down is measured against: stopping the bright end at a
+     mid-grey scene of about rgb(150) reads 1.9:1, half again the contrast the panel actually has at
+     its worst, and against extremes the other range in this file does not use. That is the silhouette
      of the modal, not a boundary anything has to be read from -- each option is framed on its own
      glass -- and it is the cost of showing the scene at all.
 
