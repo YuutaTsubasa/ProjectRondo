@@ -254,9 +254,11 @@ bytes against the shipped 591; no variation of the invocation reproduced the sma
 one is equivalent rather than identical. What the code relies on is asserted by the test suite in
 either case: 2x2, one frame, corner alpha 0.
 
-After regenerating, run `pnpm test` with ffmpeg **and ffprobe** on PATH — three asset cases skip
-silently without them, and they are the ones that would catch a lost alpha channel, an animated
-still, or a WebM whose loop no longer matches the WebP it stands in for.
+After regenerating, run `pnpm test` with ffmpeg **and ffprobe** on PATH. Four asset cases skip
+silently without them, and they are the ones that would catch a lost alpha channel in any of the
+three portraits or in the probe, a WebM frozen on one frame, and a WebM whose loop no longer runs as
+long as the WebP it stands in for. (The check that the *still* has not become animated reads its
+chunks directly, so that one runs either way.)
 
 ## Milestones
 
