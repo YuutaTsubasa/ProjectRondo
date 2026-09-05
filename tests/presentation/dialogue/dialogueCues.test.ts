@@ -1,37 +1,18 @@
 // @vitest-environment jsdom
 //
-// What the overlay SOUNDS, as opposed to what it focuses (modalFocus.test.ts, whose harness this
-// borrows). Every number here was verified by hand in a browser when it was written and by nothing
-// else: the throttle's arithmetic, the character the first tick lands on, and which of the three
-// events around a click sound a move are all invisible to a type checker and silent when they drift.
-// The PR that added them had to describe the reveal as ticking on chars 1, 4 and 7; it ticks on
-// 3, 6 and 9, and that is the kind of drift this file exists to catch.
+// What the overlay SOUNDS, as opposed to what it focuses (modalFocus.test.ts, with which this shares
+// overlayHarness.ts -- the VP9 and matchMedia stubs, the mount and the unmount). Every number here
+// was verified by hand in a browser when it was written and by nothing else: the throttle's
+// arithmetic, the character the first tick lands on, and which of the three events around a click
+// sound a move are all invisible to a type checker and silent when they drift. The PR that added
+// them had to describe the reveal as ticking on chars 1, 4 and 7; it ticks on 3, 6 and 9, and that
+// is the kind of drift this file exists to catch.
 //
 // The overlay is mounted for real and `playCue` is a spy in the prop the app passes: nothing here
 // mocks the components under test, so a cue reaching the spy is a cue that would reach `soundBank`.
 import { describe, it, expect, afterEach, vi } from 'vitest';
-import { mount, unmount, flushSync } from 'svelte';
-import DialogueOverlay from '../../../src/presentation/dialogue/DialogueOverlay.svelte';
-import { createDialogueSession } from '../../../src/presentation/dialogue/dialogueSession.svelte';
-import { parse } from '../../../src/domain/dialogue/script/parser';
-
-// Both stubs are here for the reasons modalFocus.test.ts gives at length: Portrait would otherwise
-// run the real VP9 probe, which jsdom answers never, and reads matchMedia, which jsdom lacks.
-vi.mock('../../../src/presentation/dialogue/vp9Alpha', () => ({
-  supportsVp9Alpha: () => Promise.resolve(false),
-}));
-if (!window.matchMedia) {
-  window.matchMedia = ((query: string) => ({
-    matches: false,
-    media: query,
-    onchange: null,
-    addEventListener: () => {},
-    removeEventListener: () => {},
-    addListener: () => {},
-    removeListener: () => {},
-    dispatchEvent: () => false,
-  })) as unknown as typeof window.matchMedia;
-}
+import { flushSync } from 'svelte';
+import { renderOverlay, q, resetOverlay } from './overlayHarness';
 
 /** The reveal's own interval, and the throttle it feeds. Both are Line.svelte's defaults. */
 const CHAR_MS = 24;
@@ -49,41 +30,28 @@ const CHAINED = [':: greet', `里昂: ${NINE}`, '-> ask', ':: ask', '里昂: 走
 // starting another one.
 const ONE_LINE = [':: greet', `里昂: ${NINE}`, ''].join('\n');
 
-const mounted: ReturnType<typeof mount>[] = [];
-
-function render(script = SCRIPT) {
-  const { graph } = parse(script);
-  const session = createDialogueSession(graph!);
-  const playCue = vi.fn();
-  const target = document.createElement('div');
-  document.body.appendChild(target);
-  mounted.push(mount(DialogueOverlay, { target, props: { session, playCue } }));
-  flushSync();
-  return { session, playCue };
-}
-
 /** Timers under vitest's control, flushed after each slice so svelte's effects see each step. */
 const tick = (ms: number) => {
   for (let t = 0; t < ms; t += CHAR_MS) { vi.advanceTimersByTime(CHAR_MS); flushSync(); }
   flushSync();
 };
 
-const q = <T extends Element>(sel: string) => document.querySelector(sel) as T | null;
 /** The characters the typewriter has drawn, without the blinking caret it appends while revealing. */
 const revealed = () => q('.line')!.textContent!.replace('▌', '');
 const cues = (spy: ReturnType<typeof vi.fn>) => spy.mock.calls.map(([cue]) => cue as string);
 const countOf = (spy: ReturnType<typeof vi.fn>, cue: string) => cues(spy).filter((c) => c === cue).length;
 
+// The fake timers are this file's own -- every test here installs them -- so they are put back here
+// rather than in the shared teardown.
 afterEach(() => {
-  while (mounted.length) unmount(mounted.pop()!);
-  document.body.innerHTML = '';
+  resetOverlay();
   vi.useRealTimers();
 });
 
 describe('the typing cue', () => {
   it('sounds once per throttle window, on the third character and every third after it', () => {
     vi.useFakeTimers();
-    const { playCue } = render();
+    const { playCue } = renderOverlay(SCRIPT);
     tick(0);
 
     // Walk the line a character at a time and record which characters were on screen when a tick
@@ -109,7 +77,7 @@ describe('the typing cue', () => {
 
   it('makes no sound for the characters a reveal-all draws', () => {
     vi.useFakeTimers();
-    const { playCue } = render();
+    const { playCue } = renderOverlay(SCRIPT);
     tick(0);
     tick(CHAR_MS * 3);
     expect(countOf(playCue, 'ui.type')).toBe(1);
@@ -124,7 +92,7 @@ describe('the typing cue', () => {
 
   it('sounds the press whether it finishes the line or starts the next one', () => {
     vi.useFakeTimers();
-    const { session, playCue } = render();
+    const { session, playCue } = renderOverlay(SCRIPT);
     tick(0);
     tick(CHAR_MS * NINE.length);
     const finished = countOf(playCue, 'ui.type');
@@ -140,7 +108,7 @@ describe('the typing cue', () => {
 
   it('sounds the press that ends the dialogue, though that one puts no text on screen', () => {
     vi.useFakeTimers();
-    const { session, playCue } = render(ONE_LINE);
+    const { session, playCue } = renderOverlay(ONE_LINE);
     tick(0);
     tick(CHAR_MS * NINE.length);
     expect(revealed()).toBe(NINE);
@@ -158,7 +126,7 @@ describe('the typing cue', () => {
 
   it('stays silent while the choices cover the box', () => {
     vi.useFakeTimers();
-    const { session, playCue } = render();
+    const { session, playCue } = renderOverlay(SCRIPT);
     tick(0);
     tick(CHAR_MS * NINE.length);
     playCue.mockClear();
@@ -179,7 +147,7 @@ describe('the choice cues', () => {
   /** Stops at the choice node with its options on screen and the spy cleared. */
   const atChoices = () => {
     vi.useFakeTimers();
-    const rendered = render();
+    const rendered = renderOverlay(SCRIPT);
     tick(0);
     rendered.session.advance();
     tick(1000);
@@ -257,7 +225,7 @@ describe('the choice cues', () => {
 
   it('keeps the pointer\'s option, silently, when the move beats the mount focus', () => {
     vi.useFakeTimers();
-    const { session, playCue } = render();
+    const { session, playCue } = renderOverlay(SCRIPT);
     tick(0);
     session.advance();
     // Flushed but not advanced: the panel is mounted and its mount-focus task is queued, so a
@@ -293,7 +261,7 @@ describe('the choice cues', () => {
 
   it('does not sound the panel taking its own focus', () => {
     vi.useFakeTimers();
-    const { session, playCue } = render();
+    const { session, playCue } = renderOverlay(SCRIPT);
     tick(0);
     session.advance();
     tick(1000);
@@ -334,7 +302,7 @@ describe('the choice cues', () => {
 
   it('sounds nothing extra when answering one question opens the next', () => {
     vi.useFakeTimers();
-    const { session, playCue } = render(CHAINED);
+    const { session, playCue } = renderOverlay(CHAINED);
     tick(0);
     session.advance();
     tick(1000);
