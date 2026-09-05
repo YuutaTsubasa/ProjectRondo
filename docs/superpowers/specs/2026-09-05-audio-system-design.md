@@ -1,7 +1,8 @@
 # Audio System — Design
 
 **Date:** 2026-09-05
-**Status:** Approved (design); assets preprocessed and committed, implementation pending
+**Status:** Implemented — code, tests and the `hubScene`/`App.svelte` wiring ship with this spec; §7
+records what is still unverified (the listening passes)
 **Predecessors:** M1 hub parity, M2 AVG dialogue, M4/P1–P3 (terrain, map scale-up, run+jump, lighting,
 water & landmarks)
 
@@ -36,6 +37,7 @@ src/presentation/audio/    thin
   audioEngine.ts     AudioV2 engine, three buses, first-gesture unlock
   manifest.ts        cue -> file(s), bus, volume, streaming
   soundBank.ts       loading, and the missing-asset policy
+  musicCrossfade.ts  which track is playing, and the handover between two of them
   hubAudio.ts        the per-frame wiring; the only file that touches the scene
 public/audio/{music,sfx,ambience}/
 tools/audio/preprocess.mjs  the source -> shipped-asset recipe
@@ -80,7 +82,10 @@ So the cadence machine is **locked to the dominant locomotion clip's phase**:
 - A minimum interval guard (shorter than the fastest real cadence) absorbs the double-fire a
   walk↔run handover can otherwise produce.
 
-It emits `{ cue, foot }` — not audio. One footfall produces **two** cues (§3.2).
+It emits `{ foot, playbackRate, volume }` (`Footfall`) — not audio, and not a cue either. **No cue is
+chosen in the domain at all**: which sounds a footfall becomes is picked in `hubAudio` (§4.3), because
+the surface under the foot is a property of the scene and not of the gait. One footfall produces
+**two** cues (§3.2).
 
 ### 3.2 The footstep is two layers
 
@@ -144,12 +149,10 @@ not off a second reading of the ground probe. `groundContact.ts` exists precisel
 consumers deciding "is it on the ground" independently drifted into disagreeing; sound and pose stay
 on one source for the same reason.
 
-Ambience *was* two things — a non-positional wind bed, and a **spatial** emitter at the pond — and
-is currently wired to neither (§5.3a). What follows describes what the wiring does when it returns.
-
-Ambience is two things: a non-positional wind bed, and a **spatial** emitter at the pond
-(`POND` is (−15, −0.95, −5), radius 12 — `src/domain/hub/waterBody.ts`), so the water is audible near
-the shore and gone across the field.
+Ambience *was* two things — a non-positional wind bed, and a **spatial** emitter at the pond (`POND`
+is (−15, −0.95, −5), radius 12 — `src/domain/hub/waterBody.ts`), so that the water was audible near
+the shore and gone across the field. It is wired to neither today (§5.3a); that is what the wiring
+does when it returns.
 
 ### 4.4 AudioV2 has two volumes, and they multiply
 
@@ -183,9 +186,16 @@ scheduled on a suspended context and becomes audible when that context resumes. 
 the intro track the moment the scene finishes loading — long before the player has clicked anything —
 so the request lands in the one window where it cannot be honoured.
 
-`hubAudio` therefore remembers the requested scene and starts it when `engine.unlockAsync()` resolves.
-This is also why footsteps and ambience were audible in early testing while music was not: those are
-static sounds, and only the streaming path has this constraint.
+`musicCrossfade` therefore remembers the requested scene and starts it when `engine.unlockAsync()`
+resolves. This is also why footsteps and ambience were audible in early testing while music was not:
+those are static sounds, and only the streaming path has this constraint.
+
+**The handover is its own module** (`musicCrossfade.ts`), holding the requested scene, the handle on
+the track that is playing, and the fades still in flight. Not because `hubAudio` was too long, but
+because every way of getting the sequence wrong is *silent* — the failure below cost a whole review
+cycle to find by ear — and inside `hubAudio` it is only reachable behind a live babylon `Scene`, a
+loaded knight and a real `AudioContext`. Taking the bank as an argument makes it reachable from a test
+with a recording fake instead (§6).
 
 ## 5. The assets
 
@@ -366,7 +376,7 @@ The decision logic is pure, so it is unit-tested rather than debugged in the bro
 - **`audioMixer`** — mute overrides everything, values clamp, master multiplies.
 - **`surfaceCue`** — the surface → cue mapping, and that what it returns is a `SoundCue`.
 
-Two things that are not pure are tested anyway, because neither has a cheap way to be seen:
+Three things that are not pure are tested anyway, because none of them has a cheap way to be seen:
 
 - **`soundBank`** (`tests/presentation/soundBank.test.ts`) — the babylon factory module is `vi.mock`ed
   behind a recording fake sound, which is enough to reach the bank's own bookkeeping and its failure
@@ -379,6 +389,16 @@ Two things that are not pure are tested anyway, because neither has a cheap way 
   `stop`, is swallowed with the bookkeeping left consistent. §7's file-deletion pass reaches the load
   failure only; the synchronous throws — the ones that would stop the render loop for good — are
   reachable nowhere else.
+- **`musicCrossfade`** (`tests/presentation/musicCrossfade.test.ts`) — the bank is an argument, so the
+  fake here is a plain object that records `startLoop` and the handles it hands back; no `vi.mock` and
+  no `AudioContext`. Pins the ordering the whole handover rests on: nothing starts before the engine
+  unlocks and the scene asked for meanwhile is applied when it does; a track starts at `level: 0` and
+  is ramped up from there; the incoming track starts *before* the outgoing one is ramped down and the
+  outgoing one is stopped by its timer rather than at the handover; asking for the track already
+  playing does nothing; a cue that failed to load is recorded as "nothing playing" so a later request
+  retries it; and `dispose` stops both tracks and cancels the timer that would otherwise fire a full
+  fade later, into sounds the bank has disposed. Every one of those failures is inaudible-by-omission
+  rather than a throw, which is what makes them worth a test rather than a listen.
 - **The manifest against the disk** (`tests/presentation/audioManifest.test.ts`) — every cue names a
   file that exists under `public/`, and every path is served from the public root. `manifest.ts`'s
   `satisfies` gets as far as "each entry is a string"; this is what makes a path that names nothing a
@@ -406,9 +426,11 @@ exercised. Each item below is marked with what was actually established, not a s
   overlapping-ramp guard: AudioV2 does not throw when a volume ramp is requested while another is
   already in progress (it silently cancels the in-flight ramp and replaces it, see `soundBank.ts`'s
   `LoopHandle.setVolume`), so this call sequence exercised the ramp path and would not have thrown
-  either way. **Unverified (listening)**: that the AVG intro actually starts `avg_theme`, that
-  finishing the intro triggers the crossfade in real play (rather than a direct call), and that the
-  crossfade sounds like a fade rather than a cut.
+  either way. The *sequencing* underneath all of this no longer rests on this pass: the ordering that
+  makes a crossfade a crossfade is pinned by `tests/presentation/musicCrossfade.test.ts` (§6). What is
+  still **unverified (listening)** is what only ears can settle: that the AVG intro actually starts
+  `avg_theme`, that finishing the intro triggers the crossfade in real play (rather than a direct
+  call), and that it sounds like a fade rather than a cut.
 - **Moot, and the reason is now known** — the wind bed audible across the field, the water audible
   near the pond and gone at distance, and neither bed having an audible seam. Both beds were listened
   to after this record was first written and **both read as too repetitive**, so neither is wired in
