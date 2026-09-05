@@ -5,14 +5,21 @@ import type { MusicScene } from '../../src/domain/audio/musicDirector';
 import type { SoundCue } from '../../src/domain/audio/soundCue';
 
 /**
- * Pins the deferral in front of the audio graph.
+ * Pins the deferral in front of the audio graph, and what it does with each kind of request in the
+ * window before the graph exists.
  *
  * `createHubAudio` is synchronous and builds its graph in the background, so between the scene
- * resolving and the graph existing there is a window in which every request has to be held rather
- * than dropped, and a teardown has to reach a graph nobody else has a reference to yet. All three
- * failures are inaudible: `App.svelte` asks for the intro track exactly once, from the scene-load
- * callback, so a dropped request costs the session all of its music with nothing logged; and a
- * `dispose` that misses a build still in flight leaves an `AudioContext` running past the page.
+ * resolving and the graph existing there is a window in which a request reaches no graph at all.
+ * The two halves of this file are the two answers to that, and they are opposite on purpose:
+ *
+ * - A music scene is a STATE, and is held. Whenever the graph arrives, the answer is still the same
+ *   one — so a scene asked for in the window is replayed into the graph, and a teardown has to reach
+ *   a graph nobody else has a reference to yet. All three failures are inaudible: `App.svelte` asks
+ *   for the intro track exactly once, from the scene-load callback, so a dropped request costs the
+ *   session all of its music with nothing logged; and a `dispose` that misses a build still in
+ *   flight leaves an `AudioContext` running past the page.
+ * - A cue is an EVENT, and is dropped. It is tied to the moment it happened, so replaying it would
+ *   fire a typing tick seconds after its character was drawn.
  *
  * Reachable here because `createDeferredAudio` takes the build as a nullary function: the fake below
  * is a plain object plus a promise this file settles by hand — no `vi.mock`, no `Scene`, no loaded
@@ -178,8 +185,7 @@ describe('createDeferredAudio, one-shot cues', () => {
 
     audio.play('ui.type');
     deferred.settle(fake);
-    await vi.waitFor(() => expect(deferred.builds).toBe(1));
-    await Promise.resolve();
+    await flush();
 
     // The opposite of setMusicScene, and the reason both behaviours are pinned here: a scene is a
     // state that is still true whenever the graph arrives, a cue is an event tied to the moment it
@@ -192,8 +198,7 @@ describe('createDeferredAudio, one-shot cues', () => {
     const audio = createDeferredAudio(deferred.build);
     const fake = makeFake();
     deferred.settle(fake);
-    await vi.waitFor(() => expect(deferred.builds).toBe(1));
-    await Promise.resolve();
+    await flush();
 
     audio.play('ui.confirm');
     expect(fake.cues).toEqual(['ui.confirm']);
@@ -204,8 +209,7 @@ describe('createDeferredAudio, one-shot cues', () => {
     const audio = createDeferredAudio(deferred.build);
     const fake = makeFake();
     deferred.settle(fake);
-    await vi.waitFor(() => expect(deferred.builds).toBe(1));
-    await Promise.resolve();
+    await flush();
 
     audio.dispose();
     audio.play('ui.move');
