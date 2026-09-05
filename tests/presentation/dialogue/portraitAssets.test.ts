@@ -22,7 +22,11 @@ const fileFor = (url: string) => DIR + url.replace('/portraits/', '');
 const probeUrl = () => readFileSync(src('vp9Alpha.ts'), 'utf8').match(/'([^']*\/portraits\/[^']+)'/)?.[1];
 
 const HAVE_FFMPEG = (() => {
-  try { execFileSync('ffmpeg', ['-version'], { stdio: 'ignore' }); return true; } catch { return false; }
+  try {
+    execFileSync('ffmpeg', ['-version'], { stdio: 'ignore' });
+    execFileSync('ffprobe', ['-version'], { stdio: 'ignore' }); // the frame count needs both
+    return true;
+  } catch { return false; }
 })();
 
 /**
@@ -61,10 +65,36 @@ describe('portrait assets', () => {
   });
 
   /** An animated WebP carries one ANMF chunk per frame; a single-image one carries none. */
-  const isAnimated = (url: string) => readFileSync(fileFor(url)).includes(Buffer.from('ANMF'));
+  const webpFrames = (url: string) => {
+    const bytes = readFileSync(fileFor(url));
+    let frames = 0;
+    for (let at = bytes.indexOf('ANMF'); at !== -1; at = bytes.indexOf('ANMF', at + 4)) frames += 1;
+    return frames;
+  };
+  const isAnimated = (url: string) => webpFrames(url) > 0;
+
+  /** Frames actually decoded, not the count the container claims. */
+  const videoFrames = (url: string) =>
+    Number(
+      execFileSync('ffprobe', [
+        ...['-v', 'error', '-c:v', 'libvpx-vp9', '-count_frames'],
+        ...['-select_streams', 'v:0', '-show_entries', 'stream=nb_read_frames'],
+        ...['-of', 'default=nw=1:nokey=1', fileFor(url)],
+      ]).toString().trim(),
+    );
 
   it('the animated WebP is actually animated', () => {
     expect(isAnimated(resolvePortraitAnimated('neutral'))).toBe(true);
+  });
+
+  // The WebM is what the probe, the three-state gate and the whole upgrade path exist to deliver,
+  // and a single-frame one satisfies every other case here: it exists, it is referenced, its corner
+  // decodes transparent, it ends in .webm. What it buys is a frozen idle on the engines that pass
+  // the probe — the smaller population, so the regression would be the harder one to notice.
+  it.skipIf(!HAVE_FFMPEG)('the WebM animates, and to the same length as the WebP it stands in for (needs ffmpeg)', () => {
+    const frames = videoFrames(resolvePortraitWebm('neutral'));
+    expect(frames).toBeGreaterThan(1);
+    expect(frames).toBe(webpFrames(resolvePortraitAnimated('neutral')));
   });
 
   // The still is the frame shown under prefers-reduced-motion, where an <img> could not be stopped
