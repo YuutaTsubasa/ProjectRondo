@@ -35,10 +35,24 @@ export async function createGameAudio(levels: MixerLevels = DEFAULT_LEVELS): Pro
     disableDefaultUI: true,
   });
 
-  const entries = await Promise.all(
-    BUS_IDS.map(async (id) => [id, await CreateAudioBusAsync(id, {}, engine)] as const),
-  );
-  const buses = Object.fromEntries(entries) as Record<AudioBusId, AudioBus>;
+  // `allSettled`, not `all`: a rejection here has to leave nothing behind, and this is the one place
+  // that can. `buildHubAudio`'s own guard only starts once this function has *resolved*, so a throw
+  // from inside it reaches the caller with no handle to the engine awaited above — an `AudioContext`
+  // that then survives for the life of the page. `all` would also reject on the first bus while its
+  // siblings were still in flight, and it does not cancel them, so the buses that did resolve would
+  // be stranded on an engine nobody can reach. Waiting for all three is what makes them disposable.
+  const settled = await Promise.allSettled(BUS_IDS.map((id) => CreateAudioBusAsync(id, {}, engine)));
+  const created = settled.filter((r): r is PromiseFulfilledResult<AudioBus> => r.status === 'fulfilled');
+  const failed = settled.filter((r): r is PromiseRejectedResult => r.status === 'rejected');
+  if (failed.length > 0) {
+    for (const r of created) r.value.dispose();
+    engine.dispose();
+    throw failed[0].reason;
+  }
+
+  const buses = Object.fromEntries(
+    BUS_IDS.map((id, i) => [id, created[i].value] as const),
+  ) as Record<AudioBusId, AudioBus>;
 
   const applyLevels = (next: MixerLevels) => {
     for (const id of BUS_IDS) buses[id].volume = busGain(next, id);
