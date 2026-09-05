@@ -15,9 +15,12 @@ const DIR = fileURLToPath(new URL('../../src/presentation/dialogue/', import.met
  * word character, so there is none. The {3,8} bound and that boundary hold the guard together;
  * neither is incidental.
  *
- * rgba() is not matched either, and is allowed on purpose — but only two sites now use it, and
- * neither is a colour decision: Backlog's entry rule tints --c-blue-soft, and Portrait's drop-shadow
- * is plain black. Everything else that once needed rgba here became a token.
+ * rgba() is not matched either, and is allowed on purpose: it is how a token's own colour is given an
+ * alpha, which is a thing no token can hold for it. Three sites use it — Backlog's entry rule and
+ * Choices' scrim each tint --c-blue-soft-rgb, and Portrait's drop-shadow is plain black. Two of the
+ * three take their colour from a token and decide only the alpha; the scrim's 0.42 is the one place
+ * a number here is a decision rather than a shade of something named, and the comment on that rule
+ * says so. Everything else that once needed rgba became a token.
  */
 function hexLiteralsIn(file: string): string[] {
   return readFileSync(DIR + file, 'utf8').match(/#[0-9a-fA-F]{3,8}\b/g) ?? [];
