@@ -126,18 +126,25 @@ export function createPlayer(
     // debounce, which lags `grounded`'s COYOTE_SECONDS by 0.05 s, and a press inside that lag was
     // consumed, refused as a jump and never offered as a dash. See `HomingLockInput.offGround`.
     //
-    // Acting on a press is not the same as consuming it, though. `stepGroundContact` arms its
-    // `JUMP_BUFFER_SECONDS` buffer from every press it is handed, including one spent on a dash or on
-    // nothing, and that buffered press can only be spent if the character becomes jumpable inside the
-    // window — which after a dash it does not. So a chain press made a few frames early is dropped,
-    // where the identical press aimed at an ordinary jump would have been remembered. Feeding the
-    // homing lock from that buffer instead is a feel decision on a mechanic nobody has played yet
-    // (see `MovementConstants`' homing block), so it is left as it is rather than guessed at.
+    // Being grounded is not the only way the domain can decline a press, though: on a dash frame it
+    // takes the homing branch and never reads `jumpRequested` at all. So the ground machine is told
+    // when a dash owns the frame — `dashInFlight` below, and `bounced` for the frame the arrival's
+    // climb starts — and declines the press rather than spending it, which keeps it in the
+    // `JUMP_BUFFER_SECONDS` buffer and keeps `grounded` false through a bounce, so the chain press
+    // reaches the lock as a dash instead of coming back as an ordinary jump. See `groundContact`'s
+    // problem 5. What the buffer still cannot do is *hand* an older press to the lock: the lock is
+    // fed the frame's edge, so a chain press made before the arrival frame is remembered as a jump
+    // and not as a dash. Feeding the lock from the buffer too is a feel decision on a mechanic nobody
+    // has played yet (see `MovementConstants`' homing block), so it is left rather than guessed at.
     const pressed = input.consumeJump();
     const support = controller.checkSupport(dt, DOWN);
+    // Last frame's dash state, read once and handed to both machines, so they cannot disagree about
+    // whether a dash is under way — which of the two the press belongs to turns on exactly this.
+    const dashInFlight = player.motion.homing !== null;
     const contactResult = stepGroundContact(contact, {
       supported: support.supportedState === CharacterSupportedState.SUPPORTED,
       jumpPressed: pressed,
+      dashInFlight,
       verticalSpeed: player.motion.velocity.y,
       // Still last frame's value: it is only reassigned further down, after the domain step that
       // decides it. That is the frame the bounce was emitted on, and this is the first frame the
@@ -151,7 +158,7 @@ export function createPlayer(
 
     const cam = follow.camera;
     const lockResult = stepHomingLock(homingLock, {
-      dashInFlight: player.motion.homing !== null,
+      dashInFlight,
       jumpPressed: pressed,
       offGround: !grounded,
       // The physics capsule's position, NOT `root`'s: `root.position.y` is `visualY`, the smoothed

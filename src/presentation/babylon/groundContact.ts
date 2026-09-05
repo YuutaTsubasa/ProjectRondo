@@ -28,6 +28,16 @@
  *    bounce is the same shape of climb — the domain hands out `homingBounceSpeed` and then, from a
  *    grounded motion, zeroes it on the very next frame — and a crystal low enough that the probe
  *    finds floor under the arrival is exactly the case, so a bounce enters `rising` too.
+ * 5. **A press was spent on a jump the domain was never going to take.** The probe reports support on
+ *    frames of a homing dash — the skim `slopeMotion` records — and again under the crystal a dash
+ *    arrives at, and this machine used to answer such a frame with `jumpRequested`. On a dash frame
+ *    the domain's homing branch does not read `jumpRequested` at all, so the press produced nothing
+ *    and the buffer had already been emptied for it; on the frame after an arrival it produced an
+ *    ordinary jump, and reporting `grounded` for that jump is what stopped the same press reaching
+ *    `homingLock`, so chaining off a low crystal degraded silently into a hop. {@link
+ *    GroundContactInput.dashInFlight} and {@link GroundContactInput.bounced} are therefore read
+ *    *before* the press is spent, not after: on those frames the press stays in the buffer, and
+ *    `grounded` stays false so the lock is the machine offered it.
  */
 
 /** How long after losing ground support a jump is still allowed. Covers the probe's 1-8 frame gaps. */
@@ -89,6 +99,13 @@ export interface GroundContactInput {
   readonly supported: boolean;
   /** A jump key-press was consumed this frame (edge-triggered). */
   readonly jumpPressed: boolean;
+  /**
+   * A homing dash is under way this frame — `CharacterMotion.homing !== null` from last frame's
+   * result, the same boolean `homingLock` is handed as `HomingLockInput.dashInFlight`. The domain
+   * spends such a frame in its homing branch, which never reads `jumpRequested`, so a press answered
+   * with a jump here would be answered by nothing at all.
+   */
+  readonly dashInFlight: boolean;
   /** Last frame's post-solve vertical velocity; positive is rising. */
   readonly verticalSpeed: number;
   /**
@@ -115,12 +132,19 @@ export interface GroundContactResult {
 
 export const stepGroundContact = (
   state: GroundContactState,
-  { supported, jumpPressed, verticalSpeed, bounced, delta }: GroundContactInput,
+  { supported, jumpPressed, dashInFlight, verticalSpeed, bounced, delta }: GroundContactInput,
 ): GroundContactResult => {
   const buffered = jumpPressed ? JUMP_BUFFER_SECONDS : Math.max(0, state.bufferedJumpFor - delta);
   const settled = advance(state.contact, supported, verticalSpeed, delta);
 
-  const jumpRequested = buffered > 0 && canJump(settled);
+  // A dash owns the frame it is flying on and the frame its bounce leaves the ground, so a press on
+  // either is not this machine's to spend (problem 5 above). Refusing it *before* the spend rather
+  // than overriding `contact` after is what routes it somewhere: `buffered` still holds it, and on
+  // the bounce frame `contact` is `rising`, so `grounded` is false and `homingLock` is handed the
+  // same press as the chain dash it was meant to be. On a dash frame the lock is already committed
+  // and ignores presses, so there the buffer is the whole of the answer.
+  const dashOwnsFrame = dashInFlight || bounced;
+  const jumpRequested = buffered > 0 && !dashOwnsFrame && canJump(settled);
   const contact: GroundContact = jumpRequested || bounced ? { kind: 'rising', seconds: 0 } : settled;
 
   return {

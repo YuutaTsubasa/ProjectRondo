@@ -113,7 +113,8 @@ describe('stepHomingLock', () => {
 describe('stepHomingLock composed with stepGroundContact', () => {
   const DT = 1 / 60;
   const FALLING = {
-    supported: false, jumpPressed: false, verticalSpeed: -5, bounced: false, delta: DT,
+    supported: false, jumpPressed: false, dashInFlight: false, verticalSpeed: -5, bounced: false,
+    delta: DT,
   };
 
   /** Walks off a ledge (no jump, so `jumpSpent` is false), falls for `seconds`, then presses. */
@@ -148,5 +149,38 @@ describe('stepHomingLock composed with stepGroundContact', () => {
   it('still spends the press on a jump while coyote time is open', () => {
     expect(pressAfterFalling(0)).toBe('jump');
     expect(pressAfterFalling(COYOTE_SECONDS / 2)).toBe('jump');
+  });
+
+  /**
+   * The dash's own frames are the other half of the partition, and the probe reports support on them:
+   * mid-dash it skims the ground (`slopeMotion`), and a crystal low enough puts floor under the
+   * arrival. Answering such a frame from the probe alone gave the press to the jump — to a jump the
+   * domain then ignored mid-dash, and to a real hop on the frame after an arrival, where reporting
+   * `grounded` for it is what kept the lock from ever seeing it. Chaining off a low crystal is the
+   * whole move, so it is driven here against both shipped machines rather than either alone.
+   */
+  describe('a press on a frame a dash owns', () => {
+    /** One frame of both machines, from a standing-on-the-crystal probe. `lock` is what is committed. */
+    const pressWith = (over: { dashInFlight: boolean; bounced: boolean }, lock = NO_HOMING_LOCK) => {
+      const ground = stepGroundContact(INITIAL_GROUND_CONTACT, {
+        supported: true, jumpPressed: true, verticalSpeed: 9, delta: DT, ...over,
+      });
+      const dash = stepHomingLock(
+        lock, frame({ jumpPressed: true, offGround: !ground.grounded, dashInFlight: over.dashInFlight }), C,
+      );
+      if (ground.jumpRequested) return 'jump';
+      return dash.lock.crystal !== null && dash.lock.crystal !== lock.crystal ? 'dash' : 'held';
+    };
+
+    it('turns an early chain press after a bounce into the next dash, not a hop', () => {
+      expect(pressWith({ dashInFlight: false, bounced: true })).toBe('dash');
+    });
+
+    it('leaves a press made mid-dash to the buffer, rather than spending it on either', () => {
+      // Nothing may act on it: the domain's homing branch does not read `jumpRequested`, and the lock
+      // must not retarget mid-flight. `groundContact` keeps it buffered — pinned there.
+      expect(pressWith({ dashInFlight: true, bounced: false }, { crystal: 1, entrySeconds: 0.4 }))
+        .toBe('held');
+    });
   });
 });

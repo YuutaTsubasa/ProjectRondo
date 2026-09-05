@@ -15,7 +15,8 @@ const frames = (seconds: number) => Math.ceil(seconds / DT) + 1;
 /** One frame with everything quiet unless overridden. */
 const frame = (state: GroundContactState, over: Partial<Parameters<typeof stepGroundContact>[1]> = {}) =>
   stepGroundContact(state, {
-    supported: true, jumpPressed: false, verticalSpeed: 0, bounced: false, delta: DT, ...over,
+    supported: true, jumpPressed: false, dashInFlight: false, verticalSpeed: 0, bounced: false,
+    delta: DT, ...over,
   });
 const settle = (state: GroundContactState, n: number, over = {}) => {
   let s = state;
@@ -97,6 +98,38 @@ describe('stepGroundContact', () => {
     it('lands again as soon as the bounce stops rising', () => {
       const s = frame(INITIAL_GROUND_CONTACT, { supported: true, bounced: true, verticalSpeed: 12 }).state;
       expect(frame(s, { supported: true, verticalSpeed: -0.1 }).grounded).toBe(true);
+    });
+
+    it('does not turn a press on the bounce frame into an ordinary jump', () => {
+      // The chain press: the probe found floor under the crystal, so without reading `bounced` first
+      // this frame settles to `grounded`, answers the press as a jump, and reports grounded — which
+      // is exactly what stops `stepHomingLock` being offered the press. The chain would degrade into
+      // a hop. Composed against the real lock in homingLock.test.ts.
+      const r = frame(INITIAL_GROUND_CONTACT, {
+        supported: true, bounced: true, verticalSpeed: 12, jumpPressed: true,
+      });
+      expect(r.jumpRequested).toBe(false);
+      expect(r.grounded).toBe(false);
+    });
+  });
+
+  describe('a dash in flight', () => {
+    // A dash frame is spent in the domain's homing branch, which never reads `jumpRequested`.
+    const dashing = { dashInFlight: true, supported: true, verticalSpeed: 6 };
+
+    it('does not spend a press on a jump the domain will not read', () => {
+      // The skimming case: the probe reports support mid-dash, so this frame would otherwise settle
+      // to `grounded` and answer the press with a jump that goes nowhere at all.
+      const airborne = settle(INITIAL_GROUND_CONTACT, 2, { supported: false, verticalSpeed: -0.2 });
+      expect(frame(airborne, { ...dashing, jumpPressed: true }).jumpRequested).toBe(false);
+    });
+
+    it('keeps that press in the buffer rather than swallowing it', () => {
+      const airborne = settle(INITIAL_GROUND_CONTACT, 2, { supported: false, verticalSpeed: -0.2 });
+      const pressed = frame(airborne, { ...dashing, jumpPressed: true });
+      // The dash ends on the next frame without a bounce (a timeout onto ground); the press it
+      // declined is still worth a jump, where before it had been consumed and thrown away.
+      expect(frame(pressed.state, { supported: true, verticalSpeed: -0.1 }).jumpRequested).toBe(true);
     });
   });
 
