@@ -23,9 +23,12 @@ import { CRYSTAL_EXTENT } from './crystals';
  * multiplied it as if it were the crystal's half-height — which produced a ring 1.08 units across around
  * a 1.27-unit crystal, i.e. a "marker" smaller than the thing it marked.
  *
- * **Untuned**: 1.35 is a guess at "clearly outside the silhouette, not a halo". Retune by eye.
+ * Tuned by eye against the running scene, not guessed: 1.35 was watched first and read as too big — a
+ * halo floating around the crystal rather than a ring on it. 1.1 works because the crystal is an
+ * octahedron, so its silhouette only reaches the full {@link CRYSTAL_EXTENT} at four equatorial points;
+ * a ring just past those clears the whole outline while staying visually attached to it.
  */
-const RETICLE_EXTENT_RATIO = 1.35;
+const RETICLE_EXTENT_RATIO = 1.1;
 
 /**
  * How much of the plane's width the drawn ring actually spans — {@link ringTexture} strokes its circle
