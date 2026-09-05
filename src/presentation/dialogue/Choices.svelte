@@ -33,10 +33,16 @@
     aria-labelledby="choices-head"
     aria-describedby="choices-prompt"
   >
-    <h2 class="head" id="choices-head">SELECT AN ACTION</h2>
-    <!-- The line that poses the question. The scrim is opaque, so the dialogue box is not readable
-         behind it -- without this the player is answering a question they cannot see. -->
-    <p class="prompt" id="choices-prompt">{prompt}</p>
+    <!-- The heading and the question share one glass block for the same reason each option has
+         its own: the scrim is a wash now, so anything sitting straight on it would be read against
+         whatever the camera happens to be pointing at. -->
+    <div class="question">
+      <h2 class="head" id="choices-head">SELECT AN ACTION</h2>
+      <!-- The question is repeated here rather than left to the dialogue box behind: the panel is
+           centred over the box at most viewport sizes, so the box is the one thing the player
+           cannot count on seeing while answering. -->
+      <p class="prompt" id="choices-prompt">{prompt}</p>
+    </div>
     {#each choices as choice, i}
       <!-- Kit: a 1px frame with 4px padding around an inner block, and a caret prefix. -->
       <button class="choice" onclick={() => onSelect(i)}>
@@ -47,11 +53,18 @@
 </div>
 
 <style>
-  /* The kit's takeover ground, and opaque rather than a wash. At 0.55 over the live scene the
-     ground's floor was rgb(67,88,140), where .head's ink is 2.54:1 -- the scene decided whether the
-     heading was readable. Solid --c-blue-soft is the light lavender the kit's menu and save/load
-     screens show, and it puts ink at 6.99:1 regardless of the camera. Nothing needs to be seen
-     through a modal that has taken the whole screen. */
+  /* A wash, not the opaque ground this used to be. Opaque was the right answer while .head and
+     .prompt sat straight on it -- at 0.55 over the live scene the floor was rgb(67,88,140) and the
+     heading fell to 2.54:1, so the camera decided whether it was readable. That is fixed at the
+     source instead: every text-bearing element in this panel now carries the kit's glass, where
+     --c-ink is 6.61:1 even over black (tokens.css), so contrast no longer depends on what is behind
+     the modal and the modal no longer has to hide it.
+
+     Which matters because of what is behind it: the standing portrait, the dialogue box and the
+     live hub. In an AVG the moment of choosing is a moment you are meant to still see the scene.
+
+     0.42 is the one number here that is taste rather than measurement -- enough lavender to read as
+     a takeover, little enough to leave the scene legible. */
   .scrim {
     position: fixed;
     inset: 0;
@@ -65,7 +78,7 @@
     overflow-y: auto;
     padding: 24px 0;
     box-sizing: border-box;
-    background: var(--c-blue-soft);
+    background: rgba(var(--c-blue-soft-rgb), 0.42);
     pointer-events: auto;
   }
   .panel {
@@ -75,16 +88,25 @@
     flex-direction: column;
     gap: 10px;
   }
+  /* Same glass as an option's .inner, for the same reason. Not applied to .panel as a whole:
+     .inner would then be glass over glass, which washes the options out against the ground they are
+     supposed to stand on. One layer per text-bearing element keeps every reading the kit measured. */
+  .question {
+    padding: 14px 16px;
+    background: var(--surface-glass);
+    backdrop-filter: var(--surface-blur);
+    -webkit-backdrop-filter: var(--surface-blur);
+  }
   .head {
     /* An h2 so browse-mode has something to land on; its UA margins and size are overridden here so
        the change is semantic only. */
-    margin: 0 0 4px;
+    margin: 0 0 6px;
     font: var(--font-panel-title);
     letter-spacing: var(--panel-title-tracking);
     color: var(--c-ink);
   }
   .prompt {
-    margin: 0 0 6px;
+    margin: 0;
     font-family: var(--font-body);
     font-size: 18px;
     line-height: 1.7;
