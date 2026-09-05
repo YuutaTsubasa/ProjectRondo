@@ -4,7 +4,8 @@ import type { Nullable } from '@babylonjs/core/types';
 
 import { createFootstepCadence } from '../../domain/audio/footstepCadence';
 import { cadenceSample } from '../../domain/audio/locomotionGait';
-import { surfaceCue, type SoundCue } from '../../domain/audio/soundCue';
+import { surfaceCue } from '../../domain/audio/soundCue';
+import { createVariantRotation } from '../../domain/audio/variantRotation';
 import { WALK_THRESHOLD, type Knight, type KnightMotionSample } from '../babylon/knight';
 import { createGameAudio } from './audioEngine';
 import { phaseOf, weightOf } from './clipSample';
@@ -108,16 +109,12 @@ async function buildHubAudio(
     const crossfade = createMusicCrossfade(soundBank);
 
     // The manifest gives some cues several files — `ui.type` has four — and `soundBank.play` picks
-    // by an index its caller supplies, so something has to count. It counts here rather than at the
-    // call site because how many recordings back a cue is the manifest's business: the dialogue UI
-    // asks for "a typing tick" and has no reason to learn there are four of them. A cue with one
-    // file is unaffected, since `pick` takes the index modulo the file count.
-    const variants = new Map<SoundCue, number>();
-    const nextVariant = (cue: SoundCue) => {
-      const n = variants.get(cue) ?? 0;
-      variants.set(cue, n + 1);
-      return n;
-    };
+    // by an index its caller supplies, so something has to count. It counts on this side rather than
+    // at the call site because how many recordings back a cue is the manifest's business: the
+    // dialogue UI asks for "a typing tick" and has no reason to learn there are four of them. The
+    // counting itself is in the domain, for the same reason the crossfade above is its own module —
+    // nothing in here is reachable by a test without a scene.
+    const variants = createVariantRotation();
 
     const cadence = createFootstepCadence();
     let wasAirborne = motion().airborne;
@@ -200,7 +197,7 @@ async function buildHubAudio(
         crossfade.setScene(next);
       },
       play(cue) {
-        soundBank.play(cue, { variant: nextVariant(cue) });
+        soundBank.play(cue, { variant: variants.next(cue) });
       },
       dispose() {
         stopWatchingForGestures();
