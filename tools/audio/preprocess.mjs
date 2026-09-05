@@ -379,7 +379,7 @@ try {
       execFileSync(FFMPEG, ['-y', '-loglevel', 'error', '-i', tmp, '-c:a', 'libvorbis', '-q:a', '4', to]);
       detail = `${(built.channels[0].length / built.rate).toFixed(3)}s ${built.channels.length}ch ${built.rate}Hz`;
     }
-    console.log(`${r.to.padEnd(30)}${(statSync(to).size / 1024).toFixed(1).padStart(9)} KB  ${detail}`);
+    console.log(`${r.to.padEnd(30)}${(statSync(to).size / 1024).toFixed(1).padStart(9)} KiB  ${detail}`);
   }
 } finally {
   if (existsSync(tmp)) unlinkSync(tmp);
