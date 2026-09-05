@@ -27,6 +27,7 @@ export interface KnightAnimations {
   readonly walk: AnimationGroup;
   readonly run: AnimationGroup;
   readonly jump: AnimationGroup;
+  readonly kick: AnimationGroup;
 }
 
 /** What the animation layer needs to know about the player each frame. */
@@ -41,7 +42,7 @@ export interface KnightMotionSample {
    */
   readonly airborne: boolean;
   /** `player.motion.homing !== null` — non-null exactly while a homing dash is in flight. Drives the
-   *  placeholder dash-spin pose and the trail below. */
+   *  Flying Kick clip and the trail below. */
   readonly homing: boolean;
   /**
    * World-space vertical velocity, world units/s. Needed only to tell a homing bounce from a homing
@@ -72,8 +73,7 @@ export interface Knight {
    * several centimetres, since it drops out for ~10% of frames while running.
    */
   planted: number;
-  /** The glTF root, exposed so {@link driveKnightAnimation} can spin it for the dash pose and reset it
-   *  when the dash ends. Also the trail's generator. */
+  /** The glTF root; the trail's generator. */
   readonly root: TransformNode;
   /** Blue dash trail, started when `homing` turns on and stopped at the bounce or the timeout — see
    *  {@link driveKnightAnimation}. Created once, hidden, in {@link loadKnight}. */
@@ -784,7 +784,7 @@ export async function loadKnight(
 ): Promise<Knight> {
   // ?v bust: the browser aggressively caches the GLB, so a plain reload keeps serving an old copy.
   // Bump this whenever knight_web.glb is rebuilt so clients refetch it.
-  const result = await ImportMeshAsync('/models/knight_web.glb?v=5', scene);
+  const result = await ImportMeshAsync('/models/knight_web.glb?v=6', scene);
   const root = result.meshes[0] as TransformNode;
   root.parent = parent;
   root.position.setAll(0);
@@ -822,8 +822,9 @@ export async function loadKnight(
   const walk = byName(/walk/i);
   const run = byName(/run/i);
   const jump = byName(/jump/i);
-  if (!idle || !walk || !run || !jump) {
-    throw new Error(`knight_web.glb must contain Idle, Walk, Run and Jump animations; found: ${groups.map((g) => g.name).join(', ') || '(none)'}`);
+  const kick = byName(/kick/i);
+  if (!idle || !walk || !run || !jump || !kick) {
+    throw new Error(`knight_web.glb must contain Idle, Walk, Run, Jump and Flying Kick animations; found: ${groups.map((g) => g.name).join(', ') || '(none)'}`);
   }
   // Every clip carries a root-bone reorientation from the retarget (a big ~96° pitch on Walk, a small
   // forward lean on Idle); neutralise them all so the knight stands straight rather than tipping over.
@@ -836,7 +837,7 @@ export async function loadKnight(
   idle.play(true);
 
   const trail = createDashTrail(scene, root);
-  const knight: Knight = { animations: { idle, walk, run, jump }, planted: 1, root, trail };
+  const knight: Knight = { animations: { idle, walk, run, jump, kick }, planted: 1, root, trail };
 
   // Bind-pose bounds don't match the animated idle pose (the knight floated ~0.8u above the floor),
   // so re-seat once on the actual posed mesh after the first rendered frame.
@@ -999,16 +1000,6 @@ const playSegment = (group: AnimationGroup, fromSeconds: number, toSeconds: numb
 };
 
 /**
- * Placeholder dash pose: a fast roll about the model's own forward axis. Sonic curls into a ball for
- * this move; the knight cannot, but a spin is a legible "this is not a jump" signal and costs no asset.
- * Task 8 replaces it with the Flying Kick clip; when it does, delete this, `FORWARD_AXIS`, and the roll
- * reset in {@link driveKnightAnimation}.
- */
-const DASH_SPIN_RATE = 18; // rad/s
-/** Local axis the dash-spin pose rolls about — the model's own forward, independent of world facing. */
-const FORWARD_AXIS = new Vector3(0, 0, 1);
-
-/**
  * Drives the knight's pose from the player's motion each frame.
  *
  * **Locomotion** is one scalar `L`: 0 = idle, 1 = walk, 2 = run. It eases toward a target derived
@@ -1022,12 +1013,17 @@ const FORWARD_AXIS = new Vector3(0, 0, 1);
  * `jumpWeight`. Touchdown just ends it — no landing clip is played (see {@link JUMP_FALL_END}).
  *
  * **Homing** layers on top of both, driven off `homing` rather than `airborne` (which stays true for
- * the whole dash-plus-bounce, so it never re-fires the jump segment on its own): the placeholder spin
- * pose plays and the trail runs for as long as `homing` is true, and on the frame it clears, a
- * positive `verticalSpeed` (a bounce; see {@link KnightMotionSample.verticalSpeed}) restarts the jump
- * clip from {@link BOUNCE_RESTART} so it rides the existing `jumpWeight` blend back into locomotion. A
- * timeout (`verticalSpeed` not positive) plays nothing — the domain already zeroed the velocity, so
- * the knight simply resumes falling under gravity next frame.
+ * the whole dash-plus-bounce, so it never re-fires the jump segment on its own): the Flying Kick clip
+ * plays once from its start and the trail runs for as long as `homing` is true, both fading in and out
+ * by `kickWeight` the same way the jump segment fades by `jumpWeight` — and, since `canEnterHoming`
+ * only fires while already airborne, the jump segment can still be mid-fade when a dash starts, so
+ * `kickWeight` also cuts into the jump's *rendered* weight (not locomotion's, which is already zeroed
+ * by `jumpInfluence` whenever a jump is live) so the two one-shots do not fight over the same bones.
+ * On the frame `homing` clears, a positive `verticalSpeed` (a bounce; see
+ * {@link KnightMotionSample.verticalSpeed}) restarts the jump clip from {@link BOUNCE_RESTART} so it
+ * rides the existing `jumpWeight` blend back into locomotion. A timeout (`verticalSpeed` not positive)
+ * plays nothing — the domain already zeroed the velocity, so the knight simply resumes falling under
+ * gravity next frame.
  */
 export function driveKnightAnimation(
   scene: Scene,
@@ -1035,15 +1031,15 @@ export function driveKnightAnimation(
   motion: () => KnightMotionSample,
   tuning: () => KnightTuning,
 ): void {
-  const { idle, walk, run, jump } = knight.animations;
+  const { idle, walk, run, jump, kick } = knight.animations;
   const locomotion = [idle, walk, run];
   const playing = new Map<AnimationGroup, boolean>(locomotion.map((g) => [g, g.isPlaying]));
 
   let level = 0; // the locomotion scalar L
   let jumpWeight = 0;
+  let kickWeight = 0;
   let wasAirborne = false;
   let wasHoming = false;
-  let dashRoll = 0; // radians accumulated about FORWARD_AXIS while homing is true
 
   scene.onBeforeRenderObservable.add(() => {
     const dt = scene.getEngine().getDeltaTime() / 1000;
@@ -1070,19 +1066,15 @@ export function driveKnightAnimation(
       knight.trail.reset();
       knight.trail.setEnabled(true);
       knight.trail.start();
-    }
-    if (homing) {
-      // See DASH_SPIN_RATE's doc: placeholder roll, deleted once Task 8's Flying Kick clip lands.
-      dashRoll += DASH_SPIN_RATE * dt;
-      knight.root.rotationQuaternion = KNIGHT_FACING.multiply(Quaternion.RotationAxis(FORWARD_AXIS, dashRoll));
+      // The clip is a one-shot over its whole imported range (see NON_LOOPING in extract_anims.gd) —
+      // `stop()` first for the same reason `playSegment` does: `AnimationGroup.start()` silently
+      // no-ops on an already-playing group, which would leave a second dash mid-flight with no clip.
+      kick.stop();
+      kick.start(false, 1);
     }
     if (!homing && wasHoming) {
       knight.trail.stop();
       knight.trail.setEnabled(false);
-      // Part of the placeholder dash-spin pose — see DASH_SPIN_RATE's doc for what to delete (this
-      // reset included) once Task 8's Flying Kick clip lands.
-      dashRoll = 0;
-      knight.root.rotationQuaternion = KNIGHT_FACING.clone();
       // `characterMovement.step` clears `homing` on both a bounce and a timeout, so that alone can't
       // tell them apart — a bounce also sets a positive vertical velocity (`homingBounceSpeed`), a
       // timeout zeroes it (see KnightMotionSample.verticalSpeed's doc). Only a bounce restarts the
@@ -1105,8 +1097,20 @@ export function driveKnightAnimation(
     // whole weight blend exists to avoid. A stopped group holds its last pose, so easing off it looks
     // like settling out of the jump.
     jumpWeight = moveToward(jumpWeight, airborne && jump.isPlaying ? 1 : 0, JUMP_BLEND_PER_SECOND * dt);
+    // Same fast ease as the jump: a dash pose has to read as immediate, not cross-fade in.
+    kickWeight = moveToward(kickWeight, homing && kick.isPlaying ? 1 : 0, JUMP_BLEND_PER_SECOND * dt);
+    const kickInfluence = kickWeight;
+    if (kick.isPlaying) {
+      kick.setWeightForAllAnimatables(kickWeight);
+      if (!homing && kickWeight <= WEIGHT_EPSILON) kick.stop();
+    }
+    // `canEnterHoming` only fires while already airborne, so the jump segment can still be live —
+    // and its weight still ramping — on the frame a dash starts. Cut kick's share out of jump's
+    // *rendered* weight (not `jumpWeight` itself, which still governs the stop-out-of-airborne check
+    // below) so the two one-shots don't compete for the same bones; locomotion needs no equivalent
+    // term because `jumpInfluence` already zeroes it whenever a jump is live.
     if (jump.isPlaying) {
-      jump.setWeightForAllAnimatables(jumpWeight);
+      jump.setWeightForAllAnimatables(jumpWeight * (1 - kickInfluence));
       if (!airborne && jumpWeight <= WEIGHT_EPSILON) jump.stop();
     }
     const jumpInfluence = jumpWeight;
@@ -1128,7 +1132,7 @@ export function driveKnightAnimation(
       Math.max(0, 1 - level),
       Math.max(0, 1 - Math.abs(level - 1)),
       Math.max(0, level - 1),
-    ].map((w) => w * (1 - jumpInfluence));
+    ].map((w) => w * (1 - jumpInfluence) * (1 - kickInfluence));
 
     for (const [i, group] of locomotion.entries()) {
       const want = weights[i] > WEIGHT_EPSILON;
