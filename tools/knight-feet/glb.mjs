@@ -10,8 +10,16 @@
  *
  * Scope, so nobody reaches for this as a general loader:
  *   - GLB only (`glTF` magic, version 2, one JSON chunk then one BIN chunk).
- *   - No sparse accessors, no CUBICSPLINE interpolation, no morph targets — each of those throws
- *     rather than being silently mis-evaluated.
+ *   - No sparse accessors and no CUBICSPLINE interpolation — both throw rather than being silently
+ *     mis-evaluated.
+ *   - Morph targets are **ignored**, and that is only safe while none of them is driven. This model
+ *     carries one (`V_None`) on all 42 primitives with a `weights` channel each in `0_T-Pose`, and
+ *     every weight is exactly 0, so skinning `POSITION` through the joint matrices is the whole
+ *     deformation. {@link load} rejects the file if that stops being true, because a driven
+ *     blendshape would move the sole vertices underneath the fit and the re-measure alike: the boot
+ *     would be levelled against a pose the runtime never renders, and both would report PASS. A
+ *     Character Creator source is full of blendshapes, so this is a live hazard on the next export,
+ *     not a hypothetical.
  *   - Only the buffer views actually referenced are read, and only through {@link load}'s `read`,
  *     which caches per accessor.
  *
@@ -177,6 +185,23 @@ export function load(path) {
     return out;
   };
 
+  // Nothing below evaluates morph targets, so a driven one would deform the mesh in the runtime and
+  // not here — see the scope note at the top of this file. Checked against every static `weights`
+  // array and every key of every `weights` channel, because a clip can drive a weight the node's own
+  // default leaves at 0.
+  const drivenMorph = () => {
+    for (const n of j.nodes) if ((n.weights ?? []).some((w) => w !== 0)) return `node ${n.name ?? ''}`;
+    for (const clip of j.animations ?? [])
+      for (const c of clip.channels) {
+        if (c.target.path !== 'weights') continue;
+        if (read(clip.samplers[c.sampler].output).some((v) => v.some((w) => w !== 0)))
+          return `clip ${clip.name}`;
+      }
+    return null;
+  };
+  const driven = drivenMorph();
+  if (driven) throw Error(`Morph target weights are non-zero (${driven}); this tool skins joints only`);
+
   const parents = j.nodes.map(() => -1);
   j.nodes.forEach((n, i) => (n.children ?? []).forEach((c) => (parents[c] = i)));
 
@@ -239,9 +264,11 @@ export function load(path) {
           positions: read(p.attributes.POSITION),
           indices: p.indices === undefined ? null : read(p.indices).flat(),
           // Both joint/weight sets when the primitive carries them, so a vertex with more than four
-          // influences skins correctly. The shipped knight only has JOINTS_0/WEIGHTS_0, so set 1 is
-          // never present today; it is read because a re-export that adds it must not silently drop
-          // half of each vertex's influences and shift the measured sole.
+          // influences skins correctly. This is a live path, not future-proofing: 27 of this model's
+          // 42 primitives carry JOINTS_1/WEIGHTS_1, with secondary weights up to 0.056, and reading
+          // only set 0 would silently drop half of each such vertex's influences. The two boots
+          // happen to be single-set, so the sole measurement itself would survive — which is exactly
+          // why dropping this would go unnoticed.
           sets: [0, 1]
             .filter((k) => p.attributes['JOINTS_' + k] !== undefined)
             .map((k) => ({ j: read(p.attributes['JOINTS_' + k]), w: read(p.attributes['WEIGHTS_' + k]) })),

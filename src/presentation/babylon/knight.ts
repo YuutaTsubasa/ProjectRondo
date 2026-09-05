@@ -472,7 +472,7 @@ const FACE_COMPILE_TIMEOUT_MS = 10_000;
  * Every one of the knight's 42 meshes ships sharing a single glTF material, so the head needs a clone
  * before anything can be changed about it in isolation.
  *
- * `forceCompilationAsync` is not optional: swapping the material on a 101-bone skinned mesh triggers an
+ * `forceCompilationAsync` is not optional: swapping the material on a 100-bone skinned mesh triggers an
  * async shader rebuild, and the mesh renders as *nothing at all* until it finishes — long enough to
  * look like a bug and to poison any measurement taken in the meantime.
  *
@@ -646,7 +646,7 @@ async function swapHeadMaterial(meshes: readonly AbstractMesh[]): Promise<void> 
       'face shader compile',
     );
   } catch (err) {
-    // The clone adds an EMISSIVE define on top of a 101-bone skinned variant already near the
+    // The clone adds an EMISSIVE define on top of a 100-bone skinned variant already near the
     // vertex-uniform ceiling, so this can fail where its parent succeeded. Put the head back on the
     // material that already compiles rather than letting the rejection escape into hubScene.
     abandoned = true;

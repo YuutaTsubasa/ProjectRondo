@@ -31,8 +31,9 @@ export const unit = (a) => a.map((x) => x / Math.hypot(...a));
  * the same names `src/` uses.
  *
  * The patches are cut with fixed thresholds in the rest pose's world space, where the knight stands
- * at the origin facing +Z with the soles on y = 0 (measured: the model's lowest rest vertex is y = 0
- * to four decimals, and the boots span z -0.068 to +0.093):
+ * at the origin facing +Z with the soles near y = 0. Measured on the *uncalibrated* export this runs
+ * against, not on the shipped file: lowest rest vertex y = 0 to four decimals, boots spanning
+ * z -0.068 to +0.093.
  *   - heel: `z < -0.035` and `y < 0.035` — behind the ankle, low on the boot.
  *   - toe:  `z > 0.055` and `y < 0.012` — ahead of the ankle, and tighter in y because the toe box
  *     curves upward, so a looser ceiling would drag the upper into the patch and tilt the centroid.
@@ -40,8 +41,13 @@ export const unit = (a) => a.map((x) => x / Math.hypot(...a));
  * Both are cut *below* any part of the boot's shaft, so the pair spans the sole rather than the boot.
  * The counts are asserted (>= 50 each) because these thresholds are geometry-specific: a different
  * boot silhouette would quietly select a handful of vertices, or none, and still produce a plausible
- * finite angle. On the shipped GLB they select 272 heel / 307 toe vertices on the left boot and
- * 237 / 290 on the right.
+ * finite angle. On that uncalibrated export they select 272 heel / 307 toe vertices on the
+ * left boot and 237 / 290 on the right.
+ *
+ * Those thresholds do not survive calibration, which is expected rather than a bug: on the levelled
+ * `public/models/knight_web.glb` the toe patch comes back **empty** (197 heel / 0 toe, and 174 / 0),
+ * so this throws. `calibrate.mjs` rejects an already-calibrated file before reaching here, and
+ * `knightFootCalibration.test.ts` rolls the correction back before it measures.
  *
  * @returns one entry per boot: `{ m, node, foot, heel, toe }`, where `node` is the index of the
  *   `LeftFoot`/`RightFoot` ankle node whose rotation the calibration corrects, and `heel`/`toe` are

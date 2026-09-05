@@ -157,9 +157,11 @@ export function createEnvironment(scene: Scene): Environment {
   // StandardMaterial and are untouched. The only other PBR material, the toon face, opts out with its
   // own `environmentIntensity = 0` (see `knight.ts`) so IBL cannot disturb the hand-lit face.
   //
-  // Five of the six positional arguments below only exist to reach `prefilterOnLoad`, which is the
-  // one that differs from `HDRCubeTexture`'s own defaults (`noMipmap=false`, `generateHarmonics=true`,
-  // `gammaSpace=false`, `onLoad=null`); they are labelled rather than left as a run of bare literals.
+  // Three of the arguments below exist only to reach `prefilterOnLoad` — `noMipmap`,
+  // `generateHarmonics` and `gammaSpace`, all passed at `HDRCubeTexture`'s own defaults — and
+  // `onLoad` only to reach `onError`. They are labelled rather than left as a run of bare literals.
+  // The two that carry weight are `prefilterOnLoad`, the one value that differs from the defaults,
+  // and `onError`, which is what keeps a failed fetch from making the whole knight unrenderable.
   // Set from `onError`, and checked after construction: a synchronous failure would otherwise clear
   // `scene.environmentTexture` before the assignment below puts the dead texture straight back.
   let iblFailed = false;

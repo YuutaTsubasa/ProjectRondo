@@ -175,11 +175,11 @@ scheduled additions). Sequence from here:
 
    If those are wanted, check `@babylonjs/materials` first: it ships `CellMaterial`, a cel shader with
    `computeHighLevel` banding that inherits the standard bone/fog/instance define handling, so it
-   needs neither a manual fog block nor explicit 101-bone skinning, and being gamma-space it lands on
+   needs neither a manual fog block nor explicit 100-bone skinning, and being gamma-space it lands on
    the *same* side of the §7 fog-space split as the trees rather than making the knight the next
    odd-one-out. It is **not installed** (only `core`, `havok`, `loaders` are), so it is a dependency
    decision rather than a free win. Failing that, banding means a NodeMaterial that wires the fog
-   block and the 101-bone skinning explicitly. Either way `mesh.renderOutline` is built into `core`
+   block and the 100-bone skinning explicitly. Either way `mesh.renderOutline` is built into `core`
    and is the cheap way to get the outline.
 
    Note: the previous character's `Mesh_0` was 242k of its ~320k verts — that measurement is from the
@@ -324,7 +324,7 @@ These are hard-won; several cost a debugging session each.
   shader (this produced a non-monotonic sweep and a confident wrong conclusion); and with the preview
   pane hidden `requestAnimationFrame` never fires, so frames must be driven manually with
   `beginFrame`/`render`/`endFrame` and awaiting a render observable will simply hang.
-- **Swapping the material on a skinned mesh makes it vanish, silently.** A 101-bone skinned mesh needs
+- **Swapping the material on a skinned mesh makes it vanish, silently.** A 100-bone skinned mesh needs
   a new shader variant compiled, and it renders as *nothing at all* until that finishes — long enough
   to look like the model is broken, and long enough to poison any measurement taken meanwhile.
   `await material.forceCompilationAsync(mesh)` before rendering or reading pixels. Waiting N frames

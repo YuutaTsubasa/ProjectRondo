@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeAll } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { load, qm } from '../../tools/knight-feet/glb.mjs';
@@ -28,13 +28,29 @@ const IDLE_SAMPLES = 12;
 /** Conjugate of a unit quaternion, i.e. its inverse. */
 const conjugate = (q: number[]): number[] => [-q[0], -q[1], -q[2], q[3]];
 
-describe('the shipped knight GLB is foot-calibrated', () => {
+// Its own suite, deliberately. A `beforeAll` that loads the GLB pre-empts every test in its own
+// describe — including this one, which is then reported as skipped rather than failed, and the
+// cause still goes unnamed. Sitting outside that block is what lets it fail on its own terms.
+describe('the shipped knight GLB', () => {
   it('is a real GLB on disk, not an unfetched LFS pointer', () => {
     expect(readFileSync(GLB).toString('ascii', 0, 4)).toBe('glTF');
   });
+});
 
-  const g = load(GLB);
-  const receipt = g.j.asset.extras?.knightFootCalibration;
+describe('the shipped knight GLB is foot-calibrated', () => {
+
+  // Loaded in beforeAll, not in the describe body. There it runs during collection, so an
+  // unfetched LFS pointer took the whole file down with a JSON parse error raised inside the tool,
+  // and the guard above — which exists to name exactly that — never got the chance to run.
+  let g: ReturnType<typeof load>;
+  let receipt: ReturnType<typeof load>['j']['asset']['extras']['knightFootCalibration'];
+  beforeAll(() => {
+    // Named here too: everything below dies in this hook, so without it the failure reads as a JSON
+    // parse error from inside the tool rather than "the LFS object was never fetched".
+    expect(readFileSync(GLB).toString('ascii', 0, 4), 'not a GLB — unfetched LFS pointer?').toBe('glTF');
+    g = load(GLB);
+    receipt = g.j.asset.extras?.knightFootCalibration;
+  });
 
   it('carries the calibration receipt calibrate.mjs writes', () => {
     // Absent means the GLB went straight from `gltf-transform webp` into `public/` — README step 3

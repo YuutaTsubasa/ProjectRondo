@@ -67,10 +67,13 @@ if (!input || !out || !['0', '20'].includes(preRotationDegrees)) {
 if (input === out) throw Error('Use a separate output so the source remains available for verification');
 
 const g = load(input);
-const lms = landmarks(g);
+// Before landmarks(). Its toe threshold is cut against the *uncalibrated* rest pose, so on a
+// levelled boot the toe patch comes back empty and its own assert fires first — reporting changed
+// boot geometry when the real mistake is passing the calibrated output where the raw export belongs.
 if (g.j.asset.extras?.knightFootCalibration) {
   throw Error('This GLB is already calibrated; refusing to apply the correction twice');
 }
+const lms = landmarks(g);
 if (lms.length !== 2) throw Error('Expected both knight boot meshes');
 if (g.j.animations.map((a) => a.name).sort().join(',') !== EXPECTED_CLIPS) {
   throw Error('Unexpected clip set; inspect before calibrating');
