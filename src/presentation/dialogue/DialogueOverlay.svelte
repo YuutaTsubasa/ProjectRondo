@@ -50,9 +50,6 @@
     if (lineRef?.reveal()) return;
     advance();
   }
-  function onBoxKeydown(e: KeyboardEvent) {
-    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onBoxClick(); }
-  }
   function skip() {
     // Bail after nodeCount steps: a terminating fast-forward visits each node at most once, so
     // exceeding that means a cyclic graph with no exit — stop rather than hang the tab.
@@ -116,7 +113,7 @@
         <div class="rail" aria-hidden="true"></div>
         <!-- Last, so it takes the clicks; stretched over the box so its padding and the arrow are
              part of the target. Carries the focus ring for the box. -->
-        <button class="hit" onclick={onBoxClick} onkeydown={onBoxKeydown} aria-label="advance dialogue"></button>
+        <button class="hit" onclick={onBoxClick} aria-label="advance dialogue"></button>
       </div>
     </div>
   </div>

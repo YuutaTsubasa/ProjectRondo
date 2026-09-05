@@ -413,3 +413,32 @@ established. `.content` is an `aria-live="polite"` region.
 24ms, which inside a live region announces a character at a time. The visible paragraph is now
 `aria-hidden`, and the complete line goes to assistive technology in one piece through a
 visually-hidden sibling. A typewriter is a visual effect, not information.
+
+## 21. A test for the part that kept breaking
+
+Round 13's most useful finding had no line anchor: the modal focus machinery — `inert` on the scene
+UI, the `$effect.pre` capture and restore, each modal focusing itself — had **no executable test**,
+and it is the part of this branch that was wrong in five separate rounds. Every one of those was
+caught by a person driving the browser. Under the project's own first lens ("behaviour is pinned by
+a test written to specify it") the highest-churn behaviour in the diff was the one behaviour unpinned.
+
+`tests/presentation/dialogue/modalFocus.test.ts` now mounts the real overlay and covers: inert
+appearing and lifting with the modal, the backlog taking focus on open and returning it on close,
+Escape, the choices modal focusing its first option, the dialogue line reaching assistive technology
+while the typewriter does not, the advance target being a real button, and both modals carrying
+dialog semantics. Proven to fail on the defects it targets — removing the `inert` binding fails two
+cases, breaking the backlog's focus call fails a third.
+
+Two environment facts it had to be built around. `vite.config.ts` pins `environment: 'node'` because
+every other test here is a pure function or a file-content guard and jsdom costs seconds of setup;
+this file opts itself in with `// @vitest-environment jsdom`. And svelte resolves to its **server**
+build under vitest, where `mount()` throws — so `resolve.conditions` gains `browser`, scoped to test
+mode so dev and build are untouched. jsdom also does not reflect the `inert` property to an
+attribute, so the assertions read `.inert`, which is what svelte sets and what browsers act on.
+
+Two smaller fixes from the same round. The choices panel had no scroll container: taller than the
+viewport it overflowed past both edges with nothing reachable, in a modal that is deliberately
+undismissable — the scrim scrolls now, and the panel centres with `margin: auto` rather than
+`align-items`, which clips the start edge once content overflows. And `.hit`'s `onkeydown` was left
+over from when it was a `div[role=button]`; on a real `<button>` it duplicated the UA's own handling
+and moved Space activation from `keyup` to `keydown`, so holding Space repeat-advanced the dialogue.

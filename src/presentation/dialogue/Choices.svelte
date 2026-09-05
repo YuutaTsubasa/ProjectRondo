@@ -57,12 +57,19 @@
     inset: 0;
     z-index: 12;
     display: flex;
-    align-items: center;
-    justify-content: center;
+    /* Scrolls, and centres with auto margins rather than align-items: a flex item centred by
+       align-items is clipped at the START edge once it overflows, which here would put the heading
+       and the first lines of the question permanently out of reach. The prompt is an authored
+       dialogue line and the option list an authored list, so neither has a bound -- and this modal
+       is deliberately undismissable, so an unreachable option is a dead end with no way out. */
+    overflow-y: auto;
+    padding: 24px 0;
+    box-sizing: border-box;
     background: var(--c-blue-soft);
     pointer-events: auto;
   }
   .panel {
+    margin: auto;
     width: min(560px, 84vw);
     display: flex;
     flex-direction: column;
