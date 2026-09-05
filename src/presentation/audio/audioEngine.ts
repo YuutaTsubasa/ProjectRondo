@@ -1,13 +1,38 @@
 import { CreateAudioEngineAsync } from '@babylonjs/core/AudioV2/webAudio/webAudioEngine';
 // The Create*Async factories all live in audioEngineV2, not beside the types they return.
 import { CreateAudioBusAsync } from '@babylonjs/core/AudioV2/abstractAudio/audioEngineV2';
-import type { AudioBus } from '@babylonjs/core/AudioV2/abstractAudio/audioBus';
+import type { AudioBus, IAudioBusOptions } from '@babylonjs/core/AudioV2/abstractAudio/audioBus';
 import type { AudioEngineV2 } from '@babylonjs/core/AudioV2/abstractAudio/audioEngineV2';
 
 import { busGain, DEFAULT_LEVELS } from '../../domain/audio/audioMixer';
 import type { AudioBusId } from '../../domain/audio/soundCue';
 
-const BUS_IDS: readonly AudioBusId[] = ['music', 'sfx', 'ambience'];
+/**
+ * Every bus, and the options it is built with.
+ *
+ * Written as a table keyed by `AudioBusId` rather than as a list of ids, for the reason `manifest.ts`
+ * writes the cue table as `as const satisfies Record<SoundCue, CueSpec>`: `satisfies` makes a fourth
+ * bus id fail the build *here*, at the one place that has to name every bus. A `readonly AudioBusId[]`
+ * accepts any subset, and the `as Record<AudioBusId, AudioBus>` below would then still claim the
+ * result is total.
+ *
+ * A short list is not caught anywhere downstream either. It does fail the build — but in
+ * `audioMixer.ts`, on `levels[bus]` against a `MixerLevels` missing the key; answer that by adding the
+ * key and the build is green again with `buses[newId] === undefined`, which `soundBank.ts`'s `load`
+ * hands to `CreateSoundAsync` as `outBus`. Every cue on that bus then routes past the mixer, silently.
+ *
+ * No bus takes options today — spatial and stereo are both unused (spec §5.3a) — so the entries are
+ * the empty options `CreateAudioBusAsync` was already being passed inline.
+ */
+const BUS_OPTIONS = {
+  music: {},
+  sfx: {},
+  ambience: {},
+} as const satisfies Record<AudioBusId, Partial<IAudioBusOptions>>;
+
+// `keyof typeof BUS_OPTIONS` is `AudioBusId` exactly, by the `satisfies` above and the excess-property
+// check it brings with it; the assertion only recovers the key type `Object.keys` throws away.
+const BUS_IDS = Object.keys(BUS_OPTIONS) as readonly (keyof typeof BUS_OPTIONS)[];
 
 export interface GameAudio {
   readonly engine: AudioEngineV2;
@@ -45,7 +70,9 @@ export async function createGameAudio(): Promise<GameAudio> {
   // that then survives for the life of the page. `all` would also reject on the first bus while its
   // siblings were still in flight, and it does not cancel them, so the buses that did resolve would
   // be stranded on an engine nobody can reach. Waiting for all three is what makes them disposable.
-  const settled = await Promise.allSettled(BUS_IDS.map((id) => CreateAudioBusAsync(id, {}, engine)));
+  const settled = await Promise.allSettled(
+    BUS_IDS.map((id) => CreateAudioBusAsync(id, BUS_OPTIONS[id], engine)),
+  );
   const created = settled.filter((r): r is PromiseFulfilledResult<AudioBus> => r.status === 'fulfilled');
   const failed = settled.filter((r): r is PromiseRejectedResult => r.status === 'rejected');
   if (failed.length > 0) {
