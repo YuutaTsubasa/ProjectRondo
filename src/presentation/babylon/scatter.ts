@@ -15,22 +15,13 @@ import { PhysicsAggregate } from '@babylonjs/core/Physics/v2/physicsAggregate';
 import { PhysicsShapeType } from '@babylonjs/core/Physics/v2/IPhysicsEnginePlugin';
 import { terrainHeight, EDGE_RADIUS, BARRIER_TOP } from './terrainHeight';
 import { ROCK_DIFFUSE_RGB } from './rockColors';
+import { applyWind } from './wind';
+import { rng } from '../../domain/math/rng';
 
 // Cosmetic scatter covers the walkable interior AND the grassy barrier slope, up to the barrier top
 // (a bare barrier looks wrong); colliders, though, only go where the player can reach — see below.
 const EXTENT = BARRIER_TOP;
 const ROCK_BASE_RADIUS = 0.4; // rock icosphere radius — shared by the mesh and its collider
-
-/** Deterministic 0..1 PRNG (mulberry32) so each scatter layout is identical every run. */
-function rng(seed: number): () => number {
-  let a = seed;
-  return () => {
-    a |= 0; a = (a + 0x6d2b79f5) | 0;
-    let t = Math.imul(a ^ (a >>> 15), 1 | a);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
 
 interface ScatterOpts { count: number; seed: number; y: number; minScale: number; maxScale: number; extent?: number; }
 interface Placement { x: number; y: number; z: number; s: number; }
@@ -216,7 +207,27 @@ function bushMesh(scene: Scene): Mesh {
   return bush;
 }
 
+/** Grass card height, in local units. Also the wind's bend height — `crossCard` bakes the base to
+ *  y=0, so the card's height IS its size argument. The two must not drift apart. */
+const GRASS_CARD_SIZE = 0.5;
+/** Wildflower card height. Same relationship as GRASS_CARD_SIZE. */
+const FLOWER_CARD_SIZE = 0.22;
+
 const ROCK_COLLIDER_MIN_SCALE = 0.75; // only the biggest rocks (top ~quarter) block the player
+
+/** Wind amplitude for grass and flowers, in WORLD units — see `applyWind`'s doc comment for what this
+ *  scale means and why it differs from the trees' value.
+ *
+ *  Peak displacement is ~1.5x amplitude (see `applyWind`): at 0.06, peak ~0.09. Against
+ *  `GRASS_CARD_SIZE` (0.5) that is a ~18% lean; against `FLOWER_CARD_SIZE` (0.22) that is ~41%. One
+ *  amplitude serves both on purpose — wind is a property of the air, pushing every surface the same
+ *  world distance rather than scaling by its own size (spec §3c) — so the flower's larger proportional
+ *  lean is the expected shape of that rule, not a mismatch to fix.
+ *
+ *  **Untuned**: 0.06 is the value this was written with; nobody has watched grass or flowers move. Both
+ *  figures above are arithmetic, not an observation, on the same footing as `SPATIAL_FREQ`/`SPEED` in
+ *  `wind.ts`. Re-tune by looking at the running scene, not by chasing a target percentage. */
+const SCATTER_WIND_AMPLITUDE = 0.06;
 
 /** Invisible static sphere colliders for the large rocks only, and only where the player can reach
  *  (inside EDGE_RADIUS — rocks on the unwalkable barrier slope render but need no collider). Rendering
@@ -236,11 +247,15 @@ function addRockColliders(scene: Scene, placements: Placement[]): void {
 /** Scatters procedural ground detail — grass tufts, wildflowers, rocks, and bushes — as one
  *  thin-instanced base mesh per element type (one draw call each). */
 export function createGroundScatter(scene: Scene, shadows: Shadows): void {
-  const grass = crossCard(scene, 'grassTuft', 0.5, 3, grassMaterial(scene));
+  const grassMat = grassMaterial(scene);
+  const grass = crossCard(scene, 'grassTuft', GRASS_CARD_SIZE, 3, grassMat);
   grass.thinInstanceSetBuffer('matrix', scatterMatrices({ count: 16000, seed: 1, y: 0, minScale: 0.7, maxScale: 1.3 }).buffer, 16);
+  applyWind(grassMat, GRASS_CARD_SIZE, SCATTER_WIND_AMPLITUDE);
 
-  const flowers = crossCard(scene, 'wildflower', 0.22, 2, flowerMaterial(scene));
+  const flowerMat = flowerMaterial(scene);
+  const flowers = crossCard(scene, 'wildflower', FLOWER_CARD_SIZE, 2, flowerMat);
   flowers.thinInstanceSetBuffer('matrix', scatterMatrices({ count: 1600, seed: 2, y: 0, minScale: 0.7, maxScale: 1.2 }).buffer, 16);
+  applyWind(flowerMat, FLOWER_CARD_SIZE, SCATTER_WIND_AMPLITUDE);
 
   const rockScatter = scatterMatrices({ count: 200, seed: 3, y: -0.05, minScale: 0.3, maxScale: 0.9 });
   const rock = rockMesh(scene);

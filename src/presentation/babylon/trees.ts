@@ -13,6 +13,7 @@ import { PhysicsAggregate } from '@babylonjs/core/Physics/v2/physicsAggregate';
 import { PhysicsShapeType } from '@babylonjs/core/Physics/v2/IPhysicsEnginePlugin';
 import { terrainHeight } from './terrainHeight';
 import { emissiveFactorOf, type GltfPbrMaterial } from './gltfMaterial';
+import { applyWind } from './wind';
 import '@babylonjs/loaders/glTF'; // side-effect: registers the glTF loader
 
 /** The tree GLB is normalized to ~1 unit tall (Tripo output); scale it up to a real tree height.
@@ -72,6 +73,29 @@ const TREE_EMISSIVE = new Color3(0.141, 0.24, 0.085);
 const TRUNK_RADIUS = 0.5;
 const TRUNK_HEIGHT = 4;
 
+/**
+ * Wind amplitude for tree canopies, in WORLD units — see `applyWind`'s doc comment for what the number
+ * means (it is the per-sine scale; peak displacement is ~1.5x it, because the gust envelope
+ * `sin(x) + 0.5*sin(2.3x + 1.7)` peaks at ~1.4999).
+ *
+ * Bracketed by two sightings rather than derived:
+ *
+ * - **0.06** (peak ~0.09, ~1.5% of a ~6-unit tree): a reviewer's judgement that the canopy would not
+ *   read as moving at all. Never seen on screen by anyone.
+ * - **0.6** (peak ~0.90, ~15%): **seen and reported as visibly too much** by the project owner. This
+ *   is the only datum here that came from looking at the actual render.
+ *
+ * 0.2 sits between them at peak ~0.30, ~5% of tree height. Chosen as roughly a third of the value that
+ * was too much, not as a midpoint — the failure at 0.6 was a reasoning error (matching grass's
+ * proportional lean, see `applyWind`) and the correction is toward the few-percent crown deflection a
+ * real tree shows, not toward the arithmetic middle of two guesses.
+ *
+ * **Still unverified**: nobody has looked at 0.2. To move it, the mapping is
+ * `peak = amplitude * 1.5`, `proportional lean = peak / 6`:
+ * 0.12 -> ~3%, 0.2 -> ~5%, 0.3 -> ~7.5%, 0.4 -> ~10%.
+ */
+const TREE_WIND_AMPLITUDE = 0.2;
+
 /** Fixed scatter: [x, z, yawRadians, scale]. Spread across the enlarged 100×100 field (out to ±36);
  *  the centre (~radius 5) is left clear so no tree spawns on the player's spawn point. */
 const SPOTS: readonly [number, number, number, number][] = [
@@ -108,6 +132,9 @@ export async function loadTrees(scene: Scene, shadows: Shadows): Promise<void> {
   // Swap once on the container, before instantiation: every clone copies the container mesh's
   // material reference, so doing this per tree would rebuild the same material once per spot.
   retargetMaterials(scene, container);
+  // Where the canopies get their sway. Must run after the swap (it bends the StandardMaterials the
+  // swap produced) and, like the swap, before instantiation, so every clone shares one bent material.
+  bendCanopiesWithWind(container);
 
   SPOTS.forEach(([x, z, yaw, scale], i) => {
     const { rootNodes } = container.instantiateModelsToScene((name) => `tree_${i}_${name}`, false, {
@@ -177,6 +204,39 @@ function retargetMaterials(scene: Scene, container: AssetContainer): void {
   // which the replacements now sample. The meshes are already safe — rebinding above cleared each old
   // material's `meshMap`.
   for (const source of replacements.keys()) source.dispose(false, false);
+}
+
+/**
+ * Attaches the shared wind to the container's tree materials, so every canopy instantiated from it
+ * sways. Runs on the container, before instantiation, for the same reason the material swap does: the
+ * clones share these materials, so bending them once bends every tree.
+ *
+ * Bend height per material, in LOCAL space, taken from the tallest mesh that uses it — the shader
+ * weights by the raw `position` attribute, which is what a bounding box's `maximum` is expressed in.
+ * Read from the container's own meshes, before `root.scaling` multiplies everything by BASE_SCALE:
+ * tree.glb is normalized to ~1 unit tall and that normalization is what this reads. A hard-coded 6
+ * here would weight the whole canopy at ~0 and the trees would stand still.
+ */
+function bendCanopiesWithWind(container: AssetContainer): void {
+  const bendHeights = new Map<StandardMaterial, number>();
+  for (const mesh of container.meshes) {
+    const mat = mesh.material;
+    if (!(mat instanceof StandardMaterial) || mesh.getTotalVertices() === 0) continue;
+    const top = mesh.getBoundingInfo().boundingBox.maximum.y;
+    bendHeights.set(mat, Math.max(bendHeights.get(mat) ?? 0, top));
+  }
+  for (const [mat, height] of bendHeights) {
+    // A non-positive extent means the mesh sits entirely at or below its own origin. `applyWind`
+    // rejects that outright, and rightly — but here it is a fact about a loaded model rather than a
+    // bug in this file, so screen it out and leave that material unswayed instead of failing the load.
+    // Warned, like every other asset-driven degradation in this file: a swapped GLB can reach this,
+    // and the result — a motionless canopy — is otherwise indistinguishable from wind being broken.
+    if (height > 0) {
+      applyWind(mat, height, TREE_WIND_AMPLITUDE);
+    } else {
+      console.warn(`[trees] '${mat.name}' has a non-positive bounding-box height (${height}) — left unswayed by wind.`);
+    }
+  }
 }
 
 /**
