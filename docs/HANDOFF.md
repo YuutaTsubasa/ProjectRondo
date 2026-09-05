@@ -435,6 +435,10 @@ These are hard-won; several cost a debugging session each.
   *what* it contains. Check `document.hidden` before trusting any timing number; if it's `true`, the
   numbers are worthless no matter how tight the IQR looks.
 
+- **The dev server dies on `EBUSY` from `.claude/worktrees/`.** Vite watches the whole project root,
+  including other sessions' worktrees, and a locked file in one takes the server down mid-session.
+  It is a loud crash rather than a silent one, but it looks like your change broke the preview.
+
 ### Checks that were green over real defects
 
 The §7 entries above are about the engine. These are about the *verification*, and they cost most of
@@ -462,9 +466,6 @@ PR #33's 18 review rounds — each one is a case where a check reported success 
   timers were advanced before Svelte ever re-ran its effects, one because an unkeyed `{#each}` reused
   the button so focus appeared to survive. **Break the code and watch the test fail** before
   believing a new test. It is one command and it has been wrong more often than not here.
-- **The dev server dies on `EBUSY` from `.claude/worktrees/`.** Vite watches the whole project root,
-  including other sessions' worktrees, and a locked file there takes the server down mid-session.
-
 ## 8. Claude's local memory (optional, but valuable for continuity)
 
 The richest operational notes live in **Claude's machine-local memory**, not in git:

@@ -46,8 +46,9 @@ The 18 above are about how code is written. This section is about what has actua
 PR #33 (the VN UI kit) took **18 review rounds and 55 findings** to reach a clean verdict. They were
 not 55 independent problems — they were about six mistakes, each made several times, mostly in code
 that every automated check passed. These are written as **checks to run**, not rules to remember,
-because the rule was not the missing part: `tokens.css` said "`--c-blue` is a fill only" in a comment
-and the same PR then broke it three times.
+because the rule was not the missing part: `tokens.css` said "`--c-blue` is a fill only" in a comment,
+and the same PR then broke it at four sites -- the typing caret and two focus rings, all fixed
+together in `3035f7a`, and the choice list's caret glyph, found five rounds later in `1b756b5`.
 
 ### Colour used as text or as an indicator
 
@@ -106,6 +107,25 @@ and the same PR then broke it three times.
   `--c-ink-rgb` and `--c-white` each survived several rounds, kept alive by the test that read them.
 - The same shape recurs without a guard: exported test helpers with one in-file caller, `class`
   attributes whose rule was deleted, event handlers a native element already provides.
+
+### Comments that assert what nothing enforces
+
+The largest cluster in PR #33, and the easiest to write without noticing.
+
+- **A comment that states a fact can be wrong, and nothing checks it.** One explained why a regex
+  skipped `{#each}` by saying a letter follows the `#` — `e`, `a` and `c` are all hex digits, and the
+  real reason was the trailing word boundary. A maintainer trusting it would have read the two parts
+  actually holding the guard together as incidental.
+- **A comment that names other code goes stale silently.** One listed the `rgba()` sites its rule
+  permitted, after those sites had become tokens, and cited a spec section that never existed in
+  that document. Another documented a token as backing a hairline that had been deleted.
+- **A comment that claims two things match is not a mechanism.** "matching Choices" sat above a
+  heading whose type treatment nothing held to the other panel's. That is worse than silence: it
+  reads as though something enforces it.
+- **An inserted wrapper orphans the comment above it.** Twice, adding a `<div>` left an explanation
+  describing an element two lines further down and one level deeper.
+- **Check the comment when you change the code it describes** — including a test's own header. One
+  claimed coverage of a behaviour no case exercised.
 
 ## Relationship to tooling
 
