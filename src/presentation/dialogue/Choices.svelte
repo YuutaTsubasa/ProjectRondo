@@ -9,24 +9,26 @@
     } = $props();
 
   /**
-   * The option the move cue last sounded for.
+   * Sounds the move when focus arrives from another option in this panel.
    *
-   * Not `$state` — nothing renders from it. It exists to collapse the two events that both mean "the
-   * selection moved" into one sound: focus and pointer. A click fires `pointerenter` and then, after
-   * the selection, `focus` on the same option, which without this would sound the move twice around
-   * a single confirm. It starts at 0 so the panel's own mount focus, which lands on the first option,
-   * is not itself a move.
+   * The panel has one selection, and it is the focused option: `pointerenter` below moves focus
+   * rather than reporting a second kind of selection beside it, so "the selection moved" has exactly
+   * one event and there is nothing to de-duplicate. `relatedTarget` on a focus event is the element
+   * that lost it, which is what tells the two non-moves apart from a move without remembering
+   * anything: the panel taking its own focus on mount arrives from outside the panel (`<body>`, or
+   * null), and clicking the option the pointer already selected fires no focus event at all.
    */
-  let sounded = 0;
-  const moved = (i: number) => {
-    if (i === sounded) return;
-    sounded = i;
-    onMove?.();
+  const moved = (from: EventTarget | null) => {
+    if (from instanceof Node && panel?.contains(from)) onMove?.();
   };
 
   // Same as the backlog: this modal cannot be dismissed and must be answered, so it takes focus
   // rather than leaving it on whatever inert has just switched off behind the scrim.
   let panel: HTMLDivElement | undefined = $state();
+  // Held so the pointer can cancel it: a panel that opens under a resting pointer gets a
+  // `pointerenter` on the option beneath it, which selects that option, and the mount focus landing
+  // afterwards would move the selection back to the first one — a move the player did not make.
+  let mountFocus: ReturnType<typeof setTimeout> | undefined;
   // Deferred by a task, not a frame. Svelte effects run in the microtask after the DOM update, which
   // is still inside the click that opened this -- and Chrome then re-resolves focus for a click
   // target that inert has just switched off, undoing the focus set here. A task runs after that
@@ -37,14 +39,10 @@
     // choices.length above zero, so the {#if} never remounts and panel never changes — and the
     // unkeyed {#each} can destroy the focused button, dropping focus to <body> while inert is on.
     choices;
-    // Reset with the option list, for the reason the dependency above exists: this component stays
-    // mounted across a branch whose target also branches, so index 1 of the old list and index 1 of
-    // the new one are different options.
-    sounded = 0;
     const first = panel?.querySelector('button');
     if (!first) return;
-    const id = setTimeout(() => first.focus());
-    return () => clearTimeout(id);
+    mountFocus = setTimeout(() => first.focus());
+    return () => clearTimeout(mountFocus);
   });
 </script>
 
@@ -73,8 +71,15 @@
       <button
         class="choice"
         onclick={() => onSelect(i)}
-        onfocus={() => moved(i)}
-        onpointerenter={() => moved(i)}
+        onfocus={(e) => moved(e.relatedTarget)}
+        onpointerenter={(e) => {
+          // The pointer moves the selection instead of running beside it, which is what a menu does
+          // and what the fill already implied: hover and focus paint the same row the same way, so
+          // two of them at once used to show two selected options. preventScroll because the scrim
+          // scrolls -- a hover must not jump a partly visible option into view under the pointer.
+          clearTimeout(mountFocus);
+          e.currentTarget.focus({ preventScroll: true });
+        }}
       >
         <span class="inner"><span class="caret" aria-hidden="true">❯</span><span>{choice.label}</span></span>
       </button>
@@ -86,9 +91,15 @@
   /* A wash, not the opaque ground this used to be. Opaque was the right answer while .head and
      .prompt sat straight on it -- at 0.55 over the live scene the floor was rgb(67,88,140) and the
      heading fell to 2.54:1, so the camera decided whether it was readable. That is fixed at the
-     source instead: every text-bearing element in this panel now carries the kit's glass, where
-     --c-ink is 6.61:1 even over black (tokens.css), so contrast no longer depends on what is behind
-     the modal and the modal no longer has to hide it.
+     source instead: every element this panel asks the player to READ or to READ A BOUNDARY FROM
+     sits on the kit's glass, which is white at 0.62 and so composites no darker than rgb(158)
+     whatever the camera is pointing at. --c-ink is 6.61:1 on it and --c-blue-deep 5.52:1
+     (tokens.css). Nothing carrying meaning is left on the wash itself.
+
+     What the wash still decides is the outline of the panel: the glass blocks and the gaps between
+     them run from about 4.6:1 over a dark scene to 1.9:1 over a bright one. That is the silhouette
+     of the modal, not a boundary anything has to be read from -- each option is framed on its own
+     glass -- and it is the cost of showing the scene at all.
 
      Which matters because of what is behind it: the standing portrait, the dialogue box and the
      live hub. In an AVG the moment of choosing is a moment you are meant to still see the scene.
@@ -118,9 +129,9 @@
     flex-direction: column;
     gap: 10px;
   }
-  /* Same glass as an option's .inner, for the same reason. Not applied to .panel as a whole:
-     .inner would then be glass over glass, which washes the options out against the ground they are
-     supposed to stand on. One layer per text-bearing element keeps every reading the kit measured. */
+  /* Same glass as an option, for the same reason. Not applied to .panel as a whole: each option
+     would then be glass over glass, which washes them out against the ground they are supposed to
+     stand on. One layer per block keeps every reading the kit measured. */
   .question {
     padding: 14px 16px;
     background: var(--surface-glass);
@@ -142,13 +153,23 @@
     line-height: 1.7;
     color: var(--c-ink);
   }
+  /* The glass is on the whole option, not on .inner as it was: the 1px frame is the only mark of
+     where one option ends and the next begins, and on the wash it had no floor -- about 1.5:1 over a
+     dark scene, 4.4:1 over a bright one, so mid-tone backdrops erased it. Now its inner neighbour is
+     the glass, which is bounded, and the frame carries its own contrast the way the focus ring
+     carries its halo.
+     --c-blue-deep, not the kit's --c-blue, for the same reason .caret uses it: on the glass
+     --c-blue is 2.33:1 at the worst backdrop, under the 3:1 a boundary needs; --c-blue-deep is
+     5.52:1 (tokens.css). One glass layer per option either way -- .inner would be glass over glass. */
   .choice {
     display: block;
     width: 100%;
     text-align: left;
     padding: 4px;
-    border: 1px solid var(--c-blue);
-    background: none;
+    border: 1px solid var(--c-blue-deep);
+    background: var(--surface-glass);
+    backdrop-filter: var(--surface-blur);
+    -webkit-backdrop-filter: var(--surface-blur);
     cursor: pointer;
     font: inherit;
   }
@@ -157,15 +178,12 @@
     align-items: center;
     gap: 10px;
     padding: 8px 12px;
-    background: var(--surface-glass);
-    backdrop-filter: var(--surface-blur);
-    -webkit-backdrop-filter: var(--surface-blur);
     color: var(--c-ink);
     font-family: var(--font-body);
     font-size: 14px;
     transition: background 0.12s ease, color 0.12s ease;
   }
-  /* --c-blue-deep, not --c-blue: this is a glyph, and on the inner glass --c-blue is 4.52:1 even
+  /* --c-blue-deep, not --c-blue: this is a glyph, and on the option's glass --c-blue is 4.52:1 even
      over the opaque ground -- too close to the 4.5 line to rest on. --c-blue-deep is 10.66:1. */
   .caret { color: var(--c-blue-deep); }
   /* Hover fills the inner block and cuts its bottom-right corner. White on a solid --c-blue block
@@ -179,9 +197,10 @@
   }
   .choice:hover .caret,
   .choice:focus-visible .caret { color: rgb(var(--c-white-rgb)); }
-  /* Hover and focus share the fill, so focus needs an indicator of its own -- otherwise a keyboard
-     user whose pointer rests on another row sees two rows in the same state, and forced-colors
-     mode overrides the fill while still honouring outline: none. */
+  /* Hover and focus are the same option now -- the pointer moves focus rather than lighting a second
+     row -- but focus still needs an indicator of its own: forced-colors mode overrides the fill
+     while still honouring outline: none, and :focus-visible does not match a pointer's focus, so the
+     ring is what a keyboard user has and the fill is what both have. */
   .choice:focus-visible {
     outline: var(--focus-ring);
     outline-offset: var(--focus-ring-offset);
