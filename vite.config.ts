@@ -14,13 +14,19 @@ const forceFullReload = {
   },
 };
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   plugins: [svelte(), forceFullReload],
   // Honor the port assigned via PORT (preview autoPort); fall back to Vite's default in plain dev.
   server: { port: process.env.PORT ? Number(process.env.PORT) : undefined },
   optimizeDeps: { exclude: ['@babylonjs/havok'] },
+  // Under vitest, svelte would otherwise resolve to its server build and mount() throws
+  // lifecycle_function_unavailable. Scoped to test mode so dev and build resolve as before.
+  resolve: mode === 'test' ? { conditions: ['browser'] } : {},
   test: {
+    // node by default: every test but the component ones is a pure function or a file-content
+    // guard, and jsdom costs ~14s of setup. The files that need a DOM opt in with
+    // `// @vitest-environment jsdom` at the top.
     environment: 'node',
     include: ['tests/**/*.test.ts'],
   },
-});
+}));

@@ -2,31 +2,31 @@
   let { speaker }: { speaker: string } = $props();
 </script>
 
-<div class="nameplate">
-  <span class="rail"></span>
-  <span class="body"><span class="tick"></span>{speaker}</span>
-</div>
+<!-- Kit: a single parallelogram tag. The old rail/board/tick assembly is gone. -->
+<div class="nameplate">{speaker}</div>
 
 <style>
-  /* 1a 切角銘牌: pure-blue rail + lime cut corner + white board (design: linear-gradient 315deg). */
+  /* Solid --c-blue with white text, overlapping the dialogue box's top edge rather than sitting
+     above it. White on a blue block is 6.26:1; blue text on the glass would be 2.34:1, which is why
+     the fill carries the colour and the text is white. */
   .nameplate {
-    display: inline-flex;
-    align-items: stretch;
-    background: linear-gradient(315deg, #d8ff00 0 12px, transparent 12px 16px, #eef0f2 16px);
-    box-shadow: 0 14px 30px rgba(0, 0, 0, 0.35);
-    pointer-events: auto;
-  }
-  .rail { width: 10px; background: #0000ff; display: block; }
-  .body {
-    padding: 10px 32px 10px 16px;
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    font-family: 'Chakra Petch', 'Noto Sans TC', system-ui, sans-serif;
+    position: relative;
+    z-index: 1;
+    align-self: flex-start;
+    margin-left: 40px;
+    margin-bottom: -14px;
+    background: var(--c-blue);
+    color: rgb(var(--c-white-rgb));
+    font-family: var(--font-headline);
     font-weight: 700;
-    font-size: 17px;
-    letter-spacing: 0.04em;
-    color: #0b0b0d;
+    font-size: 20px;
+    line-height: 1.2;
+    letter-spacing: 5px;
+    padding: 5px 40px 5px 20px;
+    clip-path: polygon(0 0, 100% 0, calc(100% - 18px) 100%, 0 100%);
+    /* Not interactive, and it overlaps the dialogue box's top padding by 14px. With pointer-events
+       enabled it was the topmost hit target in that strip, so clicks there neither advanced the
+       dialogue nor reached the scene behind. */
+    pointer-events: none;
   }
-  .tick { width: 3px; height: 12px; background: #0000ff; display: block; }
 </style>
