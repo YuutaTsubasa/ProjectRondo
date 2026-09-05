@@ -9,6 +9,7 @@ import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
 // Side-effect: registers the StandardMaterial shader (tree-shaken deep imports need this).
 import '@babylonjs/core/Materials/standardMaterial';
 import { DynamicTexture } from '@babylonjs/core/Materials/Textures/dynamicTexture';
+import { HDRCubeTexture } from '@babylonjs/core/Materials/Textures/hdrCubeTexture';
 import { HORIZON_HEX } from './atmosphereColors';
 
 export interface Environment {
@@ -17,6 +18,24 @@ export interface Environment {
 
 /** How much of the horizon colour the ambient's ground half carries. See the comment at its use. */
 const AMBIENT_GROUND_SCALE = 0.3;
+
+/** Cube-map face size the panorama is resampled to for image-based lighting. 128 is plenty: the
+ *  environment is only ever seen as a *reflection* on the armour (the skydome is a separate unlit
+ *  mesh), and metal reflections are prefiltered/blurred by roughness, so a larger map buys nothing
+ *  visible while costing load-time convolution and memory. */
+const IBL_FACE_SIZE = 128;
+
+/** Scales the environment's contribution to every PBR material. 1.0 would be the panorama's own baked
+ *  radiance (see the generator, referenced below); 1.4 is tuned live against the armour mask — it lifts
+ *  the plate's mean luma to ~117/255 (from ~113 at 1.0) to match the pre-IBL brightness the old
+ *  no-environment workaround reached, while keeping blown highlights at 0% (1.6 starts clipping them).
+ *
+ *  This is the lever to reach for if the plate reads too hot or too dim, in preference to the panorama's
+ *  absolute levels or the per-material `BODY_METALLIC` (which stays at the physically-correct 1 now that
+ *  there is an environment to reflect — see `knight.ts`). Measured on the stylized-knight armour with a
+ *  hide-the-body diff mask (85 687 px), scene frozen; the figures move with the model, so re-measure on
+ *  a character swap. */
+const IBL_INTENSITY = 1.4;
 
 /** A vertical gradient painted on a DynamicTexture for the unlit skydome; stop 1.0 renders at the
  *  dome's zenith and stop 0.0 at its lowest, unseen point (see the comment inside for the measured
@@ -106,6 +125,34 @@ export function createEnvironment(scene: Scene): Environment {
   sun.position = new Vector3(30, 60, 30);
   sun.intensity = 1.1;
   sun.diffuse = new Color3(1, 0.98, 0.9);
+
+  // Image-based lighting. A metal has no diffuse — it can only show what it reflects — so without an
+  // environment texture the armour's metallic PBR renders near-black (this scene's long-standing
+  // "darker than Tripo3D" complaint; Tripo's viewer lights the model with an HDRI). This is a
+  // procedurally-generated NEUTRAL studio panorama (grey, so it casts no colour on the steel;
+  // `scratchpad/gen_studio_hdr.cjs` bakes it), and it is what lets `BODY_METALLIC` sit near the
+  // physically-correct 1 in `knight.ts` instead of the 0.6 that hid the missing IBL.
+  //
+  // Only PBR materials read `scene.environmentTexture`; the terrain, sky, water and foliage are all
+  // StandardMaterial and are untouched. The only other PBR material, the toon face, opts out with its
+  // own `environmentIntensity = 0` (see `knight.ts`) so IBL cannot disturb the hand-lit face.
+  //
+  // generateHarmonics=true bakes the diffuse irradiance SH; gammaSpace=false because RGBE is linear;
+  // prefilterOnLoad=true builds the roughness mip chain so rough steel reflects a blurred environment.
+  const ibl = new HDRCubeTexture(
+    '/env/studio.hdr',
+    scene,
+    IBL_FACE_SIZE,
+    false,
+    true,
+    false,
+    true,
+    undefined,
+    (message, exception) =>
+      console.warn(`[environment] studio IBL failed to load — armour falls back to matte metal. ${message ?? ''}`, exception),
+  );
+  scene.environmentTexture = ibl;
+  scene.environmentIntensity = IBL_INTENSITY;
 
   return { sun };
 }

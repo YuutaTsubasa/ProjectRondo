@@ -5,7 +5,7 @@ extends SceneTree
 # Run: godot --headless --path <__prototype__> --script res://tools/export_web_glb.gd
 
 func _initialize() -> void:
-	var knight: Node = load("res://Assets/Characters/MedievalKnight/knight.fbx").instantiate()
+	var knight: Node = load("res://Assets/Characters/WebKnight/knight.fbx").instantiate()
 
 	var ap := AnimationPlayer.new()
 	knight.add_child(ap)
