@@ -47,8 +47,8 @@ export const resolvePortraitAnimated = (key: string): string => setFor(key).anim
 /**
  * VP9 in WebM: the upgrade, and only where the engine honours VP9's alpha.
  *
- * WKWebView does not — it plays the file and ignores the channel — and `tauri.conf.json` bundles
- * `all` with an `.icns`, so macOS and iOS are real targets. Gated behind `supportsVp9Alpha()`;
+ * WKWebView does not — it plays the file and ignores the channel — and that is the engine Tauri
+ * renders through on macOS, which `tauri.conf.json` bundles for. Gated behind `supportsVp9Alpha()`;
  * reaching for it ungated is the black-rectangle bug.
  */
 export const resolvePortraitWebm = (key: string): string => setFor(key).webm;
