@@ -50,6 +50,13 @@ export interface PlayOptions {
   readonly variant?: number;
 }
 
+/**
+ * No `variant` here, deliberately. `PlayOptions` has one because one-shots need it — `hubAudio` picks
+ * a foot with it — but the only cues that loop are the two single-file music tracks, so a variant on
+ * this side could only ever be `undefined` falling through to `pick`'s default. Adding it back is a
+ * one-line change on the day a multi-variant loop exists; carrying it until then is a declaration
+ * nothing reaches, which is what §5.3a of the design spec deleted the spatial path rather than keep.
+ */
 export interface LoopOptions {
   /**
    * The level to start at, as a fraction of the cue's manifest volume — **the same units
@@ -61,8 +68,6 @@ export interface LoopOptions {
    * caller did not ask for. Defaults to 1.
    */
   readonly level?: number;
-  /** Which variant to use; wraps, so a running counter is fine. */
-  readonly variant?: number;
 }
 
 export interface SoundBank {
@@ -194,7 +199,7 @@ export async function loadSoundBank(audio: GameAudio): Promise<SoundBank> {
     },
 
     startLoop(cue, options = {}) {
-      const sound = pick(cue, options.variant);
+      const sound = pick(cue);
       if (!sound) return null;
       const spec = MANIFEST[cue];
       // Take the sound over from whoever held it. Stopping it here is not the same as leaving the
