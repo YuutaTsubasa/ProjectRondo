@@ -20,6 +20,7 @@ import { CAPSULE_HALF } from './capsule';
 import { HEAD_MESHES, knightReceivesShadow } from './shadowPolicy';
 import { terrainHeight } from './terrainHeight';
 import { moveToward } from '../../domain/math/scalar';
+import { stepJumpPose, INITIAL_JUMP_POSE } from './jumpPose';
 import { emissiveFactorOf, type GltfPbrMaterial } from './gltfMaterial';
 
 export interface KnightAnimations {
@@ -35,10 +36,14 @@ export interface KnightMotionSample {
   /** Horizontal speed, world units/s. */
   readonly planarSpeed: number;
   /**
-   * Off the ground, as decided by `groundContact` — the one machine that owns that call. Deciding it
-   * a second time here is what let the pose and the physics disagree: an earlier copy of the rule
-   * could latch on `air` forever if the probe never released, leaving the knight floating and no jump
-   * ever animating again.
+   * Off the ground, as decided by `groundContact` — the one machine that owns that call for the
+   * capsule. Deciding it a second time here is what let the pose and the physics disagree: an earlier
+   * copy of the rule could latch on `air` forever if the probe never released, leaving the knight
+   * floating and no jump ever animating again.
+   *
+   * The pose does not read this directly. `stepJumpPose` widens it with {@link homing} and
+   * {@link bounced} rather than re-deciding it, because the probe genuinely finds floor during a dash
+   * and under a low crystal — see that module.
    */
   readonly airborne: boolean;
   /** `player.motion.homing !== null` — non-null exactly while a homing dash is in flight. Drives the
@@ -77,7 +82,8 @@ export interface Knight {
   readonly animations: KnightAnimations;
   /**
    * How much the visual is pulled down onto the terrain: 1 = feet planted, 0 = riding the capsule.
-   * Driven by {@link driveKnightAnimation} from the same `airborne` flag as the jump clip, so the feet
+   * Driven by {@link driveKnightAnimation} from the same off-ground signal as the jump clip (see
+   * `stepJumpPose`, which is also why a dash does not briefly re-plant them), so the feet
    * and the pose can never disagree. Reading the raw support probe here instead would bob the knight
    * several centimetres, since it drops out for ~10% of frames while running.
    */
@@ -1099,12 +1105,17 @@ const playSegment = (group: AnimationGroup, fromSeconds: number, toSeconds: numb
  * standing knight drift and look unsteady), so a clip that isn't contributing is fully stopped, not
  * just zero-weighted.
  *
- * **Jump** rides over the top as a one-shot: the launch→fall segment, started the moment `airborne`
- * turns on and retimed to fill the real airtime, fading the locomotion blend out and back by
+ * **Jump** rides over the top as a one-shot: the launch→fall segment, started the moment the knight
+ * leaves the ground and retimed to fill the real airtime, fading the locomotion blend out and back by
  * `jumpWeight`. Touchdown just ends it — no landing clip is played (see {@link JUMP_FALL_END}).
  *
- * **Homing** layers on top of both, driven off `homing` rather than `airborne` (which stays true for
- * the whole dash-plus-bounce, so it never re-fires the jump segment on its own): the
+ * "Leaves the ground" is {@link stepJumpPose}'s `offGround`, not `airborne` itself, and everything
+ * here that used to read `airborne` reads that instead: the support probe finds floor mid-dash and
+ * under a low crystal, so `airborne` goes false for single frames in the middle of a flight. See that
+ * module for the two things that went wrong when this layer trusted it.
+ *
+ * **Homing** layers on top of both, driven off `homing` rather than off that signal (which stays true
+ * across the whole dash-plus-bounce, and so has no edge to fire on there): the
  * [{@link KICK_STRIKE_START}, {@link KICK_STRIKE_END}] slice of the Flying Kick clip plays once,
  * retimed onto `homingEntrySeconds` the same way the jump segment is retimed onto `airtime` — a dash
  * is bounded at `homingMaxDuration` (0.6s) and typically shorter, well under the clip's full 1.5s, so
@@ -1117,9 +1128,9 @@ const playSegment = (group: AnimationGroup, fromSeconds: number, toSeconds: numb
  * jump's *rendered* weight (not
  * locomotion's, which is already zeroed by `jumpInfluence` whenever a jump is live) so the two
  * one-shots do not fight over the same bones. {@link KnightMotionSample.bounced} restarts the jump
- * clip from {@link BOUNCE_RESTART} so it rides the existing `jumpWeight` blend back into locomotion;
- * a timeout plays nothing — the domain already zeroed the velocity, so the knight simply resumes
- * falling under gravity next frame.
+ * clip from {@link BOUNCE_RESTART} — `stepJumpPose` is what holds that restart, so it rides the
+ * existing `jumpWeight` blend back into locomotion; a timeout plays nothing — the domain already
+ * zeroed the velocity, so the knight simply resumes falling under gravity next frame.
  */
 export function driveKnightAnimation(
   scene: Scene,
@@ -1134,7 +1145,7 @@ export function driveKnightAnimation(
   let level = 0; // the locomotion scalar L
   let jumpWeight = 0;
   let kickWeight = 0;
-  let wasAirborne = false;
+  let jumpPose = INITIAL_JUMP_POSE;
   let wasHoming = false;
 
   scene.onBeforeRenderObservable.add(() => {
@@ -1142,20 +1153,30 @@ export function driveKnightAnimation(
     const { planarSpeed, airborne, homing, bounced, homingEntrySeconds } = motion();
     const { walk: walkSpeed, run: runSpeed, airtime } = tuning();
 
-    // --- jump -----------------------------------------------------------------------------------
-    // Nothing is re-decided here: `airborne` already carries the debounce and the takeoff guard, so
-    // the clip only needs the moment it turns on.
-    if (airborne && !wasAirborne) {
+    // --- off the ground, and the jump clip's seam ------------------------------------------------
+    // Nothing is re-decided here: `stepJumpPose` owns both the off-ground signal the rest of this
+    // observable reads and which seam the jump clip starts from, so the launch edge and the bounce
+    // restart cannot both claim the same arrival — which, on a low crystal, is exactly what they did.
+    const pose = stepJumpPose(jumpPose, { airborne, homing, bounced });
+    jumpPose = pose.state;
+    const { offGround } = pose.state;
+    if (pose.cue === 'launch') {
       // Stretch (or compress) the segment onto the actual airtime so the pose lands with the capsule.
       const ratio = (JUMP_FALL_END - JUMP_LAUNCH_START) / Math.max(airtime, DIVISOR_FLOOR);
       playSegment(jump, JUMP_LAUNCH_START, JUMP_FALL_END, ratio);
+    } else if (pose.cue === 'bounce') {
+      // Untuned, unlike `ratio` above: retiming this the same way would need a bounce-specific
+      // airtime, and `KnightTuning` exposes none. Reusing the ordinary jump's `airtime` would
+      // misrepresent the bounce — that value is derived from `jumpSpeed`, while a bounce rises at
+      // `homingBounceSpeed`, a different speed with a different real duration. Plays at the clip's
+      // natural rate for now; a later task tunes it by eye in the browser.
+      const bounceRatio = 1;
+      playSegment(jump, BOUNCE_RESTART, JUMP_FALL_END, bounceRatio);
     }
-    wasAirborne = airborne;
 
-    // --- homing dash pose, trail and bounce seam -------------------------------------------------
-    // `airborne` stays true for the whole dash and the bounce that follows it (the capsule never
-    // touches ground in between), so the block above never re-fires on a bounce — `homing`'s own
-    // edges are what drive the pose and the clip restart here.
+    // --- homing dash pose and trail ---------------------------------------------------------------
+    // `offGround` stays true across the whole dash and the bounce that ends it, so the block above
+    // has no edge to fire on there — `homing`'s own edges are what drive the kick clip and the ribbon.
     if (homing && !wasHoming) {
       // Collapse the ribbon to the current position so it grows fresh from the dash's start, rather
       // than snapping in a straight line from wherever it last trailed off.
@@ -1181,45 +1202,33 @@ export function driveKnightAnimation(
       knight.trail.setEnabled(false);
     }
     wasHoming = homing;
-    // Driven by `bounced`, not by the `homing` edge above: `homing` clears on a timeout too, and a
-    // dash short enough to arrive on its own entry frame never raises `homing` at all — yet it still
-    // bounces, and the knight still has to come out of the kick pose (see KnightMotionSample.bounced).
-    if (bounced) {
-      // Untuned, unlike `ratio` above: retiming this the same way would need a bounce-specific
-      // airtime, and `KnightTuning` exposes none. Reusing the ordinary jump's `airtime` would
-      // misrepresent the bounce — that value is derived from `jumpSpeed`, while a bounce rises at
-      // `homingBounceSpeed`, a different speed with a different real duration. Plays at the clip's
-      // natural rate for now; a later task tunes it by eye in the browser.
-      const bounceRatio = 1;
-      playSegment(jump, BOUNCE_RESTART, JUMP_FALL_END, bounceRatio);
-    }
 
     // The segment is a one-shot, so a fall outlasting the clip stops the group mid-air. Let the weight
     // ease down either way rather than dropping the jump's influence to zero on the frame it stops:
     // locomotion would otherwise snap in at full weight in one frame, the very discontinuity this
     // whole weight blend exists to avoid. A stopped group holds its last pose, so easing off it looks
     // like settling out of the jump.
-    jumpWeight = moveToward(jumpWeight, airborne && jump.isPlaying ? 1 : 0, JUMP_BLEND_PER_SECOND * dt);
+    jumpWeight = moveToward(jumpWeight, offGround && jump.isPlaying ? 1 : 0, JUMP_BLEND_PER_SECOND * dt);
     // Same fast ease as the jump: a dash pose has to read as immediate, not cross-fade in.
     kickWeight = moveToward(kickWeight, homing && kick.isPlaying ? 1 : 0, JUMP_BLEND_PER_SECOND * dt);
     if (kick.isPlaying) {
       kick.setWeightForAllAnimatables(kickWeight);
       if (!homing && kickWeight <= WEIGHT_EPSILON) kick.stop();
     }
-    // A dash can only start while already airborne, so the jump segment can still be live —
-    // and its weight still ramping — on the frame a dash starts. Cut kick's share out of jump's
-    // *rendered* weight (not `jumpWeight` itself, which still governs the stop-out-of-airborne check
-    // below) so the two one-shots don't compete for the same bones; locomotion needs no equivalent
-    // term because `jumpInfluence` already zeroes it whenever a jump is live.
+    // A dash can only start off the ground, so the jump segment can still be live — and its weight
+    // still ramping — on the frame a dash starts. Cut kick's share out of jump's *rendered* weight
+    // (not `jumpWeight` itself, which still governs the stop-on-touchdown check below) so the two
+    // one-shots don't compete for the same bones; locomotion needs no equivalent term because
+    // `jumpInfluence` already zeroes it whenever a jump is live.
     if (jump.isPlaying) {
       jump.setWeightForAllAnimatables(jumpWeight * (1 - kickWeight));
-      if (!airborne && jumpWeight <= WEIGHT_EPSILON) jump.stop();
+      if (!offGround && jumpWeight <= WEIGHT_EPSILON) jump.stop();
     }
     const jumpInfluence = jumpWeight;
 
-    // The feet ride the capsule while airborne and re-plant on touchdown, off the same flag as the
-    // clip, so the two can never disagree.
-    knight.planted = moveToward(knight.planted, airborne ? 0 : 1, PLANT_PER_SECOND * dt);
+    // The feet ride the capsule while off the ground and re-plant on touchdown, off the same flag as
+    // the clip, so the two can never disagree.
+    knight.planted = moveToward(knight.planted, offGround ? 0 : 1, PLANT_PER_SECOND * dt);
 
     // --- locomotion ---------------------------------------------------------------------------
     // Below the threshold the knight is idle; any real movement reads as at least a walk, and the
