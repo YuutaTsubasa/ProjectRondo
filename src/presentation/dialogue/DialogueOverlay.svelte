@@ -87,16 +87,13 @@
 
     <div class="dock">
       <Nameplate speaker={session.speaker} />
-      <!-- The whole box is the advance target, not an inner element: the arrow sits in the box's
-           bottom padding, which a flex child cannot reach. -->
-      <div
-        class="box"
-        role="button"
-        tabindex="0"
-        onclick={onBoxClick}
-        onkeydown={onBoxKeydown}
-        aria-label="advance dialogue"
-      >
+      <!-- .box is a plain container. The advance affordance is the <button class="hit"> at the end,
+           stretched over the whole box: a role="button" wrapper would prune everything inside it
+           from the accessibility tree (button has presentational children) and its aria-label would
+           replace the name, so the dialogue line — the primary content on screen — became
+           unreachable. Keeping them siblings gives the line a path to assistive technology and still
+           makes every pixel of the box, padding and arrow included, an advance target. -->
+      <div class="box">
         <!-- The glass and the octagon silhouette. Separate from .box so .box stays unclipped and can
              paint its focus outline. -->
         <div class="pane" aria-hidden="true"></div>
@@ -105,7 +102,7 @@
         <div class="ring" aria-hidden="true"></div>
         <!-- Positioned, so it paints above .pane. In-flow content would not: a positioned sibling
              with z-index auto paints after non-positioned content, so the glass would cover the text. -->
-        <div class="content">
+        <div class="content" aria-live="polite" aria-atomic="true">
           <!-- Five markers, static. The kit shows three filled and two hollow; nothing in the dialogue
                domain maps to them, so they are decoration rather than an invented progress readout. -->
           <div class="marks" aria-hidden="true">
@@ -117,6 +114,9 @@
         </div>
         <svg class="advance" width="30" height="18" viewBox="0 0 30 18" fill="none" aria-hidden="true"><path d="M0 9h26M20 3l6 6-6 6" /></svg>
         <div class="rail" aria-hidden="true"></div>
+        <!-- Last, so it takes the clicks; stretched over the box so its padding and the arrow are
+             part of the target. Carries the focus ring for the box. -->
+        <button class="hit" onclick={onBoxClick} onkeydown={onBoxKeydown} aria-label="advance dialogue"></button>
       </div>
     </div>
   </div>
@@ -166,6 +166,15 @@
     min-height: clamp(150px, 20vh, 200px);
     padding: 20px 24px 28px;
     pointer-events: auto;
+  }
+  /* Stretched over the whole box, and last in the DOM so it is above the content for hit-testing.
+     Transparent: the box's own layers draw everything. */
+  .hit {
+    position: absolute;
+    inset: 0;
+    background: none;
+    border: none;
+    padding: 0;
     cursor: pointer;
     outline: none;
   }
@@ -204,7 +213,7 @@
      file's contrast figures were measured against. A single colour cannot clear 3:1 against a
      backdrop that changes with the camera. The halo fixes that: the ring's adjacent colour is the
      white band it sits inside, not the scene, so the indicator carries its own contrast. */
-  .box:focus-visible {
+  .hit:focus-visible {
     outline: var(--focus-ring);
     outline-offset: var(--focus-ring-offset);
     box-shadow: var(--focus-halo);

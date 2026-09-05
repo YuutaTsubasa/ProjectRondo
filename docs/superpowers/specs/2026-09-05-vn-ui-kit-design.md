@@ -391,3 +391,25 @@ every behaviour the branch gives it — but was exposed as a plain `<section>` l
 `role="dialog" aria-modal="true"` with a labelled heading, matching the fix `Choices` got in the
 previous round. It had to become a `<div>` to carry the role; Svelte rejects `role="dialog"` on a
 `<section>`.
+
+## 20. The dialogue line had no path to assistive technology
+
+Round 12: `.box` was `role="button"` with an `aria-label`, and `<Line>` rendered inside it. `button`
+is one of the roles ARIA defines as having presentational children, so the paragraph was pruned from
+the accessibility tree; and the `aria-label` replaced any name that could have come from contents.
+Tabbing to the box announced "advance dialogue, button" and nothing else. There was no live region
+either, so advancing announced nothing.
+
+The whole branch had carefully `aria-hidden` its decoration — `.pane`, `.ring`, `.marks`,
+`.advance`, `.rail` — and given both modals `role="dialog"` with names and descriptions, while the
+primary content on screen reached assistive technology not at all.
+
+The affordance and the content are now siblings. `.box` is a plain container; a `<button class="hit">`
+stretched to `inset: 0`, last in the DOM, takes the clicks and carries the focus ring — so every
+pixel including the padding and the arrow is still an advance target, which is what section 11
+established. `.content` is an `aria-live="polite"` region.
+
+`Line` needed a second change for that region to be usable: the typewriter mutates its text every
+24ms, which inside a live region announces a character at a time. The visible paragraph is now
+`aria-hidden`, and the complete line goes to assistive technology in one piece through a
+visually-hidden sibling. A typewriter is a visual effect, not information.

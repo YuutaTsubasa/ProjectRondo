@@ -21,9 +21,25 @@
   export function reveal(): boolean { if (!complete) { finish(); return true; } return false; }
 </script>
 
-<p class="line">{shown}{#if !complete}<span class="caret" aria-hidden="true">▌</span>{/if}</p>
+<!-- The visible text is the typewriter's partial reveal, and it is aria-hidden: inside the live
+     region it would announce a character at a time. The full line goes to assistive technology in
+     one piece instead — a typewriter is a visual effect, not information. -->
+<p class="line" aria-hidden="true">{shown}{#if !complete}<span class="caret">▌</span>{/if}</p>
+<span class="sr-only">{text}</span>
 
 <style>
+  /* Visually hidden, still announced. */
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+    border: 0;
+  }
   .line {
     margin: 0;
     font-family: var(--font-body);
