@@ -3,11 +3,12 @@ import type { Scene } from '@babylonjs/core/scene';
 
 import { createFootstepCadence } from '../../domain/audio/footstepCadence';
 import { cadenceSample } from '../../domain/audio/locomotionGait';
-import { musicChange, type MusicScene } from '../../domain/audio/musicDirector';
-import { surfaceCue, type SoundCue } from '../../domain/audio/soundCue';
+import type { MusicScene } from '../../domain/audio/musicDirector';
+import { surfaceCue } from '../../domain/audio/soundCue';
 import { WALK_THRESHOLD, type Knight, type KnightMotionSample } from '../babylon/knight';
 import { createGameAudio } from './audioEngine';
-import { loadSoundBank, type LoopHandle, type SoundBank } from './soundBank';
+import { createMusicCrossfade } from './musicCrossfade';
+import { loadSoundBank, type SoundBank } from './soundBank';
 
 /**
  * Playback rates for the two jump cues, which share the armour sample with the footstep layer.
@@ -136,21 +137,13 @@ async function buildHubAudio(
     // rather than scheduling it on a suspended context the way a decoded buffer is. `App.svelte` asks
     // for the intro track the moment the scene finishes loading, which is long before the player has
     // clicked anything, so without this the request lands in the one window where it cannot be
-    // honoured and is never retried.
-    let unlocked = false;
-    let desiredScene: MusicScene | null = null;
+    // honoured and is never retried. `musicCrossfade` holds the request until `unlock()` says it can
+    // be honoured; everything about *how* one track hands over to the next lives in there, where a
+    // test can reach it without a scene.
+    const crossfade = createMusicCrossfade(soundBank);
 
     const cadence = createFootstepCadence();
     let wasAirborne = motion().airborne;
-    let music: LoopHandle | null = null;
-    let playingTrack: SoundCue | null = null;
-    // Crossfades still running, each with the timer that ends it. Held so `dispose` can both stop the
-    // outgoing track — nothing else references it once `applyMusic` has moved on to the new handle —
-    // and cancel the timer, which would otherwise fire up to `fadeSeconds` after teardown against a
-    // sound `soundBank.dispose()` has already disposed, logging a stop failure from a scene that no
-    // longer exists and keeping the handle alive until it did. In dev that is every HMR reload landing
-    // mid-crossfade.
-    const fadingOut = new Map<LoopHandle, ReturnType<typeof setTimeout>>();
 
     observer = scene.onBeforeRenderObservable.add(() => {
       const elapsed = scene.getEngine().getDeltaTime() / 1000;
@@ -199,29 +192,6 @@ async function buildHubAudio(
       });
     });
 
-    const applyMusic = () => {
-      if (!unlocked || desiredScene === null) return;
-      const change = musicChange(playingTrack, desiredScene);
-      if (!change) return;
-
-      // A real crossfade, not a cut: the outgoing track keeps playing while the new one fades in
-      // under it, and only stops once it has faded fully out.
-      const outgoing = music;
-      music = soundBank.startLoop(change.track, { level: 0 });
-      playingTrack = music ? change.track : null;
-      music?.setVolume(1, change.fadeSeconds);
-
-      if (!outgoing) return;
-      outgoing.setVolume(0, change.fadeSeconds);
-      fadingOut.set(
-        outgoing,
-        setTimeout(() => {
-          outgoing.stop();
-          fadingOut.delete(outgoing);
-        }, change.fadeSeconds * 1000),
-      );
-    };
-
     // Retried on every gesture rather than latched on one promise. `unlockAsync()` is `resumeAsync()`,
     // i.e. a bare `audioContext.resume()` issued before any user gesture: older Safari *rejects* that
     // outright, and a browser that defers media loading can leave it pending indefinitely. Either way
@@ -231,9 +201,8 @@ async function buildHubAudio(
     // `AudioEngineV2` type this module holds, so the gesture itself is what we can subscribe to.
     const tryUnlock = async () => {
       await audio.engine.unlockAsync();
-      unlocked = true;
       stopWatchingForGestures();
-      applyMusic();
+      crossfade.unlock();
     };
     const onGesture = () => {
       void tryUnlock().catch((error: unknown) =>
@@ -250,18 +219,14 @@ async function buildHubAudio(
 
     return {
       setMusicScene(next) {
-        desiredScene = next;
-        applyMusic();
+        crossfade.setScene(next);
       },
       dispose() {
         stopWatchingForGestures();
         if (observer) scene.onBeforeRenderObservable.remove(observer);
-        music?.stop();
-        for (const [handle, timer] of fadingOut) {
-          clearTimeout(timer);
-          handle.stop();
-        }
-        fadingOut.clear();
+        // Before the bank: the crossfade's outgoing handles and their timers have to be released
+        // while the sounds they name are still alive.
+        crossfade.dispose();
         soundBank.dispose();
         audio.dispose();
       },
