@@ -235,9 +235,12 @@ ffmpeg -c:v libvpx-vp9 -i "$SRC" -vf 'scale=-2:900,fps=12' \
   -c:v libwebp_anim -pix_fmt yuva420p -lossless 0 -q:v 35 -loop 0 -an public/portraits/knight_idle.webp
 
 # knight_idle_still.webp — frame 0, shown while the probe runs, under prefers-reduced-motion, and as
-# the <video> poster. Lossless: libwebp's lossy encoder drops the alpha channel in this build.
+# the <video> poster. Every cold load fetches it, on every path, so quality is chosen against the
+# frame that replaces it: at q90 the mean RGB delta from the WebM's frame 0 is 2.57/255 where a
+# lossless encode reaches 1.98 — the floor, since the reference is itself lossy VP9 — for a third of
+# the bytes. If a re-encode of this file comes out opaque, it is trap #1, not the lossy encoder.
 ffmpeg -c:v libvpx-vp9 -i "$SRC" -vf 'scale=-2:900,fps=12' -frames:v 1 \
-  -c:v libwebp -lossless 1 -pix_fmt bgra public/portraits/knight_idle_still.webp
+  -c:v libwebp -lossless 0 -q:v 90 -pix_fmt bgra public/portraits/knight_idle_still.webp
 
 # vp9-alpha-probe.webm — 2x2, one frame, every pixel fully transparent. Decoded to a canvas at
 # runtime to find out whether the engine honours VP9's alpha at all; if this file is ever opaque the
@@ -247,12 +250,12 @@ ffmpeg -f lavfi -i 'color=c=black@0.0:s=2x2:r=1:d=1,format=rgba' \
 ```
 
 **This is a reconstruction, and it was checked rather than remembered.** Re-running it against the
-source reproduces `knight_idle_still.webp` byte-for-byte, and `knight_idle.webm` and
-`knight_idle.webp` at exactly the shipped byte counts (385,231 and 2,332,750) — the WebM differing
-in content, as libvpx does not encode deterministically across runs. The probe comes out at 593
-bytes against the shipped 591; no variation of the invocation reproduced the smaller file, so that
-one is equivalent rather than identical. What the code relies on is asserted by the test suite in
-either case: 2x2, one frame, corner alpha 0.
+source reproduces `knight_idle.webm` and `knight_idle.webp` at exactly the shipped byte counts
+(385,231 and 2,332,750) — the WebM differing in content, as libvpx does not encode deterministically
+across runs — and `knight_idle_still.webp` byte-for-byte. The probe comes out at 593 bytes against
+the shipped 591; no variation of the invocation reproduced the smaller file, so that one is
+equivalent rather than identical. What the code relies on is asserted by the test suite in either
+case: 2x2, one frame, corner alpha 0.
 
 After regenerating, run `pnpm test` with ffmpeg **and ffprobe** on PATH. Four asset cases skip
 silently without them, and they are the ones that would catch a lost alpha channel in any of the

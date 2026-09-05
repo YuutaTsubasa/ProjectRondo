@@ -98,6 +98,12 @@ const stubDom = (frame: Frame) => {
         videoHeight: { value: frame.height ?? 2 },
         readyState: { value: frame.readyState ?? HTMLMediaElement.HAVE_CURRENT_DATA },
         error: { get: () => mediaError },
+        // jsdom implements neither, and the probe calls both on every run: without these, each
+        // probe writes two "Not implemented: HTMLMediaElement's …" lines to the virtual console,
+        // and a real jsdom error from some later test arrives buried in them. `play()` still
+        // returns undefined, which is the pre-promise WebKit behaviour a case below depends on.
+        play: { value: () => undefined },
+        load: { value: () => {} },
       });
       videos.push(element as HTMLVideoElement);
     }

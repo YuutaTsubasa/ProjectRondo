@@ -64,16 +64,12 @@ describe('portrait assets', () => {
     expect(readdirSync(DIR).filter((f) => !referenced.has(f))).toEqual([]);
   });
 
-  /** An animated WebP carries one ANMF chunk per frame; a single-image one carries none. */
-  const webpFrames = (url: string) => {
-    const bytes = readFileSync(fileFor(url));
-    let frames = 0;
-    for (let at = bytes.indexOf('ANMF'); at !== -1; at = bytes.indexOf('ANMF', at + 4)) frames += 1;
-    return frames;
-  };
-  const isAnimated = (url: string) => webpFrames(url) > 0;
-
-  /** Every frame's duration in ms, read from the ANMF chunk headers (24-bit LE at payload +12). */
+  /**
+   * Every frame's duration in ms, from the ANMF chunk headers (24-bit LE at payload +12).
+   *
+   * One walk serves both questions asked of it: an animated WebP carries one ANMF chunk per frame
+   * and a single-image one carries none, so the length of this answers "does it move" as well.
+   */
   const webpFrameDurations = (url: string) => {
     const bytes = readFileSync(fileFor(url));
     const durations: number[] = [];
@@ -83,6 +79,7 @@ describe('portrait assets', () => {
     }
     return durations;
   };
+  const isAnimated = (url: string) => webpFrameDurations(url).length > 0;
 
   /** Frames actually decoded, not the count the container claims. */
   const videoFrames = (url: string) =>
