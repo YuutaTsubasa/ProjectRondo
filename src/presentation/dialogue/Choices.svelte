@@ -179,7 +179,7 @@
      the glass, which is bounded, and the frame carries its own contrast the way the focus ring
      carries its halo.
      --c-blue-deep, not the kit's --c-blue, for the same reason .caret uses it: on the glass
-     --c-blue is 2.33:1 at the worst backdrop, under the 3:1 a boundary needs; --c-blue-deep is
+     --c-blue is 2.34:1 at the worst backdrop, under the 3:1 a boundary needs; --c-blue-deep is
      5.52:1 (tokens.css). One glass layer per option either way -- .inner would be glass over glass. */
   .choice {
     display: block;
@@ -203,8 +203,12 @@
     font-size: 14px;
     transition: background 0.12s ease, color 0.12s ease;
   }
-  /* --c-blue-deep, not --c-blue: this is a glyph, and on the option's glass --c-blue is 4.52:1 even
-     over the opaque ground -- too close to the 4.5 line to rest on. --c-blue-deep is 10.66:1. */
+  /* --c-blue-deep, not --c-blue: this is a glyph, so it wants the 4.5:1 text wants, and on the
+     option's glass --c-blue is 2.34:1. It read 4.52:1 -- a hair over the line -- only because that
+     was measured on glass over the opaque ground this panel no longer has. --c-blue-deep is 5.52:1
+     (tokens.css). Both figures are against the glass floor rgb(158) the comments above use, which is
+     the glass over a black scene: the 0.42 wash sits under it too and only lightens the ground
+     (rgb(178,184,199), where the two are 3.14:1 and 7.41:1), so the floor is what to hold to. */
   .caret { color: var(--c-blue-deep); }
   /* Hover fills the inner block and cuts its bottom-right corner. White on a solid --c-blue block
      is 6.26:1; blue text on the glass would be 2.34:1, so the fill carries the colour. */
