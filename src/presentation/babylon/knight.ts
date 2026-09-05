@@ -125,55 +125,48 @@ const FACE_EMISSIVE = 0.45;
 const BODY_MR_URL = '/models/knight_mr.webp?v=2';
 
 /**
- * How metallic the armour is allowed to read, deliberately below the physically-correct 1.
+ * How metallic the armour reads — now the physically-correct 1.
  *
- * A metal has no diffuse — its albedo becomes the specular F0 — so it can only show what it reflects.
- * This scene has no environment texture (`scene.environmentTexture` is null; nothing in `src/` ever
- * sets one), so at `metallic = 1` the ~36% of texels the packed map flags as metal have nothing to
- * reflect but the sun's specular lobe and render near-black. The armour's own albedo is dark to begin
- * with — mean luma 71.8/255, 39.5% of its texels below 32 — so there is little headroom to lose.
+ * A metal has no diffuse — its albedo becomes the specular F0 — so it can only show what it reflects,
+ * and the scene now gives it something to reflect: `createEnvironment` (in `environment.ts`) sets
+ * `scene.environmentTexture` to a neutral studio IBL. Before that environment existed this was held at
+ * 0.6, trading physical correctness for brightness, because at `metallic = 1` the ~36% of texels the
+ * packed map flags as metal had nothing to reflect but the sun's specular lobe and rendered near-black.
+ * With the IBL in place that concession is no longer needed and the plate reads as true silver steel —
+ * this was the fix for the "darker than Tripo3D" report (Tripo's viewer lights the model with an HDRI;
+ * this scene had none).
  *
- * Holding some diffuse back is the concession that buys the plate its shape without an IBL. Measured
- * over the armour's own pixels (mask taken by hiding the body and diffing, 50 850 px), scene frozen,
- * zero reproducibility and restore controls, at `BODY_DIRECT_INTENSITY`:
+ * Measured on the stylized-knight armour with a hide-the-body diff mask (85 687 px), scene frozen, at
+ * `IBL_INTENSITY`: at the packed map's roughness (near 1 over most of the plate) the metallic value
+ * barely moves brightness — rough-metal specular ≈ the diffuse irradiance it replaces, so 0.6→1.0
+ * shifts the mask mean only ~118.6→114.3 — so 1 costs almost nothing in luma while restoring correct
+ * energy and crisper highlights where the map's roughness is low. Brightness is set by `IBL_INTENSITY`
+ * (raised to 1.4 to compensate for that ~4-luma give-back), not by this number.
  *
- * | metallic | mean luma | pixels below 30 |
- * | --- | --- | --- |
- * | 1.0 | 34.0 | 66.6% |
- * | 0.8 | 46.4 | 42.4% |
- * | **0.6** | **56.0** | **35.3%** |
- * | 0.4 | 64.1 | 32.5% |
- *
- * 0.4 is brighter still but the steel starts reading as plastic, losing the dark-to-light contrast
- * that makes it look like metal. If an environment texture is ever added, raise this back toward 1
- * and re-measure — the correct fix is the IBL, not this number.
- *
- * This table, `BODY_DIRECT_INTENSITY`'s below, and the "~36%" metal-texel figure above were all
- * measured through the *lossy* `knight_mr.webp` that ships today (its header is `VP8 `, not
- * `VP8L` — see the README's regeneration recipe). Lossy WebP chroma-subsamples and cross-contaminates
- * the G/B channels this map packs roughness and metallic into, so re-packing losslessly per that
- * recipe changes the inputs these numbers came from and invalidates this table; re-measure after
- * re-packing rather than trusting these figures against the new map.
+ * The "~36%" metal-texel figure above, and `BODY_DIRECT_INTENSITY`'s figures below, were measured
+ * through the *lossy* `knight_mr.webp` that ships today (its header is `VP8 `, not `VP8L` — see the
+ * README's regeneration recipe). Lossy WebP chroma-subsamples and cross-contaminates the G/B channels
+ * this map packs roughness and metallic into, so re-packing losslessly per that recipe changes the
+ * inputs these numbers came from; re-measure after re-packing rather than trusting them against the new
+ * map, and note the mask figures move with the model, so re-measure on a character swap too.
  */
-const BODY_METALLIC = 0.6;
+const BODY_METALLIC = 1.0;
 
 /**
- * Direct-light multiplier for the armour, compensating for the same missing IBL.
+ * Direct-light multiplier for the armour — back to the neutral 1.0.
  *
- * `directIntensity` scales only this material's response to the scene's lights, so it lifts the
- * armour without touching the terrain, foliage or the toon face (which is its own material). Measured
- * at `BODY_METALLIC`, same mask and controls: 1.0 -> 43.5, 1.3 -> 50.1, **1.6 -> 56.0**, 2.0 -> 63.2.
+ * `directIntensity` scales only this material's response to the scene's *direct* lights, so it lifts
+ * the armour without touching the terrain, foliage or the toon face (which is its own material). It was
+ * pushed to 1.6 only to over-drive the sun and stand in for the missing image-based lighting; now that
+ * `createEnvironment` sets `scene.environmentTexture` (see `BODY_METALLIC` above), keeping the 1.6
+ * would double-count the fill the environment already supplies and blow out the sunlit plates. The
+ * environment now carries the fill, so this returns to 1.0 and `IBL_INTENSITY` is the brightness lever.
  *
- * Together with `BODY_METALLIC` this takes the armour from **27.6 mean luma with 72.2% of its pixels
- * below 30** to **56.0 with 35.3%** — roughly double the brightness, with the near-black half of the
- * surface halved. That was the reported problem: the plate read as a flat silhouette, and its shapes
- * merged into one another rather than looking see-through.
- *
- * Like `BODY_METALLIC`'s table, this was measured through the *lossy* `knight_mr.webp` that ships
- * today; re-packing losslessly per the README's recipe changes the G/B inputs and invalidates these
- * figures too — re-measure after re-packing.
+ * Measured with the same hide-the-body mask as `BODY_METALLIC`, scene frozen: at IBL 1.4 the armour
+ * mask reaches ~117 mean luma with 0% blown highlights and only ~2% of pixels below luma 30 (from 7.7%
+ * pre-IBL). The lossy-`knight_mr.webp` caveat on `BODY_METALLIC` applies to this figure too.
  */
-const BODY_DIRECT_INTENSITY = 1.6;
+const BODY_DIRECT_INTENSITY = 1.0;
 
 /**
  * Corrects the GLB-shipped `normalTexture.scale: 0` on the knight's material while every mesh —
@@ -619,6 +612,13 @@ async function swapHeadMaterial(meshes: readonly AbstractMesh[]): Promise<void> 
     );
   }
   facePbr.emissiveIntensity = 1;
+  // Opt the face out of the scene's image-based lighting. `createEnvironment` sets
+  // `scene.environmentTexture` for the armour's metallic PBR (see `BODY_METALLIC`), and every PBR
+  // material reads it by default — but the face is hand-lit through `emissiveColor`/`FACE_EMISSIVE`,
+  // and letting the IBL add its diffuse irradiance on top would lift the toon face off the values that
+  // constant is calibrated against. Zero here keeps the face exactly as tuned, regardless of the
+  // environment; the armour keeps the scene default of 1.
+  facePbr.environmentIntensity = 0;
   for (const mesh of head) mesh.material = face;
 
   let abandoned = false;
