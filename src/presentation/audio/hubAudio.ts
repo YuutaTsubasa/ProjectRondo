@@ -1,4 +1,6 @@
+import type { Observer } from '@babylonjs/core/Misc/observable';
 import type { Scene } from '@babylonjs/core/scene';
+import type { Nullable } from '@babylonjs/core/types';
 
 import { createFootstepCadence } from '../../domain/audio/footstepCadence';
 import { cadenceSample } from '../../domain/audio/locomotionGait';
@@ -112,7 +114,10 @@ async function buildHubAudio(
   // of the page: the caller's catch only logs, so nothing built before the throw is ever reachable
   // again. Tracked here and released in the `catch` below, before the error is rethrown.
   let bank: SoundBank | undefined;
-  let observer: ReturnType<Scene['onBeforeRenderObservable']['add']> | null = null;
+  // `Observable.add`'s last overload already returns `Nullable<Observer<T>>`, so this is the type the
+  // `add` below hands back, written under the name babylon gives it rather than derived through a
+  // `ReturnType` that then re-adds the `null` it already contained.
+  let observer: Nullable<Observer<Scene>> = null;
 
   try {
     // A `const` alias, taken right after the assignment above: `bank` itself stays `| undefined` so
