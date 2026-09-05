@@ -14,8 +14,10 @@ const ADDUCT_DEG := -5.0
 const L_THIGH := "Skeleton3D:LeftUpperLeg"
 const R_THIGH := "Skeleton3D:RightUpperLeg"
 
-# Foot calibration is applied to the exported GLB by tools/knight-feet/calibrate.mjs.
-# The former +20 degree parent-space rotation pointed the toes DOWN. Do not bake it again.
+# Foot calibration is applied to the exported GLB by tools/knight-feet/calibrate.mjs, not here.
+# This script bakes exactly one rotation: the ADDUCT_DEG thigh correction below. It has never baked
+# an ankle or foot rotation in any revision in this repository's history, so pass 0 as calibrate.mjs's
+# pre-rotation argument for anything exported from here.
 
 # World fore-aft (Z) axis expressed in the thighs' parent frame; the true adduction axis.
 var _adduct_axis := Vector3(0, 0, 1)

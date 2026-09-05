@@ -74,7 +74,6 @@ The knight model + retargeted animations live in the Godot prototype. Re-export 
 
 ```bash
 # 0. Rebuild the AnimationLibrary when a clip, .import, or extract_anims.gd changes.
-#    REQUIRED once after the foot fix: KnightAnims.res may still contain the old +20 degree offset.
 #    Godot can serve a stale import — delete .godot/imported/<Name>.fbx-* first or the bone
 #    renaming silently does not apply.
 Godot --headless --path __prototype__ --import
@@ -88,12 +87,15 @@ gltf-transform resize __prototype__/knight_web.glb /tmp/k.glb --width 1024 --hei
 gltf-transform webp /tmp/k.glb /tmp/knight-uncalibrated.glb --quality 80
 
 # 3. Level heel-to-toe pitch in rest/T-Pose/Idle and correct the ankle offset in all four clips.
-#    0 means extract_anims.gd no longer bakes the legacy +20 degree ankle offset.
+#    The last argument is a fixed pre-rotation in degrees. Use 0: nothing in this repository bakes
+#    an ankle offset for it to cancel. (The shipped GLB was built with 20, whose origin is not
+#    recorded anywhere here — see the doc below.)
 node tools/knight-feet/calibrate.mjs /tmp/knight-uncalibrated.glb public/models/knight_web.glb 0
 node tools/knight-feet/verify.mjs /tmp/knight-uncalibrated.glb public/models/knight_web.glb
 ```
 
-See [foot calibration and validation](docs/knight-foot-calibration.md) for the measurements and legacy-file handling.
+See [foot calibration and validation](docs/knight-foot-calibration.md) for the measurements and for
+what is known about the pre-rotation argument.
 
 Bump the `?v=N` query on the GLB URL in `src/presentation/babylon/knight.ts` after rebuilding so
 browsers refetch it. Then delete the 68 MB `__prototype__/knight_web.glb` intermediate and the
