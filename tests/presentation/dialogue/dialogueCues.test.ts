@@ -40,6 +40,11 @@ const CHAR_MS = 24;
 const NINE = '一二三四五六七八九';
 const SCRIPT = [':: greet', `里昂: ${NINE}`, '-> ask', ':: ask', '里昂: 走哪？', '* 左 -> l', '* 右 -> r', ':: l', '旁白: 左。', ':: r', '旁白: 右。', ''].join('\n');
 
+// Both options of `ask` lead to `again`, which is itself a choice node. That is the shape the panel
+// is NOT remounted in -- `session.choices.length` never reaches zero, so DialogueOverlay's {#if}
+// holds, and <Choices> re-focuses itself in place instead. `intro.dlg` has no such node today.
+const CHAINED = [':: greet', `里昂: ${NINE}`, '-> ask', ':: ask', '里昂: 走哪？', '* 左 -> again', '* 右 -> again', ':: again', '里昂: 真的？', '* 是 -> l', '* 否 -> r', ':: l', '旁白: 左。', ':: r', '旁白: 右。', ''].join('\n');
+
 const mounted: ReturnType<typeof mount>[] = [];
 
 function render(script = SCRIPT) {
@@ -203,6 +208,39 @@ describe('the choice cues', () => {
     flushSync();
     expect(cues(playCue)).toEqual(['ui.move', 'ui.confirm']);
     expect(session.choices.length).toBe(0);
+  });
+
+  it('sounds nothing extra when answering one question opens the next', () => {
+    vi.useFakeTimers();
+    const { session, playCue } = render(CHAINED);
+    tick(0);
+    session.advance();
+    tick(1000);
+    const options = [...document.querySelectorAll<HTMLButtonElement>('.choice')];
+    expect(document.activeElement).toBe(options[0]);
+
+    // Select the SECOND row first, which is the half of this that used to sound differently: the
+    // panel stays mounted, re-focuses the first option of the new question, and that arrival comes
+    // from another option inside the panel. Answering on the first row leaves focus where it already
+    // was and fires no focus event at all, so the two rows only agree if the re-focus is silent --
+    // one player action, one sound, whichever row it was taken on.
+    options[1].dispatchEvent(new Event('pointerenter'));
+    flushSync();
+    expect(document.activeElement).toBe(options[1]);
+    playCue.mockClear();
+
+    // Flushed before the clock is advanced, not after: the re-focus is scheduled by an effect, and
+    // an `advanceTimersByTime` that runs first would move past a timeout that does not exist yet.
+    options[1].click();
+    flushSync();
+    tick(CHAR_MS);
+    expect(session.choices.length).toBe(2);
+    expect(cues(playCue)).toEqual(['ui.confirm']);
+
+    // And the re-focus still happens: the selection is on the new question's first option, not left
+    // on the row the player just answered, which is what the effect exists for.
+    expect(document.activeElement).toBe(options[0]);
+    expect(options[0].textContent).toContain('是');
   });
 
   it('sounds nothing when the pointer re-enters the option it already selected', () => {

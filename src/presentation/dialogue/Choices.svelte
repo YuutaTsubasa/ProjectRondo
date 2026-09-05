@@ -14,11 +14,22 @@
    * The panel has one selection, and it is the focused option: `pointerenter` below moves focus
    * rather than reporting a second kind of selection beside it, so "the selection moved" has exactly
    * one event and there is nothing to de-duplicate. `relatedTarget` on a focus event is the element
-   * that lost it, which is what tells the two non-moves apart from a move without remembering
-   * anything: the panel taking its own focus on mount arrives from outside the panel (`<body>`, or
-   * null), and clicking the option the pointer already selected fires no focus event at all.
+   * that lost it, which tells two of the three non-moves apart from a move without remembering
+   * anything: a first mount's focus arrives from outside the panel (`<body>`, or null), and clicking
+   * the option the pointer already selected fires no focus event at all.
+   *
+   * The third is the panel re-focusing itself, and `relatedTarget` cannot see it — which is what
+   * `takingFocus` is for. When a choice's target is itself a choice node the panel is not remounted
+   * (see the effect below), so the re-focus moves focus off the option just answered and onto the
+   * first option of the new question: from one option to another, inside the panel, indistinguishable
+   * from the player walking the list. It is the panel posing a question, not the player answering
+   * one — and without this, answering on the second row sounded a move that answering on the first
+   * did not, because there the unkeyed `{#each}` re-uses a button that already has focus and no
+   * focus event fires at all.
    */
+  let takingFocus = false;
   const moved = (from: EventTarget | null) => {
+    if (takingFocus) return;
     if (from instanceof Node && panel?.contains(from)) onMove?.();
   };
 
@@ -41,7 +52,16 @@
     choices;
     const first = panel?.querySelector('button');
     if (!first) return;
-    mountFocus = setTimeout(() => first.focus());
+    mountFocus = setTimeout(() => {
+      // `focus()` dispatches the focus event synchronously, so the flag covers exactly this panel's
+      // own arrival and nothing the player does. `finally` because a focus handler may throw.
+      takingFocus = true;
+      try {
+        first.focus();
+      } finally {
+        takingFocus = false;
+      }
+    });
     return () => clearTimeout(mountFocus);
   });
 </script>
