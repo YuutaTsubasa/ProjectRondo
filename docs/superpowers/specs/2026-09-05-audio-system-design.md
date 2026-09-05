@@ -303,20 +303,23 @@ returns. It currently carries nothing.
 Encoded Vorbis q4, all one-shots peak-normalised to −3 dBFS so the mix balance lives in the manifest
 and re-cutting one sound cannot silently change the others.
 
+Sizes below are KiB (1024 B), which is what `ls -l` and a file browser show.
+
 | File | Size | Detail |
 | --- | --- | --- |
-| `music/hub_theme.mp3` | 3308 KB | copied |
-| `music/avg_theme.mp3` | 3741 KB | copied |
-| `sfx/armor_step.ogg` | 5.3 KB | 0.145 s mono |
-| `sfx/footstep_grass_01.ogg` / `_02.ogg` | 6.0 / 5.9 KB | 0.235 / 0.220 s mono |
-| `sfx/ui_type_01..04.ogg` | 4.4–4.5 KB | 0.060 s mono |
-| `sfx/ui_move.ogg` | 6.5 KB | 0.300 s mono |
-| `sfx/ui_confirm.ogg` | 8.2 KB | 0.450 s mono |
-| `ambience/wind_field.ogg` | 131 KB | 8 s stereo, seamless — **shipped, not wired (§5.3a)** |
-| `ambience/water_pond.ogg` | 57 KB | 6 s mono (cut for the spatial use it is waiting on), seamless — **shipped, not wired** |
+| `music/hub_theme.mp3` | 3308 KiB | copied |
+| `music/avg_theme.mp3` | 3741 KiB | copied |
+| `sfx/armor_step.ogg` | 5.3 KiB | 0.145 s mono |
+| `sfx/footstep_grass_01.ogg` / `_02.ogg` | 6.0 / 5.9 KiB | 0.235 / 0.220 s mono |
+| `sfx/ui_type_01..04.ogg` | 4.4–4.5 KiB | 0.060 s mono |
+| `sfx/ui_move.ogg` | 6.5 KiB | 0.300 s mono |
+| `sfx/ui_confirm.ogg` | 8.2 KiB | 0.450 s mono |
+| `ambience/wind_field.ogg` | 131 KiB | 8 s stereo, seamless — **shipped, not wired (§5.3a)** |
+| `ambience/water_pond.ogg` | 57 KiB | 6 s mono (cut for the spatial use it is waiting on), seamless — **shipped, not wired** |
 
-SFX and ambience total **≈ 238 KB**; the two music tracks are 6.9 MB. `*.mp3` and `*.ogg` join the
-LFS-tracked extensions in `.gitattributes`.
+SFX and ambience total **237 KiB** (243,043 B); the two music tracks are **7,217,303 B** — 6.88 MiB,
+the same bytes `src/presentation/audio/hubAudio.ts` and `tools/audio/preprocess.mjs` state in decimal
+as 7.2 MB. `*.mp3` and `*.ogg` join the LFS-tracked extensions in `.gitattributes`.
 
 Anything cut for spatial use is mono, because a stereo buffer cannot be panned. Nothing shipped is
 positioned — the pond bed is the only spatial cue there has ever been, and it is not wired (§5.3a) —
@@ -376,8 +379,15 @@ The decision logic is pure, so it is unit-tested rather than debugged in the bro
 - **`audioMixer`** — mute overrides everything, values clamp, master multiplies.
 - **`surfaceCue`** — the surface → cue mapping, and that what it returns is a `SoundCue`.
 
-Three things that are not pure are tested anyway, because none of them has a cheap way to be seen:
+Four things that are not pure are tested anyway, because none of them has a cheap way to be seen:
 
+- **`audioEngine`** (`tests/presentation/audioEngine.test.ts`) — the two babylon `Create*Async`
+  factories are `vi.mock`ed behind recording fakes, the same seam `soundBank`'s test uses. Pins the
+  teardown path: when a bus rejects, `createGameAudio` disposes the engine *and* every bus that did
+  build — including one still in flight when the failure landed — and rejects with the underlying
+  reason. Its failure mode is a leaked `AudioContext` plus stranded buses on a handle no caller ever
+  receives, which is silent, invisible to a build, and unreachable by ear. Also pins that each bus
+  lands under its own id however the factories settle, and that `dispose` takes all four nodes down.
 - **`soundBank`** (`tests/presentation/soundBank.test.ts`) — the babylon factory module is `vi.mock`ed
   behind a recording fake sound, which is enough to reach the bank's own bookkeeping and its failure
   paths without an `AudioContext`. Pins one-owner-per-sound (a restart retires the previous handle,
@@ -412,7 +422,9 @@ rendering window. The Task 9 in-scene pass ran with the browser pane hidden, whi
 so nothing that depends on the game actually running (walking, jumping, elapsed real time) could be
 exercised. Each item below is marked with what was actually established, not a summary judgement.
 
-- **Verified** — `pnpm test` green, including the cases in §6: 28 test files, 176 tests, all passing.
+- **Verified** — `pnpm test` green, including the cases in §6: 36 test files, 215 tests, all passing.
+  That is the whole suite, not this branch's share of it: `vitest run` counts every file under
+  `tests/`, so the figure moves whenever `main` does and is re-measured, not carried forward.
 - **Unverified (listening + a rendering scene)** — walking and running producing footsteps in step
   with the visible feet at both gaits; nothing firing while airborne; take-off and landing each
   sounding once. `footstepCadence`'s airborne/landing rules are unit-tested in isolation (§6), but
@@ -453,14 +465,16 @@ exercised. Each item below is marked with what was actually established, not a s
 - **Not established** — the mix balance. Every `volume` in `manifest.ts` is still §5.5's untuned
   starting point; tuning them needs a running scene and ears, and was explicitly out of scope for this
   pass.
-- **Partially verified by static read, not measurement** — `hubAudio.ts`'s `onBeforeRenderObservable`
-  callback allocates a small options object literal on *every* frame for the `cadence.step({...})`
-  call (both the early-return `{ gait: 'idle', phase: 0, airborne, elapsed }` branch and the normal
-  `{ gait, phase, airborne, elapsed }` branch), not only on an actual footfall — so "no per-frame
-  allocation in the wiring" does not hold literally, though the allocation is a small, short-lived
-  object and its actual cost was not measured. `bank.play(...)`'s options objects are allocated only on
-  a footfall, not every frame. **Unverified**: frame budget / frame rate itself, since the hidden pane
-  never renders a frame to measure.
+- **Partially verified by static read, not measurement** — the footstep path allocates **two** small
+  object literals on *every* frame, not only on an actual footfall, so "no per-frame allocation in the
+  wiring" does not hold literally. `hubAudio.ts:174-183` builds the `LocomotionReading` it hands to
+  `cadenceSample({...})`, and `cadenceSample` then returns a fresh `CadenceSample` from
+  `locomotionGait.ts:45-46` — the early-return `{ gait: 'idle', phase: 0, airborne, elapsed }` branch
+  and the normal `{ gait, phase, airborne, elapsed }` branch — which is what reaches `cadence.step`.
+  Both are small, short-lived objects and neither one's actual cost was measured.
+  `bank.play(...)`'s options objects are allocated only on a footfall, not every frame.
+  **Unverified**: frame budget / frame rate itself, since the hidden pane never renders a frame to
+  measure.
 
 None of the above changes §5.5: the per-cue volumes remain starting points to be tuned in-scene, not
 measurements.

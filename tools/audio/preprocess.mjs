@@ -22,8 +22,8 @@
  * is where that is heard: these are the only two assets in the set played in full, at length, and not
  * masked by anything. The price, measured rather than assumed: the sources are VBR MP3 at 202 kbps
  * (hub_theme, 3,386,961 B / 133.85 s) and 205 kbps (avg_theme, 3,830,342 B / 149.61 s), and re-encoding
- * them at the `-q:a 4` every other asset here uses gives 2.14 MB + 2.46 MB against the 7.22 MB shipped
- * — 2.6 MB off the wire, given up. What makes that affordable is that they are the only `streaming`
+ * them at the `-q:a 4` every other asset here uses gives 2.14 MB + 2.46 MB against the 7,217,303 B
+ * shipped — 7.22 MB decimal, and 2.6 MB off the wire given up. What makes that affordable is that they are the only `streaming`
  * cues in the manifest, so they are off the critical path of first render (hubAudio.ts) and nothing
  * waits on them.
  *

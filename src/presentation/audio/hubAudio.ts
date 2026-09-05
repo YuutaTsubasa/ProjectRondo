@@ -58,9 +58,10 @@ const weightOf = (group: AnimationGroup): number =>
  * that defers media loading before a user gesture, or a hung connection, leaves that `await` pending
  * *forever*: no `runRenderLoop`, no resolved `createHubScene`, and the blank canvas `docs/HANDOFF.md`
  * §3 describes. Careful handling of the rejection path does nothing for a promise that never settles;
- * not waiting does. It also stops first render queueing behind 7.2 MB of music (hub_theme 3.39 MB +
- * avg_theme 3.83 MB, both copied verbatim from their sources — see `tools/audio/preprocess.mjs`) that
- * the game does not need until after the first click.
+ * not waiting does. It also stops first render queueing behind 7,217,303 B of music — 7.2 MB decimal
+ * (hub_theme 3.39 MB + avg_theme 3.83 MB), 6.9 MiB as the design spec's §5.4 table counts it — both
+ * tracks copied verbatim from their sources (see `tools/audio/preprocess.mjs`), and none of it needed
+ * until after the first click.
  *
  * A failure in the background build therefore means a silent game, not a broken one — the same
  * contract as before, now with "never settles" covered as well as "rejects".
