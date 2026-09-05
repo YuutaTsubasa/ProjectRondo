@@ -137,8 +137,7 @@ const KNIGHT_FACING = Quaternion.FromEulerAngles(0, Math.PI, 0);
  */
 const TRAIL_EMISSIVE = new Color3(0.08, 0.22, 0.95);
 /**
- * Trail ribbon width and history length. `DASH_TRAIL_LENGTH` is a ring-segment count, dimensionless.
- * `DASH_TRAIL_DIAMETER` is NOT a world-unit width, even though it reads like one next to
+ * Trail ribbon width. NOT a world-unit width, even though it reads like one next to
  * {@link TARGET_HEIGHT}: `TrailMesh._updateSectionVectors` builds each ribbon section from `diameter`
  * and then transforms it by `generator.getWorldMatrix()` (`createDashTrail` is passed `trailGenerator`,
  * a `TransformNode` parented to the glTF `root` — see {@link loadKnight}), and `root.scaling` is set in
@@ -157,6 +156,23 @@ const TRAIL_EMISSIVE = new Color3(0.08, 0.22, 0.95);
  * treating this number as if it were already in world units.
  */
 const DASH_TRAIL_DIAMETER = 0.2;
+/**
+ * How much history the ribbon keeps, counted in **rendered frames**, not in seconds or world units.
+ * `TrailMesh.update` is subscribed to `onBeforeRenderObservable` and, on the positional constructor
+ * {@link createDashTrail} uses, `_segments === _length`, which makes its section lerp factor exactly 1 —
+ * each update copies every section from the one ahead of it, so the ribbon shifts by exactly one section
+ * per rendered frame and its tail is the generator's position 24 frames ago.
+ *
+ * That coupling is the reason to be careful with this number rather than the number itself: the streak's
+ * life and its world-space extent (24 × dash speed × frame time) both scale with frame time, so a machine
+ * rendering at half the rate shows a streak that lives twice as long and stretches twice as far.
+ *
+ * **Untuned**, and with less behind it than {@link DASH_TRAIL_DIAMETER} above: 24 is the value the ribbon
+ * was first written with, and no pass has recorded a reason for it. The one measurement the trail does
+ * have — the 0.776-unit width cited above — is a cross-section and says nothing about how far back the
+ * ribbon should reach. At 60 fps this is ~0.4 s of streak; it is as much a feel knob as the diameter
+ * beside it, so retune by eye, at a known frame rate.
+ */
 const DASH_TRAIL_LENGTH = 24;
 
 /**

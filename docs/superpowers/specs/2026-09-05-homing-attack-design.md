@@ -172,15 +172,22 @@ real-time play, because the Browser pane's compositor throttles `requestAnimatio
 when not the foreground surface — `scene.render()` steps the same domain/physics code deterministically
 regardless.
 
-**That pass ran at `d3b64cb`**, and fifteen commits have landed on this branch since — every commit
-after it that touches code, documentation-only ones aside. (The merge at `79b97d0` is not one of them:
-it brought `main`'s audio and UI work, and the only lines it changed in this feature's files wire the
-audio layer in and export a threshold.) **None of the fifteen has been put back through the four
-objective checks below.** Three were watched on screen for something else — that is how the reticle's
-size and opacity were settled — and their bullets say so; watching a ring is not re-running a check.
+**That pass ran at `d3b64cb`, and nothing on this branch after it has been put back through the four
+objective checks below.** The unverified set is `git log d3b64cb..HEAD` — the whole range, whatever it
+contains by the time you read this, including commits that did not exist when this paragraph was
+written. Stated as a range on purpose: every earlier revision of this section spelled the range out
+commit by commit, and every such list was found short at the next review — each correction being itself
+a new commit the list then had to name. A range needs no maintenance to stay true, and `git log` can
+check it. (The merge at `79b97d0` brought `main`'s audio and UI work, and the only lines it changed in
+this feature's files wire the audio layer in and export a threshold — but it is in the range like
+everything else, so it is unverified like everything else.) Some of the range was watched on screen for
+something else — that is how the reticle's size and opacity were settled — and watching a ring is not
+re-running a check.
 
-The list is exhaustive on purpose. Judging a commit harmless and leaving it out is how it came to be
-short twice, so the bar for a bullet is "touched the code", not "changed what a check measures":
+The bullets below say what the notable reworks in that range changed and whether it moves what a check
+measures. **They are not a census of the range, and are not maintained as one**: a commit in
+`d3b64cb..HEAD` that no bullet names is unverified for exactly the same reason as one that does — never
+verified. Reading the list for coverage is the mistake the range statement above exists to prevent.
 
 - `05f1923` — `stepHoming` derives its direction and remaining distance from a live offset supplied
   every frame, rather than from a fixed entry direction dead-reckoned down. The shipped dash therefore
@@ -220,8 +227,8 @@ short twice, so the bar for a bullet is "touched the code", not "changed what a 
   longer discarded a frame later by the airborne rising edge, and the feet no longer ease toward
   planted mid-flight. Pose again, and the chaining bullet below reads position, not pose.
 - `e30b664` — the reticle's shared red handed to its material as a clone, and its stroke thickness
-  named. Nothing on screen changes: same colour, same `0.08`. Listed because it touches the code, per
-  the rule above.
+  named. Nothing on screen changes: same colour, same `0.08`. Here to say so explicitly, since a
+  clone of a shared colour is the kind of change a reader might otherwise wonder about.
 
 The bullets below are recorded as measurements of the `d3b64cb` build, not the shipped one.
 
