@@ -52,6 +52,11 @@
   function onSelect(i: number) { playCue?.('ui.confirm'); session.select(i); }
   function onBoxClick() {
     if (session.choices.length > 0) return;
+    // The press sounds with the typewriter tick rather than a cue of its own, and before the branch
+    // below because both of its outcomes are the same event: pressing the box puts text on screen,
+    // whether by finishing the reveal or by starting the next line. Line.svelte holds the first tick
+    // of a new line back by one throttle window so this and it do not land on top of each other.
+    playCue?.('ui.type');
     if (lineRef?.reveal()) return;
     advance();
   }

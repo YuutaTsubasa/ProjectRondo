@@ -21,9 +21,12 @@
   $effect(() => {
     shown = ''; complete = false;
     let i = 0;
-    // Starts at the threshold so the first character sounds: typing that begins with 70 ms of
-    // silence reads as a dropped cue rather than as a deliberate rhythm.
-    let sinceTick = TYPE_MIN_MS;
+    // Starts at zero, so the first tick lands one throttle window into the line rather than on its
+    // first character. A line almost always begins because the box was just pressed, and that press
+    // sounds its own tick (DialogueOverlay.onBoxClick) — firing again 24 ms later would flam the two
+    // into one smeared hit. The lines that start without a press, the first of a script and any AUTO
+    // advance, simply begin a window late.
+    let sinceTick = 0;
     clearInterval(timer);
     timer = setInterval(() => {
       i++; shown = text.slice(0, i);
