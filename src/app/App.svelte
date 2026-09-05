@@ -28,9 +28,9 @@
     // tabbable -- the overlay mounts synchronously, so the intro dialogue and its LOG button are
     // live for the whole scene load. The second reset covers anything babylon assigns later during
     // the async setup.
-    const scene = createHubScene(canvas);
+    const loading = createHubScene(canvas);
     canvas.tabIndex = -1;
-    scene.then((h) => {
+    loading.then((h) => {
       if (disposed) { h.dispose(); return; } // unmounted before the async load finished
       hub = h;
       canvas.tabIndex = -1;

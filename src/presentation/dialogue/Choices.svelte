@@ -79,10 +79,8 @@
     /* An h2 so browse-mode has something to land on; its UA margins and size are overridden here so
        the change is semantic only. */
     margin: 0 0 4px;
-    font-family: var(--font-headline);
-    font-weight: 700;
-    font-size: 17px;
-    letter-spacing: 3px;
+    font: var(--font-panel-title);
+    letter-spacing: var(--panel-title-tracking);
     color: var(--c-ink);
   }
   .prompt {

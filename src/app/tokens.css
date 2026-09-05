@@ -45,6 +45,14 @@
   --focus-ring-offset: 3px;
   --focus-halo: 0 0 0 7px rgba(var(--c-white-rgb), 0.92);
 
+  /* The panel-title treatment, shared by the backlog's and the choices' headings. Both are meant
+     to match -- Backlog's comment says so in prose -- and nothing else could hold them together:
+     the guards check that var() resolves and that no hex appears, so 17px becoming 18px in one of
+     the two panels would be invisible. The shorthand carries weight, size and family; tracking is
+     not part of it, so it is a second token. */
+  --font-panel-title: 700 17px var(--font-headline);
+  --panel-title-tracking: 3px;
+
   /* The octagon's chamfer, and the ring's inset expressed as arithmetic on it rather than as two
      more literals. .pane's silhouette and .ring's outer loop must agree or the ring stops tracing
      the panel, and nothing here could see them drift -- the same argument --rail-dash was extracted

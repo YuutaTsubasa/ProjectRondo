@@ -522,3 +522,22 @@ comment also claimed a uniform 2px inset, which is only true on the straight edg
 offset is about 1.41x wider across the chamfers. And `--c-white` was removed: `--c-white-rgb` is its
 own literal rather than derived from it, so the pair proved only that two adjacent lines in one file
 agreed, with no second consumer to drift. That is the same ground `--c-ink-rgb` went on.
+
+## 25. The two panel titles were only matching by hand
+
+Round 17 (no Blocker, no Major). The backlog's and the choices' headings carried a byte-identical
+type treatment — `--font-headline` / 700 / 17px / 3px tracking — with nothing holding them together,
+while `Backlog`'s own comment asserted the match in prose ("matching Choices"). Neither guard could
+see them drift: one checks that every `var()` resolves, the other that no hex appears, and 17px
+becoming 18px in one panel passes both. They are `--font-panel-title` (the `font` shorthand, which
+carries weight, size and family) and `--panel-title-tracking` now — tracking is not part of the
+shorthand, so it takes its own token. Verified the resolved values are unchanged.
+
+That is the fifth extraction on the same argument in this branch, after `--rail-dash`, the three
+focus tokens and `--octagon-chamfer`/`--octagon-ring`. The pattern is consistent enough to be worth
+naming: **a value repeated in two scoped `<style>` blocks has no guard in this repo**, because
+Svelte's scoping means there is no shared class to compare and the two tests only look at token
+resolution and hex literals.
+
+Also: `App.svelte`'s `scene` held a `Promise<HubScene>`, so `scene.then(...)` read as though a scene
+had a `then`, and the resolved value is called `hub` everywhere else in the file. It is `loading`.

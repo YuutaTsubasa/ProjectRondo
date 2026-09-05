@@ -14,6 +14,7 @@ const EXPECTED = [
   '--focus-ring', '--focus-ring-offset', '--focus-halo',
   '--surface-glass', '--surface-blur',
   '--octagon-chamfer', '--octagon-ring',
+  '--font-panel-title', '--panel-title-tracking',
 ];
 
 /**

@@ -90,10 +90,8 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    font-family: var(--font-headline);
-    font-weight: 700;
-    font-size: 17px;
-    letter-spacing: 3px;
+    font: var(--font-panel-title);
+    letter-spacing: var(--panel-title-tracking);
     color: var(--c-blue);
   }
   /* UA heading margins and size overridden: the change is semantic only. */
