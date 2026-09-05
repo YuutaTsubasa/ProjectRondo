@@ -79,7 +79,7 @@ function probe(): Promise<Answer> {
         canvas.height = video.videoHeight;
         if (!canvas.width || !canvas.height) return finish(UNDECIDED);
         if (video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) return finish(UNDECIDED);
-        const context = canvas.getContext('2d', { willReadFrequently: false });
+        const context = canvas.getContext('2d');
         if (!context) return finish(NO); // no 2D context is not going to appear on a retry
         // `copy` rather than the default `source-over`, or a transparent frame drawn onto the opaque
         // fill would composite straight back to opaque and every engine would fail the probe.

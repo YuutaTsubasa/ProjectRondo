@@ -10,11 +10,14 @@
    * Safari before 14 exposes `MediaQueryList` without `EventTarget`, so `addEventListener` is
    * simply absent and calling it throws.
    *
-   * That throw is not what stands between such an engine and a working portrait: WebP arrived in
-   * Safari 14 too, and every asset this component can reach is WebP (see `portraitLibrary.ts`), so
-   * the image is broken there either way. What the branch buys is the difference between a broken
-   * image and an effect that throws, which would take the dialogue overlay down with it -- a poor
-   * trade for a preference listener, and four lines is a cheap way not to make it.
+   * That throw is not what stands between such an engine and a working portrait. Safari 14 brought
+   * VP9 as well as WebP, so on anything older `supportsVp9Alpha()` cannot resolve `true` and the
+   * WebM branch is unreachable -- which leaves only WebP files, none of which that engine can
+   * decode. The portrait is a broken image there whichever media-query API it has.
+   *
+   * What the branch buys is the difference between a broken image and an effect that throws, which
+   * would take the dialogue overlay down with it -- a poor trade for a preference listener, and
+   * four lines is a cheap way not to make it.
    */
   const follow = (query: MediaQueryList, onChange: (event: MediaQueryListEvent) => void) => {
     if (typeof query.addEventListener === 'function') {

@@ -1,6 +1,6 @@
 /**
  * Resolves a PortraitKey to portrait art. Mirrors the Godot `PortraitLibrary` stub: every key falls
- * back to the neutral portrait until per-emotion art exists (fill the maps when it does).
+ * back to the neutral portrait until per-emotion art exists (add a whole set to the map for each).
  *
  * Three forms per key, because the neutral portrait is an animated idle and no single encoding is
  * both small and universal:
@@ -17,18 +17,28 @@
  * The WebP is the baseline and the WebM is the upgrade, never the other way round: a wrong or slow
  * probe then costs bytes rather than painting a black rectangle over the scene.
  */
-const NEUTRAL_STILL = '/portraits/knight_idle_still.webp';
-const NEUTRAL_ANIMATED = '/portraits/knight_idle.webp';
-const NEUTRAL_WEBM = '/portraits/knight_idle.webm';
+/**
+ * All three encodings of one portrait, together.
+ *
+ * They are one value rather than three maps because the three are the same drawing and a key that
+ * had only some of them would be a bug nothing could see: an angry still under a neutral animation
+ * puts two different frames of art on screen in the same beat, chosen by which branch the engine
+ * happened to take. Whole sets make that unrepresentable — adding a key means supplying all three.
+ */
+type PortraitSet = { still: string; animated: string; webm: string };
 
-const stillByKey: Record<string, string> = {};
-const animatedByKey: Record<string, string> = {};
-const webmByKey: Record<string, string> = {};
+const NEUTRAL: PortraitSet = {
+  still: '/portraits/knight_idle_still.webp',
+  animated: '/portraits/knight_idle.webp',
+  webm: '/portraits/knight_idle.webm',
+};
 
-export const resolvePortrait = (key: string): string => stillByKey[key] ?? NEUTRAL_STILL;
+const byKey: Record<string, PortraitSet> = {};
 
-export const resolvePortraitAnimated = (key: string): string =>
-  animatedByKey[key] ?? NEUTRAL_ANIMATED;
+const setFor = (key: string): PortraitSet => byKey[key] ?? NEUTRAL;
 
-export const resolvePortraitWebm = (key: string): string =>
-  webmByKey[key] ?? NEUTRAL_WEBM;
+export const resolvePortrait = (key: string): string => setFor(key).still;
+
+export const resolvePortraitAnimated = (key: string): string => setFor(key).animated;
+
+export const resolvePortraitWebm = (key: string): string => setFor(key).webm;
