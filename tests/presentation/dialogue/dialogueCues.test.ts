@@ -191,45 +191,85 @@ describe('the choice cues', () => {
   };
 
   /**
-   * Spends the panel's opening arrival, on the option it already selected so that nothing about the
-   * selection changes. The pointer's first arrival on a question is the panel settling rather than a
-   * move -- see Choices' pointerenter handler -- so a test about pointer moves has to get past it
-   * before the pointer means anything.
+   * The pointer physically moving over an option, which is the only thing that selects one.
+   * `bubbles`, unlike the enter below: `pointermove` is one of the events svelte delegates to the
+   * mount root, so a non-bubbling one reaches no handler and the test would pass on nothing.
    */
-  const arrive = (option: HTMLButtonElement, playCue: ReturnType<typeof vi.fn>) => {
-    option.dispatchEvent(new Event('pointerenter'));
+  const pointerOver = (option: HTMLButtonElement) => {
+    option.dispatchEvent(new Event('pointermove', { bubbles: true }));
     flushSync();
-    expect(countOf(playCue, 'ui.move')).toBe(0);
   };
 
-  it('sounds nothing when the panel opens under a pointer already resting on an option', () => {
+  /**
+   * A `pointerenter` with no `pointermove` before it: the element under a STATIONARY pointer
+   * changed. The browser sends exactly this when the scrim scrolls -- a wheel, or the scroll Tab
+   * performs to bring its target into view -- and it is why the handler is on `pointermove`.
+   */
+  const draggedUnderPointer = (option: HTMLButtonElement) => {
+    option.dispatchEvent(new Event('pointerenter'));
+    flushSync();
+  };
+
+  it('leaves the selection where it is when a scroll drags another option under the pointer', () => {
     const { playCue, options } = atChoices();
 
-    // The mount focus has landed on option 0 by now, and the pointer never moved: the panel appeared
-    // under it, and Chrome re-resolved hover afterwards. The enter arrives with focus already inside
-    // the panel, which is exactly what a keyboard move looks like -- and it must still be silent.
-    options[1].dispatchEvent(new Event('pointerenter'));
-    flushSync();
+    // The pointer has chosen a row, and that sounded.
+    pointerOver(options[1]);
+    expect(countOf(playCue, 'ui.move')).toBe(1);
+
+    // The scrim scrolls, so a wheel taken to read the rest of a long list slides the options past a
+    // pointer that never left its chair. None of that is the player choosing: the selection stays
+    // where the player put it, and nothing sounds.
+    draggedUnderPointer(options[0]);
     expect(document.activeElement).toBe(options[1]);
-    expect(countOf(playCue, 'ui.move')).toBe(0);
+    expect(countOf(playCue, 'ui.move')).toBe(1);
   });
 
-  it('keeps the pointer\'s option, silently, when the enter beats the mount focus', () => {
+  it('does not undo a keyboard move when the scroll it caused lands an option under the pointer', () => {
+    const { playCue, options } = atChoices();
+
+    // Tab scrolls its target into view, and that scroll fires the enter above on whichever option
+    // ends up under the resting pointer. The selection Tab just made has to survive it, with the one
+    // cue Tab earned and no second one on top.
+    options[1].focus();
+    expect(countOf(playCue, 'ui.move')).toBe(1);
+
+    draggedUnderPointer(options[0]);
+    expect(document.activeElement).toBe(options[1]);
+    expect(countOf(playCue, 'ui.move')).toBe(1);
+  });
+
+  it('sounds nothing when the panel opens under a pointer that does not move', () => {
+    const { playCue, options } = atChoices();
+
+    // The panel appeared under the pointer and Chrome re-resolved hover afterwards, so option 1 gets
+    // an enter for a pointer that never moved. The mount focus keeps option 0 and nothing sounds --
+    // no flag needed for the opening, because a pointer lying still sends no `pointermove` at all.
+    draggedUnderPointer(options[1]);
+    expect(document.activeElement).toBe(options[0]);
+    expect(countOf(playCue, 'ui.move')).toBe(0);
+
+    // And the moment the player actually moves, the selection follows and sounds once.
+    pointerOver(options[1]);
+    expect(document.activeElement).toBe(options[1]);
+    expect(countOf(playCue, 'ui.move')).toBe(1);
+  });
+
+  it('keeps the pointer\'s option, silently, when the move beats the mount focus', () => {
     vi.useFakeTimers();
     const { session, playCue } = render();
     tick(0);
     session.advance();
-    // Flushed but not advanced: the panel is mounted and its mount-focus task is queued, so this is
-    // the other order the same resting pointer can produce. Neither is pinned by anything in the
-    // platform, and neither may sound a move.
+    // Flushed but not advanced: the panel is mounted and its mount-focus task is queued, so a
+    // pointer moving inside that task races it. The move wins, and arrives from outside the panel,
+    // so it is silent.
     tick(0);
     const options = [...document.querySelectorAll<HTMLButtonElement>('.choice')];
     expect(options).toHaveLength(2);
     expect(document.activeElement).not.toBe(options[0]);
     playCue.mockClear();
 
-    options[1].dispatchEvent(new Event('pointerenter'));
-    flushSync();
+    pointerOver(options[1]);
     expect(document.activeElement).toBe(options[1]);
 
     // And the mount focus is cancelled rather than pulling the selection back to the first option.
@@ -238,16 +278,15 @@ describe('the choice cues', () => {
     expect(countOf(playCue, 'ui.move')).toBe(0);
   });
 
-  it('sounds the pointer arriving once the keyboard has moved the selection', () => {
+  it('sounds the pointer moving onto another option after the keyboard has moved the selection', () => {
     const { playCue, options } = atChoices();
 
-    // A keyboard move settles the panel too: the opening's silent arrival is spent by whatever moves
-    // the selection first, so a mouse brought in after walking the list is a move like any other.
+    // A mouse brought in after walking the list is a move like any other: two selections changed by
+    // the player, two cues.
     options[1].focus();
     expect(countOf(playCue, 'ui.move')).toBe(1);
 
-    options[0].dispatchEvent(new Event('pointerenter'));
-    flushSync();
+    pointerOver(options[0]);
     expect(document.activeElement).toBe(options[0]);
     expect(countOf(playCue, 'ui.move')).toBe(2);
   });
@@ -278,12 +317,10 @@ describe('the choice cues', () => {
 
   it('sounds a move once when the pointer selects another option, and not twice around the click', () => {
     const { session, playCue, options } = atChoices();
-    arrive(options[0], playCue);
 
-    // The pointer moves the selection rather than sounding beside it, so entering the option both
+    // The pointer moves the selection rather than sounding beside it, so moving onto the option both
     // focuses it and sounds exactly one move.
-    options[1].dispatchEvent(new Event('pointerenter'));
-    flushSync();
+    pointerOver(options[1]);
     expect(document.activeElement).toBe(options[1]);
     expect(countOf(playCue, 'ui.move')).toBe(1);
 
@@ -309,8 +346,7 @@ describe('the choice cues', () => {
     // from another option inside the panel. Answering on the first row leaves focus where it already
     // was and fires no focus event at all, so the two rows only agree if the re-focus is silent --
     // one player action, one sound, whichever row it was taken on.
-    options[1].dispatchEvent(new Event('pointerenter'));
-    flushSync();
+    pointerOver(options[1]);
     expect(document.activeElement).toBe(options[1]);
     playCue.mockClear();
 
@@ -328,18 +364,16 @@ describe('the choice cues', () => {
     expect(options[0].textContent).toContain('是');
   });
 
-  it('sounds nothing when the pointer re-enters the option it already selected', () => {
+  it('sounds nothing while the pointer keeps moving inside the option it already selected', () => {
     const { playCue, options } = atChoices();
-    arrive(options[0], playCue);
 
-    options[1].dispatchEvent(new Event('pointerenter'));
-    flushSync();
+    pointerOver(options[1]);
     expect(countOf(playCue, 'ui.move')).toBe(1);
 
-    // The pointer wandering off and back does not move the selection -- focus never left option 1 --
-    // so there is nothing to sound.
-    options[1].dispatchEvent(new Event('pointerenter'));
-    flushSync();
+    // A `pointermove` fires for every pixel the pointer travels, and the ones that stay on the same
+    // option do not move the selection -- focus never left option 1 -- so there is nothing to sound.
+    pointerOver(options[1]);
+    pointerOver(options[1]);
     expect(countOf(playCue, 'ui.move')).toBe(1);
   });
 });

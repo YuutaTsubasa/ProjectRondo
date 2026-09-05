@@ -11,43 +11,33 @@
   /**
    * Sounds the move when focus arrives from another option in this panel.
    *
-   * The panel has one selection, and it is the focused option: `pointerenter` below moves focus
-   * rather than reporting a second kind of selection beside it, so "the selection moved" has exactly
-   * one event and there is nothing to de-duplicate. `relatedTarget` on a focus event is the element
-   * that lost it, which tells two of the non-moves apart from a move without remembering anything:
-   * a first mount's focus arrives from outside the panel (`<body>`, or null), and clicking the
-   * option the pointer already selected fires no focus event at all.
+   * The panel has one selection, and it is the focused option: the pointer moves focus rather than
+   * reporting a second kind of selection beside it, so "the selection moved" has exactly one event
+   * and there is nothing to de-duplicate. `relatedTarget` on a focus event is the element that lost
+   * it, which tells the arrivals that are not moves apart from a move without remembering anything:
+   * a mount's focus and the pointer coming in from off the list both arrive from outside the panel
+   * (`<body>`, the scrim, or null), and clicking the option the pointer already selected fires no
+   * focus event at all.
    *
-   * The other two arrive from inside the panel and `relatedTarget` cannot tell them from a move,
-   * so each is silenced at its source by `silentFocus`. One is the panel re-focusing itself: when a
-   * choice's target is itself a choice node the panel is not remounted (see the effect below), so
+   * The one arrival from inside the panel that is not a move is the panel re-focusing itself, which
+   * `relatedTarget` cannot tell from a move, so it is silenced at its source by `silentFocus`: when
+   * a choice's target is itself a choice node the panel is not remounted (see the effect below), so
    * the re-focus moves focus off the option just answered and onto the first option of the new
    * question. It is the panel posing a question, not the player answering one — and without this,
    * answering on the second row sounded a move that answering on the first did not, because there
    * the unkeyed `{#each}` re-uses a button that already has focus and no focus event fires at all.
-   * The other is the pointer's first arrival on a question, which the handler below explains.
    */
   let silentFocus = false;
   const moved = (from: EventTarget | null) => {
     if (silentFocus) return;
-    if (from instanceof Node && panel?.contains(from)) {
-      // The selection has been moved by something other than the pointer, so the panel is no longer
-      // opening and the pointer's arrival stops being part of that: bringing the mouse in after
-      // walking the list with the keyboard is a move, and sounds like one.
-      opening = false;
-      onMove?.();
-    }
+    if (from instanceof Node && panel?.contains(from)) onMove?.();
   };
 
   // Same as the backlog: this modal cannot be dismissed and must be answered, so it takes focus
   // rather than leaving it on whatever inert has just switched off behind the scrim.
   let panel: HTMLDivElement | undefined = $state();
-  // True until this question's selection has settled on the option it opens with. Reset per question
-  // rather than per mount, because a chained question re-uses the panel — see the effect below.
-  let opening = true;
-  // Held so the pointer can cancel it: a panel that opens under a resting pointer gets a
-  // `pointerenter` on the option beneath it, which selects that option, and the mount focus landing
-  // afterwards would move the selection back to the first one — a move the player did not make.
+  // Held so a pointer that moves onto an option before this task runs can cancel it: that pointer
+  // has chosen a row, and the panel's own opening focus must not take it back.
   let mountFocus: ReturnType<typeof setTimeout> | undefined;
   // Deferred by a task, not a frame. Svelte effects run in the microtask after the DOM update, which
   // is still inside the click that opened this -- and Chrome then re-resolves focus for a click
@@ -61,7 +51,6 @@
     choices;
     const first = panel?.querySelector('button');
     if (!first) return;
-    opening = true;
     mountFocus = setTimeout(() => {
       // `focus()` dispatches the focus event synchronously, so the flag covers exactly this panel's
       // own arrival and nothing the player does. `finally` because a focus handler may throw.
@@ -102,32 +91,30 @@
         class="choice"
         onclick={() => onSelect(i)}
         onfocus={(e) => moved(e.relatedTarget)}
-        onpointerenter={(e) => {
+        onpointermove={(e) => {
           // The pointer moves the selection instead of running beside it, which is what a menu does
           // and what the fill now follows: the fill is on :focus, so there is one selected row and
-          // this is what puts the pointer's row in it. preventScroll because the scrim scrolls -- a
-          // hover must not jump a partly visible option into view under the pointer.
+          // this is what puts the pointer's row in it.
           //
-          // The pointer's first arrival on a question is silent, and cancels the mount focus if that
-          // has not run yet. A panel opening under a resting pointer gets a `pointerenter` for a
-          // pointer that never moved, and nothing on the event tells that apart from the player
-          // moving onto an option: either way it is one enter, with the mount focus either already
-          // on another row or still queued. Nor is the order of those two pinned -- a zero-delay
-          // task usually runs before the rendering lifecycle in which Chrome re-resolves hover after
-          // a layout change, but nothing promises it -- so the opening is spent on whichever of them
-          // arrives, and neither ordering can sound a move. The cost is one cue: a player who moves
-          // onto the panel before touching anything else hears nothing for that first row. The
-          // alternative is a move cue for a pointer that never moved, every time the panel opens
-          // under one -- which is most times, since the press that opens it leaves the pointer over
-          // the middle of the screen where the panel appears.
+          // `pointermove`, not `pointerenter`. The rule is that the POINTER moves the selection, and
+          // this is the event that means the pointer moved; `pointerenter` means only that the
+          // element under the pointer changed, which happens to a pointer lying still. The scrim
+          // scrolls -- see its comment below, neither the prompt nor the option list has a bound --
+          // so a wheel taken to read the rest of the list drags a different option under a resting
+          // pointer and fires one, and so does the scroll Tab performs to bring its target into
+          // view. Acted on, the first moves the selection and sounds a move for a pointer that never
+          // moved; the second pulls the selection straight back off the option Tab just reached and
+          // sounds on top of the move Tab already made. `preventScroll` keeps THIS handler from
+          // scrolling, and says nothing about a scroll arriving from anywhere else.
+          //
+          // It also settles the opening with no state of its own: a panel appearing under a resting
+          // pointer fires no `pointermove`, so the mount focus below keeps the first option and
+          // nothing sounds -- and the moment the player does move, the selection follows and sounds
+          // once, like any other move. `clearTimeout` for the one order that still races: a pointer
+          // that moves inside the task the mount focus is queued in has chosen a row, and the
+          // panel's opening focus must not take it back.
           clearTimeout(mountFocus);
-          silentFocus = opening;
-          opening = false;
-          try {
-            e.currentTarget.focus({ preventScroll: true });
-          } finally {
-            silentFocus = false;
-          }
+          e.currentTarget.focus({ preventScroll: true });
         }}
       >
         <span class="inner"><span class="caret" aria-hidden="true">❯</span><span>{choice.label}</span></span>
@@ -243,7 +230,7 @@
      --c-blue block is 6.26:1; blue text on the glass would be 2.34:1, so the fill carries the colour.
 
      :focus, not :hover and :focus-visible. The selection is the focused option and the pointer moves
-     focus to what it enters, so :focus alone paints the row the pointer is on AND the row the
+     focus to the row it moves over, so :focus alone paints the row the pointer chose AND the row the
      keyboard walked to -- one filled row, and always the one Enter confirms. The pair it replaces
      could not promise either: :hover paints on its own wherever the pointer happens to rest, so
      Shift+Tab away from a hovered row filled two rows at once; and :focus-visible does not match a
