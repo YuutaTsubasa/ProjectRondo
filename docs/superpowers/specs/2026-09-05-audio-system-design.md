@@ -29,6 +29,7 @@ be heard*, and a thin `src/presentation/` layer makes noise.
 ```
 src/domain/audio/          pure, Vitest-covered
   soundCue.ts        the cue vocabulary
+  footContact.ts     the measured phase of each footfall in the walk and run clips
   footstepCadence.ts clip phase -> footfall events
   locomotionGait.ts  clip weights + phases -> the cadence's sample
   musicDirector.ts   game state -> desired track
@@ -485,7 +486,7 @@ exercised. Each item below is marked with what was actually established, not a s
   pass.
 - **Partially verified by static read, not measurement** — the footstep path allocates **two** small
   object literals on *every* frame, not only on an actual footfall, so "no per-frame allocation in the
-  wiring" does not hold literally. `hubAudio.ts:174-183` builds the `LocomotionReading` it hands to
+  wiring" does not hold literally. `hubAudio.ts:162-171` builds the `LocomotionReading` it hands to
   `cadenceSample({...})`, and `cadenceSample` then returns a fresh `CadenceSample` from
   `locomotionGait.ts:45-46` — the early-return `{ gait: 'idle', phase: 0, airborne, elapsed }` branch
   and the normal `{ gait, phase, airborne, elapsed }` branch — which is what reaches `cadence.step`.
