@@ -33,21 +33,30 @@ export interface HomingLockConfig extends HomingSelectionConfig {
 export interface HomingLockInput {
   /** `CharacterMotion.homing !== null` from last frame's result: a dash is already under way. */
   readonly dashInFlight: boolean;
-  /** The jump key-press consumed this frame. Off the ground it asks for a dash; grounded it is a jump. */
+  /**
+   * The jump key-press consumed this frame. It asks for a dash only where the ground machine has
+   * already declined it as a jump — see {@link pressWouldDash}.
+   */
   readonly jumpPressed: boolean;
   /**
-   * The complement of what the domain is handed as `isGrounded` this frame — i.e.
-   * `!GroundContactResult.grounded`, which already folds coyote time and the takeoff guard in.
+   * Would a press right now become a dash rather than an ordinary jump —
+   * `!GroundContactResult.jumpAvailable`, which already folds coyote time, the jump buffer's takeoff
+   * guard and the dash's own frames in.
    *
    * Deliberately NOT `GroundContactResult.airborne`: that is the *animation* debounce, held false
-   * for `FALL_GRACE_SECONDS` 0.2 s so a two-frame hop does not throw a fall pose, while `grounded`
-   * stops accepting the press as a jump at `COYOTE_SECONDS` 0.15 s. Gating on the
-   * debounce therefore left the 0.15–0.2 s of an uncommanded fall refusing both — the press was
-   * consumed, became no jump, and never reached this machine either. Reading the same boolean the
-   * domain reads partitions every frame between the two: exactly one of a jump and a dash takes the
-   * press, never neither.
+   * for `FALL_GRACE_SECONDS` 0.2 s so a two-frame hop does not throw a fall pose, while a jump stops
+   * being legal at `COYOTE_SECONDS` 0.15 s. Gating on the debounce therefore left the 0.15–0.2 s of
+   * an uncommanded fall refusing both — the press was consumed, became no jump, and never reached
+   * this machine either.
+   *
+   * And deliberately not `!grounded`, which closes that gap for a press but not for the reticle,
+   * which answers on frames with no press: `grounded` folds this frame's `jumpRequested` in, so
+   * through the coyote window of an uncommanded fall it is false with no press and true with one —
+   * the ring would light on a crystal that the very next frame's press jumps past instead of flying
+   * to. Asking whether a jump is *available* answers the press frame and the frames before it the
+   * same way: exactly one of a jump and a dash takes any press, never neither.
    */
-  readonly offGround: boolean;
+  readonly pressWouldDash: boolean;
   /** The player's world position this frame. */
   readonly from: Vec3;
   /**
@@ -89,9 +98,9 @@ export const stepHomingLock = (
   config: HomingLockConfig,
 ): HomingLockResult => {
   // Not asked while a dash is in flight: the lock is committed and the trail already says what is
-  // happening, and grounded the same button is an ordinary jump, so pointing a reticle at a crystal
-  // there would lie about what the press does.
-  const candidate = input.offGround && !input.dashInFlight
+  // happening, and wherever the press would still be taken as a jump — grounded, or anywhere the
+  // coyote window is open — pointing a reticle at a crystal would lie about what the press does.
+  const candidate = input.pressWouldDash && !input.dashInFlight
     ? selectHomingTarget(input.from, input.cameraForward, input.candidates, config)
     : null;
   const crystal = input.dashInFlight ? lock.crystal : (input.jumpPressed ? candidate : null);

@@ -19,7 +19,7 @@ const BEHIND = vec3(0, 0, 8);
 const frame = (overrides: Partial<HomingLockInput> = {}): HomingLockInput => ({
   dashInFlight: false,
   jumpPressed: false,
-  offGround: true,
+  pressWouldDash: true,
   from: ZERO3,
   cameraForward: FORWARD,
   candidates: [NEAR, FAR, BEHIND],
@@ -49,7 +49,7 @@ describe('stepHomingLock', () => {
 
   it('locks nothing on the ground — the same press is an ordinary jump there', () => {
     const { lock, preview } = stepHomingLock(
-      NO_HOMING_LOCK, frame({ jumpPressed: true, offGround: false }), C,
+      NO_HOMING_LOCK, frame({ jumpPressed: true, pressWouldDash: false }), C,
     );
     expect(lock.crystal).toBeNull();
     // And the reticle stays hidden, rather than pointing at a crystal the press will not fly to.
@@ -124,11 +124,20 @@ describe('stepHomingLock composed with stepGroundContact', () => {
 
     const ground = stepGroundContact(contact, { ...FALLING, jumpPressed: true });
     const { lock } = stepHomingLock(
-      NO_HOMING_LOCK, frame({ jumpPressed: true, offGround: !ground.grounded }), C,
+      NO_HOMING_LOCK, frame({ jumpPressed: true, pressWouldDash: !ground.jumpAvailable }), C,
     );
     if (ground.jumpRequested && lock.crystal !== null) return 'both';
     if (ground.jumpRequested) return 'jump';
     return lock.crystal === null ? 'nothing' : 'dash';
+  };
+
+  /** The same fall, with the button never touched: what the ring shows on the frame after `seconds`. */
+  const previewAfterFalling = (seconds: number) => {
+    let contact = INITIAL_GROUND_CONTACT;
+    for (let t = 0; t < seconds; t += DT) contact = stepGroundContact(contact, FALLING).state;
+
+    const ground = stepGroundContact(contact, FALLING);
+    return stepHomingLock(NO_HOMING_LOCK, frame({ pressWouldDash: !ground.jumpAvailable }), C).preview;
   };
 
   // Well past FALL_GRACE_SECONDS, so the sweep covers the whole of both gates and the gap between.
@@ -151,6 +160,20 @@ describe('stepHomingLock composed with stepGroundContact', () => {
     expect(pressAfterFalling(COYOTE_SECONDS / 2)).toBe('jump');
   });
 
+  it('rings a crystal on exactly the frames whose press is a dash, and on no other', () => {
+    // The ring promises "what a press right now would hit", so on every frame of the fall it has to
+    // give the same answer the press does. The coyote window is where that used to break: gating the
+    // ring on `!grounded` lit it from the first frame off the ledge, while `canJump` kept answering
+    // the press with an ordinary jump for a further COYOTE_SECONDS.
+    for (const t of FALL) {
+      expect(previewAfterFalling(t) === null).toBe(pressAfterFalling(t) === 'jump');
+    }
+    // Both ends pinned outright as well, so a change that made ring and press uniformly wrong — dark
+    // for the whole fall, or lit for the whole of it — could not pass the agreement check above.
+    expect(previewAfterFalling(0)).toBeNull();
+    expect(previewAfterFalling(COYOTE_SECONDS)).toBe(0);
+  });
+
   /**
    * The dash's own frames are the other half of the partition, and the probe reports support on them:
    * mid-dash it skims the ground (`slopeMotion`), and a crystal low enough puts floor under the
@@ -165,9 +188,9 @@ describe('stepHomingLock composed with stepGroundContact', () => {
       const ground = stepGroundContact(INITIAL_GROUND_CONTACT, {
         supported: true, jumpPressed: true, verticalSpeed: 9, delta: DT, ...over,
       });
-      const dash = stepHomingLock(
-        lock, frame({ jumpPressed: true, offGround: !ground.grounded, dashInFlight: over.dashInFlight }), C,
-      );
+      const dash = stepHomingLock(lock, frame({
+        jumpPressed: true, pressWouldDash: !ground.jumpAvailable, dashInFlight: over.dashInFlight,
+      }), C);
       if (ground.jumpRequested) return 'jump';
       return dash.lock.crystal !== null && dash.lock.crystal !== lock.crystal ? 'dash' : 'held';
     };

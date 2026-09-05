@@ -124,6 +124,15 @@ export interface GroundContactResult {
   /** What to hand the domain as `jumpRequested`. */
   readonly jumpRequested: boolean;
   /**
+   * Whether a press would be spent as a jump if one were made this frame. {@link jumpRequested} is
+   * this AND a live press; splitting the two apart is what lets `homingLock` ask "would a press be a
+   * dash?" on frames with no press at all. Answering that from `grounded` cannot work, because
+   * `grounded` folds this frame's `jumpRequested` back in: across the coyote window of an uncommanded
+   * fall it reads false with no press and true with one, which is a reticle pointing at a crystal the
+   * next frame's press flies past as an ordinary jump. See `HomingLockInput.pressWouldDash`.
+   */
+  readonly jumpAvailable: boolean;
+  /**
    * What the animation layer should treat as "off the ground": true for a whole jump, and for a fall
    * that has outlasted {@link FALL_GRACE_SECONDS}, but never for the probe's brief dropouts.
    */
@@ -144,7 +153,8 @@ export const stepGroundContact = (
   // same press as the chain dash it was meant to be. On a dash frame the lock is already committed
   // and ignores presses, so there the buffer is the whole of the answer.
   const dashOwnsFrame = dashInFlight || bounced;
-  const jumpRequested = buffered > 0 && !dashOwnsFrame && canJump(settled);
+  const jumpAvailable = !dashOwnsFrame && canJump(settled);
+  const jumpRequested = buffered > 0 && jumpAvailable;
   const contact: GroundContact = jumpRequested || bounced ? { kind: 'rising', seconds: 0 } : settled;
 
   return {
@@ -153,6 +163,7 @@ export const stepGroundContact = (
     // grounded motion — that one frame of leniency is exactly what coyote time is.
     grounded: jumpRequested || contact.kind === 'grounded',
     jumpRequested,
+    jumpAvailable,
     airborne: isAirborne(contact),
   };
 };

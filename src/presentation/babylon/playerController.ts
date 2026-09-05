@@ -120,11 +120,12 @@ export function createPlayer(
 
     // The jump key is edge-triggered and consumed once, then offered to BOTH the ground-contact
     // machine below and the homing lock. The two gates are one boolean and its complement — the lock
-    // is handed `!grounded`, the same answer the domain gets as `isGrounded` — so every press goes to
-    // exactly one of them and none can fall between. That partition is the fix for a window in which
-    // one did: the lock used to be gated on `player.airborne`, the FALL_GRACE_SECONDS animation
-    // debounce, which lags `grounded`'s COYOTE_SECONDS by 0.05 s, and a press inside that lag was
-    // consumed, refused as a jump and never offered as a dash. See `HomingLockInput.offGround`.
+    // is handed `!jumpAvailable`, precisely the presses the ground machine will not spend — so every
+    // press goes to exactly one of them and none can fall between. That partition is the fix for a
+    // window in which one did: the lock used to be gated on `player.airborne`, the
+    // FALL_GRACE_SECONDS animation debounce, which lags COYOTE_SECONDS by 0.05 s, and a press inside
+    // that lag was consumed, refused as a jump and never offered as a dash. See
+    // `HomingLockInput.pressWouldDash`, which also says why the gate is not `!grounded`.
     //
     // Being grounded is not the only way the domain can decline a press, though: on a dash frame it
     // takes the homing branch and never reads `jumpRequested` at all. So the ground machine is told
@@ -153,21 +154,21 @@ export function createPlayer(
       delta: dt,
     });
     contact = contactResult.state;
-    const { grounded, jumpRequested } = contactResult;
+    const { grounded, jumpRequested, jumpAvailable } = contactResult;
     player.airborne = contactResult.airborne;
 
     const cam = follow.camera;
     const lockResult = stepHomingLock(homingLock, {
       dashInFlight,
       jumpPressed: pressed,
-      offGround: !grounded,
+      pressWouldDash: !jumpAvailable,
       // The physics capsule's position, NOT `root`'s: `root.position.y` is `visualY`, the smoothed
       // visual height, and the filter's steady-state lag while the capsule climbs at `homingSpeed` 24
       // is 1.92 u at 60 fps (2.14 u at the MAX_DT clamp). Everything `stepHoming` derives from this
       // offset — the dash direction, `remaining`, and so both the arrival test and the timeout —
-      // would then be measured from a point the capsule is not at, and that lag is larger than the
-      // arrival threshold (`homingSpeed * dt`, 0.4–0.8 u) and than `homingMaxDuration`'s whole 0.1 s
-      // margin over a max-range crossing, so steep dashes would time out instead of arriving.
+      // would then be measured from a point the capsule is not at, and a lag that never shrinks
+      // floors `remaining` at ~1.9 u while the arrival test needs it under `homingSpeed * dt`
+      // (0.4–0.8 u), so a steep dash would never be seen arriving and would always time out instead.
       // Read before this frame's `integrate`, which is the position the frame's velocity starts from.
       from: toVec3(controller.getPosition()),
       cameraForward: toVec3(cam.getTarget().subtract(cam.position)),
