@@ -21,7 +21,21 @@ export const DEFAULT_LEVELS: MixerLevels = {
   muted: false,
 };
 
-const clamp01 = (v: number): number => (v < 0 ? 0 : v > 1 ? 1 : v);
+/**
+ * Bounds a level into [0, 1], `NaN` included.
+ *
+ * Written as "is it above 0, and is it below 1" rather than as two rejections of the out-of-range
+ * cases, because `NaN` fails *every* comparison: `NaN < 0` and `NaN > 1` are both false, so a
+ * reject-the-extremes clamp falls through to the identity branch and hands `NaN` on. That is the one
+ * bad input that does not merely mis-set a bus — a non-finite value is rejected by the underlying
+ * `AudioParam`, so it takes the bus out entirely.
+ *
+ * It maps to 0 rather than to the default of 1: bounding a level is this function's job, inventing
+ * one is not. A `NaN` arriving from a `JSON.parse` of a hand-edited settings blob (spec §9, when the
+ * mix is stored) is for the settings parser to reject at its own boundary; until there is one,
+ * silence is the only output here that can neither distort nor throw.
+ */
+const clamp01 = (v: number): number => (v > 0 ? (v < 1 ? v : 1) : 0);
 
 /**
  * The gain to apply to one bus. Clamps rather than trusting its input: these values will come from a

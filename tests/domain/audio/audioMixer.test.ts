@@ -22,6 +22,17 @@ describe('busGain', () => {
   it('clamps levels into [0, 1] rather than trusting the caller', () => {
     expect(busGain(levels({ master: 4, sfx: 4 }), 'sfx')).toBe(1);
     expect(busGain(levels({ sfx: -1 }), 'sfx')).toBe(0);
+    expect(busGain(levels({ sfx: Number.POSITIVE_INFINITY }), 'sfx')).toBe(1);
+    expect(busGain(levels({ sfx: Number.NEGATIVE_INFINITY }), 'sfx')).toBe(0);
+  });
+
+  // The clamp's comparisons are all false for NaN, so it is the one out-of-range value that can reach
+  // `AudioBus.volume` unaltered — where a non-finite number is rejected by the AudioParam and takes
+  // the bus out. It is also the value a stored mix produces first: `JSON.parse` of a truncated or
+  // hand-edited settings blob types cleanly as `number`.
+  it('reads a non-finite level as silence rather than passing NaN on to a bus', () => {
+    expect(busGain(levels({ master: Number.NaN }), 'music')).toBe(0);
+    expect(busGain(levels({ music: Number.NaN }), 'music')).toBe(0);
   });
 
   it('defaults to unity on every bus', () => {
