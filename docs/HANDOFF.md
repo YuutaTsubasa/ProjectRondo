@@ -96,15 +96,16 @@ pnpm tauri dev          # native desktop app (needs Rust)
     `docs/superpowers/specs/2026-08-21-lighting-atmosphere-design.md` (§11–§12 are the measured record).
     **Deferred:** the mountain ridge still keeps a visible edge against the sky; the only remaining lever
     is `terrain.ts`'s `haze` colour, which is a human art-direction call (§11a).
-  - **Knight face lighting:** the head — `Mesh_1` (hair only — no face, no neck, no skin), `Mesh_20`
-    (the face/head skin, reaching below `Mesh_1`'s bottom into the collar region — see
-    `HEAD_MESHES` in `shadowPolicy.ts` for the per-mesh vertex counts and Y-extents that settled
-    this), and the eyeballs `Mesh_43` / `Mesh_46` — gets its own material cloned off the single
+  - **Knight face lighting:** the head — `Mesh_1` (face and hair together, 8047 verts, the topmost
+    mesh in the model) and `Mesh_23` (the inner head, 1533 verts, reaching below `Mesh_1`'s bottom and
+    overlapping the body's top — see `HEAD_MESHES` in `shadowPolicy.ts` for the vertex counts and
+    Y-extents); the eyes are painted into the face texture, so there is no separate eyeball mesh —
+    gets its own material cloned off the single
     shared glTF material, with the albedo added back as emissive so the face stays bright and flat
     instead of tracking the sun. Head region mean luma 35.6 → 68.8 at the shipped 0.45 (0.25 gives
     57.1), with the rest of the frame flat at 114.3 as a control — which is what says the body meshes
     are untouched. **That table is from the previous character's three-mesh head (`Mesh_0` +
-    `Mesh_32`/`Mesh_33`), not the current four-mesh head above, and has not been retaken** — a
+    `Mesh_32`/`Mesh_33`), not the current two-mesh head above, and has not been retaken** — a
     different head mesh with a different face texture in a different frame composition cannot
     reproduce it. `FACE_EMISSIVE` was tuned against those numbers, so the constant is inherited and
     unverified for this model; re-measure both the table and the constant on the current head before
@@ -114,17 +115,20 @@ pnpm tauri dev          # native desktop app (needs Rust)
     **Body PBR (medieval-knight swap):** the armour, previously baseColor+normal only, now also gets a
     packed metallic/roughness map (`public/models/knight_mr.webp`, glTF-style: roughness → G, metallic
     → B), applied by `applyBodyPbr` in `knight.ts` after the face clone so the two never fight over the
-    shared material. `BODY_METALLIC` is deliberately held at 0.6 rather than the physically-correct 1
-    — this scene has no environment texture, so a fully metallic surface has nothing to reflect and
-    renders near-black — and `BODY_DIRECT_INTENSITY` (1.6) compensates the armour's direct-light
-    response for that same missing IBL. `backFaceCulling` is off on the body only, closing see-through
-    seams where the armour's single-sided shells don't quite meet. All three are measured constants;
-    see their doc comments in `knight.ts` for the tables, and re-measure before changing any of them.
+    shared material. `BODY_METALLIC` was held at 0.6 rather than the physically-correct 1, and
+    `BODY_DIRECT_INTENSITY` pushed to 1.6, because the scene had no environment texture and a fully
+    metallic surface with nothing to reflect renders near-black. **Both are back at 1.0 as of the
+    stylized-knight swap:** `createEnvironment` now sets `scene.environmentTexture` to a neutral studio
+    IBL (`public/env/studio.hdr` — not reproducible, see `public/env/CREDITS.md`), so the armour has
+    something to reflect and `IBL_INTENSITY` is the brightness lever instead of those two constants.
+    `backFaceCulling` is off on the body only, closing see-through
+    seams where the armour's single-sided shells don't quite meet. All of these are measured constants;
+    see their doc comments in `knight.ts` and `environment.ts`, and re-measure before changing any.
 
     Three things not to re-derive. The complaint was "the face is too dark, too affected by scene
     lighting, and the shadow on it looks bad" — **not** cel banding or outlines, neither of which was
-    asked for. **That "shadow" is not a shadow:** `receiveShadows` is `false` on the four `HEAD_MESHES`
-    (`Mesh_1`, `Mesh_20`, `Mesh_43`, `Mesh_46`) — the shadow-quality PR makes the other 43 body
+    asked for. **That "shadow" is not a shadow:** `receiveShadows` is `false` on both `HEAD_MESHES`
+    (`Mesh_1`, `Mesh_23`) — the shadow-quality PR makes the other 40 body
     meshes receive, but the face stays excluded — so nothing is cast onto the face; the dark band
     is the **N·L terminator**, the diffuse falloff on the side turned away from the sun, which is
     why the fix is an emissive floor rather than anything to do with the shadow generator. And **do
