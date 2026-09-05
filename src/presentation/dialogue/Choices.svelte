@@ -23,30 +23,28 @@
   });
 </script>
 
-{#if choices.length > 0}
-  <!-- Full-screen takeover; the option list sits in the centre of the screen. -->
-  <div class="scrim">
-    <div
-      class="panel"
-      bind:this={panel}
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="choices-head"
-      aria-describedby="choices-prompt"
-    >
-      <h2 class="head" id="choices-head">SELECT AN ACTION</h2>
-      <!-- The line that poses the question. The scrim is opaque, so the dialogue box is not readable
-           behind it -- without this the player is answering a question they cannot see. -->
-      <p class="prompt" id="choices-prompt">{prompt}</p>
-      {#each choices as choice, i}
-        <!-- Kit: a 1px frame with 4px padding around an inner block, and a caret prefix. -->
-        <button class="choice" onclick={() => onSelect(i)}>
-          <span class="inner"><span class="caret" aria-hidden="true">❯</span><span>{choice.label}</span></span>
-        </button>
-      {/each}
-    </div>
+<!-- Full-screen takeover; the option list sits in the centre of the screen. -->
+<div class="scrim">
+  <div
+    class="panel"
+    bind:this={panel}
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="choices-head"
+    aria-describedby="choices-prompt"
+  >
+    <h2 class="head" id="choices-head">SELECT AN ACTION</h2>
+    <!-- The line that poses the question. The scrim is opaque, so the dialogue box is not readable
+         behind it -- without this the player is answering a question they cannot see. -->
+    <p class="prompt" id="choices-prompt">{prompt}</p>
+    {#each choices as choice, i}
+      <!-- Kit: a 1px frame with 4px padding around an inner block, and a caret prefix. -->
+      <button class="choice" onclick={() => onSelect(i)}>
+        <span class="inner"><span class="caret" aria-hidden="true">❯</span><span>{choice.label}</span></span>
+      </button>
+    {/each}
   </div>
-{/if}
+</div>
 
 <style>
   /* The kit's takeover ground, and opaque rather than a wash. At 0.55 over the live scene the

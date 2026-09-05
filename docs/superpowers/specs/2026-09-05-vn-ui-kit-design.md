@@ -367,3 +367,27 @@ never remounts; with an unkeyed `{#each}`, a shorter next list destroys the focu
 focus to `<body>` while `inert` is still on. It now depends on `choices` as well. And the 09-04 plan
 and spec are marked superseded: they described tokens this branch deleted and carried a "no layout
 or behavioural change" constraint that is the opposite of what it does.
+
+## 19. Why the choices modal took focus and the backlog did not
+
+Round 11: the deferred focus in `Choices` still did not stick on the click path — `focusin` on the
+option, then `focusout` on the same live node, settling on `<body>`. `Backlog`'s identical technique
+worked. The comment claimed the two were the same; they were not.
+
+The difference was structural, not timing. `<Backlog>` is mounted inside `{#if showLog}`, so it is a
+**fresh mount** and its focus effect runs on mount. `<Choices>` was mounted unconditionally and hid
+itself behind an inner `{#if}`, so the component persisted and its effect ran early enough for
+Chrome to blur the result. `<Choices>` is now mounted conditionally too and the inner guard is gone.
+
+**My round-9 verification of this was worthless and it is worth saying why.** I drove it with
+`element.click()`, which dispatches no pointer events and so never triggers the pointer-focus
+behaviour the whole defect depends on. It reported focus on the option and I believed it. The review
+used real clicks and got the opposite result. Re-verified here with the Browser pane's own pointer
+clicks: focus lands on `BUTTON.choice`, `closest('[inert]')` is null, and the dialog's description
+reads back as the question.
+
+Also: the backlog inerts everything behind it, takes focus and closes on Escape — it is a modal by
+every behaviour the branch gives it — but was exposed as a plain `<section>` landmark. It is now
+`role="dialog" aria-modal="true"` with a labelled heading, matching the fix `Choices` got in the
+previous round. It had to become a `<div>` to carry the role; Svelte rejects `role="dialog"` on a
+`<section>`.

@@ -21,9 +21,18 @@
 <svelte:window onkeydown={(e) => { if (e.key === 'Escape') onClose(); }} />
 
 <div class="scrim">
-  <section class="log" aria-label="dialogue backlog">
+  <!-- role=dialog, not a bare landmark: this inerts everything behind it, takes focus, and closes on
+       Escape, so it is a modal by every behaviour. Moving focus to a button named "close log" does
+       not announce the panel -- region-entry announcement on programmatic focus is inconsistent,
+       and NVDA does not do it by default. -->
+  <div
+    class="log"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="backlog-head"
+  >
     <header>
-      <span>BACKLOG</span>
+      <span id="backlog-head">BACKLOG</span>
       <button class="close" bind:this={closeButton} onclick={onClose} aria-label="close log">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M4 4l16 16M20 4L4 20" /></svg>
       </button>
@@ -40,7 +49,7 @@
       {/each}
     </ol>
     <span class="rail" aria-hidden="true"></span>
-  </section>
+  </div>
 </div>
 
 <style>

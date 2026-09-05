@@ -121,8 +121,11 @@
     </div>
   </div>
 
-  <!-- Both modals sit outside the inert wrapper, so they keep their own focus. -->
-  <Choices choices={session.choices} prompt={session.line} onSelect={onSelect} />
+  <!-- Both modals sit outside the inert wrapper, so they keep their own focus, and both are mounted
+       conditionally rather than self-hiding: a fresh mount is what makes their focus effect run on
+       mount. Choices self-hiding behind an inner {#if} left the component permanently mounted, and
+       its focus landed early enough for Chrome to blur it again. -->
+  {#if session.choices.length > 0}<Choices choices={session.choices} prompt={session.line} onSelect={onSelect} />{/if}
   {#if showLog}<Backlog entries={session.backlog} onClose={() => (showLog = false)} />{/if}
 </div>
 
