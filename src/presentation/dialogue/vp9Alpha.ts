@@ -18,8 +18,13 @@ const TIMEOUT_MS = 2000;
  *
  * Reading the pixel settles the engine's capability for good. Losing a race does not: the probe
  * starts from Portrait's `$effect`, alongside the hub's GLB and the Havok wasm, so a 591-byte fetch
- * can time out for reasons that have nothing to do with VP9 — and caching that would bill every
- * later line of dialogue 2.2MB instead of 376KB.
+ * can time out for reasons that have nothing to do with VP9.
+ *
+ * No caller is billed for that today — `App.svelte` mounts the overlay behind a one-way
+ * `intro → playing` gate, so `Portrait` mounts once and this runs once per page load. What is being
+ * kept honest is the export's promise rather than an observable cost: a predicate that memoises a
+ * lost race answers every later caller with a fact about one bad moment, and the first thing to
+ * mount a portrait twice would inherit that silently.
  */
 type Answer = { supported: boolean; decisive: boolean };
 

@@ -192,7 +192,8 @@ describe('supportsVp9Alpha remembers only what it settled', () => {
   });
 
   // A 591-byte fetch losing a race against the hub's GLB and the Havok wasm says nothing about the
-  // decoder. Cached, it would bill every later line of dialogue 2.2MB instead of 376KB.
+  // decoder, so it must not become the session's answer. The one caller today mounts once, so what
+  // this pins is the exported contract rather than a path the running app takes.
   it('probes again after a timeout, which was never an answer about the engine', async () => {
     vi.useFakeTimers();
     const dom = stubDom({ frameAlpha: 0 });
