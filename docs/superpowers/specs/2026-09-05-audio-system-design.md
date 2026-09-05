@@ -508,14 +508,15 @@ exercised. Each item below is marked with what was actually established, not a s
 - **Not established** — the mix balance. Every `volume` in `manifest.ts` is still §5.5's untuned
   starting point; tuning them needs a running scene and ears, and was explicitly out of scope for this
   pass.
-- **Partially verified by static read, not measurement** — the footstep path allocates **two** small
+- **Partially verified by static read, not measurement** — the footstep path allocates **three** small
   object literals on *every* frame, not only on an actual footfall, so "no per-frame allocation in the
-  wiring" does not hold literally. `hubAudio.ts`'s per-frame observer builds the `LocomotionReading`
-  literal it hands to `cadenceSample({...})`, and `cadenceSample` (`locomotionGait.ts`) then returns a
-  fresh `CadenceSample` from either of its two exits — the early-return
-  `{ gait: 'idle', phase: 0, airborne, elapsed }` branch and the normal
-  `{ gait, phase, airborne, elapsed }` branch — which is what reaches `cadence.step`.
-  Both are small, short-lived objects and neither one's actual cost was measured.
+  wiring" does not hold literally. `hubAudio.ts`'s per-frame observer opens by calling `motion()`,
+  which is `hubScene.ts`'s `readMotion` and returns a fresh `{ planarSpeed, airborne }`
+  (`KnightMotionSample`) on every call; it then builds the `LocomotionReading` literal it hands to
+  `cadenceSample({...})`; and `cadenceSample` (`locomotionGait.ts`) returns a fresh `CadenceSample`
+  from either of its two exits — the early-return `{ gait: 'idle', phase: 0, airborne, elapsed }`
+  branch and the normal `{ gait, phase, airborne, elapsed }` branch — which is what reaches
+  `cadence.step`. All three are small, short-lived objects and none of their actual cost was measured.
   `bank.play(...)`'s options objects are allocated only on a footfall, not every frame.
   **Unverified**: frame budget / frame rate itself, since the hidden pane never renders a frame to
   measure.
