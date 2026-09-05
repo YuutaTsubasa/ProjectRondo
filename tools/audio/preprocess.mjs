@@ -19,8 +19,13 @@
  *
  * The two music tracks are **copied, not transcoded**: both sources are already 64 kbps MP3, so a
  * re-encode to Vorbis would add a second generation of lossy artefacts to spend roughly the same
- * number of bytes. Their loop seam (MP3 encoder padding) is left as-is — it lands once per 7-8
- * minute track, which is a different order of problem from a 1-second ambience bed.
+ * number of bytes.
+ *
+ * **They do not loop cleanly, and this tool cannot fix that.** Both have a composed ending, so a loop
+ * jumps from a decayed tail back to a full-level opening — 11 dB on hub_theme (every 2:14) and 51 dB
+ * on avg_theme, which fades to silence (every 2:30). Trimming a track to a musically continuous loop
+ * region is a musical judgement, not a measurement, so it is deliberately not attempted here. See the
+ * audio design spec §5.2.
  */
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync, copyFileSync, statSync, unlinkSync } from 'node:fs';

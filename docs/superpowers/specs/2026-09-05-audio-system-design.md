@@ -89,9 +89,13 @@ the current surface's cue, together. Grass is the only surface today; the cue id
 so a stone plaza or shallow water is a manifest entry rather than a redesign.
 
 **There is exactly one armour sample**, and it has to serve walking, running, take-off and landing.
-Repetition is broken at play time, not in the asset: each instance gets a random playback rate and
-volume within a narrow band. Take-off and landing use the same sample with their own bands, so all
-three read as the same armour.
+Repetition is broken at play time, not in the asset: each footfall gets a random playback rate and
+volume within a narrow band.
+
+Take-off and landing get a **fixed** rate offset instead — up for the push-off, down for the landing.
+Not a random band, because a jump is a single event and there is no repetition to break up; what there
+is to solve is that the two are otherwise the same 0.145 s clip 1.6 dB apart, which reads as one sound
+stuttering rather than as two ends of a jump. All three still read as the same armour.
 
 The randomness is injected (`random: () => number`), so the cadence and its jitter stay pure and
 testable with a stub. It deliberately does **not** use a seeded generator: footstep variation has no
@@ -155,8 +159,8 @@ names suggested:
 
 | Source | Measured | Consequence |
 | --- | --- | --- |
-| `白い通り角.mp3` | 64 kbps, 48 kHz stereo, 7:03 | hub theme, copied verbatim |
-| `AVGBG.mp3` | 64 kbps, 48 kHz stereo, 7:59 | AVG theme, copied verbatim |
+| `白い通り角.mp3` | VBR ~202 kbps, 48 kHz stereo, **2:14** | hub theme, copied verbatim |
+| `AVGBG.mp3` | VBR ~204 kbps, 48 kHz stereo, **2:30** | AVG theme, copied verbatim |
 | `armor-step.wav` | 0.145 s mono 44.1 kHz, one hit, −13.8 dBFS peak | the only armour sample; §3.2 |
 | `Third-person_game_gr_#1…` | **Not discrete footsteps** — 2 s of continuous rustle with two sweeps, of unlike shape: the first has a real attack into a peak at 0.585 s, the second no attack at all, climbing 130 ms into a plateau at 1.32–1.40 s | cut into two soft surface layers, not percussive steps, each **cut on its energy rather than on where the rustle begins** (§5.4a) |
 | `AVG_visual_novel_typ_#4…` | **18** separate ticks over 1.54 s, ~40 ms each | four of the best-isolated become the typing variants |
@@ -165,13 +169,33 @@ names suggested:
 | `Open_grassland_wind__#2…` | 2 s with its **own** fade in and out; steady only 0.42–1.42 s | steady middle only, then rebuilt (§5.3) |
 | `Natural_stream_water_#3…` | **1.0 s**, peak clipped at 0.0 dBFS | rebuilt and normalised well down |
 
-### 5.2 Music is copied, not transcoded
+### 5.2 Music is copied, not transcoded — and does not loop cleanly
 
-Both tracks are already 64 kbps MP3. Re-encoding them to Vorbis would add a second generation of
-lossy artefacts to spend roughly the same number of bytes, so they ship as-is. That accepts MP3's
-encoder-padding gap at the loop point — but on a 7-to-8 minute track that seam arrives once per
-seven minutes, which is a different order of problem from the same seam on a one-second ambience
-clip.
+Both tracks are already lossy MP3. Re-encoding them to Vorbis would add a second generation of
+artefacts to spend roughly the same number of bytes, so they ship as-is.
+
+**Two corrections to an earlier version of this section, both of which made the loop look better than
+it is.** Their durations were read as 7:03 and 7:59 from the first frame header's 64 kbps; both files
+are VBR at ~200 kbps, and the real durations are **2:14** and **2:30**. And the seam was described as
+MP3 encoder padding, a couple of tens of milliseconds. It is not: both tracks have a **composed
+ending**, so looping them jumps from a decayed tail back to a full-level opening.
+
+Measured as RMS over the last and first half-second of each file:
+
+| Track | final 0.5 s | first 0.5 s | step at the loop |
+| --- | --- | --- | --- |
+| `hub_theme` | −28.7 dB | −17.7 dB | **11 dB**, every 2:14 |
+| `avg_theme` | −74.5 dB (silence) | −23.2 dB | **51 dB**, every 2:30 |
+
+`hub_theme` is the one that matters: it plays for as long as the player is in the hub, so that jump
+arrives every two and a quarter minutes. `avg_theme` only has to survive the intro dialogue, which is
+shorter than one pass.
+
+This is not something the code can fix on its own — a track with an ending has no loop point to find.
+The options are to crossfade the tail into the head at playback (the machinery for it already exists in
+`setMusicScene`, but it would need a second concurrent instance of the same streaming sound), to trim
+each track to a musically-continuous loop region, or to replace them with loop-ready versions. Which
+one is right depends on the music, so it is the user's call rather than this spec's.
 
 ### 5.3 The ambience beds are built, not trimmed
 

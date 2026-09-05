@@ -10,6 +10,13 @@ import type { Player } from '../babylon/playerController';
 import { createGameAudio } from './audioEngine';
 import { loadSoundBank, type LoopHandle, type SoundBank } from './soundBank';
 
+/**
+ * Playback rates for the two jump cues, which share the armour sample with the footstep layer.
+ * Up for the push-off, down for the landing — see the call site.
+ */
+const JUMP_RATE = 1.12;
+const LAND_RATE = 0.88;
+
 export interface HubAudio {
   setMusicScene(scene: MusicScene): void;
   dispose(): void;
@@ -100,7 +107,16 @@ async function buildHubAudio(
       // Take-off and landing ride the edges of the same `airborne` flag the jump clip uses, rather
       // than a second reading of the ground probe. `groundContact.ts` exists because two consumers
       // deciding "is it grounded" independently drifted apart; sound and pose stay on one source.
-      if (airborne !== wasAirborne) soundBank.play(airborne ? 'jump.takeoff' : 'jump.land');
+      //
+      // Both are the one armour sample, so the playback rate is the only thing telling them apart —
+      // without it a jump is the same 0.145 s clip twice, 1.6 dB apart, which reads as one event
+      // stuttering rather than as leaving the ground and arriving back on it. Up for the push-off,
+      // down for the landing: the shift is what makes one read as lighter and the other as heavier,
+      // and ±12 % is about as far as it goes before it stops sounding like the same armour.
+      if (airborne !== wasAirborne)
+        soundBank.play(airborne ? 'jump.takeoff' : 'jump.land', {
+          playbackRate: airborne ? JUMP_RATE : LAND_RATE,
+        });
       wasAirborne = airborne;
 
       const v = player.motion.velocity;
