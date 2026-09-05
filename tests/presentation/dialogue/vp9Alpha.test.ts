@@ -236,7 +236,7 @@ describe('supportsVp9Alpha remembers only what it settled', () => {
     expect(dom.probes()).toBe(1);
   });
 
-  // A 591-byte fetch losing a race against the hub's GLB and the Havok wasm says nothing about the
+  // A 535-byte fetch losing a race against the hub's GLB and the Havok wasm says nothing about the
   // decoder, so it must not become the session's answer. The one caller today mounts once, so what
   // this pins is the exported contract rather than a path the running app takes.
   it('probes again after a timeout, which was never an answer about the engine', async () => {

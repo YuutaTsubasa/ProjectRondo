@@ -228,7 +228,8 @@ SRC=magnific_video-background-removal_8aHGVd3IrU.webm   # not in the repo
 
 # knight_idle.webm — VP9 with alpha, the upgrade path. 514x900 (from -2:900), 12fps, 62 frames.
 ffmpeg -c:v libvpx-vp9 -i "$SRC" -vf 'scale=-2:900,fps=12' \
-  -c:v libvpx-vp9 -pix_fmt yuva420p -b:v 0 -crf 34 -row-mt 1 -an public/portraits/knight_idle.webm
+  -c:v libvpx-vp9 -pix_fmt yuva420p -b:v 0 -crf 34 -row-mt 1 -an \
+  -fflags +bitexact -flags:v +bitexact public/portraits/knight_idle.webm
 
 # knight_idle.webp — animated WebP, the universal baseline. Same geometry and length, ~6x the bytes.
 ffmpeg -c:v libvpx-vp9 -i "$SRC" -vf 'scale=-2:900,fps=12' \
@@ -246,16 +247,19 @@ ffmpeg -c:v libvpx-vp9 -i "$SRC" -vf 'scale=-2:900,fps=12' -frames:v 1 \
 # runtime to find out whether the engine honours VP9's alpha at all; if this file is ever opaque the
 # probe answers "supported" everywhere and the black rectangle ships. Needs no source.
 ffmpeg -f lavfi -i 'color=c=black@0.0:s=2x2:r=1:d=1,format=rgba' \
-  -c:v libvpx-vp9 -pix_fmt yuva420p -frames:v 1 public/portraits/vp9-alpha-probe.webm
+  -c:v libvpx-vp9 -pix_fmt yuva420p -frames:v 1 \
+  -fflags +bitexact -flags:v +bitexact public/portraits/vp9-alpha-probe.webm
 ```
 
-**This is a reconstruction, and it was checked rather than remembered.** Re-running it against the
-source reproduces `knight_idle.webm` and `knight_idle.webp` at exactly the shipped byte counts
-(385,231 and 2,332,750) — the WebM differing in content, as libvpx does not encode deterministically
-across runs — and `knight_idle_still.webp` byte-for-byte. The probe comes out at 593 bytes against
-the shipped 591; no variation of the invocation reproduced the smaller file, so that one is
-equivalent rather than identical. What the code relies on is asserted by the test suite in either
-case: 2x2, one frame, corner alpha 0.
+**This is a reconstruction, and it was checked rather than remembered: re-running all four against
+the source reproduces the shipped files byte-for-byte.** That is worth having rather than
+approximating, because it means any diff at all after a re-encode is a real change and not noise to
+squint past.
+
+Getting there needed the `bitexact` flags on the two WebM encodes. Without them the matroska muxer
+writes a randomly generated `TrackUID` (element `0x73C5`) twice, and two runs over identical input
+differ in exactly those 16 bytes — at offsets 283 and 407 — with every byte of encoded video
+identical. libvpx itself is deterministic here; only the container was not.
 
 After regenerating, run `pnpm test` with ffmpeg **and ffprobe** on PATH. Four asset cases skip
 silently without them, and they are the ones that would catch a lost alpha channel in any of the

@@ -8,7 +8,7 @@ const TIMEOUT_MS = 2000;
  * `supported` is the answer; `decisive` is whether it is worth remembering.
  *
  * Reading the pixel settles the engine's capability for good. Losing a race does not: the probe
- * starts from Portrait's `$effect`, alongside the hub's GLB and the Havok wasm, so a 591-byte fetch
+ * starts from Portrait's `$effect`, alongside the hub's GLB and the Havok wasm, so a 535-byte fetch
  * can time out for reasons that have nothing to do with VP9.
  *
  * No caller is billed for that today — `App.svelte` mounts the overlay behind a one-way
@@ -103,7 +103,7 @@ function probe(): Promise<Answer> {
  * ignores the alpha — so a portrait shipped as VP9 would render its removed background as an opaque
  * black rectangle over the scene. The only reliable answer is to decode a frame and look at it,
  * which is why this is async and why the probe clip is a 2x2, one-frame, fully transparent VP9 file
- * of about 600 bytes, kept separate from the real portrait so the answer arrives before anything
+ * of about 500 bytes, kept separate from the real portrait so the answer arrives before anything
  * large is fetched.
  *
  * A false answer costs bytes (the WebP fallback is ~6x the WebM) and never correctness, so every
