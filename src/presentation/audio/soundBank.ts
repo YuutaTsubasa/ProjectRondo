@@ -148,8 +148,11 @@ export async function loadSoundBank(audio: GameAudio): Promise<SoundBank> {
       if (!sound) return;
       const spec = MANIFEST[cue];
       try {
+        // `'playbackRate' in sound` is the narrowing, not just a guard: only `StaticSound` declares
+        // the property, so the `in` check is what leaves `StreamingSound` behind. No assertion —
+        // one that buys nothing today is one that would swallow the error the day the union moves.
         if (options.playbackRate !== undefined && 'playbackRate' in sound)
-          (sound as StaticSound).playbackRate = options.playbackRate;
+          sound.playbackRate = options.playbackRate;
         sound.play({ volume: spec.volume * (options.gain ?? 1) });
       } catch (error) {
         console.warn(`[audio] cue "${cue}" failed to play:`, error);
