@@ -17,7 +17,7 @@ const TIMEOUT_MS = 2000;
  * lost race answers every later caller with a fact about one bad moment, and the first thing to
  * mount a portrait twice would inherit that silently.
  */
-type Answer = { supported: boolean; decisive: boolean };
+type Answer = { readonly supported: boolean; readonly decisive: boolean };
 
 const NO = { supported: false, decisive: true } as const;
 const UNDECIDED = { supported: false, decisive: false } as const;

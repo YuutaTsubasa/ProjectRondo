@@ -200,6 +200,64 @@ resolution; `npm install @gltf-transform/cli@4.4.2` into a scratch dir instead, 
 `overrides: { "sharp": "0.34.5" }` pin (its transitive `sharp@0.35.x` throws
 `colourspace: parameter space not set` on the 8192² source textures).
 
+### Regenerating the AVG portrait assets
+
+`public/portraits/` holds four files, and the code depends on properties of each that no build step
+enforces — see `tests/presentation/dialogue/portraitAssets.test.ts`, which asserts them.
+
+**Two ffmpeg traps make this pipeline easy to get wrong in ways every obvious check survives**, so
+read these before re-encoding anything:
+
+1. **ffmpeg's native `vp9` decoder silently drops this source's alpha**, decoding to `yuv420p`. Every
+   downstream encode then inherits an opaque background and the portrait renders as a black
+   rectangle over the scene. `-c:v libvpx-vp9` **on the input** reads it correctly. This shipped
+   once.
+2. **`ffprobe` and "extract a frame to RGBA" both report alpha on a file that has none** — the first
+   reports the decoder's output format, the second pads alpha to 255. Only sampling a decoded
+   pixel's alpha is honest. A 1x1 `crop` also rounds to zero on subsampled video, so convert with
+   `format=rgba` first.
+
+The source is the background-removed idle clip from the character hand-off (768x1344, VP9 with
+alpha, 24fps, 124 frames, 5.192s). **It is not committed** — the same gap the metallic/roughness map
+above describes, and the three knight encodings cannot be reproduced without it. The probe is the
+exception and the one that matters most: it is synthesised from nothing, so its recipe below is
+complete on its own.
+
+```bash
+SRC=magnific_video-background-removal_8aHGVd3IrU.webm   # not in the repo
+
+# knight_idle.webm — VP9 with alpha, the upgrade path. 514x900 (from -2:900), 12fps, 62 frames.
+ffmpeg -c:v libvpx-vp9 -i "$SRC" -vf 'scale=-2:900,fps=12' \
+  -c:v libvpx-vp9 -pix_fmt yuva420p -b:v 0 -crf 34 -row-mt 1 -an public/portraits/knight_idle.webm
+
+# knight_idle.webp — animated WebP, the universal baseline. Same geometry and length, ~6x the bytes.
+ffmpeg -c:v libvpx-vp9 -i "$SRC" -vf 'scale=-2:900,fps=12' \
+  -c:v libwebp_anim -pix_fmt yuva420p -lossless 0 -q:v 35 -loop 0 -an public/portraits/knight_idle.webp
+
+# knight_idle_still.webp — frame 0, shown while the probe runs, under prefers-reduced-motion, and as
+# the <video> poster. Lossless: libwebp's lossy encoder drops the alpha channel in this build.
+ffmpeg -c:v libvpx-vp9 -i "$SRC" -vf 'scale=-2:900,fps=12' -frames:v 1 \
+  -c:v libwebp -lossless 1 -pix_fmt bgra public/portraits/knight_idle_still.webp
+
+# vp9-alpha-probe.webm — 2x2, one frame, every pixel fully transparent. Decoded to a canvas at
+# runtime to find out whether the engine honours VP9's alpha at all; if this file is ever opaque the
+# probe answers "supported" everywhere and the black rectangle ships. Needs no source.
+ffmpeg -f lavfi -i 'color=c=black@0.0:s=2x2:r=1:d=1,format=rgba' \
+  -c:v libvpx-vp9 -pix_fmt yuva420p -frames:v 1 public/portraits/vp9-alpha-probe.webm
+```
+
+**This is a reconstruction, and it was checked rather than remembered.** Re-running it against the
+source reproduces `knight_idle_still.webp` byte-for-byte, and `knight_idle.webm` and
+`knight_idle.webp` at exactly the shipped byte counts (385,231 and 2,332,750) — the WebM differing
+in content, as libvpx does not encode deterministically across runs. The probe comes out at 593
+bytes against the shipped 591; no variation of the invocation reproduced the smaller file, so that
+one is equivalent rather than identical. What the code relies on is asserted by the test suite in
+either case: 2x2, one frame, corner alpha 0.
+
+After regenerating, run `pnpm test` with ffmpeg **and ffprobe** on PATH — three asset cases skip
+silently without them, and they are the ones that would catch a lost alpha channel, an animated
+still, or a WebM whose loop no longer matches the WebP it stands in for.
+
 ## Milestones
 
 - **M1 — Hub web parity** *(done)* — third-person mouse-look knight, pure-domain movement, Havok

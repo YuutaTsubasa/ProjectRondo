@@ -73,6 +73,17 @@ describe('portrait assets', () => {
   };
   const isAnimated = (url: string) => webpFrames(url) > 0;
 
+  /** Every frame's duration in ms, read from the ANMF chunk headers (24-bit LE at payload +12). */
+  const webpFrameDurations = (url: string) => {
+    const bytes = readFileSync(fileFor(url));
+    const durations: number[] = [];
+    for (let at = bytes.indexOf('ANMF'); at !== -1; at = bytes.indexOf('ANMF', at + 4)) {
+      const payload = at + 8; // chunk id (4) + chunk size (4)
+      durations.push(bytes.readUIntLE(payload + 12, 3));
+    }
+    return durations;
+  };
+
   /** Frames actually decoded, not the count the container claims. */
   const videoFrames = (url: string) =>
     Number(
@@ -83,6 +94,14 @@ describe('portrait assets', () => {
       ]).toString().trim(),
     );
 
+  const videoDurationMs = (url: string) =>
+    Number(
+      execFileSync('ffprobe', [
+        ...['-v', 'error', '-show_entries', 'format=duration'],
+        ...['-of', 'default=nw=1:nokey=1', fileFor(url)],
+      ]).toString().trim(),
+    ) * 1000;
+
   it('the animated WebP is actually animated', () => {
     expect(isAnimated(resolvePortraitAnimated('neutral'))).toBe(true);
   });
@@ -91,10 +110,21 @@ describe('portrait assets', () => {
   // and a single-frame one satisfies every other case here: it exists, it is referenced, its corner
   // decodes transparent, it ends in .webm. What it buys is a frozen idle on the engines that pass
   // the probe — the smaller population, so the regression would be the harder one to notice.
-  it.skipIf(!HAVE_FFMPEG)('the WebM animates, and to the same length as the WebP it stands in for (needs ffmpeg)', () => {
-    const frames = videoFrames(resolvePortraitWebm('neutral'));
-    expect(frames).toBeGreaterThan(1);
-    expect(frames).toBe(webpFrames(resolvePortraitAnimated('neutral')));
+  it.skipIf(!HAVE_FFMPEG)('the WebM animates (needs ffmpeg)', () => {
+    expect(videoFrames(resolvePortraitWebm('neutral'))).toBeGreaterThan(1);
+  });
+
+  // Length is time, not frames. The two files store their rate in different places — the WebM in
+  // its stream, the WebP in per-frame durations — so equal frame counts at unequal rates is a loop
+  // running at half or double speed against the one it stands in for, seen only by whichever
+  // engines took the other branch. Both are 5166ms today.
+  it.skipIf(!HAVE_FFMPEG)('the WebM runs for as long as the WebP it stands in for (needs ffmpeg)', () => {
+    const durations = webpFrameDurations(resolvePortraitAnimated('neutral'));
+    const webp = durations.reduce((total, frame) => total + frame, 0);
+    const webm = videoDurationMs(resolvePortraitWebm('neutral'));
+    // Tolerance is one frame of the WebP, taken from the file rather than guessed: the containers
+    // round their totals differently, and a drift that small cannot be seen.
+    expect(Math.abs(webm - webp)).toBeLessThanOrEqual(Math.max(...durations));
   });
 
   // The still is the frame shown under prefers-reduced-motion, where an <img> could not be stopped

@@ -16,13 +16,13 @@
  * puts two different frames of art on screen in the same beat, chosen by which branch the engine
  * happened to take. Whole sets make that unrepresentable — adding a key means supplying all three.
  */
-type PortraitSet = { still: string; animated: string; webm: string };
+type PortraitSet = { readonly still: string; readonly animated: string; readonly webm: string };
 
-const NEUTRAL: PortraitSet = {
+const NEUTRAL = {
   still: '/portraits/knight_idle_still.webp',
   animated: '/portraits/knight_idle.webp',
   webm: '/portraits/knight_idle.webm',
-};
+} as const satisfies PortraitSet;
 
 const byKey: Record<string, PortraitSet> = {};
 
