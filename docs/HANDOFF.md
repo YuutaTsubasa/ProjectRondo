@@ -66,7 +66,7 @@ pnpm build              # static bundle → dist/
 pnpm tauri dev          # native desktop app (needs Rust)
 ```
 
-## 4. Current state (M1–M3 and M4/P1–P3 all merged to `main`; M4/P4 is the only phase left)
+## 4. Current state (M1–M3 and M4/P1–P4 merged to `main`; P4's in-browser verification is the only thing left before M4 closes)
 
 - **M1 — hub web parity:** third-person mouse-look knight (WASD/Space), pure-domain movement, Havok
   capsule, Idle/Walk animation blend.
@@ -147,6 +147,19 @@ pnpm tauri dev          # native desktop app (needs Rust)
     1.843 on a 1.717 top while the model's lowest vertex sat at 1.167 — exactly the terrain height,
     0.55 low. Now planted against a downward physics raycast, falling back to `terrainHeight` on a
     miss. This is not a P3 bug; P3 was just the first thing built that the player stands *on*.
+  - **P4 life & motion:** a shared wind field (`wind.ts`, a `MaterialPluginBase`) bends grass, flowers
+    and trees (`scatter.ts` / `trees.ts`, one `applyWind` call each) along the single direction in
+    `windDirection.ts`; a second inward-facing dome (`clouds.ts`) carries a procedurally drawn,
+    seamlessly u-tiling alpha texture that drifts in sync with the same clock; both wired into
+    `hubScene.ts` via `createWind`/`createClouds`. The ambient-creature layer in the original DoD
+    (butterflies) was built and then cut by the owner on 2026-09-04 — see roadmap §4 P4 and
+    `docs/superpowers/specs/2026-09-04-life-and-motion-design.md` §5 — and struck from the DoD rather
+    than silently dropped. **Verification is incomplete:** per that spec's §7, nobody has yet watched
+    the field's motion in a running scene, looked at a tree canopy against its own shadow for the
+    mismatch §3e records as a known limitation, or measured P4's frame cost against the budget in
+    §2/§5 below. Only the cloud band's placement was checked (the probe measurement in `clouds.ts`);
+    the drift itself and the full-loop seam are unwatched. M4 does not close until those are done and
+    the roadmap's §6 "world done" checklist is walked (spec §8).
 
 ## 5. What's next (the plan)
 
@@ -170,10 +183,15 @@ scheduled additions). Sequence from here:
    and has not been retaken. The current GLB was texture-optimised but never decimated either, which
    is still a separate job; re-measure per-mesh vertex counts on the current model before picking a
    decimation target.
-2. **P4 — life & motion** (wind sway, drifting clouds, ambient creatures). Budget against the
-   already-loaded scene (roadmap §7): the fps headroom the earlier phases left is what P4 spends. P2
-   measured its own cost at **0.3 ms** and P3 at **0.09–0.26 ms**. Note P3's numbers were taken on a
-   different machine from P2's, so compare *within-session deltas*, never the absolutes (P3 spec §9d).
+2. **P4 — life & motion: finish the verification.** The code shipped (§4 above): wind sway, drifting
+   clouds, the ambient-creature layer built and then **cut on 2026-09-04** by the owner — roadmap §4
+   P4 and `docs/superpowers/specs/2026-09-04-life-and-motion-design.md` §5. What's left is what that
+   spec's §7 records as **not performed**: watch the field actually move in a running scene, look at a
+   tree canopy against its own shadow for the §3e mismatch, and measure P4's frame cost against the
+   budget below. Budget against the already-loaded scene (roadmap §7): the fps headroom the earlier
+   phases left is what P4 spends. P2 measured its own cost at **0.3 ms** and P3 at **0.09–0.26 ms**.
+   Note P3's numbers were taken on a different machine from P2's, so compare *within-session deltas*,
+   never the absolutes (P3 spec §9d).
 
    **The budget was re-measured on 2026-09-04, on a visible pane, and the old "roughly 8x headroom"
    figure is superseded.** Full record:
@@ -199,9 +217,11 @@ scheduled additions). Sequence from here:
    known, accepted overrun, not a regression to chase before P4 — the frame still fits 60 fps three
    times over — but it is where the budget lives if P4 runs out.
 
-   P3 left `WaterBody` (`src/domain/hub/waterBody.ts`) as the shape P4's shallow-water feedback —
-   splashes, slowdown, wet shading — should read, and the plaza's eight pillars are where the
-   mode-entrances attach.
+   P3 left `WaterBody` (`src/domain/hub/waterBody.ts`) as the shape shallow-water feedback — splashes,
+   slowdown, wet shading — should read when someone builds it. **It is not part of P4**, which shipped
+   as wind and clouds only: shallow water is movement feel and would reach into the pure movement
+   domain, so it was ruled out when P4 was designed (`2026-09-04-life-and-motion-design.md` §1). It has
+   no scheduled owner. The plaza's eight pillars are where the mode-entrances attach.
 3. **Then: game modes** — Sonic-style 3D/2D levels, 2048, Sudoku (a new milestone, SP2+).
 
 ## 6. How work is done here (the workflow)
@@ -420,6 +440,39 @@ These are hard-won; several cost a debugging session each.
   leaving pixel/image comparisons untouched, since throttling changes *when* a frame is produced, not
   *what* it contains. Check `document.hidden` before trusting any timing number; if it's `true`, the
   numbers are worthless no matter how tight the IQR looks.
+
+- **The dev server dies on `EBUSY` from `.claude/worktrees/`.** Vite watches the whole project root,
+  including other sessions' worktrees, and a locked file in one takes the server down mid-session.
+  It is a loud crash rather than a silent one, but it looks like your change broke the preview.
+
+### Checks that were green over real defects
+
+The §7 entries above are about the engine. These are about the *verification*, and they cost most of
+PR #33's 18 review rounds — each one is a case where a check reported success over something broken.
+
+- **`element.click()` dispatches no pointer events.** It does not reproduce pointer-focus behaviour,
+  so it cannot verify anything about focus after a click. A defect that only appeared on the click
+  path was "verified fixed" with it in round 9 of PR #33, and stayed broken until round 11 drove a
+  real pointer click. Use the
+  Browser pane's own click action when focus is what you are testing.
+- **`svelte-check` and `vite build` have both been green over broken markup.** `svelte-check`
+  reported zero errors over a file Vite's compiler rejected outright; and both were green over a CSS
+  rule spliced into the *markup* by a bad edit, because Svelte took it as text content and rendered
+  it. When an edit is structural, re-read the file — no tool here will tell you.
+- **Vite's watcher silently misses file replacements on this machine.** `perl -0pi` and similar
+  rewrite the file rather than editing in place, and the dev server kept serving the old module —
+  same Svelte scope hash, old computed values. If a measurement contradicts the source, check the
+  scope hash and restart the server before believing the measurement.
+- **A hidden Browser pane changes what runs.** `requestAnimationFrame` never fires (the page never
+  paints), `elementFromPoint` returns `null`, `innerWidth`/`innerHeight` read `0`, and long async
+  probes time out. This is the same class as the `document.hidden` timing trap in §7's performance
+  notes. It also caught a real bug: an rAF-deferred focus call would never have run for a user with
+  the tab in the background.
+- **A test can pass while the code it pins is broken.** Two cases written specifically to pin the
+  modal focus machinery passed with that machinery deliberately reverted — one because all fake
+  timers were advanced before Svelte ever re-ran its effects, one because an unkeyed `{#each}` reused
+  the button so focus appeared to survive. **Break the code and watch the test fail** before
+  believing a new test. It is one command and it has been wrong more often than not here.
 
 ## 8. Claude's local memory (optional, but valuable for continuity)
 

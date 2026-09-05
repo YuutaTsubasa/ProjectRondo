@@ -1,7 +1,8 @@
 /*
  * Self-hosted design fonts (CSP-safe: served from the app origin, no external CDN).
- * Chakra Petch = nameplate / panel headers, Archivo = uppercase labels & controls,
- * Noto Sans TC = CJK body text. Files live in /public/fonts (from Fontsource, OFL).
+ * Chakra Petch = the kit's UI voice (name tag, HUD labels), Noto Sans TC = CJK body text.
+ * Files live in /public/fonts (from Fontsource, OFL). Only the weights the components actually
+ * declare are shipped; tests/app/fonts.test.ts fails on a file nothing references.
  */
 @font-face {
   font-family: 'Chakra Petch';
@@ -9,13 +10,6 @@
   font-weight: 700;
   font-display: swap;
   src: url('/fonts/chakra-petch-700.woff2') format('woff2');
-}
-@font-face {
-  font-family: 'Archivo';
-  font-style: normal;
-  font-weight: 800;
-  font-display: swap;
-  src: url('/fonts/archivo-800.woff2') format('woff2');
 }
 
 /* Noto Sans TC: the Traditional-Chinese subset (default range) plus a small Latin
@@ -50,4 +44,14 @@
   font-display: swap;
   src: url('/fonts/noto-sans-tc-latin-700.woff2') format('woff2');
   unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+2000-206F, U+2074, U+20AC, U+2122, U+FEFF, U+FFFD;
+}
+
+/* Archivo Black: the kit's outlined display face. One weight only (the family ships 400 and the
+   "Black" is in the name, not the weight axis). Used for the backlog's stroked LOG title. */
+@font-face {
+  font-family: 'Archivo Black';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/archivo-black-400.woff2') format('woff2');
 }

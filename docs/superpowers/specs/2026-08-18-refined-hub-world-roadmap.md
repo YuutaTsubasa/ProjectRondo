@@ -108,11 +108,21 @@ The final "juice" layer, on top of everything else.
 - **Wind:** grass/tree sway — a vertex-shader wind over the thin-instanced scatter (deferred from the
   original scatter spec) and a gentle canopy sway on trees.
 - **Sky motion:** drifting clouds (skydome animation or billboard/particle clouds).
-- **Ambient life:** butterflies / birds / drifting pollen particles — small looping motion that makes
-  the field feel alive.
+- ~~**Ambient life:** butterflies / birds / drifting pollen particles — small looping motion that makes
+  the field feel alive.~~ **Cut 2026-09-04, by the project owner's decision.** Butterflies were built
+  (a pure wander path in `src/domain/hub/butterfly.ts` driving billboards) and then removed on sight
+  of the idea: they read as startling rather than as ambient, which is the opposite of what this
+  phase's own "calm, not distracting" bar asks for. Pollen and distant birds were both offered as
+  substitutes and declined — the owner chose to close the phase without this layer rather than keep
+  hunting for a version of it that does not unsettle. The code is in git history if it is ever wanted.
 
-**Bounded DoD:** grass and trees sway subtly with wind; clouds drift; at least one kind of ambient
-creature/particle moves through the scene; motion feels calm (not distracting) and 60fps holds.
+**Bounded DoD (revised 2026-09-04):** grass and trees sway subtly with wind; clouds drift; motion
+feels calm (not distracting) and 60fps holds.
+
+The ambient-life clause — "at least one kind of ambient creature/particle moves through the scene" —
+was struck from this DoD when the layer was cut. Recorded rather than deleted, because a bar that
+quietly disappears is indistinguishable from a bar that was missed: this one was met by a real
+implementation and then withdrawn on purpose.
 
 ## 5. Collision — cross-cutting policy (foundation in P1)
 
@@ -148,7 +158,8 @@ M4 is **done** — and we pivot to game modes — when a walkthrough from spawn 
 - distant mountains fading into the sky through atmospheric fog;
 - tone-mapped, bloomed, colour-graded lighting (no washed-out/crushed areas);
 - at least one water feature and one landmark destination, both with correct collision;
-- wind-swept grass/trees, drifting clouds, and some ambient life;
+- wind-swept grass/trees and drifting clouds (the "and some ambient life" this line used to require
+  was struck on 2026-09-04 with P4's ambient-life layer — see §4 P4);
 - the knight **cannot clip through** trees / landmarks / designated-solid props;
 - a steady **60fps** on the dev target.
 

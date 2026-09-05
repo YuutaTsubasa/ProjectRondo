@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Chakra+Petch:wght@400;500;600;700&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+<script src="./image-slot.js"></script>
+<style>
+  html, body { margin:0; padding:0; }
+  body { font-family:'Chakra Petch','Noto Sans TC',sans-serif; }
+  a { color:#ccff00; text-decoration:none; }
+  a:hover { color:#ffffff; }
+  @keyframes vnmarquee { from { transform:translateX(0); } to { transform:translateX(-50%); } }
+  @keyframes vncaret { 0%,49% { opacity:1; } 50%,100% { opacity:0; } }
+</style>
+</helmet>
+
+<div style="width:2020px; box-sizing:border-box; padding:28px 30px 44px; color:#ffffff; background-color:#c9c9c9; background-image:linear-gradient(45deg,#b4b4b4 25%,transparent 25%,transparent 75%,#b4b4b4 75%),linear-gradient(45deg,#b4b4b4 25%,transparent 25%,transparent 75%,#b4b4b4 75%); background-size:22px 22px; background-position:0 0,11px 11px; display:flex; flex-direction:column; gap:30px;">
+
+  <div style="display:flex; align-items:baseline; gap:14px;">
+    <div style="background:rgba(0,0,0,0.58); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); border:1px solid #ffffff; padding:6px 14px; font-size:14px; font-weight:700; letter-spacing:3px; white-space:nowrap;">VN SCREENS — DARK</div>
+    <div style="font-size:11px; letter-spacing:1px; color:#3c3c3c;">用零件組裝的完整畫面 / 960×540</div>
+  </div>
+
+  <div style="display:grid; grid-template-columns:960px 960px; gap:40px;">
+
+    <div style="display:flex; flex-direction:column; gap:8px;">
+      <div style="position:relative; width:960px; height:540px; overflow:hidden; background:#111111;">
+        <image-slot id="vns-scene" placeholder="場景／角色立繪" style="position:absolute; inset:0; width:100%; height:100%;"></image-slot>
+        <div style="position:absolute; inset:0; background:#ccff00; opacity:0.16; mix-blend-mode:screen; pointer-events:none;"></div>
+        <div style="position:absolute; inset:0; pointer-events:none; background:repeating-linear-gradient(to bottom, rgba(0,0,0,0.16) 0 1px, transparent 1px 3px);"></div>
+
+        <div style="position:absolute; top:0; left:0; right:0; bottom:0; display:flex; align-items:center; justify-content:center; pointer-events:none;">
+          <div style="font-family:'Archivo Black',sans-serif; font-size:150px; line-height:0.8; letter-spacing:2px; color:transparent; -webkit-text-stroke:2px #ffffff; transform:translateY(-40px);">UNKNOWN</div>
+        </div>
+
+        <div style="position:absolute; top:22px; left:22px; width:212px; height:102px; box-sizing:border-box; background:rgba(0,0,0,0.58); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); clip-path:polygon(11px 1px, 205px 1px, 205px 48px, 192px 48px, 192px 92px, 182px 101px, 1px 101px, 1px 12px);">
+          <svg viewBox="0 0 212 102" width="212" height="102" preserveAspectRatio="none" style="position:absolute; inset:0; filter:drop-shadow(0 0 5px rgba(204,255,0,0.55));">
+            <path d="M11 1 H205 V48 H192 V92 L182 101 H1 V12 Z" fill="none" stroke="#ccff00" stroke-width="1.6"></path>
+            <rect x="3" y="18" width="3" height="72" fill="#ccff00"></rect>
+            <rect x="199.5" y="7" width="4" height="18" fill="#ccff00"></rect>
+            <rect x="187" y="44.5" width="16" height="3.5" fill="#ccff00"></rect>
+          </svg>
+          <div style="position:absolute; left:16px; right:32px; top:9px; display:flex; align-items:baseline; justify-content:space-between;">
+            <span style="font-weight:700; font-size:24px; line-height:1; color:#ccff00;">CHAPTER</span>
+            <span style="font-weight:700; font-size:24px; line-height:1; color:#ffffff;">01</span>
+          </div>
+          <span style="position:absolute; left:4px; top:45px; width:42px; height:6px; background:#ccff00;"></span>
+          <span style="position:absolute; left:46px; top:47px; width:138px; height:1px; background:#ffffff;"></span>
+          <div style="position:absolute; left:16px; right:34px; top:62px; display:flex; align-items:center; justify-content:space-between;">
+            <span style="font-weight:700; font-size:18px; letter-spacing:1px; color:#ffffff;">MORNING</span>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="#ffffff"><path d="M12 0l1.5 8.1L12 24l-1.5-15.9zM0 12l8.1-1.5L24 12l-15.9 1.5zM3.5 3.5l6.4 5.1 4.6 11.9-5.1-6.4zM20.5 3.5l-5.1 6.4-11.9 4.6 6.4-5.1z"/></svg>
+          </div>
+          <span style="position:absolute; top:5px; right:9px; width:7px; height:9px; background:repeating-linear-gradient(to right, #ccff00 0 1px, transparent 1px 3px);"></span>
+          <span style="position:absolute; top:76px; right:36px; width:9px; height:2px; background:#ffffff;"></span>
+        </div>
+
+        <div style="position:absolute; top:18px; right:18px; display:flex; gap:10px;">
+          <sc-for list="{{ hud }}" as="h" hint-placeholder-count="4">
+            <div style="width:72px; height:72px; background:rgba(0,0,0,0.58); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; cursor:pointer;" style-hover="color:#ccff00">
+              <div style="width:38px; height:28px; display:flex; align-items:center; justify-content:center;">{{ h.icon }}</div>
+              <span style="font-size:15px; font-weight:700; line-height:1;">{{ h.label }}</span>
+            </div>
+          </sc-for>
+        </div>
+
+        <div style="position:absolute; left:180px; bottom:176px; z-index:1; background:#ccff00; color:#000000; font-family:'Chakra Petch',sans-serif; font-size:20px; font-weight:700; letter-spacing:5px; padding:5px 40px 5px 20px; clip-path:polygon(0 0, 100% 0, calc(100% - 18px) 100%, 0 100%);">KAI</div>
+        <div style="position:absolute; left:140px; right:34px; bottom:28px; background:rgba(0,0,0,0.58); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); clip-path:polygon(18px 0, calc(100% - 18px) 0, 100% 18px, 100% calc(100% - 18px), calc(100% - 18px) 100%, 18px 100%, 0 calc(100% - 18px), 0 18px);">
+        <div style="position:relative; padding:20px 24px 28px;"><div style="position:absolute; inset:0; pointer-events:none; background:#ccff00; clip-path:polygon(evenodd, 18px 0, calc(100% - 18px) 0, 100% 18px, 100% calc(100% - 18px), calc(100% - 18px) 100%, 18px 100%, 0 calc(100% - 18px), 0 18px, 18px 0, 20px 2px, calc(100% - 20px) 2px, calc(100% - 2px) 20px, calc(100% - 2px) calc(100% - 20px), calc(100% - 20px) calc(100% - 2px), 20px calc(100% - 2px), 2px calc(100% - 20px), 2px 20px, 20px 2px);"></div>
+          <div style="display:flex; gap:5px; margin-bottom:12px;"><span style="color:#ccff00; font-size:10px;">◆</span><span style="color:#ccff00; font-size:10px;">◆</span><span style="color:#ccff00; font-size:10px;">◆</span><span style="color:#ffffff; font-size:10px;">◆</span><span style="color:#ffffff; font-size:10px;">◆</span></div>
+          <div style="font-family:'Noto Sans TC',sans-serif; font-size:21px; line-height:1.8; white-space:pre-line; min-height:76px;">{{ typed }}<span style="animation:vncaret 1s steps(1) infinite; color:#ccff00;">▌</span></div>
+          <svg width="30" height="18" viewBox="0 0 30 18" fill="none" stroke="#ffffff" stroke-width="1.6" style="position:absolute; right:26px; bottom:16px; cursor:pointer;"><path d="M0 9h26M20 3l6 6-6 6"/></svg>
+          <div style="position:absolute; right:8px; top:12px; bottom:12px; width:11px; background:repeating-linear-gradient(to bottom, #ccff00 0 3px, transparent 3px 6px); border:1px solid #ccff00;"></div>
+        </div>
+        </div>
+      </div>
+      <div style="font-size:11px; color:#3c3c3c;">main_screen_full.png</div>
+    </div>
+
+    <div style="display:flex; flex-direction:column; gap:8px;">
+      <div style="position:relative; width:960px; height:540px; overflow:hidden; background:rgba(26,43,255,0.72); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); padding:20px 24px; box-sizing:border-box; display:flex; flex-direction:column;">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; font-size:13px; letter-spacing:2px; line-height:1.6;">
+          <div>VISUAL NOVEL SYSTEM<br>// UI SYSTEM</div>
+          <div style="display:flex; align-items:center; gap:18px;">
+            <span style="font-size:15px;">{{ clock }}</span>
+            <svg width="16" height="16" viewBox="0 0 24 24" stroke="#ffffff" stroke-width="1.8" style="cursor:pointer;"><path d="M4 4l16 16M20 4L4 20"/></svg>
+          </div>
+        </div>
+
+        <div style="display:grid; grid-template-columns:1fr 260px 44px; gap:20px; margin-top:18px; flex:1; min-height:0;">
+          <div style="display:flex; flex-direction:column;">
+            <div style="font-family:'Archivo Black',sans-serif; font-size:84px; line-height:0.86; letter-spacing:-1px; color:transparent; -webkit-text-stroke:2.5px #ffffff;">MAIN<br>MENU</div>
+            <div style="margin-top:22px; display:flex; flex-direction:column; gap:1px;">
+              <sc-for list="{{ menu }}" as="m" hint-placeholder-count="6">
+                <div onClick="{{ m.onClick }}" style="{{ m.style }}" style-hover="opacity:0.85">
+                  <span style="width:20px; font-size:17px;">{{ m.caret }}</span>
+                  <span style="font-size:21px; font-weight:600; letter-spacing:1px;">{{ m.label }}</span>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+
+          <div style="position:relative; border:1px solid #ffffff; align-self:start; height:370px; overflow:hidden;">
+            <image-slot id="vns-menu-art" placeholder="主選單插圖" style="position:absolute; inset:0; width:100%; height:100%;"></image-slot>
+          </div>
+
+          <div style="display:flex; flex-direction:column; align-items:center; justify-content:space-between;">
+            <div style="writing-mode:vertical-rl; font-family:'Archivo Black',sans-serif; font-size:32px; line-height:1;">STAY<br>CURIOUS</div>
+            <svg width="34" height="34" viewBox="0 0 24 24" fill="#ffffff"><path d="M12 0l1.7 8.6L22 12l-8.3 3.4L12 24l-1.7-8.6L2 12l8.3-3.4z"/></svg>
+            <svg width="60" height="60" viewBox="0 0 60 60" fill="none" stroke="#ffffff" stroke-width="1"><circle cx="30" cy="30" r="26"/><ellipse cx="30" cy="30" rx="10" ry="26"/><path d="M4 30h52M9 17h42M9 43h42"/></svg>
+          </div>
+        </div>
+
+        <div style="text-align:right; font-size:11px; letter-spacing:1px; opacity:0.85; padding-bottom:38px;">© 2024 UNKNOWN STUDIO</div>
+        <div style="position:absolute; left:0; right:0; bottom:0; height:30px; background:#ccff00; color:#000000; overflow:hidden; display:flex; align-items:center;">
+          <div style="display:flex; gap:38px; white-space:nowrap; animation:vnmarquee 24s linear infinite; font-family:'Chakra Petch',sans-serif; font-size:15px; font-weight:700; letter-spacing:0.5px; padding-left:20px;">
+            <span>✦ WELCOME TO THE UNKNOWN WORLD</span><span>✦ WELCOME TO THE UNKNOWN WORLD</span><span>✦ WELCOME TO THE UNKNOWN WORLD</span><span>✦ WELCOME TO THE UNKNOWN WORLD</span><span>✦ WELCOME TO THE UNKNOWN WORLD</span><span>✦ WELCOME TO THE UNKNOWN WORLD</span>
+          </div>
+        </div>
+      </div>
+      <div style="font-size:11px; color:#3c3c3c;">main_menu_full.png</div>
+    </div>
+
+    <div style="display:flex; flex-direction:column; gap:8px;">
+      <div style="position:relative; width:960px; height:540px; overflow:hidden; background:rgba(26,43,255,0.72); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); padding:20px 24px 24px; box-sizing:border-box; display:flex; flex-direction:column;">
+        <div style="display:flex; justify-content:space-between; align-items:center; font-size:17px; font-weight:700; letter-spacing:3px;">
+          <span>SAVE / LOAD</span>
+          <svg width="16" height="16" viewBox="0 0 24 24" stroke="#ffffff" stroke-width="1.8" style="cursor:pointer;"><path d="M4 4l16 16M20 4L4 20"/></svg>
+        </div>
+        <div style="position:absolute; right:26px; top:34px; font-family:'Archivo Black',sans-serif; font-size:118px; line-height:0.9; color:transparent; -webkit-text-stroke:2px #ffffff; pointer-events:none;">SAVE</div>
+
+        <div style="margin-top:104px; border:1px solid #ffffff;">
+          <sc-for list="{{ slots }}" as="s" hint-placeholder-count="5">
+            <div onClick="{{ s.onClick }}" style="{{ s.style }}">
+              <div style="width:74px; height:100%; border-right:1px solid #ffffff; position:relative; overflow:hidden; flex:none; background:#111111;">
+                <sc-if value="{{ s.hasArt }}" hint-placeholder-val="{{ true }}">
+                  <image-slot id="vns-save-thumb" placeholder="縮圖" style="position:absolute; inset:0; width:100%; height:100%;"></image-slot>
+                </sc-if>
+              </div>
+              <div style="width:44px; text-align:center; font-size:19px; font-weight:700; flex:none;">{{ s.no }}</div>
+              <div style="flex:1; line-height:1.45;">
+                <div style="font-size:16px; font-weight:600; letter-spacing:1px;">{{ s.title }}</div>
+                <div style="font-size:12px; opacity:0.85; letter-spacing:1px;">{{ s.sub }}</div>
+              </div>
+              <div style="font-size:14px; opacity:0.75; padding-right:16px;">{{ s.tag }}</div>
+            </div>
+          </sc-for>
+        </div>
+
+        <div style="margin-top:auto; display:flex; align-items:center; justify-content:space-between; font-size:15px; letter-spacing:1px;">
+          <div style="display:flex; gap:20px;">
+            <svg width="22" height="15" viewBox="0 0 30 18" fill="none" stroke="#ffffff" stroke-width="1.6" style="cursor:pointer;"><path d="M30 9H4M10 3L4 9l6 6"/></svg>
+            <svg width="22" height="15" viewBox="0 0 30 18" fill="none" stroke="#ffffff" stroke-width="1.6" style="cursor:pointer;"><path d="M30 9H4M10 3L4 9l6 6"/></svg>
+          </div>
+          <span>1 / 10</span>
+          <div style="display:flex; gap:20px; align-items:center;">
+            <svg width="22" height="15" viewBox="0 0 30 18" fill="none" stroke="#ffffff" stroke-width="1.6" style="cursor:pointer;"><path d="M0 9h26M20 3l6 6-6 6"/></svg>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="1.4"><path d="M3 3h18v18H3zM3 3l18 18"/></svg>
+          </div>
+        </div>
+      </div>
+      <div style="font-size:11px; color:#3c3c3c;">save_load_full.png</div>
+    </div>
+
+    <div style="display:flex; flex-direction:column; gap:8px;">
+      <div style="position:relative; width:960px; height:540px; overflow:hidden; background:rgba(0,0,0,0.58); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); border:1px solid #ccff00; padding:20px 24px; box-sizing:border-box;">
+        <div style="display:flex; justify-content:space-between; align-items:center; font-size:17px; font-weight:700; letter-spacing:3px; color:#ccff00;">
+          <span>BACKLOG</span>
+          <svg width="16" height="16" viewBox="0 0 24 24" stroke="#ccff00" stroke-width="1.8" style="cursor:pointer;"><path d="M4 4l16 16M20 4L4 20"/></svg>
+        </div>
+        <div style="position:absolute; left:150px; top:24px; font-family:'Archivo Black',sans-serif; font-size:120px; line-height:0.9; color:transparent; -webkit-text-stroke:2px #ccff00; pointer-events:none;">LOG</div>
+
+        <div style="margin-top:104px; display:flex; flex-direction:column; border-left:1px solid #333333; padding-left:6px;">
+          <sc-for list="{{ log }}" as="l" hint-placeholder-count="4">
+            <div style="position:relative; padding:9px 8px 10px 26px; border-bottom:1px solid #1a1a1a;">
+              <div style="position:absolute; left:-11px; top:18px; width:11px; height:11px; border-radius:50%; border:1px solid #ccff00; background:rgba(0,0,0,0.58);"></div>
+              <div style="display:flex; justify-content:space-between; align-items:center;">
+                <span style="font-size:17px; font-weight:700; letter-spacing:2px; color:#ccff00;">{{ l.who }}</span>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="1.4" style="cursor:pointer;"><path d="M4 9h3l5-4v14l-5-4H4zM17 8a5 5 0 010 8"/></svg>
+              </div>
+              <div style="font-family:'Noto Sans TC',sans-serif; font-size:15px; line-height:1.6; margin-top:3px; white-space:pre-line;">{{ l.line }}</div>
+            </div>
+          </sc-for>
+        </div>
+        <div style="position:absolute; right:10px; top:120px; width:12px; height:180px; background:repeating-linear-gradient(to bottom, #ccff00 0 3px, transparent 3px 6px); border:1px solid #ccff00;"></div>
+      </div>
+      <div style="font-size:11px; color:#3c3c3c;">backlog_full.png</div>
+    </div>
+  </div>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:2020,&quot;height&quot;:1240},&quot;typeSpeed&quot;:{&quot;editor&quot;:&quot;range&quot;,&quot;default&quot;:55,&quot;min&quot;:10,&quot;max&quot;:160,&quot;step&quot;:5,&quot;unit&quot;:&quot;ms&quot;,&quot;tsType&quot;:&quot;number&quot;}}">
+const LIME = "#ccff00", INK = "#000000", PAPER = "#ffffff", BLUE = "#1a2bff";
+const LINE = "\u300c\u2026\u2026\u9019\u88e1\u662f\u54ea\u88e1\uff1f\n\u6211\u70ba\u4ec0\u9ebc\u6703\u5728\u9019\u7a2e\u5730\u65b9\u3002\u300d";
+const svg = (d, opts) => React.createElement("svg", Object.assign({ viewBox: "0 0 24 24", width: "100%", height: "100%", fill: "none", stroke: "currentColor", strokeWidth: 1.4 }, opts || {}), React.createElement("path", { d }));
+
+class Component extends DCLogic {
+  state = { menu: 0, slot: 0, typed: "", clock: "00:00:00" };
+
+  componentDidMount() {
+    let i = 0;
+    const speed = this.props.typeSpeed ?? 55;
+    this.t = setInterval(() => {
+      i++; this.setState({ typed: LINE.slice(0, i) });
+      if (i >= LINE.length) { clearInterval(this.t); this.t = null; }
+    }, speed);
+    const start = Date.now();
+    this.c = setInterval(() => {
+      const s = Math.floor((Date.now() - start) / 1000), p = n => String(n).padStart(2, "0");
+      this.setState({ clock: p(Math.floor(s / 3600)) + ":" + p(Math.floor(s / 60) % 60) + ":" + p(s % 60) });
+    }, 1000);
+  }
+  componentWillUnmount() { clearInterval(this.t); clearInterval(this.c); }
+
+  renderVals() {
+    const sel = this.state.menu;
+    const menu = ["START", "LOAD", "GALLERY", "SETTINGS", "EXTRAS", "EXIT"].map((label, i) => ({
+      label, caret: i === sel ? "\u276f" : "",
+      onClick: () => this.setState({ menu: i }),
+      style: {
+        display: "flex", alignItems: "center", gap: "6px", padding: "4px 14px", cursor: "pointer",
+        background: i === sel ? PAPER : "transparent", color: i === sel ? BLUE : PAPER,
+        clipPath: i === sel ? "polygon(0 0, calc(100% - 16px) 0, 100% 50%, calc(100% - 16px) 100%, 0 100%)" : "none",
+        width: i === sel ? "calc(100% + 16px)" : "auto"
+      }
+    }));
+
+    const slots = [0, 1, 2, 3, 4].map(i => {
+      const on = this.state.slot === i;
+      return {
+        no: "0" + (i + 1), hasArt: i === 0,
+        title: i === 0 ? "CHAPTER 01 - MORNING" : "EMPTY SLOT",
+        sub: i === 0 ? "2024/05/20   10:35:24" : "",
+        tag: i === 0 ? "--" : "",
+        onClick: () => this.setState({ slot: i }),
+        style: {
+          display: "flex", alignItems: "center", gap: "12px", height: "58px", cursor: "pointer",
+          borderBottom: i < 4 ? "1px solid " + PAPER : "none",
+          background: on ? PAPER : "transparent", color: on ? BLUE : PAPER
+        }
+      };
+    });
+
+    return {
+      typed: this.state.typed, clock: this.state.clock, menu, slots,
+      log: [
+        { who: "KAI", line: LINE },
+        { who: "???", line: "\u300c\u4f60\u9192\u4e86\uff0c\u771f\u662f\u592a\u597d\u4e86\u3002\u300d" },
+        { who: "KAI", line: "\u300c\u4f60\u662f\u8ab0\uff1f\u300d" },
+        { who: "???", line: "\u300c\u6211\u55ce\uff1f\n\u4f60\u53ef\u4ee5\u53eb\u6211\u300e\uff25\uff23\uff28\uff2f\u300f\u3002\u300d" }
+      ],
+      hud: [
+        { label: "LOG", icon: svg("M6 2h9l4 4v16H6zM10 9h7M10 13h7M10 17h5", { viewBox: "0 0 24 24", strokeWidth: 1.7 }) },
+        { label: "AUTO", icon: svg("M4 3l24 9-24 9zM9 9h9M9 13h6", { viewBox: "0 0 32 24", strokeWidth: 1.7 }) },
+        { label: "SKIP", icon: svg("M3 4l10 8-10 8zM17 4l10 8-10 8z", { viewBox: "0 0 32 24", strokeWidth: 1.7 }) },
+        { label: "MENU", icon: svg("M3 5h26M3 12h26M3 19h26", { viewBox: "0 0 32 24", strokeWidth: 2.1 }) }
+      ]
+    };
+  }
+}
+
+</script>
+</body>
+</html>
