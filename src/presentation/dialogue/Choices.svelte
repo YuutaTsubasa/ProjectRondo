@@ -334,14 +334,36 @@
     clip-path: polygon(0 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%);
   }
   .choice:focus .caret { color: rgb(var(--c-white-rgb)); }
-  /* The fill above already marks the focused option, but focus still needs an indicator of its own:
-     forced-colors mode overrides the fill while still honouring outline: none. :focus-visible rather
-     than :focus, because that is the whole difference between the two -- a pointer user is told
-     where the selection is by the fill and does not need a ring following the mouse; a keyboard user
-     gets both. */
+  /* The fill above marks the focused option in colour; this marks it in geometry, which is what
+     survives where the colour is not this file's to choose. Forced-colors mode overrides every
+     colour set here -- .inner's background, .choice's frame, the white text -- while still honouring
+     outline: none, so an outline is the one mark that can be left standing there and a panel that
+     declined one would have had nothing.
+     :focus-visible, because outside that mode the fill IS the mark: a 2px ring inside a 7px halo
+     tracking the mouse row to row is noise over a row that is already filled. What that reasoning
+     needs, and did not have, is the block below -- otherwise it withholds the ring on the grounds
+     that the fill covers the pointer, in the one mode where the fill is gone. */
   .choice:focus-visible {
     outline: var(--focus-ring);
     outline-offset: var(--focus-ring-offset);
     box-shadow: var(--focus-halo);
+  }
+  /* Forced colors is that mode, and in it the ring cannot stay the keyboard's alone. The fill is
+     erased -- background-color and border-color are forced to system colours on every row alike, and
+     the clip-path corner then cuts one system colour out of the same one -- which leaves .inner's
+     font-weight as the whole of the difference on the selected row, and a bolder line is not an
+     indicator. Nor does pointer focus reach the rule above: a click on an option does not match
+     :focus-visible, and neither does moveSelectionTo's programmatic focus(), which inherits the
+     non-visible state of whatever the pointer last touched. A mouse user in this mode would see no
+     option marked as selected at all. :focus here, so the ring marks the selection however focus
+     arrived; the noise it costs elsewhere is not a cost when it is the only mark.
+     No --focus-halo: box-shadow is forced to none, and what the halo buys is the ring's contrast
+     against a backdrop this panel cannot bound (tokens.css) -- which is not a problem the system
+     palette has. tests/presentation/dialogueTokens.test.ts is what holds this to :focus. */
+  @media (forced-colors: active) {
+    .choice:focus {
+      outline: var(--focus-ring);
+      outline-offset: var(--focus-ring-offset);
+    }
   }
 </style>
