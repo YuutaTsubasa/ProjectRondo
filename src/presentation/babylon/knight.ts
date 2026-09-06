@@ -137,23 +137,37 @@ const KNIGHT_FACING = Quaternion.FromEulerAngles(0, Math.PI, 0);
  */
 const TRAIL_EMISSIVE = new Color3(0.08, 0.22, 0.95);
 /**
- * Trail ribbon width. NOT a world-unit width, even though it reads like one next to
- * {@link TARGET_HEIGHT}: `TrailMesh._updateSectionVectors` builds each ribbon section from `diameter`
- * and then transforms it by `generator.getWorldMatrix()` (`createDashTrail` is passed `trailGenerator`,
- * a `TransformNode` parented to the glTF `root` — see {@link loadKnight}), and `root.scaling` is set in
- * {@link loadKnight} to `TARGET_HEIGHT / rawHeight` — a factor that is not 1 by construction (that line
- * exists precisely because the raw model isn't 1.9 units tall). A parented node's world matrix is built
- * from the parent's, so `trailGenerator.getWorldMatrix()` carries that same scaling even though nothing
- * on `trailGenerator` itself sets it. So `0.2` is in the GLB's own local units, and the on-screen ribbon
- * width is `0.2 * root.scaling`, whatever that multiple happens to be — not directly comparable to
- * `TARGET_HEIGHT` or any other world-space measurement in this file.
+ * Trail ribbon width — and neither half of that name survives contact with what Babylon does with it.
+ * It is not a diameter, and it is not in world units.
+ *
+ * **Not a diameter.** `TrailMesh` uses the argument as the section polygon's RADIUS: both
+ * `_createMesh` and `_updateSectionVectors` place each section vertex at
+ * `(cos(angle) * diameter, sin(angle) * diameter)`, so the cross-section spans `2 * diameter` across
+ * opposite vertices. Checked against the installed `@babylonjs/core/Meshes/trailMesh.pure.js` rather
+ * than inferred from the parameter's name, because the name says the opposite.
+ *
+ * **Not world units.** Those section vertices are then transformed by `generator.getWorldMatrix()`
+ * (`createDashTrail` is passed `trailGenerator`, a `TransformNode` parented to the glTF `root` — see
+ * {@link loadKnight}), and `root.scaling` is set in {@link loadKnight} to `TARGET_HEIGHT / rawHeight`
+ * — a factor that is not 1 by construction (that line exists precisely because the raw model isn't 1.9
+ * units tall). A parented node's world matrix is built from the parent's, so
+ * `trailGenerator.getWorldMatrix()` carries that same scaling even though nothing on `trailGenerator`
+ * itself sets it.
+ *
+ * So `0.2` is a radius in the GLB's own local units, the on-screen ribbon is `2 * 0.2 * root.scaling`
+ * wide, and neither number is directly comparable to {@link TARGET_HEIGHT} or to any other world-space
+ * measurement in this file. The measured width below closes on that arithmetic exactly, which is what
+ * says the factor of two is real and not a misreading of the library: `knight_web.glb`'s bind-pose
+ * extent on its long axis is 0.9794 units, so `root.scaling` is `1.9 / 0.9794` = 1.9399, and
+ * `2 * 0.2 * 1.9399` = 0.776 — the number that was measured. Dropping the factor of two predicts 0.388
+ * instead.
  *
  * **Untuned**, and unlike {@link TRAIL_EMISSIVE} above — retuned off the same browser pass — this one
  * came out of that pass unchanged: the ribbon measured 0.776 world units across on screen, close to the
  * knight's own torso width and reading thick, but no better width was tried, so 0.2 is still the
  * arrival value rather than a chosen one. Retune it in local units against an actual screenshot, or
- * compute the world-space width wanted and divide by `root.scaling` at the call site, rather than
- * treating this number as if it were already in world units.
+ * take the world-space width wanted, halve it and divide by `root.scaling` at the call site — both
+ * corrections, not just the scaling one.
  */
 const DASH_TRAIL_DIAMETER = 0.2;
 /**
