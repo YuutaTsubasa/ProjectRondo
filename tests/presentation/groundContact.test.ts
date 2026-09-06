@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   stepGroundContact,
+  spendBufferedJump,
   INITIAL_GROUND_CONTACT,
   COYOTE_SECONDS,
   JUMP_BUFFER_SECONDS,
@@ -212,6 +213,22 @@ describe('stepGroundContact', () => {
       expect(pressed.jumpRequested).toBe(false); // too far off the ground to jump yet
       s = frame(pressed.state, { supported: false, verticalSpeed: -5 }).state;
       expect(frame(s, { supported: true, verticalSpeed: -5 }).jumpRequested).toBe(true);
+    });
+
+    it('drops a press the homing lock spent, so it cannot come back as a second jump', () => {
+      // The buffer holds every press this machine declines, including the one the lock is about to
+      // commit as a dash — it cannot know which until the lock has answered, and the lock answers
+      // second. `spendBufferedJump` is how the press leaves again. Driven end to end, against the
+      // real lock and the arrival that reaches a legal jump frame, in homingLock.test.ts.
+      const falling = settle(INITIAL_GROUND_CONTACT, frames(COYOTE_SECONDS), {
+        supported: false, verticalSpeed: -5,
+      });
+      const pressed = frame(falling, { supported: false, verticalSpeed: -5, jumpPressed: true });
+      expect(pressed.jumpRequested).toBe(false); // too far off the ground: this press is the lock's
+      const landing = { supported: true, verticalSpeed: -5 } as const;
+      expect(frame(spendBufferedJump(pressed.state), landing).jumpRequested).toBe(false);
+      // Without the retraction that very same frame fires one, which is the double spend itself.
+      expect(frame(pressed.state, landing).jumpRequested).toBe(true);
     });
 
     it('forgets a press that goes unused for longer than the buffer', () => {

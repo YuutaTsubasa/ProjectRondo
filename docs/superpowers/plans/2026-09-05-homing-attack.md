@@ -1220,8 +1220,13 @@ tunes them. §8 presentation table → Tasks 4, 5, 6; `TrailMesh` and the 0.76 s
 Tasks 1–3, the browser gate in Task 7. §11 out of scope → nothing here builds any of it.
 
 **Type consistency.** `selectHomingTarget(from, cameraForward, candidates, config) → number | null` is
-defined in Task 2 and called with exactly those four arguments in Task 5. `HomingDash
-{direction, remaining, elapsed}` is defined in Task 3 and read on those names in Tasks 3 and 6.
+defined in Task 2 and called with exactly those four arguments in Task 5. `HomingDash` is defined in
+Task 3 as `{direction, remaining, elapsed}`, and **Task 9 narrows it to `{elapsed}` alone**, which is
+what ships: `direction` and `remaining` become per-frame derivations inside `stepHoming` rather than
+carried state, leaving `motion.homing !== null` (Tasks 5 and 6) and `motion.homing.elapsed` (Task 3's
+`step`) as the only reads anywhere. This paragraph was written when the plan had eight tasks and is
+the one place the ninth's interface change had to be carried back to, since certifying the types is
+its whole job.
 `MovementInput.homingTarget` is a `Vec3 | null` offset everywhere it appears. `Crystals.positions` is
 produced in Task 4 and indexed in Task 5 by the index Task 2 returns. The Vec3 helpers are imported
 under `length3` / `normalize3` / `scale3` aliases in `characterMovement.ts` because that file already
@@ -1232,8 +1237,16 @@ imports the Vec2 functions under the bare names.
 1. **`homingTarget` is an offset, not a position.** The spec's §4 gives the field a `Vec3` without
    saying which. A position would force `step` to know where the player is, which it does not and
    should not — position belongs to the Havok controller, and duplicating it into the domain would
-   create a second source of truth. The cost is that the dash direction is fixed at entry rather than
-   re-aimed each frame; targets are static and the dash is under a second, so it is invisible.
+   create a second source of truth. The cost was taken to be that the dash direction is fixed at entry
+   rather than re-aimed each frame — an offset is only true of the frame it was measured on — and it
+   was accepted because targets are static and the dash is under a second. **Task 9 removed that cost
+   rather than paying it**: presentation re-supplies the live offset every frame (`playerController`
+   holds the locked crystal precisely so it can), `stepHoming` re-derives direction and remaining
+   distance from it, and the dash corrects course continuously. What the decision costs in the end is
+   the obligation that puts on the caller: a dead-reckoned or stale offset aims the dash at where the
+   crystal used to be relative to the player, and the domain has no position of its own to notice
+   with. That same obligation is what makes the timeout reachable — a dash a wall has stopped is one
+   whose offset stops shrinking — which is why Task 9 exists at all.
 2. **The camera's aim is its true 3D forward, not `planarBasis().forward`.** The spec says "the
    camera's forward direction" and the codebase's existing forward helper is flattened to X/Z for
    locomotion. For a climb the vertical component is the whole point, so Task 5 computes

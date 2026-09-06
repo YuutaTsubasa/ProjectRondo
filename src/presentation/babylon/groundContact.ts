@@ -37,7 +37,9 @@
  *    `homingLock`, so chaining off a low crystal degraded silently into a hop. {@link
  *    GroundContactInput.dashInFlight} and {@link GroundContactInput.bounced} are therefore read
  *    *before* the press is spent, not after: on those frames the press stays in the buffer, and
- *    `grounded` stays false so the lock is the machine offered it.
+ *    `grounded` stays false so the lock is the machine offered it. Declining a press is not the same
+ *    as routing it, though — the press the lock then *takes* has to leave the buffer again, which is
+ *    {@link spendBufferedJump}.
  */
 
 /** How long after losing ground support a jump is still allowed. Covers the probe's 1-8 frame gaps. */
@@ -167,6 +169,20 @@ export const stepGroundContact = (
     airborne: isAirborne(contact),
   };
 };
+
+/**
+ * Retracts a buffered press that the homing lock spent as a dash.
+ *
+ * The order of the two machines is forced: the lock is gated on {@link GroundContactResult.jumpAvailable},
+ * so it cannot answer until this one has, and by then this one has already buffered the press it
+ * declined. Buffering it is right for the presses the lock declines in turn (problem 5) and wrong for
+ * the one it commits — a press spent as a dash that stays live for a further {@link JUMP_BUFFER_SECONDS}
+ * becomes a second, unrequested jump on the first frame inside that window on which a jump is legal
+ * again, which a dash arriving under a ceiling reaches in about four. So `playerController` calls this
+ * with `HomingLockResult.consumedPress`, and the press belongs to exactly one machine after all.
+ */
+export const spendBufferedJump = (state: GroundContactState): GroundContactState =>
+  ({ ...state, bufferedJumpFor: 0 });
 
 const advance = (
   contact: GroundContact, supported: boolean, verticalSpeed: number, delta: number,

@@ -83,6 +83,17 @@ export interface HomingLockResult {
    * answer on every frame, including frames with no press at all.
    */
   readonly preview: number | null;
+  /**
+   * This frame's press was spent HERE, as the start of a fresh dash. The ground machine has to be told,
+   * because it runs first — it is the one that answers {@link HomingLockInput.pressWouldDash} — and so
+   * it has already buffered the press by the time this is known. See `groundContact`'s
+   * `spendBufferedJump`, which retracts it; without that the press the lock took also stayed live for
+   * a further `JUMP_BUFFER_SECONDS` and came back as a second, unrequested jump.
+   *
+   * False for every press the lock *declines* — mid-dash, or with no crystal in the cone — which is
+   * exactly the set `groundContact`'s problem 5 keeps buffered.
+   */
+  readonly consumedPress: boolean;
 }
 
 /**
@@ -117,5 +128,8 @@ export const stepHomingLock = (
     },
     target,
     preview: candidate,
+    // A crystal held from a previous frame is not a press being spent, so `dashInFlight` excludes
+    // itself; with it excluded, a non-null `crystal` can only have come from this frame's press.
+    consumedPress: !input.dashInFlight && crystal !== null,
   };
 };

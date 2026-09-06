@@ -18,7 +18,7 @@ import type { FollowCamera } from './followCamera';
 import type { InputState } from './input';
 import type { Crystals } from './crystals';
 import { createHomingReticle } from './homingReticle';
-import { stepGroundContact, INITIAL_GROUND_CONTACT } from './groundContact';
+import { stepGroundContact, spendBufferedJump, INITIAL_GROUND_CONTACT } from './groundContact';
 import { stepHomingLock, NO_HOMING_LOCK } from './homingLock';
 import { solverVelocity } from './slopeMotion';
 
@@ -133,7 +133,14 @@ export function createPlayer(
     // climb starts — and declines the press rather than spending it, which keeps it in the
     // `JUMP_BUFFER_SECONDS` buffer and keeps `grounded` false through a bounce, so the chain press
     // reaches the lock as a dash instead of coming back as an ordinary jump. See `groundContact`'s
-    // problem 5. What the buffer still cannot do is *hand* an older press to the lock: the lock is
+    // problem 5.
+    //
+    // Declining a press is not the same as routing it, though. The buffer holds every press the
+    // ground machine refuses, the one the lock goes on to commit as a dash included, and the order
+    // cannot be swapped to find out first — the lock is gated on `jumpAvailable`, which only the
+    // ground machine can answer. So the press the lock takes is retracted from the buffer below, and
+    // only the ones it declined stay in it; see `spendBufferedJump` for what the second spend was.
+    // What the buffer still cannot do is *hand* an older press to the lock: the lock is
     // fed the frame's edge, so a chain press made before the arrival frame is remembered as a jump
     // and not as a dash. Feeding the lock from the buffer too is a feel decision on a mechanic nobody
     // has played yet (see `MovementConstants`' homing block), so it is left rather than guessed at.
@@ -175,6 +182,7 @@ export function createPlayer(
       candidates: crystals.positions,
     }, config);
     homingLock = lockResult.lock;
+    if (lockResult.consumedPress) contact = spendBufferedJump(contact);
     player.homingEntrySeconds = homingLock.entrySeconds;
     if (lockResult.preview === null) reticle.hide();
     else reticle.showAt(crystals.positions[lockResult.preview]);

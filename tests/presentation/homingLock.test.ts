@@ -3,7 +3,7 @@ import {
   stepHomingLock, NO_HOMING_LOCK, type HomingLockConfig, type HomingLockInput,
 } from '../../src/presentation/babylon/homingLock';
 import {
-  stepGroundContact, INITIAL_GROUND_CONTACT, COYOTE_SECONDS, FALL_GRACE_SECONDS,
+  stepGroundContact, spendBufferedJump, INITIAL_GROUND_CONTACT, COYOTE_SECONDS, FALL_GRACE_SECONDS,
 } from '../../src/presentation/babylon/groundContact';
 import { vec3, ZERO3 } from '../../src/domain/math/vec3';
 
@@ -91,6 +91,32 @@ describe('stepHomingLock', () => {
   it('previews nothing mid-dash — the lock is committed and the trail already says so', () => {
     const locked = stepHomingLock(NO_HOMING_LOCK, frame({ jumpPressed: true }), C).lock;
     expect(stepHomingLock(locked, frame({ dashInFlight: true }), C).preview).toBeNull();
+  });
+
+  describe('reporting whether it took the press', () => {
+    // `groundContact` buffers every press it declines and cannot tell which of them the lock went on
+    // to spend, because it answers first. This is that answer.
+    it('says so on the frame it commits a fresh dash', () => {
+      expect(stepHomingLock(NO_HOMING_LOCK, frame({ jumpPressed: true }), C).consumedPress).toBe(true);
+    });
+
+    it('says no when it declined the press for want of a crystal in the cone', () => {
+      const input = frame({ jumpPressed: true, candidates: [BEHIND] });
+      expect(stepHomingLock(NO_HOMING_LOCK, input, C).consumedPress).toBe(false);
+    });
+
+    it('says no for a press made mid-dash, which it holds the lock through rather than spends', () => {
+      const locked = stepHomingLock(NO_HOMING_LOCK, frame({ jumpPressed: true }), C).lock;
+      const held = stepHomingLock(locked, frame({ dashInFlight: true, jumpPressed: true }), C);
+      expect(held.lock.crystal).toBe(0); // still committed, so `crystal` alone would read as a spend
+      expect(held.consumedPress).toBe(false);
+    });
+
+    it('says no on a frame with no press at all, however the reticle is pointing', () => {
+      const previewing = stepHomingLock(NO_HOMING_LOCK, frame(), C);
+      expect(previewing.preview).toBe(0);
+      expect(previewing.consumedPress).toBe(false);
+    });
   });
 
   it('previews the crystal a press would commit to, so the ring never points somewhere else', () => {
@@ -204,6 +230,71 @@ describe('stepHomingLock composed with stepGroundContact', () => {
       // must not retarget mid-flight. `groundContact` keeps it buffered — pinned there.
       expect(pressWith({ dashInFlight: true, bounced: false }, { crystal: 1, entrySeconds: 0.4 }))
         .toBe('held');
+    });
+  });
+
+  /**
+   * "Exactly one of the two" has a second half: a press the lock spends must also stop being a jump
+   * the buffer is still holding. The ground machine cannot decide that alone — it buffers the press
+   * before the lock has said whether it wants it — so the retraction is a step of the composition,
+   * and only driving both machines shows whether it happened.
+   */
+  describe('the press that started a dash', () => {
+    /**
+     * Runs the frame both machines see, in the order `playerController` runs them, and hands back the
+     * ground state the next frame starts from — the retraction included.
+     */
+    const bothMachines = (
+      contact: Parameters<typeof stepGroundContact>[0],
+      ground: Parameters<typeof stepGroundContact>[1],
+      candidates = [NEAR, FAR, BEHIND],
+    ) => {
+      const contactResult = stepGroundContact(contact, ground);
+      const lockResult = stepHomingLock(NO_HOMING_LOCK, frame({
+        jumpPressed: ground.jumpPressed,
+        pressWouldDash: !contactResult.jumpAvailable,
+        dashInFlight: ground.dashInFlight,
+        candidates,
+      }), C);
+      return {
+        ...contactResult,
+        consumedPress: lockResult.consumedPress,
+        state: lockResult.consumedPress ? spendBufferedJump(contactResult.state) : contactResult.state,
+      };
+    };
+
+    /** Off a ledge, past the coyote window, so the press is the lock's rather than the jump's. */
+    const fallenPastCoyote = () => {
+      let contact = INITIAL_GROUND_CONTACT;
+      for (let t = 0; t <= COYOTE_SECONDS; t += DT) contact = stepGroundContact(contact, FALLING).state;
+      return contact;
+    };
+
+    it('is not still in the jump buffer when the dash arrives under a ceiling', () => {
+      // The reviewer's drive, frame for frame: press into a dash, two frames of flight, then an
+      // arrival whose bounce the ceiling cancels (`verticalSpeed` 0). `bounced` forces `rising`, the
+      // climb that is not climbing ends on the very next frame, and the probe has floor under the
+      // crystal — so that frame is a legal jump frame, roughly four after the press and well inside
+      // JUMP_BUFFER_SECONDS. A press left in the buffer fires there, unrequested.
+      const pressed = bothMachines(fallenPastCoyote(), { ...FALLING, jumpPressed: true });
+      expect(pressed.jumpRequested).toBe(false);
+      expect(pressed.consumedPress).toBe(true);
+
+      let contact = pressed.state;
+      const skimming = { ...FALLING, supported: true, verticalSpeed: 0, dashInFlight: true };
+      for (let i = 0; i < 2; i += 1) contact = bothMachines(contact, skimming).state;
+      contact = bothMachines(contact, { ...skimming, dashInFlight: false, bounced: true }).state;
+
+      const landed = bothMachines(contact, { ...FALLING, supported: true, verticalSpeed: 0 });
+      expect(landed.jumpRequested).toBe(false);
+    });
+
+    it('still buffers a press the lock declined, so a dash-less press is not swallowed', () => {
+      // The other half of `groundContact`'s problem 5: with the camera pointed at nothing the lock
+      // takes no press, and that one has to keep the buffer that carries it to the landing.
+      const pressed = bothMachines(fallenPastCoyote(), { ...FALLING, jumpPressed: true }, [BEHIND]);
+      expect(pressed.consumedPress).toBe(false);
+      expect(bothMachines(pressed.state, { ...FALLING, supported: true }).jumpRequested).toBe(true);
     });
   });
 });

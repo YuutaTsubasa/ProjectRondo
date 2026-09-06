@@ -314,29 +314,40 @@ The owner supplied `Flying Kick.fbx` (Kaydara FBX binary, 435 872 bytes). It bec
 animation, through the Godot retarget pipeline the README documents and that Run and Jump already came
 through (PR #23).
 
-**It is sequenced last and it does not block anything.** The move ships first with a placeholder — a
-procedural spin during the dash, which needs no asset and still signals "this is not a jump" — and the
-clip replaces it when the pipeline run succeeds. The reason for that ordering is risk, not politeness:
+**It was sequenced last and it blocked nothing.** The move was built first against a placeholder — a
+procedural spin during the dash, which needs no asset and still signals "this is not a jump" — with the
+clip to replace it if the pipeline run succeeded. The reason for that ordering was risk, not politeness:
 
 - Regenerating the GLB re-runs a `gltf-transform` pass with a **known defect**: it writes
   spec-default-valued scalars as `0`. Three shipped that way (`normalTexture.scale`,
-  `emissiveStrength`, `metallicFactor`) and `knight.ts` still carries load-time corrections for them.
-  The README's instruction is explicit — **no scalar in a regenerated GLB may be trusted without
-  checking it against the glTF spec default** — and if the new export is clean, those corrections
-  should be dropped rather than left as dead guards.
+  `emissiveStrength`, `metallicFactor`) and `knight.ts` carried load-time corrections for them. The
+  README's instruction is explicit — **no scalar in a regenerated GLB may be trusted without checking
+  it against the glTF spec default** — and a clean new export would mean dropping those corrections
+  rather than leaving them as dead guards.
 - The Godot import can serve a **stale cache**: `.godot/imported/<Name>.fbx-*` must be deleted first or
   the bone renaming silently does not apply, and "silently" is the operative word.
 - The FBX needs its `_subresources` bone_map block copied from `Walking.fbx.import`, an entry in
   `SRC` in `tools/extract_anims.gd`, and — because it is a one-shot — an entry in `NON_LOOPING`,
-  which currently holds only `Jump`.
+  which held only `Jump`.
 - The file is renamed `FlyingKick.fbx` to match the existing `Idle` / `Jump` / `Running` / `Walking`
   convention; the space in the supplied name has no business in a resource path.
-- `knight.ts`'s clip guard currently throws unless Idle, Walk, Run **and** Jump are present. It gains a
-  fifth lookup, and the error message has to gain the fifth name with it, or a future missing clip
-  reports the wrong list.
+- `knight.ts`'s clip guard threw unless Idle, Walk, Run **and** Jump were present. It had to gain a
+  fifth lookup, and the error message the fifth name with it, or a future missing clip would report the
+  wrong list.
 
-If the pipeline run fails or the regenerated GLB's scalars cannot be made trustworthy, the placeholder
-ships and the clip becomes its own piece of work. That is a real possible outcome, not a formality.
+**The run succeeded and the clip shipped** (`57489fe`), so the placeholder branch was not taken.
+`FlyingKick` is in `SRC` and in `NON_LOOPING`, which now reads `["Jump", "FlyingKick"]`; the GLB was
+regenerated; `knight.ts` takes a fifth `byName(/kick/i)` lookup and names Flying Kick in the guard's
+message; and Task 6's placeholder spin was deleted along with its roll reset. `8b63f69` then retimed
+the clip onto the dash's real screen time, for the reason §8 gives about the jump seam — a dash bounded
+at 0.6 s would otherwise show only the wind-up.
+
+The regeneration's scalars were checked in full rather than at those three, since the defect is a
+property of the export pass: the `gltf-transform` pass still writes `normalTexture.scale`,
+`emissiveStrength` and `metallicFactor` as `0`, identically to the GLB it replaced and now reproduced
+on a second export from a different source clip set, and nothing else in the material, nodes,
+accessors or samplers is affected. So `knight.ts`'s load-time corrections and the README paragraph
+documenting them stay: they guard a defect that is still live.
 
 ## 10. Testing
 
