@@ -143,6 +143,31 @@ describe('the typing cue', () => {
     expect(revealed()).toBe('走哪？');
     expect(countOf(playCue, 'ui.type')).toBe(0);
   });
+
+  it('makes no sound for a press on the box while the choices are open', () => {
+    vi.useFakeTimers();
+    const { session, playCue } = renderOverlay(SCRIPT);
+    tick(0);
+    tick(CHAR_MS * NINE.length);
+    session.advance();
+    tick(1000);
+    expect(session.choices.length).toBe(2);
+    const line = session.line;
+    playCue.mockClear();
+
+    // The other half of the silence under the modal: the reveal above is one, a press is the other.
+    // `inert` is what stops this press in a browser and jsdom implements none of it, so the click
+    // reaches `onBoxClick` and lands on the `session.choices.length > 0` guard -- which is where
+    // this half actually lives, and which now gates a `ui.type` that did not exist when it was
+    // written to keep a press from advancing the session behind the panel. Both halves have to
+    // hold: a box that ticked under the choices would be answering a press the player cannot make.
+    q<HTMLButtonElement>('.hit')!.click();
+    flushSync();
+    expect(cues(playCue)).toEqual([]);
+    // And the guard still does the job it was written for.
+    expect(session.line).toBe(line);
+    expect(session.choices.length).toBe(2);
+  });
 });
 
 describe('the choice cues', () => {
