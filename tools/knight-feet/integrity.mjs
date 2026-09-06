@@ -299,8 +299,8 @@ export function checkIntegrity(originalPath, correctedPath) {
         const src = a.read(from.samplers[ch.sampler].output);
         const dst = b.read(anim.samplers[ch.sampler].output);
         const motion = anim.name !== REFERENCE_CLIP;
-        // Named for what it is, not `step` — that is the angular-distance helper at module scope,
-        // and one name for two unrelated things in one file is how the shadowing above survived.
+        // Named for what it is, not `step`: that name belongs to the angular-distance helper at
+        // module scope.
         const fitted = motion ? c.animation.q : c.tpose.q;
         for (let k = 0; k < dst.length; k++) {
           close(norm(qm(motion ? qm(pre, src[k]) : src[k], fitted)), dst[k], motion ? 'animation' : 'tpose');
