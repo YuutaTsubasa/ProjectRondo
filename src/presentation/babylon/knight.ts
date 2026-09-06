@@ -1155,10 +1155,10 @@ const playSegment = (group: AnimationGroup, fromSeconds: number, toSeconds: numb
  * segment fades by `jumpWeight`; the trail does not fade with it, and has no alpha to fade — it is a
  * ribbon, switched on outright on `homing`'s rising edge and off on its falling one, so it simply
  * runs for exactly as long as the dash does. And, since a dash can only start while already airborne,
- * the jump segment can still be mid-fade when a dash starts, so `kickWeight` also cuts into the
- * jump's *rendered* weight (not
- * locomotion's, which is already zeroed by `jumpInfluence` whenever a jump is live) so the two
- * one-shots do not fight over the same bones. {@link KnightMotionSample.bounced} restarts the jump
+ * the jump segment can still be mid-fade when a dash starts, so `kickWeight` cuts into the jump's
+ * *rendered* weight so the two one-shots do not fight over the same bones — and into locomotion's as
+ * well, which a dash entered from a fall with no live jump segment needs, since nothing else would
+ * hold the run clip down against `homingSpeed`. {@link KnightMotionSample.bounced} restarts the jump
  * clip from {@link BOUNCE_RESTART} — `stepJumpPose` is what holds that restart, so it rides the
  * existing `jumpWeight` blend back into locomotion; a timeout plays nothing — the domain already
  * zeroed the velocity, so the knight simply resumes falling under gravity next frame.
@@ -1249,8 +1249,11 @@ export function driveKnightAnimation(
     // A dash can only start off the ground, so the jump segment can still be live — and its weight
     // still ramping — on the frame a dash starts. Cut kick's share out of jump's *rendered* weight
     // (not `jumpWeight` itself, which still governs the stop-on-touchdown check below) so the two
-    // one-shots don't compete for the same bones; locomotion needs no equivalent term because
-    // `jumpInfluence` already zeroes it whenever a jump is live.
+    // one-shots don't compete for the same bones. Locomotion carries its own `(1 - kickWeight)` term
+    // below, and needs it: `jumpInfluence` is `jumpWeight`, which targets `offGround && jump.isPlaying`,
+    // so a dash entered from a fall whose jump segment has already finished — or from a fall that never
+    // played one — has `jumpInfluence` at 0 while `planarSpeed` is `homingSpeed`, which would otherwise
+    // put the run clip at full weight against the kick pose.
     if (jump.isPlaying) {
       jump.setWeightForAllAnimatables(jumpWeight * (1 - kickWeight));
       if (!offGround && jumpWeight <= WEIGHT_EPSILON) jump.stop();
