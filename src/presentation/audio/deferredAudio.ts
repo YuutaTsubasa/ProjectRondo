@@ -1,4 +1,5 @@
 import type { MusicScene } from '../../domain/audio/musicDirector';
+import type { SoundCue } from '../../domain/audio/soundCue';
 
 /**
  * The handle the scene holds: ask for a music scene, and tear the graph down.
@@ -8,6 +9,16 @@ import type { MusicScene } from '../../domain/audio/musicDirector';
  */
 export interface DeferredAudio {
   setMusicScene(scene: MusicScene): void;
+  /**
+   * Plays a one-shot. Silently does nothing until the graph exists, and after it is disposed.
+   *
+   * **Dropped rather than held, which is the opposite of `setMusicScene` two lines up, and the
+   * difference is the point.** A music scene is a *state*: whenever the graph arrives, the answer to
+   * "what should be playing" is still the same one, so holding it is right. A cue is an *event* tied
+   * to the moment it happened — a typing tick replayed when the graph finishes loading would fire
+   * seconds after the character it belongs to was drawn, which is worse than the silence it replaced.
+   */
+  play(cue: SoundCue): void;
   dispose(): void;
 }
 
@@ -62,6 +73,10 @@ export function createDeferredAudio(build: () => Promise<DeferredAudio>): Deferr
     setMusicScene(next) {
       pending = next;
       live?.setMusicScene(next);
+    },
+    // No `pending` equivalent, deliberately — see the interface.
+    play(cue) {
+      live?.play(cue);
     },
     dispose() {
       disposed = true;

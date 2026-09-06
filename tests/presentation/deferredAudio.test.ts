@@ -2,16 +2,24 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 import { createDeferredAudio, type DeferredAudio } from '../../src/presentation/audio/deferredAudio';
 import type { MusicScene } from '../../src/domain/audio/musicDirector';
+import type { SoundCue } from '../../src/domain/audio/soundCue';
 
 /**
- * Pins the deferral in front of the audio graph.
+ * Pins the deferral in front of the audio graph, and what it does with each kind of request in the
+ * window before the graph exists.
  *
  * `createHubAudio` is synchronous and builds its graph in the background, so between the scene
- * resolving and the graph existing there is a window in which every request has to be held rather
- * than dropped, and a teardown has to reach a graph nobody else has a reference to yet. All three
- * failures are inaudible: `App.svelte` asks for the intro track exactly once, from the scene-load
- * callback, so a dropped request costs the session all of its music with nothing logged; and a
- * `dispose` that misses a build still in flight leaves an `AudioContext` running past the page.
+ * resolving and the graph existing there is a window in which a request reaches no graph at all.
+ * The two halves of this file are the two answers to that, and they are opposite on purpose:
+ *
+ * - A music scene is a STATE, and is held. Whenever the graph arrives, the answer is still the same
+ *   one — so a scene asked for in the window is replayed into the graph, and a teardown has to reach
+ *   a graph nobody else has a reference to yet. All three failures are inaudible: `App.svelte` asks
+ *   for the intro track exactly once, from the scene-load callback, so a dropped request costs the
+ *   session all of its music with nothing logged; and a `dispose` that misses a build still in
+ *   flight leaves an `AudioContext` running past the page.
+ * - A cue is an EVENT, and is dropped. It is tied to the moment it happened, so replaying it would
+ *   fire a typing tick seconds after its character was drawn.
  *
  * Reachable here because `createDeferredAudio` takes the build as a nullary function: the fake below
  * is a plain object plus a promise this file settles by hand — no `vi.mock`, no `Scene`, no loaded
@@ -20,16 +28,22 @@ import type { MusicScene } from '../../src/domain/audio/musicDirector';
 
 interface Fake extends DeferredAudio {
   readonly scenes: MusicScene[];
+  readonly cues: SoundCue[];
   disposals: number;
 }
 
 const makeFake = (): Fake => {
   const scenes: MusicScene[] = [];
+  const cues: SoundCue[] = [];
   return {
     scenes,
+    cues,
     disposals: 0,
     setMusicScene(scene) {
       scenes.push(scene);
+    },
+    play(cue) {
+      cues.push(cue);
     },
     dispose() {
       this.disposals += 1;
@@ -160,5 +174,45 @@ describe('the deferred audio handle', () => {
     expect(warn).toHaveBeenCalledTimes(1);
     expect(() => audio.setMusicScene('playing')).not.toThrow();
     expect(() => audio.dispose()).not.toThrow();
+  });
+});
+
+describe('createDeferredAudio, one-shot cues', () => {
+  it('drops a cue asked for before the graph exists, rather than holding it', async () => {
+    const deferred = deferBuild();
+    const audio = createDeferredAudio(deferred.build);
+    const fake = makeFake();
+
+    audio.play('ui.type');
+    deferred.settle(fake);
+    await flush();
+
+    // The opposite of setMusicScene, and the reason both behaviours are pinned here: a scene is a
+    // state that is still true whenever the graph arrives, a cue is an event tied to the moment it
+    // happened. Replaying it would fire a typing tick seconds after its character was drawn.
+    expect(fake.cues).toEqual([]);
+  });
+
+  it('forwards a cue asked for once the graph is up', async () => {
+    const deferred = deferBuild();
+    const audio = createDeferredAudio(deferred.build);
+    const fake = makeFake();
+    deferred.settle(fake);
+    await flush();
+
+    audio.play('ui.confirm');
+    expect(fake.cues).toEqual(['ui.confirm']);
+  });
+
+  it('drops a cue asked for after disposal', async () => {
+    const deferred = deferBuild();
+    const audio = createDeferredAudio(deferred.build);
+    const fake = makeFake();
+    deferred.settle(fake);
+    await flush();
+
+    audio.dispose();
+    audio.play('ui.move');
+    expect(fake.cues).toEqual([]);
   });
 });

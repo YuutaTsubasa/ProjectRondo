@@ -5,6 +5,7 @@ import type { Nullable } from '@babylonjs/core/types';
 import { createFootstepCadence } from '../../domain/audio/footstepCadence';
 import { cadenceSample } from '../../domain/audio/locomotionGait';
 import { surfaceCue } from '../../domain/audio/soundCue';
+import { createVariantRotation } from '../../domain/audio/variantRotation';
 import { WALK_THRESHOLD, type Knight, type KnightMotionSample } from '../babylon/knight';
 import { createGameAudio } from './audioEngine';
 import { phaseOf, weightOf } from './clipSample';
@@ -107,6 +108,14 @@ async function buildHubAudio(
     // test can reach it without a scene.
     const crossfade = createMusicCrossfade(soundBank);
 
+    // The manifest gives some cues several files — `ui.type` has four — and `soundBank.play` picks
+    // by an index its caller supplies, so something has to count. It counts on this side rather than
+    // at the call site because how many recordings back a cue is the manifest's business: the
+    // dialogue UI asks for "a typing tick" and has no reason to learn there are four of them. The
+    // counting itself is in the domain, for the same reason the crossfade above is its own module —
+    // nothing in here is reachable by a test without a scene.
+    const variants = createVariantRotation();
+
     const cadence = createFootstepCadence();
     let wasAirborne = motion().airborne;
 
@@ -186,6 +195,9 @@ async function buildHubAudio(
     return {
       setMusicScene(next) {
         crossfade.setScene(next);
+      },
+      play(cue) {
+        soundBank.play(cue, { variant: variants.next(cue) });
       },
       dispose() {
         stopWatchingForGestures();
