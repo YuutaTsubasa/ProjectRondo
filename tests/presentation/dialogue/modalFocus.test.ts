@@ -109,8 +109,13 @@ describe('modal focus', () => {
     expect(press(q('.prompt')!)).toBe(true);
 
     // A press ON an option is left alone, or the option could never take focus and the panel would
-    // be unusable by pointer.
-    expect(press(first)).toBe(false);
+    // be unusable by pointer. `.choice` has no text node of its own -- `.inner` wraps the caret and
+    // the label -- so no real press ever lands on the <button> itself; the hit element is one of
+    // those children. Pressing on the caret is what exercises keepFocus's `target.closest('button')`
+    // walk: a target that is already the button would pass the same assertion under an
+    // implementation narrowed to `target.tagName === 'BUTTON'`, which cancels every real press.
+    const caret = first.querySelector('.caret')!;
+    expect(press(caret)).toBe(false);
     expect(document.activeElement).toBe(first);
   });
 
