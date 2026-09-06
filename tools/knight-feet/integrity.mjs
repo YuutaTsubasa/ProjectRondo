@@ -16,7 +16,8 @@
  *     `rotation`. Nothing may be renamed, re-parented, translated or rescaled.
  *  3. Every animation track that is not a foot *rotation* decodes to identical values — the split
  *     is on (node, path), so a translation or scale track on an ankle is compared, not exempted.
- *  4. Every corrected quaternion is still unit length (a drifting quaternion skews the whole limb).
+ *  4. Every corrected quaternion is still unit length (a drifting quaternion skews the whole limb),
+ *     and where a rewritten accessor declares min/max, those bounds match the corrected keys.
  *  5. **Angular motion is preserved.** Composing a constant rotation with each key is supposed to
  *     leave the *step* between adjacent keys untouched; the dot product of neighbouring keys is a
  *     rotation-invariant measure of that step, so comparing it before and after catches a correction
@@ -26,7 +27,7 @@
  *     textures, images, samplers, scenes and the rest. Assertions 1-2 exist for their messages; this
  *     one exists so the guarantee does not depend on having listed the right blocks. Three
  *     differences are allowed through by name: the two foot node rotations, the min/max of the
- *     accessors this run rewrote (whose new values assertion 4 recomputes rather than trusts), and
+ *     accessors this run rewrote (whose new values assertion 4 checks rather than trusts), and
  *     `asset.extras.knightFootCalibration` — that one key, not the `asset` block around it.
  *
  * Exported as a function so `verify.mjs` runs it on the paths it already parsed, rather than the two
@@ -34,10 +35,16 @@
  */
 import assert from 'node:assert/strict';
 import { fileURLToPath } from 'node:url';
-import { load, norm, qm } from './glb.mjs';
+import { load, norm, qm, axis } from './glb.mjs';
 
 /** The ankle nodes this tool is allowed to have changed. */
 const FOOT_NODE = /^(Left|Right)Foot$/;
+
+/** The one-frame reference pose. calibrate.mjs fits it separately and applies no pre-rotation to it. */
+const REFERENCE_CLIP = '0_T-Pose';
+
+/** No rotation, for a node whose `rotation` glTF omits. */
+const IDENTITY = [0, 0, 0, 1];
 
 /**
  * Throws on the first violation; otherwise returns a report of what was allowed to change.
@@ -109,9 +116,15 @@ export function checkIntegrity(originalPath, correctedPath) {
         if (!Object.hasOwn(b.j.accessors[acc], bound)) continue;
         const pick = bound === 'min' ? Math.min : Math.max;
         const want = [0, 1, 2, 3].map((c) => pick(...bb.map((q) => q[c])));
-        assert.deepEqual(
-          b.j.accessors[acc][bound],
-          want,
+        // Compared with a tolerance, not exactly. calibrate.mjs derives the bound from its float64
+        // working values *before* writeAccessor truncates each component to float32; this derives it
+        // from the float32 data read back. Both are honest answers to "what are the bounds of the
+        // corrected keys" and they disagree around the eighth decimal, so an exact comparison would
+        // fail every correct calibration — the same message as a stale bound, which would make the
+        // check unable to tell the two apart.
+        const drift = Math.max(...want.map((x, i) => Math.abs(x - b.j.accessors[acc][bound][i])));
+        assert(
+          drift < 1e-6,
           `${anim.name}: accessor ${bound} was not recomputed from the corrected keys`,
         );
       }
@@ -153,14 +166,20 @@ export function checkIntegrity(originalPath, correctedPath) {
   // `copyright` and every other field under it — the same blind spot this assertion was added to
   // close, one level down. What the calibration writes is one key, so one key is what is exempted;
   // the receipt's own contents are checked by `knightFootCalibration.test.ts` against the geometry.
-  if (a.j.asset.extras?.knightFootCalibration === undefined) {
-    delete expected.asset.extras?.knightFootCalibration;
-    if (expected.asset.extras && Object.keys(expected.asset.extras).length === 0) {
-      if (a.j.asset.extras === undefined) delete expected.asset.extras;
+  const receiptIn = a.j.asset.extras?.knightFootCalibration;
+  const receiptOut = expected.asset.extras?.knightFootCalibration;
+  if (receiptIn === undefined && receiptOut !== undefined) {
+    // The normal case: a calibration run added the receipt. Take it back out of the comparison.
+    delete expected.asset.extras.knightFootCalibration;
+    if (Object.keys(expected.asset.extras).length === 0 && a.j.asset.extras === undefined) {
+      delete expected.asset.extras;
     }
-  } else {
-    expected.asset.extras.knightFootCalibration = a.j.asset.extras.knightFootCalibration;
+  } else if (receiptIn !== undefined && receiptOut !== undefined) {
+    expected.asset.extras.knightFootCalibration = receiptIn;
   }
+  // The remaining case — the original had a receipt and the corrected file does not — is left alone
+  // on purpose, so losing one fails the comparison below. Writing into `expected.asset.extras` there
+  // would have thrown a TypeError instead of asserting, which is the tamper this block exists to name.
   assert.deepEqual(a.j.asset, expected.asset, 'Something under asset changed besides the receipt');
 
   // The receipt cannot be diffed — the original has none — so it is checked against what this run
@@ -169,21 +188,47 @@ export function checkIntegrity(originalPath, correctedPath) {
   // corrections that were never applied is the one way the calibration can lie to a reader, since it
   // is also what makes a second run refuse to double-apply.
   //
-  // `undoParentPitchDegrees` is deliberately not checked: it is a provenance label with no
-  // counterpart in either file's geometry, so nothing here can confirm it. Said plainly rather than
-  // implied to be covered.
+  // All three fitted rotations, not just the one on the node. `tpose.q` rewrote every key of the
+  // reference clip's foot track and `animation.q` every key of the other four, so checking `rest.q`
+  // alone left the receipt free to misdescribe the two corrections that touched the most data.
+  // Checking `animation.q` also settles `undoParentPitchDegrees`, which an earlier version of this
+  // comment called unconfirmable: the motion identity composes the pre-rotation that number defines,
+  // so a wrong value fails here.
+  //
   // Only when this run really is a calibration — i.e. the original has no receipt of its own. Two
   // already-calibrated files compared against each other are a different question (nothing changed),
-  // and `rest.q` describes the step from raw to corrected, not from corrected to corrected.
+  // and these rotations describe the step from raw to corrected, not from corrected to corrected.
   const receipt = b.j.asset.extras?.knightFootCalibration;
   if (receipt && a.j.asset.extras?.knightFootCalibration === undefined) {
+    const pre = axis([1, 0, 0], (-(receipt.undoParentPitchDegrees ?? 0) * Math.PI) / 180);
     for (const c of receipt.corrections) {
+      // Bounds-checked before dereferencing: a hand-edited receipt is one of the inputs this loop
+      // exists to reject, and it should fail through the assertion written for it rather than
+      // through a TypeError on an out-of-range index.
+      assert(b.j.nodes[c.node] !== undefined, `Receipt node index out of range: ${c.node}`);
       assert(FOOT_NODE.test(b.j.nodes[c.node].name), `Receipt names a non-foot node: ${c.name}`);
       assert.equal(b.j.nodes[c.node].name, c.name, 'Receipt node index and name disagree');
-      const want = norm(qm(a.j.nodes[c.node].rotation ?? [0, 0, 0, 1], c.rest.q));
-      const got = b.j.nodes[c.node].rotation;
-      const off = Math.max(...want.map((x, i) => Math.abs(x - got[i])));
-      assert(off < 1e-6, `Receipt's ${c.name} rest correction does not reproduce the shipped rotation`);
+
+      const close = (want, got, what) => {
+        assert(Array.isArray(got), `${c.name}: no rotation to check ${what} against`);
+        const off = Math.max(...want.map((x, i) => Math.abs(x - got[i])));
+        assert(off < 1e-6, `Receipt's ${c.name} ${what} does not reproduce the shipped rotation`);
+      };
+
+      close(norm(qm(a.j.nodes[c.node].rotation ?? IDENTITY, c.rest.q)), b.j.nodes[c.node].rotation, 'rest');
+
+      for (const anim of b.j.animations) {
+        const ch = anim.channels.find((x) => x.target.node === c.node && x.target.path === 'rotation');
+        if (!ch) continue;
+        const from = a.j.animations.find((x) => x.name === anim.name);
+        const src = a.read(from.samplers[ch.sampler].output);
+        const dst = b.read(anim.samplers[ch.sampler].output);
+        const motion = anim.name !== REFERENCE_CLIP;
+        const step = motion ? c.animation.q : c.tpose.q;
+        for (let k = 0; k < dst.length; k++) {
+          close(norm(qm(motion ? qm(pre, src[k]) : src[k], step)), dst[k], motion ? 'animation' : 'tpose');
+        }
+      }
     }
   }
   assert.deepEqual(a.j, expected, 'Something outside the ankles changed in the glTF JSON');
