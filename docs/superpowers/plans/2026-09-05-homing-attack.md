@@ -10,7 +10,7 @@
 > It says so at the head rather than being repaired block by block because repairing it does not
 > converge and should not be attempted. Twenty-two review rounds reworked the shipped code; a ninth
 > task was added mid-flight to replace an input contract Tasks 3 and 5 had already been written
-> against; six modules in the File Structure table below are built by no task here at all (see
+> against; seven modules in the File Structure table below are built by no task here at all (see
 > *[What no task below builds](#what-no-task-below-builds)*). Rewriting the task blocks to match the
 > source would make this document a second copy of the source — a second source of truth for code
 > that has one, which is the very mistake Task 3's own reasoning rejects — and it would start

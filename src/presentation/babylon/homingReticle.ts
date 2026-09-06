@@ -167,10 +167,9 @@ export interface HomingReticle {
  * file, nothing entering Git LFS, the same house pattern `crystals.ts` (procedural polyhedra) and
  * `scatter.ts` (`DynamicTexture` cards) already use.
  *
- * Billboarded on **both** axes (`Mesh.BILLBOARDMODE_ALL`), not yaw-only the way `trees.ts`'s butterflies
- * once billboarded: this is a HUD-ish marker, not an object with a body that should foreshorten as the
- * camera looks down on it from above — it must always read as a flat, full-size ring, whatever the
- * camera angle.
+ * Billboarded on **both** axes (`Mesh.BILLBOARDMODE_ALL`), not yaw-only: this is a HUD-ish marker, not
+ * an object with a body that should foreshorten as the camera looks down on it from above — it must
+ * always read as a flat, full-size ring, whatever the camera angle.
  *
  * Drawn over the scene rather than into it, via {@link RETICLE_RENDERING_GROUP} — the crystal it marks
  * would otherwise occlude the near half of the ring, since the ring is centred inside it.

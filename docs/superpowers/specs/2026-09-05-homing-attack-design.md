@@ -194,12 +194,12 @@ Each shipped with an explicit **Untuned** marking, in the house style this repo'
 repeatedly enforced: a constant may not claim a tuning that did not happen. Four of the five also
 shipped with a **derived** starting value; `homingRange` did not, and its doc says so rather than
 offering a derivation — a constant may not claim a reasoning that did not happen either.
-The browser pass (2026-09-05, full report at `.superpowers/sdd/2026-09-05-homing-attack/task-7-report.md`)
-ran all four objective checks from the task brief against `window.hub`/`window.moveConfig` in the dev
-build, using console-driven teleports and a manually-stepped render loop (`scene.render()`) rather than
-real-time play, because the Browser pane's compositor throttles `requestAnimationFrame` to near zero
-when not the foreground surface — `scene.render()` steps the same domain/physics code deterministically
-regardless.
+The browser pass (2026-09-05, full report at `.superpowers/sdd/2026-09-05-homing-attack/task-7-report.md`
+— the gitignored `.superpowers/` tree, so not a pointer anyone else can follow) ran all four objective
+checks from the task brief against `window.hub`/`window.moveConfig` in the dev build, using
+console-driven teleports and a manually-stepped render loop (`scene.render()`) rather than real-time
+play, because the Browser pane's compositor throttles `requestAnimationFrame` to near zero when not the
+foreground surface — `scene.render()` steps the same domain/physics code deterministically regardless.
 
 **That pass ran at `d3b64cb`, and nothing on this branch after it has been put back through the four
 objective checks below.** The unverified set is `git log d3b64cb..HEAD` — the whole range, whatever it
