@@ -334,6 +334,29 @@ describe('the choice cues', () => {
     expect(countOf(playCue, 'ui.move')).toBe(2);
   });
 
+  it('holds the window to exactly MOVE_MIN_MS -- silent one tick short of it, sounding the tick it closes', () => {
+    const { playCue, options } = atChoices();
+
+    // `tick()` walks in whole CHAR_MS slices, which would round any boundary here up to the next
+    // multiple of 24 and hide the real edge. Advancing the fake clock directly is what lets this
+    // test stand a millisecond either side of MOVE_MIN_MS itself, rather than merely inside some
+    // window -- see the file header on why that gap is exactly what this suite has been missing.
+    options[1].focus();
+    expect(countOf(playCue, 'ui.move')).toBe(1);
+
+    vi.advanceTimersByTime(MOVE_MIN_MS - 1);
+    flushSync();
+    pointerOver(options[0]);
+    expect(document.activeElement).toBe(options[0]);
+    expect(countOf(playCue, 'ui.move')).toBe(1);
+
+    vi.advanceTimersByTime(1);
+    flushSync();
+    pointerOver(options[1]);
+    expect(document.activeElement).toBe(options[1]);
+    expect(countOf(playCue, 'ui.move')).toBe(2);
+  });
+
   it('sounds a move once when the pointer selects another option, and not twice around the click', () => {
     const { session, playCue, options } = atChoices();
 
