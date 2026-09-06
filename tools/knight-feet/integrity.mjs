@@ -165,6 +165,12 @@ export function checkIntegrity(originalPath, correctedPath) {
   // Built as an allowlist rather than a block list: start from the corrected file and put back only
   // the three things the calibration is entitled to have written. Anything else it changed survives
   // into the comparison and fails it.
+  //
+  // Whether this run is a calibration at all, in one place: `rest.q` and friends describe the step
+  // from raw to corrected, so they can only be checked against a raw original, and the receipt only
+  // earns an exemption when the original has none to compare it with. Two spellings of this fact
+  // drifting apart is how the already-calibrated branch became an amnesty.
+  const calibrating = a.j.asset.extras?.knightFootCalibration === undefined;
   const expected = structuredClone(b.j);
   for (let i = 0; i < a.j.nodes.length; i++) {
     if (FOOT_NODE.test(expected.nodes[i].name)) expected.nodes[i].rotation = a.j.nodes[i].rotation;
@@ -186,27 +192,30 @@ export function checkIntegrity(originalPath, correctedPath) {
   // `copyright` and every other field under it — the same blind spot this assertion was added to
   // close, one level down. What the calibration writes is one key, so one key is what is exempted;
   // the receipt's own contents are checked by `knightFootCalibration.test.ts` against the geometry.
-  const receiptIn = a.j.asset.extras?.knightFootCalibration;
   const receiptOut = expected.asset.extras?.knightFootCalibration;
-  if (receiptIn === undefined && receiptOut !== undefined) {
-    // The normal case: a calibration run added the receipt. Take it back out of the comparison.
+  if (calibrating && receiptOut !== undefined) {
+    // The only case that earns an exemption: a calibration run added a receipt the original had no
+    // counterpart for, so there is nothing to compare it against. Take it out of the comparison and
+    // let the reproduce-check below hold it to the geometry instead.
     delete expected.asset.extras.knightFootCalibration;
     if (Object.keys(expected.asset.extras).length === 0 && a.j.asset.extras === undefined) {
       delete expected.asset.extras;
     }
-  } else if (receiptIn !== undefined && receiptOut !== undefined) {
-    expected.asset.extras.knightFootCalibration = receiptIn;
   }
-  // The remaining case — the original had a receipt and the corrected file does not — is left alone
-  // on purpose, so losing one fails the comparison below. Writing into `expected.asset.extras` there
-  // would have thrown a TypeError instead of asserting, which is the tamper this block exists to name.
+  // Every other combination is left alone so the comparison sees it. When both files carry a receipt
+  // this is not a calibration and the two must simply match — exempting the difference there hid a
+  // corrected file whose `undoParentPitchDegrees`, `rest.q` and `deg` were all rewritten while the
+  // geometry stayed byte-identical. When the original has one and the corrected does not, losing it
+  // is the change; writing into `expected.asset.extras` there would have thrown a TypeError instead
+  // of asserting.
   assert.deepEqual(a.j.asset, expected.asset, 'Something under asset changed besides the receipt');
 
   // The receipt cannot be diffed — the original has none — so it is checked against what this run
   // just measured instead. `calibrate.mjs` writes `corrected = norm(original * rest.q)`, so each
   // recorded `rest.q` has to reproduce the rotation actually found on that node. A receipt claiming
-  // corrections that were never applied is the one way the calibration can lie to a reader, since it
-  // is also what makes a second run refuse to double-apply.
+  // corrections that were never applied is one way the calibration can lie to a reader; a receipt
+  // omitting corrections that *were* applied is the other, and that is what the accounting assertion
+  // below is for. The receipt is also what makes a second run refuse to double-apply.
   //
   // All three fitted rotations, not just the one on the node. `tpose.q` rewrote every key of the
   // reference clip's foot track and `animation.q` every key of the other four, so checking `rest.q`
@@ -215,24 +224,32 @@ export function checkIntegrity(originalPath, correctedPath) {
   // comment called unconfirmable: the motion identity composes the pre-rotation that number defines,
   // so a wrong value fails here.
   //
-  // Only when this run really is a calibration — i.e. the original has no receipt of its own. Two
-  // already-calibrated files compared against each other are a different question (nothing changed),
-  // and these rotations describe the step from raw to corrected, not from corrected to corrected.
+  // The reproduce-check runs only when this is a calibration, because these rotations describe the
+  // step from raw to corrected. What the other branch requires instead is asserted below: nothing
+  // moved at all.
   const receipt = b.j.asset.extras?.knightFootCalibration;
-  // Before anything reads it, so a hand-edited `corrections` fails through this rather than through
-  // a TypeError inside the `.map` two lines down — the same shape the shape-guards below exist for.
-  if (receipt) assert(Array.isArray(receipt.corrections), 'Receipt has no corrections array');
 
-  // Whether this run is a calibration at all. `rest.q` and friends describe the step from raw to
-  // corrected, so they can only be checked against a raw original.
-  const calibrating = a.j.asset.extras?.knightFootCalibration === undefined;
+  // The receipt's own shape first, before anything reads it. A hand-edited one is an input this
+  // block exists to reject, and it should be diagnosed as malformed rather than surfacing as a
+  // TypeError inside the `.map` further down, or as the accounting assertion reporting an ankle
+  // "unaccounted for" when the real fault is an out-of-range index in the entry accounting for it.
+  if (receipt) {
+    assert(Array.isArray(receipt.corrections), 'Receipt has no corrections array');
+    for (const c of receipt.corrections) {
+      assert(b.j.nodes[c.node] !== undefined, `Receipt node index out of range: ${c.node}`);
+      assert(FOOT_NODE.test(b.j.nodes[c.node].name), `Receipt names a non-foot node: ${c.name}`);
+      assert.equal(b.j.nodes[c.node].name, c.name, 'Receipt node index and name disagree');
+      for (const field of ['rest', 'tpose', 'animation']) {
+        assert(Array.isArray(c[field]?.q), `Receipt's ${c.name} has no ${field}.q`);
+      }
+    }
+  }
 
-  // Two already-calibrated files are not a calibration, so nothing may have moved. Stated as an
-  // assertion rather than left as a parenthetical: an earlier version of this comment claimed
-  // "nothing changed" as a premise, and that was the branch on which both foot exemptions became
-  // unconditional again — a further constant pitch composed into both ankles and all 739 keys
-  // passed, because the reproduce-check below is gated and the angular-motion assertion is blind to
-  // a constant rotation by construction.
+  // Two already-calibrated files are not a calibration, so nothing may have moved — asserted, not
+  // assumed. This was once a parenthetical premise, and it was the branch on which both foot
+  // exemptions became unconditional: a further constant pitch composed into both ankles and every
+  // key passed, because the reproduce-check is gated and the angular-motion assertion is blind to a
+  // constant rotation by construction.
   if (!calibrating) {
     const moved = [...touchedFeet].map((n) => b.j.nodes[n].name);
     assert.deepEqual(moved, [], `Foot rotations changed between two already-calibrated files: ${moved}`);
@@ -248,16 +265,7 @@ export function checkIntegrity(originalPath, correctedPath) {
   if (receipt && calibrating) {
     const pre = axis([1, 0, 0], (-(receipt.undoParentPitchDegrees ?? 0) * Math.PI) / 180);
     for (const c of receipt.corrections) {
-      // Bounds-checked before dereferencing: a hand-edited receipt is one of the inputs this loop
-      // exists to reject, and it should fail through the assertion written for it rather than
-      // through a TypeError on an out-of-range index.
-      assert(b.j.nodes[c.node] !== undefined, `Receipt node index out of range: ${c.node}`);
-      assert(FOOT_NODE.test(b.j.nodes[c.node].name), `Receipt names a non-foot node: ${c.name}`);
-      assert.equal(b.j.nodes[c.node].name, c.name, 'Receipt node index and name disagree');
-
-      for (const field of ['rest', 'tpose', 'animation']) {
-        assert(Array.isArray(c[field]?.q), `Receipt's ${c.name} has no ${field}.q`);
-      }
+      // Shape and identity are already established above; this loop only checks the arithmetic.
       const close = (want, got, what) => {
         assert(Array.isArray(got), `${c.name}: no rotation to check ${what} against`);
         const off = Math.max(...want.map((x, i) => Math.abs(x - got[i])));
