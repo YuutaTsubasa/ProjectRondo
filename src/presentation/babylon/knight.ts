@@ -142,8 +142,10 @@ const BODY_MR_URL = '/models/knight_mr.webp?v=2';
  * irradiance it replaces and the change costs little luma. That is false of this map: sampled through
  * the body meshes' own `TEXCOORD_0` and weighted by triangle area, mean roughness is **0.320**, 64.2%
  * of the surface is below 0.3, and **none** of it is above 0.8 (whole-image, only 8.5% of texels
- * exceed 0.8). Line ~437 of this file already said as much — "the 0.25-0.6 the G channel actually
- * carries" — so the two were contradicting each other. The premise is withdrawn; 1 is correct because
+ * exceed 0.8). `applyBodyPbr` below carries a "0.25-0.6" figure that also disagreed with "near 1",
+ * but it is no corroboration: it was measured on the `?v=1` map this PR replaces, and on the shipped
+ * one the G channel spans 0.000-1.000 with 50.7% of texels below 0.25 and 28.3% above 0.6. Both notes
+ * were describing maps that are not the one in the tree. The premise is withdrawn; 1 is correct because
  * a metal's energy is its reflection and there is now something to reflect, and the luma it costs is
  * whatever `IBL_INTENSITY` was tuned against. Brightness is set there, not by this number, and that
  * constant's doc is the single place the shipped plate's measured luma lives.
@@ -442,7 +444,9 @@ function applyBodyPbr(meshes: readonly AbstractMesh[], scene: Scene): void {
       // Babylon reads roughness from the metallic texture's ALPHA channel by default, and alpha takes
       // precedence over green — so setting Green alone does nothing. The packed map is fully opaque
       // (alpha 255 everywhere, verified by reading it back), which pinned roughness at 1.0 and discarded
-      // the 0.25-0.6 the G channel actually carries. Turning this off is what lets the packing take effect.
+      // the range the G channel actually carries — on the shipped `?v=2` map that is 0.000-1.000, mean
+      // 0.320 area-weighted through the body's UVs. (The "0.25-0.6" this line used to quote was measured
+      // on the `?v=1` map and did not survive the swap.) Turning this off is what lets the packing work.
       source.useRoughnessFromMetallicTextureAlpha = false;
       source.metallic = BODY_METALLIC;
       source.roughness = 1;

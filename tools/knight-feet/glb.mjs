@@ -31,7 +31,7 @@ import fs from 'node:fs';
 // ------------------------------------------------------------------ small math
 
 /** Column-major 4x4 product, `a * b` — `b` applied first, then `a`. */
-const mul = (a, b) =>
+export const mul = (a, b) =>
   Array.from({ length: 16 }, (_, i) => {
     let s = 0;
     for (let k = 0; k < 4; k++) s += a[k * 4 + (i % 4)] * b[Math.floor(i / 4) * 4 + k];
@@ -39,7 +39,7 @@ const mul = (a, b) =>
   });
 
 /** Transforms a point by a column-major 4x4 (translation included). */
-const point = (m, p) => [0, 1, 2].map((i) => m[i] * p[0] + m[4 + i] * p[1] + m[8 + i] * p[2] + m[12 + i]);
+export const point = (m, p) => [0, 1, 2].map((i) => m[i] * p[0] + m[4 + i] * p[1] + m[8 + i] * p[2] + m[12 + i]);
 
 /**
  * Hamilton product of two `[x, y, z, w]` quaternions, `a * b`.
@@ -68,7 +68,7 @@ export const norm = (q) => {
 export const axis = (v, angle) => [...v.map((x) => x * Math.sin(angle / 2)), Math.cos(angle / 2)];
 
 /** A node's local matrix from its TRS, in glTF's order: translate * rotate * scale. */
-function trs(n) {
+export function trs(n) {
   const [x, y, z, w] = norm(n.rotation ?? [0, 0, 0, 1]);
   const s = n.scale ?? [1, 1, 1];
   const t = n.translation ?? [0, 0, 0];
@@ -88,7 +88,7 @@ function trs(n) {
  * is negative — `q` and `-q` are the same rotation), and nearly-parallel pairs fall back to a
  * normalised lerp because `sin(theta)` goes to zero there.
  */
-function slerp(a, b, t) {
+export function slerp(a, b, t) {
   let d = a.reduce((s, x, i) => s + x * b[i], 0);
   if (d < 0) {
     b = b.map((x) => -x);
@@ -150,9 +150,7 @@ const RETARGET_ROOT_BONE = 'RL_BoneRoot';
  *  - `j` — the parsed glTF JSON.
  *  - `bin` — the BIN chunk. Writable; every byte outside what a caller deliberately changes is the
  *    same object the file was read into.
- *  - `bytes` — the whole file.
  *  - `read(i)` — accessor `i` as an array of component arrays, cached.
- *  - `parents` — parent node index per node, `-1` at a root.
  *  - `evaluate(clipName, time, modify)` — see below.
  *  - `meshes` — one entry per mesh primitive reachable from a node.
  *  - `skin(state, mesh)` — world-space skinned positions for one of those entries.
@@ -258,7 +256,6 @@ export function load(path) {
       ? []
       : j.meshes[n.mesh].primitives.map((p, pi) => ({
           ni,
-          pi,
           name: n.name,
           skin: n.skin,
           positions: read(p.attributes.POSITION),
@@ -272,7 +269,6 @@ export function load(path) {
           sets: [0, 1]
             .filter((k) => p.attributes['JOINTS_' + k] !== undefined)
             .map((k) => ({ j: read(p.attributes['JOINTS_' + k]), w: read(p.attributes['WEIGHTS_' + k]) })),
-          normals: read(p.attributes.NORMAL),
         })),
   );
 
@@ -297,5 +293,5 @@ export function load(path) {
     });
   };
 
-  return { j, bin, bytes, read, parents, evaluate, meshes, skin };
+  return { j, bin, read, evaluate, meshes, skin };
 }

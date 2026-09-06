@@ -168,7 +168,7 @@ texture's alpha by default, and `applyBodyPbr` in `knight.ts` turns that off pre
 map has none). **This recipe is a reconstruction, not a transcript of what actually produced the
 shipped file** — no metallic or roughness source texture is committed alongside
 `Material_Diffuse.jpg` / `Material_Normal.jpg` in
-`__prototype__/Assets/Characters/MedievalKnight/knight.fbm/`, so there is nothing in the repo to
+`__prototype__/Assets/Characters/WebKnight/knight.fbm/`, so there is nothing in the repo to
 recover the original invocation from. Given the source roughness and metallic textures (same UV
 layout, same resolution as each other), pack and encode them with `sharp`. It is not a dependency of
 this repo — `package.json` declares none, and `pnpm-lock.yaml` only resolves `sharp@0.35.3`

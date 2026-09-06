@@ -46,9 +46,9 @@ describe('the shipped knight GLB', () => {
 describe('HEAD_MESHES against the shipped knight GLB', () => {
 
   // In beforeAll rather than the describe body: loading at collection time meant a missing or
-  // unfetched LFS object failed this whole file, including the two `knightReceivesShadow` suites at
-  // the top, which are pure and touch no GLB. This file's header sells those as node-testable, and
-  // that has to stay true. (The suite directly above does read the GLB — that is its whole job.)
+  // unfetched LFS object failed this whole file, including the `knightReceivesShadow` suite at the
+  // top, whose three cases are pure and touch no GLB. This file's header sells those as node-testable,
+  // and that has to stay true. (The suite directly above does read the GLB — that is its whole job.)
   /** Babylon names each runtime mesh after the glTF **node**, so that is what to count here. */
   let names: string[];
   beforeAll(() => {
