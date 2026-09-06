@@ -1,3 +1,30 @@
+<script module lang="ts">
+  /**
+   * Shortest gap between two move cues, in milliseconds.
+   *
+   * Nothing bounds how fast the selection can change. A `pointermove` fires for every pixel the
+   * pointer travels, so a mouse swept down the list — or wiggled over the boundary between two
+   * options — moves it as often as the pointer reports, a few tens of milliseconds apart, and Tab
+   * held down under key auto-repeat does the same at around thirty a second. `soundBank.play`
+   * starts a fresh instance per call rather than restarting the sound (that is what lets two
+   * footsteps overlap with their own gains), so every one of those is another voice.
+   *
+   * The bound is not the 300 ms the sample runs for (`tools/audio/preprocess.mjs` cuts `ui_move` at
+   * 0.3 s). Measured off the shipped file in 10 ms windows, it is a decaying blip rather than a
+   * 300 ms tone: peak at the start, 12.6 dB down by 100 ms and 20 dB down in RMS, so a move landing
+   * past that window puts a new attack over a tail instead of over another attack.
+   *
+   * Which is also why this is not `TYPE_MIN_MS`'s rule of "never overlap at all". A typing tick is
+   * decoration and a dropped one is invisible, so `Line.svelte` can afford to clear the whole
+   * sample; a move cue answers something the player just did, and a deliberate walk down a list at
+   * four or five rows a second has to sound on every row. 100 ms caps this at ten a second — past
+   * anything reachable by pressing a key at a time — and what it actually catches is the sweep and
+   * the held key, where the list is a blur and one sound per 100 ms reads as motion rather than as
+   * a pile.
+   */
+  const MOVE_MIN_MS = 100;
+</script>
+
 <script lang="ts">
   import type { DialogueChoice } from '../../domain/dialogue/dialogueChoice';
   let { choices, prompt, onSelect, onMove }:
@@ -9,8 +36,11 @@
     } = $props();
 
   let silentFocus = false;
+  /** When the last move sounded, on the monotonic clock. See {@link MOVE_MIN_MS}. */
+  let lastMove = Number.NEGATIVE_INFINITY;
   /**
-   * Sounds the move when focus arrives from another option in this panel.
+   * Sounds the move when focus arrives from another option in this panel, at most one per
+   * {@link MOVE_MIN_MS}.
    *
    * The panel has one selection, and it is the focused option: the pointer moves focus rather than
    * reporting a second kind of selection beside it, so "the selection moved" has exactly one event
@@ -30,7 +60,15 @@
    */
   const moved = (from: EventTarget | null) => {
     if (silentFocus) return;
-    if (from instanceof Node && panel?.contains(from)) onMove?.();
+    if (!(from instanceof Node) || !panel?.contains(from)) return;
+    // The throttle is on the SOUND and on nothing else: the selection follows the pointer at
+    // whatever rate the pointer moves, which is the panel doing what it is told, and it is only the
+    // 300 ms sample that cannot keep up. `performance.now()`, not `Date.now()`: it is monotonic, so
+    // a clock adjustment cannot leave this silent for however far the clock jumped back.
+    const now = performance.now();
+    if (now - lastMove < MOVE_MIN_MS) return;
+    lastMove = now;
+    onMove?.();
   };
 
   /**

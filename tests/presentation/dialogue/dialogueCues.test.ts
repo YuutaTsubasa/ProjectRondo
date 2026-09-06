@@ -16,6 +16,8 @@ import { renderOverlay, q, resetOverlay } from './overlayHarness';
 
 /** The reveal's own interval: Line.svelte's default for its `charMs` prop. */
 const CHAR_MS = 24;
+/** Choices.svelte's own `MOVE_MIN_MS`: the shortest gap between two move cues. */
+const MOVE_MIN_MS = 100;
 
 // Nine characters, so the throttle has room to land three ticks inside one line.
 const NINE = '一二三四五六七八九';
@@ -250,10 +252,12 @@ describe('the choice cues', () => {
     const { playCue, options } = atChoices();
 
     // A mouse brought in after walking the list is a move like any other: two selections changed by
-    // the player, two cues.
+    // the player, two cues. A window apart, so this is about where the move came from and not about
+    // the throttle below.
     options[1].focus();
     expect(countOf(playCue, 'ui.move')).toBe(1);
 
+    tick(MOVE_MIN_MS);
     pointerOver(options[0]);
     expect(document.activeElement).toBe(options[0]);
     expect(countOf(playCue, 'ui.move')).toBe(2);
@@ -278,8 +282,30 @@ describe('the choice cues', () => {
     options[1].focus();
     expect(countOf(playCue, 'ui.move')).toBe(1);
 
-    // Back again is another move; two moves, not one silenced by having been here before.
+    // Back again is another move; two moves, not one silenced by having been here before. A window
+    // apart: a player walking a list by pressing a key at a time never gets near MOVE_MIN_MS, and
+    // this test is about the move, not about the throttle.
+    tick(MOVE_MIN_MS);
     options[0].focus();
+    expect(countOf(playCue, 'ui.move')).toBe(2);
+  });
+
+  it('sounds one move for a sweep that crosses the list faster than the cue is long', () => {
+    const { playCue, options } = atChoices();
+
+    // A `pointermove` fires for every pixel the pointer travels, so a mouse wiggled over the
+    // boundary between two options changes the selection as fast as it reports -- tens of
+    // milliseconds apart, against a 300 ms sample the bank plays as a fresh instance each time
+    // rather than restarting. Ten crossings inside one window is one sound, not ten stacked.
+    for (let i = 0; i < 10; i++) pointerOver(options[i % 2]);
+    expect(countOf(playCue, 'ui.move')).toBe(1);
+    // And the selection itself is not throttled -- only the sound is. It followed every one of them.
+    expect(document.activeElement).toBe(options[1]);
+
+    // A window, not a latch: once it has passed, the next move sounds like any other.
+    tick(MOVE_MIN_MS);
+    pointerOver(options[0]);
+    expect(document.activeElement).toBe(options[0]);
     expect(countOf(playCue, 'ui.move')).toBe(2);
   });
 
