@@ -17,9 +17,10 @@ describe('knightReceivesShadow', () => {
   });
 
   it('matches whole names, not prefixes', () => {
-    // The current head is Mesh_1 + Mesh_23, and both are prefixes of real body meshes in this GLB:
-    // 'Mesh_1' of Mesh_10/Mesh_11/Mesh_122 (and every Mesh_1x), and 'Mesh_2' is itself a body mesh
-    // that 'Mesh_23' would swallow. A prefix match would drop all of them out of the shadow set.
+    // Two opposite mistakes, one case each, because no single prefix rule makes all three fail.
+    // Under `meshName.startsWith(headName)`: 'Mesh_1' swallows Mesh_10, Mesh_11 and Mesh_122, and
+    // every other Mesh_1x. Under the reverse, `headName.startsWith(meshName)`: 'Mesh_23' swallows
+    // Mesh_2, which is itself a body mesh. Either way real armour drops out of the shadow set.
     expect(knightReceivesShadow('Mesh_10')).toBe(true);
     expect(knightReceivesShadow('Mesh_122')).toBe(true);
     expect(knightReceivesShadow('Mesh_2')).toBe(true);
@@ -51,9 +52,11 @@ describe('HEAD_MESHES against the shipped knight GLB', () => {
   // and that has to stay true. (The suite directly above does read the GLB — that is its whole job.)
   /** Babylon names each runtime mesh after the glTF **node**, so that is what to count here. */
   let names: string[];
+  let loaded: ReturnType<typeof load>;
+  const glb = () => loaded;
   beforeAll(() => {
     expect(readFileSync(GLB).toString('ascii', 0, 4), 'not a GLB — unfetched LFS pointer?').toBe('glTF');
-    const g = load(GLB);
+    const g = (loaded = load(GLB));
     names = g.j.nodes
       .filter((n: { mesh?: number }) => n.mesh !== undefined)
       .map((n: { name: string }) => n.name);
@@ -71,5 +74,26 @@ describe('HEAD_MESHES against the shipped knight GLB', () => {
 
   it('leaves 40 body meshes receiving shadows', () => {
     expect(names.filter(knightReceivesShadow)).toHaveLength(40);
+  });
+
+  // The one check here that is about the model rather than about the list agreeing with itself.
+  // `applyFaceMaterial`'s exactly-once guard, and the case above it, both pass for a stale entry that
+  // still resolves — the `Mesh_0` case `shadowPolicy.ts` describes, where a name survived a swap onto
+  // a body mesh. Geometry does not: the head is what sits above the body, so the two meshes reaching
+  // highest in the rest pose are the head whatever they are called. Skinning all 42 costs ~120ms.
+  it('names the two meshes that actually sit above the body', () => {
+    const rest = glb().evaluate(null);
+    const byTop = glb()
+      .meshes.map((m: { name: string }) => ({
+        name: m.name,
+        top: Math.max(...glb().skin(rest, m).map((v: number[]) => v[1])),
+      }))
+      .sort((a: { top: number }, b: { top: number }) => b.top - a.top);
+
+    expect([...byTop.slice(0, HEAD_MESHES.length).map((m: { name: string }) => m.name)].sort()).toEqual(
+      [...HEAD_MESHES].sort(),
+    );
+    // And by a margin, so the ordering is not a coin-flip between the jaw and the highest pauldron.
+    expect(byTop[HEAD_MESHES.length - 1].top - byTop[HEAD_MESHES.length].top).toBeGreaterThan(0.02);
   });
 });

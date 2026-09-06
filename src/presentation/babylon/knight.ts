@@ -349,7 +349,10 @@ function applyBodyPbr(meshes: readonly AbstractMesh[], scene: Scene): void {
   // passes the material's own `backFaceCulling` straight through, so turning it off here turns
   // culling off for all four CSM cascade renders too, and these 40 meshes both cast and receive.
   // Measured the consequence directly (same frozen frame, 70 436 knight pixels, zero
-  // reproducibility control), body culled vs. unculled:
+  // reproducibility control), body culled vs. unculled. **Inherited, not re-measured:** this table
+  // was taken at `metallic = 0.6`, `directIntensity = 1.6` and no environment texture, all three of
+  // which this PR changed, so treat the absolute luma as historical and the culled-vs-unculled delta
+  // as the part that still carries. Re-measure before tuning against it:
   //
   // | | body culled | body unculled | delta |
   // | --- | --- | --- | --- |
@@ -359,8 +362,10 @@ function applyBodyPbr(meshes: readonly AbstractMesh[], scene: Scene): void {
   // With shadows off the change is aggregate-neutral, as expected — the seam pixels are a small
   // fraction of the body. With shadows on, the back faces write depth into the same cascades these
   // meshes sample, and that darkens the knight by ~1.6 luma (~3%). The near-black fraction barely
-  // moves (30.68% -> 30.73%), so this is a mild uniform darkening, not new acne — accepted, and it
-  // slightly offsets `BODY_METALLIC`/`BODY_DIRECT_INTENSITY` above. `NORMAL_BIAS = 0.04` in
+  // moves (30.68% -> 30.73%), so this is a mild uniform darkening, not new acne — accepted. It used
+  // to say this "slightly offsets `BODY_METALLIC`/`BODY_DIRECT_INTENSITY`", which was true when those
+  // were 0.6 and 1.6 and were the brightening levers; both are 1.0 now and neither sets brightness, so
+  // what a ~1.6-luma darkening works against is `IBL_INTENSITY` in `environment.ts`. `NORMAL_BIAS = 0.04` in
   // `shadows.ts` (Task 8) was validated against this material CULLED, so that validation no longer
   // describes what ships — but the table above shows no acne increase with it unculled, so this is
   // recorded rather than re-tuned. The extra fragment cost across four cascades is real and

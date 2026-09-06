@@ -32,9 +32,14 @@
  *  of the shadow set, while a head mesh never added to this list puts a shadow terminator across the
  *  face. `applyFaceMaterial`'s exactly-once check does not catch either: it only inspects the names
  *  already in this list, so it warns solely when one of *those* names is absent from the model or
- *  duplicated — neither of which is the shape of the two failures above. What does catch the first
- *  half is `tests/presentation/shadowPolicy.test.ts`, which resolves this list against the shipped
- *  GLB; deciding which meshes belong in it is still on the person doing the swap.
+ *  duplicated — neither of which is the shape of the two failures above.
+ *
+ *  What catches the first half is `tests/presentation/shadowPolicy.test.ts`, and only because it asks
+ *  a question about **geometry** rather than about names: the head is the part of the model that sits
+ *  above the body, so the two meshes reaching highest in the rest pose are the head, whatever they are
+ *  called. A stale entry pointing at a body mesh fails that even though the name still resolves — the
+ *  exactly-once check, at runtime or in a test, cannot tell the difference. Deciding which meshes
+ *  belong here is still on the person doing the swap; what is automated is being told they are wrong.
  *
  *  Two consumers share this list on purpose: `knight.ts` gives these meshes their own face material,
  *  and `knightReceivesShadow` below excludes them from receiving shadows. One definition means the
