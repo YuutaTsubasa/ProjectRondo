@@ -102,8 +102,8 @@
   // Same as the backlog: this modal cannot be dismissed and must be answered, so it takes focus
   // rather than leaving it on whatever inert has just switched off behind the scrim.
   let panel: HTMLDivElement | undefined = $state();
-  // Held so a pointer that moves onto an option before this task runs can cancel it: that pointer
-  // has chosen a row, and the panel's own opening focus must not take it back.
+  // The task the opening focus below is queued in, held so `moveSelectionTo` can cancel it — see
+  // its doc comment for why a pointer that gets there first wins.
   let mountFocus: ReturnType<typeof setTimeout> | undefined;
   // Deferred by a task, not a frame. Svelte effects run in the microtask after the DOM update, which
   // is still inside the click that opened this -- and Chrome then re-resolves focus for a click
