@@ -53,7 +53,6 @@ describe('HEAD_MESHES against the shipped knight GLB', () => {
   /** Babylon names each runtime mesh after the glTF **node**, so that is what to count here. */
   let names: string[];
   let loaded: ReturnType<typeof load>;
-  const glb = () => loaded;
   beforeAll(() => {
     expect(readFileSync(GLB).toString('ascii', 0, 4), 'not a GLB — unfetched LFS pointer?').toBe('glTF');
     const g = (loaded = load(GLB));
@@ -82,11 +81,11 @@ describe('HEAD_MESHES against the shipped knight GLB', () => {
   // a body mesh. Geometry does not: the head is what sits above the body, so the two meshes reaching
   // highest in the rest pose are the head whatever they are called. Skinning all 42 costs ~120ms.
   it('names the two meshes that actually sit above the body', () => {
-    const rest = glb().evaluate(null);
-    const byTop = glb()
-      .meshes.map((m: { name: string }) => ({
+    const rest = loaded.evaluate(null);
+    const byTop = loaded.meshes
+      .map((m: { name: string }) => ({
         name: m.name,
-        top: Math.max(...glb().skin(rest, m).map((v: number[]) => v[1])),
+        top: Math.max(...loaded.skin(rest, m).map((v: number[]) => v[1])),
       }))
       .sort((a: { top: number }, b: { top: number }) => b.top - a.top);
 

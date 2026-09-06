@@ -16,7 +16,6 @@
 /** Centroid of a list of points. */
 const mean = (p) => [0, 1, 2].map((k) => p.reduce((s, v) => s + v[k], 0) / p.length);
 
-/** Component-wise `a - b`. */
 /**
  * The boot meshes, by glTF node name, mapped to the ankle each is skinned to.
  *
@@ -36,6 +35,7 @@ const TOE = { minZ: 0.055, maxY: 0.012 };
 /** Vertices a patch must contain before its centroid is worth trusting. */
 const MIN_PATCH = 50;
 
+/** Component-wise `a - b`. */
 export const sub = (a, b) => a.map((x, i) => x - b[i]);
 
 /** Unit-length copy of a vector. */
@@ -52,12 +52,11 @@ export const unit = (a) => a.map((x) => x / Math.hypot(...a));
  * at the origin facing +Z with the soles near y = 0. Measured on the *uncalibrated* export this runs
  * against, not on the shipped file: lowest rest vertex y = 0 to four decimals, boots spanning
  * z -0.068 to +0.093.
- *   - heel: `z < -0.035` and `y < 0.035` — behind the ankle, low on the boot.
- *   - toe:  `z > 0.055` and `y < 0.012` — ahead of the ankle, and tighter in y because the toe box
- *     curves upward, so a looser ceiling would drag the upper into the patch and tilt the centroid.
+ * The thresholds themselves are {@link HEEL} and {@link TOE} at the top of this file, stated once
+ * there rather than twice here.
  *
  * Both are cut *below* any part of the boot's shaft, so the pair spans the sole rather than the boot.
- * The counts are asserted (>= 50 each) because these thresholds are geometry-specific: a different
+ * The counts are asserted ({@link MIN_PATCH} each) because these thresholds are geometry-specific: a different
  * boot silhouette would quietly select a handful of vertices, or none, and still produce a plausible
  * finite angle. On that uncalibrated export they select 272 heel / 307 toe vertices on the
  * left boot and 237 / 290 on the right.
@@ -95,8 +94,7 @@ export function landmarks(g) {
  * cached, because the caller is usually asking about a *hypothetical* pose (an ankle rotation the
  * file does not carry yet).
  *
- * @returns `{ pitch, heel, toe, min }` — pitch in degrees, the two patch centroids in world space,
- *   and the whole mesh's lowest corner, which is what tells you the boot has not sunk through y = 0.
+ * @returns `{ pitch, heel, toe }` — pitch in degrees, and the two patch centroids in world space.
  */
 export function measured(g, lm, s) {
   const m = g.meshes.find((m) => m.name === lm.m.name);

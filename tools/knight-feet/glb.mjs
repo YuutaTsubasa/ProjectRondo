@@ -100,12 +100,6 @@ export function slerp(a, b, t) {
   return a.map((x, i) => (x * Math.sin((1 - t) * th) + b[i] * Math.sin(t * th)) / sn);
 }
 
-/** Component-wise axis-aligned bounds of a list of points. */
-export const bounds = (points) => ({
-  min: [0, 1, 2].map((i) => Math.min(...points.map((p) => p[i]))),
-  max: [0, 1, 2].map((i) => Math.max(...points.map((p) => p[i]))),
-});
-
 // ------------------------------------------------------------------ the file
 
 /** Accessor component types: `[Buffer read method, bytes, divisor for `normalized`]`. */

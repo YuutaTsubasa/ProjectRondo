@@ -22,6 +22,11 @@
  *     rotation-invariant measure of that step, so comparing it before and after catches a correction
  *     that squashed or stretched the clip. Tolerance 1e-6 against float32 keys.
  *  6. Every byte of the BIN chunk outside the corrected quaternions is unchanged.
+ *  7. **Everything else in the glTF JSON is deep-equal** — accessors, bufferViews, materials,
+ *     textures, images, samplers, scenes and the rest. Assertions 1-2 exist for their messages; this
+ *     one exists so the guarantee does not depend on having listed the right blocks. Three
+ *     differences are allowed through by name: the two foot node rotations, the min/max of the
+ *     accessors this run rewrote, and `asset.extras.knightFootCalibration`.
  *
  * Exported as a function so `verify.mjs` runs it on the paths it already parsed, rather than the two
  * files racing to re-read `process.argv` and agreeing only by coincidence.
@@ -60,6 +65,8 @@ export function checkIntegrity(originalPath, correctedPath) {
   let keys = 0;
   let channels = 0;
   let maxSpeedError = 0;
+  /** Accessors this run rewrote, so the JSON comparison below can permit their min/max to move. */
+  const correctedAccessors = new Set();
   for (const anim of a.j.animations) {
     for (const ch of anim.channels) {
       const acc = anim.samplers[ch.sampler].output;
@@ -76,6 +83,7 @@ export function checkIntegrity(originalPath, correctedPath) {
         continue;
       }
       channels++;
+      correctedAccessors.add(acc);
       const ac = a.j.accessors[acc];
       const view = a.j.bufferViews[ac.bufferView];
       const base = (view.byteOffset ?? 0) + (ac.byteOffset ?? 0);
@@ -97,6 +105,34 @@ export function checkIntegrity(originalPath, correctedPath) {
   for (let i = 0; i < a.bin.length; i++) {
     if (!changed.has(i)) assert.equal(a.bin[i], b.bin[i], `Non-foot binary byte changed at ${i}`);
   }
+
+  // Everything the checks above did not name. They cover the blocks a bad calibration is *likely* to
+  // disturb and give precise messages when it does; this one covers the rest of the glTF JSON —
+  // accessors, bufferViews, materials, textures, images, samplers, scenes — none of which was
+  // compared before, so a zeroed baseColorFactor or a shifted accessor min returned pass: true.
+  //
+  // Built as an allowlist rather than a block list: start from the corrected file and put back only
+  // the three things the calibration is entitled to have written. Anything else it changed survives
+  // into the comparison and fails it.
+  const expected = structuredClone(b.j);
+  for (let i = 0; i < a.j.nodes.length; i++) {
+    if (FOOT_NODE.test(expected.nodes[i].name)) expected.nodes[i].rotation = a.j.nodes[i].rotation;
+  }
+  // calibrate.mjs recomputes min/max on the accessors it rewrites — its own comment calls a stale
+  // pair "a spec violation that shows up downstream as wrong culling bounds rather than as a load
+  // error", so this is the one block outside the quaternions it deliberately touches.
+  for (const i of correctedAccessors) {
+    for (const bound of ['min', 'max']) {
+      // Only when both sides already have the key. Assigning `undefined` would *create* it, which
+      // deepStrictEqual counts as a difference; and permitting an accessor to gain or lose a bound
+      // is not what "recomputed" means, so those still fail.
+      if (bound in a.j.accessors[i] && bound in expected.accessors[i]) {
+        expected.accessors[i][bound] = a.j.accessors[i][bound];
+      }
+    }
+  }
+  expected.asset = a.j.asset; // the receipt under asset.extras.knightFootCalibration
+  assert.deepEqual(a.j, expected, 'Something outside the ankles changed in the glTF JSON');
 
   return {
     pass: true,
