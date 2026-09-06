@@ -104,8 +104,9 @@ describe('vec3 arithmetic', () => {
   });
 
   // Mirrors vec2.normalize, which returns ZERO rather than NaN for a zero vector and documents that
-  // as intentional. The homing cone relies on it: a crystal exactly at the player has a zero-length
-  // direction, and NaN there would poison the whole comparison.
+  // as intentional. Not something the homing cone leans on — `selectHomingTarget` rejects a
+  // coincident candidate on its distance before normalizing it — but `cameraForward` reaches here
+  // unguarded, and a NaN aim would make every dot comparison false and silently empty the cone.
   it('normalizes the zero vector to zero rather than NaN', () => {
     expect(normalize(ZERO3)).toEqual(ZERO3);
   });
@@ -140,9 +141,11 @@ export const length = (a: Vec3): number => Math.sqrt(lengthSquared(a));
 export const normalize = (a: Vec3): Vec3 => {
   const len = length(a);
   // Intentional: return ZERO3 (not NaN) for a zero vector, the same convention `vec2.normalize`
-  // documents. Callers here guard against zero before it matters — `homingTarget` treats a
-  // zero-length direction as "not in the cone" — and NaN would silently propagate through the
-  // comparison instead of failing.
+  // documents. NaN spreads without ever announcing itself — every comparison against it is false, so
+  // a cone test would quietly reject and a distance test quietly accept — where ZERO3 stays a number
+  // the caller can reason about. It is not a substitute for a caller's own guard: the one input that
+  // can genuinely arrive zero-length is `selectHomingTarget`'s `cameraForward`, and its coincident
+  // *candidates* are rejected on `distance > 0` before reaching here, for the reason its doc gives.
   return len === 0 ? ZERO3 : scale(a, 1 / len);
 };
 ```
@@ -308,9 +311,11 @@ export const selectHomingTarget = (
     const offset = sub(candidates[i], from);
     const distance = length(offset);
     if (distance > config.homingRange) continue;
-    // A candidate exactly at `from` normalizes to ZERO3, whose dot with `aim` is 0. That is below
-    // any cos of a half-angle under 90 degrees, so it falls out here as "not in the cone" rather
-    // than producing NaN — which is why this comparison is safe without a separate zero guard.
+    // A candidate exactly at `from` is rejected outright rather than left to the cone test below.
+    // Its direction normalizes to ZERO3, which dots to 0 — below the cosine of any half-angle under
+    // 90 degrees, but not of a wider one, so relying on the cone would make "you cannot home onto
+    // the point you are standing on" depend on how `homingConeHalfAngle` happens to be tuned.
+    if (distance === 0) continue;
     if (dot(normalize(offset), aim) < minCos) continue;
     if (distance < bestDistance) {
       best = i;
@@ -339,9 +344,11 @@ Pure geometry, separate from kinematics. Returns an index so the caller
 knows which crystal was hit. The cone is a true 3D test, not a planar one:
 a climb is vertical, so a crystal overhead has to be selectable.
 
-A candidate coincident with the player normalizes to ZERO3, whose dot with
-the aim is 0 and therefore below any half-angle under 90 degrees -- it falls
-out as 'not in the cone' rather than producing NaN.
+A candidate coincident with the player is rejected outright on a zero
+distance rather than left to the cone test: its direction normalizes to
+ZERO3, which dots to 0 -- below any half-angle under 90 degrees, but not a
+wider one, so the cone alone would make that rejection depend on how
+homingConeHalfAngle happens to be tuned.
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 ```
