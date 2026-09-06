@@ -47,8 +47,11 @@
     if (session.isFinished) { finish(); }
   }
   function finish() { auto = false; onFinished?.(); }
-  // The confirm sounds before the selection, not after: `session.select` can end the dialogue, and
-  // this component is unmounted the moment it does.
+  // No `finish()` here, unlike `advance()`, and that is not an oversight: `select` cannot end the
+  // dialogue. `step`'s `awaitingChoice` branch returns the chosen target's own state -- `speaking`
+  // or another `awaitingChoice` -- or the unchanged state when the target is a dangling ref;
+  // `{ kind: 'ended' }` is reachable only from a `speaking` node whose exit is `end`. So this
+  // component outlives every selection, and the cue's position around `select` is free.
   function onSelect(i: number) { playCue?.('ui.confirm'); session.select(i); }
   function onBoxClick() {
     if (session.choices.length > 0) return;

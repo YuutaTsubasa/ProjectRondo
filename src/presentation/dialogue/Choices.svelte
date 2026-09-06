@@ -45,11 +45,15 @@
    *
    * The panel has one selection, and it is the focused option: the pointer moves focus rather than
    * reporting a second kind of selection beside it, so "the selection moved" has exactly one event
-   * and there is nothing to de-duplicate. `relatedTarget` on a focus event is the element that lost
-   * it, which tells the arrivals that are not moves apart from a move without remembering anything:
-   * a mount's focus and the pointer coming in from off the list both arrive from outside the panel
-   * (`<body>`, the scrim, or null), and clicking the option the pointer already selected fires no
-   * focus event at all.
+   * and there is nothing to de-duplicate. `relatedTarget` on a focus event is the element that LOST
+   * focus -- not where the pointer came from -- and that is enough to tell the arrival that is not a
+   * move apart from a move without remembering anything: focus reaching this panel from outside it
+   * (`<body>`, the scrim, or null) means the panel had none, which is only ever the opening, either
+   * the mount focus itself or the pointer that beats it in the race `moveSelectionTo` settles.
+   * Afterwards the selection is always on an option, so every later arrival is a move -- the pointer
+   * coming in from off the list onto a different option included, since it carries the option that
+   * had focus and the selection genuinely did change. Clicking the option the pointer already
+   * selected fires no focus event at all.
    *
    * The one arrival from inside the panel that is not a move is the panel re-focusing itself, which
    * `relatedTarget` cannot tell from a move, so it is silenced at its source by `silentFocus`: when
@@ -180,8 +184,8 @@
      the composite, not the token -- over white the gap is rgb(199,215,255) and the block
      rgb(234,240,255) -- and they are pure black and pure white on purpose, the same two extremes
      the frame's 1.5:1 / 4.4:1 pair further down is measured against: stopping the bright end at a
-     mid-grey scene of about rgb(150) reads 1.9:1, half again the contrast the panel actually has at
-     its worst, and against extremes the other range in this file does not use. That is the silhouette
+     mid-grey scene of about rgb(150) reads 1.98:1, more than half again the contrast the panel
+     actually has at its worst, and against extremes the other range in this file does not use. That is the silhouette
      of the modal, not a boundary anything has to be read from -- each option is framed on its own
      glass -- and it is the cost of showing the scene at all.
 
