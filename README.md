@@ -24,6 +24,7 @@ Engineering approach: **TDD + DDD + Functional + Reactive**.
 | `tests/` | Vitest specs (mirror the domain's former xUnit tests). |
 | `public/models/` | `knight_web.glb` (baked Idle/Walk, texture-only optimized), `knight_mr.webp` (packed metallic/roughness map). |
 | `public/audio/` | Shipped `music/`, `sfx/`, `ambience/` (Vorbis/MP3), plus `CREDITS.md` for source provenance. Regenerated from raw sources by `tools/audio/preprocess.mjs`, not hand-edited. |
+| `public/env/` | `studio.hdr`, the armour's image-based lighting. **Not reproducible** — its generator was never committed; `CREDITS.md` records what is knowable and `tools/env/inspect_studio_hdr.mjs` re-derives it from the file. |
 | `src-tauri/` | Tauri v2 shell (desktop/mobile packaging). |
 | `__prototype__/` | The original Godot 4.7.1 (mono/C#) project, kept as a parity reference. |
 
@@ -73,7 +74,7 @@ Open the printed URL (default http://localhost:5173). `pnpm build` produces a st
 The knight model + retargeted animations live in the Godot prototype. Re-export and optimize with:
 
 ```bash
-# 0. Only when a clip's source or .import changed: rebuild the AnimationLibrary.
+# 0. Rebuild the AnimationLibrary when a clip, .import, or extract_anims.gd changes.
 #    Godot can serve a stale import — delete .godot/imported/<Name>.fbx-* first or the bone
 #    renaming silently does not apply.
 Godot --headless --path __prototype__ --import
@@ -84,8 +85,18 @@ Godot --headless --path __prototype__ --script res://tools/export_web_glb.gd
 
 # 2. Texture-only optimization (do NOT simplify/quantize/resample — it corrupts the skeletal animation)
 gltf-transform resize __prototype__/knight_web.glb /tmp/k.glb --width 1024 --height 1024
-gltf-transform webp /tmp/k.glb public/models/knight_web.glb --quality 80
+gltf-transform webp /tmp/k.glb /tmp/knight-uncalibrated.glb --quality 80
+
+# 3. Level heel-to-toe pitch in rest/T-Pose/Idle and correct the ankle offset in all four clips.
+#    The last argument is a fixed pre-rotation in degrees. Use 0: nothing in this repository bakes
+#    an ankle offset for it to cancel. (The shipped GLB was built with 20, whose origin is not
+#    recorded anywhere here — see the doc below.)
+node tools/knight-feet/calibrate.mjs /tmp/knight-uncalibrated.glb public/models/knight_web.glb 0
+node tools/knight-feet/verify.mjs /tmp/knight-uncalibrated.glb public/models/knight_web.glb
 ```
+
+See [foot calibration and validation](docs/knight-foot-calibration.md) for the measurements and for
+what is known about the pre-rotation argument.
 
 Bump the `?v=N` query on the GLB URL in `src/presentation/babylon/knight.ts` after rebuilding so
 browsers refetch it. Then delete the 68 MB `__prototype__/knight_web.glb` intermediate and the
@@ -130,6 +141,25 @@ Needs **ffmpeg** with **libvorbis**. The raw sources themselves are not committe
 separately and passed as `sourceDir` — so `public/audio/CREDITS.md` is where their provenance
 (source/author/licence) is recorded; fill it in when adding or replacing a source.
 
+### The studio IBL panorama (`public/env/studio.hdr`)
+
+**There is no regeneration recipe for this one, and that is the point of saying so here.** The
+panorama that lights the armour was baked by a script that was never committed — its own RGBE header
+names `scratchpad/gen_studio_hdr.cjs`, which is not in this repository and not in `.gitignore`. It
+cannot be re-baked brighter, darker, at another resolution or with the lights moved; `IBL_INTENSITY`
+in `src/presentation/babylon/environment.ts` is the only lever, and replacing the panorama means
+authoring a new one and re-tuning that constant against it.
+
+What can be checked is what the file is:
+
+```bash
+node tools/env/inspect_studio_hdr.mjs        # default: public/env/studio.hdr
+```
+
+That prints the format, resolution, greyscale-ness, radiance range, solid-angle-weighted mean,
+vertical gradient and soft-light positions — the same figures `public/env/CREDITS.md` records, so the
+provenance note can be verified instead of believed, and a replacement can be measured against it.
+
 ### Regenerating the knight's metallic/roughness map
 
 `public/models/knight_mr.webp` packs the armour's roughness and metallic channels glTF-style
@@ -138,7 +168,7 @@ texture's alpha by default, and `applyBodyPbr` in `knight.ts` turns that off pre
 map has none). **This recipe is a reconstruction, not a transcript of what actually produced the
 shipped file** — no metallic or roughness source texture is committed alongside
 `Material_Diffuse.jpg` / `Material_Normal.jpg` in
-`__prototype__/Assets/Characters/MedievalKnight/knight.fbm/`, so there is nothing in the repo to
+`__prototype__/Assets/Characters/WebKnight/knight.fbm/`, so there is nothing in the repo to
 recover the original invocation from. Given the source roughness and metallic textures (same UV
 layout, same resolution as each other), pack and encode them with `sharp`. It is not a dependency of
 this repo — `package.json` declares none, and `pnpm-lock.yaml` only resolves `sharp@0.35.3`
