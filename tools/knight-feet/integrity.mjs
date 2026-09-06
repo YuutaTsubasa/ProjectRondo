@@ -23,7 +23,8 @@
  *     rotation-invariant measure of that step, so comparing it before and after catches a correction
  *     that squashed or stretched the clip. Tolerance 1e-6 against float32 keys.
  *  6. Every byte of the BIN chunk outside the corrected quaternions is unchanged.
- *  7. **The receipt accounts for the ankles.** Every foot rotation this run found changed is
+ *  7. **The receipt accounts for the ankles.** If the original already carries a receipt this is
+ *     not a calibration, and no foot may have moved at all. Otherwise every foot rotation found changed is
  *     claimed by an `asset.extras.knightFootCalibration` correction, and each correction's three
  *     fitted rotations — `rest.q`, `tpose.q`, `animation.q` — reproduce what the corrected file
  *     actually carries, by the same identities `calibrate.mjs` writes. Checking `animation.q`
@@ -218,19 +219,33 @@ export function checkIntegrity(originalPath, correctedPath) {
   // already-calibrated files compared against each other are a different question (nothing changed),
   // and these rotations describe the step from raw to corrected, not from corrected to corrected.
   const receipt = b.j.asset.extras?.knightFootCalibration;
+  // Before anything reads it, so a hand-edited `corrections` fails through this rather than through
+  // a TypeError inside the `.map` two lines down — the same shape the shape-guards below exist for.
+  if (receipt) assert(Array.isArray(receipt.corrections), 'Receipt has no corrections array');
+
+  // Whether this run is a calibration at all. `rest.q` and friends describe the step from raw to
+  // corrected, so they can only be checked against a raw original.
+  const calibrating = a.j.asset.extras?.knightFootCalibration === undefined;
+
+  // Two already-calibrated files are not a calibration, so nothing may have moved. Stated as an
+  // assertion rather than left as a parenthetical: an earlier version of this comment claimed
+  // "nothing changed" as a premise, and that was the branch on which both foot exemptions became
+  // unconditional again — a further constant pitch composed into both ankles and all 739 keys
+  // passed, because the reproduce-check below is gated and the angular-motion assertion is blind to
+  // a constant rotation by construction.
+  if (!calibrating) {
+    const moved = [...touchedFeet].map((n) => b.j.nodes[n].name);
+    assert.deepEqual(moved, [], `Foot rotations changed between two already-calibrated files: ${moved}`);
+  }
 
   // Every ankle this run found changed has to be claimed by the receipt. Without this the two foot
   // exemptions are unconditional while the only thing that examines what they let through is not:
-  // a corrected file with the receipt deleted had both ankles and all 739 keys waved through, and
-  // so did one with a further constant pitch composed into every key — soles no longer level, which
-  // is the defect this tool exists to fix — because the angular-motion assertion is blind to a
-  // constant rotation by construction and nothing else was looking.
+  // a corrected file with the receipt deleted had both ankles and all 739 keys waved through.
   const claimed = new Set((receipt?.corrections ?? []).map((c) => c.node));
   const unclaimed = [...touchedFeet].filter((n) => !claimed.has(n)).map((n) => b.j.nodes[n].name);
   assert.deepEqual(unclaimed, [], `Foot rotations changed with no receipt entry to account for them: ${unclaimed}`);
 
-  if (receipt && a.j.asset.extras?.knightFootCalibration === undefined) {
-    assert(Array.isArray(receipt.corrections), 'Receipt has no corrections array');
+  if (receipt && calibrating) {
     const pre = axis([1, 0, 0], (-(receipt.undoParentPitchDegrees ?? 0) * Math.PI) / 180);
     for (const c of receipt.corrections) {
       // Bounds-checked before dereferencing: a hand-edited receipt is one of the inputs this loop
