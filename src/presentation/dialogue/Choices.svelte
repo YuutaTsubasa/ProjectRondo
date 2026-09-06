@@ -37,41 +37,50 @@
     } = $props();
 
   let silentFocus = false;
-  /** Whether an option has held the selection yet. See {@link moved}. */
-  let selected = false;
+  /** The option holding the selection, or `null` before any option has. See {@link moved}. */
+  let selected: HTMLButtonElement | null = null;
   /** When the last move sounded, on the monotonic clock. See {@link MOVE_MIN_MS}. */
   let lastMove = Number.NEGATIVE_INFINITY;
   /**
-   * Sounds the move when focus arrives on an option, at most one per {@link MOVE_MIN_MS}.
+   * Sounds the move when the selection changes option, at most one per {@link MOVE_MIN_MS}.
    *
    * The panel has one selection, and it is the focused option: the pointer moves focus rather than
-   * reporting a second kind of selection beside it, so "the selection moved" has exactly one event
-   * and there is nothing to de-duplicate. Every arrival on an option is therefore a move -- the
-   * pointer coming in from off the list included, since the selection genuinely did change. Clicking
-   * the option the pointer already selected fires no focus event at all.
+   * reporting a second kind of selection beside it, so there is exactly one event to watch and
+   * nothing to de-duplicate. What that event is NOT is the move itself. A `focus` means only that
+   * the browser resolved focus onto this option, which it also does for an option that already had
+   * it -- most often when the window or the tab regains focus, where every focused element in the
+   * document is re-focused where it stands and the player, who was in another application, moved
+   * nothing. So the selection is held here rather than counted, and the move is read off it: a move
+   * is a `focus` that finds the selection somewhere ELSE, and everything else is not one.
    *
-   * Two arrivals are not the player moving, and each is told apart by state rather than inferred.
-   * The FIRST is the panel's opening, which is `selected` below: either the mount focus or the
-   * pointer that beats it in the race `moveSelectionTo` settles, and until one of them lands there
-   * is no selection for a move to have come from. This used to be read off `relatedTarget` --
-   * "focus from outside the panel means the panel had none, which is only ever the opening" -- and
-   * that claim was false. `.scrim` takes pointer events and nothing inside it but the options is
-   * focusable, so a click on the wash, on the gaps or on the prompt blurred the selection to
-   * `<body>` without leaving the modal, and the player's way back in then read as an opening and
-   * went silent. `onpointerdown` on the scrim now keeps that blur from happening at all; this flag
-   * is what makes the rule hold whatever route focus leaves by.
+   * That is what `selected` is, and holding the option rather than a flag is what makes both of the
+   * arrivals that are not moves fall out of the same comparison instead of each needing a guard of
+   * its own. `previous === null` is the panel's opening -- either the mount focus or the pointer
+   * that beats it in the race `moveSelectionTo` settles, and until one of them lands there is no
+   * selection for a move to have come from. `previous === option` is the re-focus above, and with it
+   * the whole class: focus can leave the options without leaving the modal, and coming back to the
+   * row it left is the selection reappearing where the player put it, not travelling to it. The
+   * opening used to be read off `relatedTarget` -- "focus from outside the panel means the panel had
+   * none, which is only ever the opening" -- and that claim was false, because `.scrim` takes
+   * pointer events and nothing inside it but the options is focusable, so a click on the wash, on
+   * the gaps or on the prompt blurred the selection to `<body>` without leaving the modal and the
+   * player's way back in then read as an opening and went silent. `onpointerdown` on the scrim now
+   * keeps that blur from happening at all; recording the option is what makes the rule hold whatever
+   * route focus leaves and returns by.
    *
-   * The SECOND is the panel re-focusing itself, silenced at its source by `silentFocus`: when a
-   * choice's target is itself a choice node the panel is not remounted (see the effect below), so
-   * the re-focus moves focus off the option just answered and onto the first option of the new
-   * question. It is the panel posing a question, not the player answering one — and without this,
-   * answering on the second row sounded a move that answering on the first did not, because there
-   * the unkeyed `{#each}` re-uses a button that already has focus and no focus event fires at all.
+   * One arrival IS a change of option and still must not sound: the panel re-focusing itself, which
+   * is why `silentFocus` survives as a flag. When a choice's target is itself a choice node the
+   * panel is not remounted (see the effect below), so the re-focus moves focus off the option just
+   * answered and onto the first option of the new question -- a real move, made by the panel posing
+   * a question rather than by the player answering one, and the only thing that can tell the two
+   * apart is who called `focus()`. Without it, answering on the second row sounded a move that
+   * answering on the first did not, because there the unkeyed `{#each}` re-uses a button that
+   * already has focus and no focus event fires at all.
    */
-  const moved = () => {
-    const opening = !selected;
-    selected = true;
-    if (silentFocus || opening) return;
+  const moved = (option: HTMLButtonElement) => {
+    const previous = selected;
+    selected = option;
+    if (silentFocus || previous === null || previous === option) return;
     // The throttle is on the SOUND and on nothing else: the selection follows the pointer at
     // whatever rate the pointer moves, which is the panel doing what it is told, and it is only the
     // 300 ms sample that cannot keep up. `performance.now()`, not `Date.now()`: it is monotonic, so
@@ -191,7 +200,7 @@
       <button
         class="choice"
         onclick={() => onSelect(i)}
-        onfocus={() => moved()}
+        onfocus={(e) => moved(e.currentTarget)}
         onpointermove={(e) => moveSelectionTo(e.currentTarget)}
       >
         <span class="inner"><span class="caret" aria-hidden="true">❯</span><span>{choice.label}</span></span>

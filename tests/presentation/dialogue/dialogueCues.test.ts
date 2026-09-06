@@ -260,6 +260,19 @@ describe('the choice cues', () => {
     flushSync();
   };
 
+  /**
+   * The window or the tab coming back, which re-focuses whatever was focused when it left. Dispatched
+   * rather than driven through `option.focus()`, because that is a no-op on the element that already
+   * holds focus and would fire nothing: the point of this event is that `document.activeElement`
+   * never changed. `focus` does not bubble and svelte does not delegate it, so the handler is bound
+   * to the option itself and a non-bubbling event reaches it.
+   */
+  const windowRegainedFocus = (option: HTMLButtonElement) => {
+    expect(document.activeElement).toBe(option);
+    option.dispatchEvent(new FocusEvent('focus'));
+    flushSync();
+  };
+
   it('leaves the selection where it is when a scroll drags another option under the pointer', () => {
     const { playCue, options } = atChoices();
 
@@ -361,6 +374,29 @@ describe('the choice cues', () => {
     tick(MOVE_MIN_MS);
     options[0].focus();
     expect(document.activeElement).toBe(options[0]);
+    expect(countOf(playCue, 'ui.move')).toBe(2);
+  });
+
+  it('sounds nothing when the window comes back to the option that still holds the selection', () => {
+    const { playCue, options } = atChoices();
+
+    options[1].focus();
+    expect(countOf(playCue, 'ui.move')).toBe(1);
+
+    // Alt-tab out of the game with a question open and alt-tab back. The browser re-focuses the
+    // element that never lost the selection, so a handler reading "a focus arrived" as "the player
+    // moved" would sound a move made in another application. It is told apart by the selection
+    // itself and not by a flag: the option focus landed on is the option that already had it, and
+    // an arrival that finds the selection where it already was is not a move by anyone. A window
+    // out, so this cannot pass merely by being throttled.
+    tick(MOVE_MIN_MS);
+    windowRegainedFocus(options[1]);
+    expect(document.activeElement).toBe(options[1]);
+    expect(countOf(playCue, 'ui.move')).toBe(1);
+
+    // And the panel is not left deaf by it: the next real move sounds like any other.
+    tick(MOVE_MIN_MS);
+    options[0].focus();
     expect(countOf(playCue, 'ui.move')).toBe(2);
   });
 
