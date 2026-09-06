@@ -89,9 +89,14 @@ export interface HomingLockResult {
    */
   readonly target: Vec3 | null;
   /**
-   * What a press right now would hit — the reticle's crystal. A selection in its own right, never the
-   * crystal a {@link HomingLock} is committed to: the lock must not move mid-dash, while the reticle
-   * has to answer on every frame, including frames with no press at all.
+   * What a press right now would hit — the reticle's crystal, answered on every frame, including
+   * frames with no press at all.
+   *
+   * It is not read off the {@link HomingLock}: a lock must not move mid-dash, so once one is committed
+   * this keeps answering the live question and the lock keeps its own. The one frame they agree is the
+   * frame a press commits — both come from that frame's single `selectHomingTarget` call — and they
+   * must, or the ring would blink off the crystal at the instant the player aims at it, which
+   * `homingLock.test.ts`'s `previews the crystal a press would commit to` forbids.
    */
   readonly preview: number | null;
   /**
@@ -118,8 +123,8 @@ export interface HomingLockResult {
  * Advances the lock by one frame.
  *
  * The reticle's question and the lock's are the same question asked of different frames — "what would
- * a press hit from here?" — so they are answered by ONE call to `selectHomingTarget`. A press narrows
- * that answer to a commitment; no press leaves it as a preview.
+ * a press hit from here?" — so they are answered by ONE call to `selectHomingTarget`. A press promotes
+ * that answer to a commitment as well as previewing it; no press leaves it a preview only.
  */
 export const stepHomingLock = (
   lock: HomingLock,
