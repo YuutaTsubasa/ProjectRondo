@@ -542,15 +542,19 @@ measurements.
 
 ## 8. Sequencing, and staying out of the way
 
-Two branches are in flight: `claude/ui-token-system` owns `src/app/*.css`, `main.ts` and
-`src/presentation/dialogue/*.svelte`; `claude/p4-life-and-motion` owns
+Two branches were in flight when this was written: `claude/ui-token-system` owned `src/app/*.css`,
+`main.ts` and `src/presentation/dialogue/*.svelte`; `claude/p4-life-and-motion` owned
 `src/presentation/babylon/{scatter,trees,clouds,wind,hubScene}.ts` and `src/domain/hub/*`.
 
-- **PR-1 — the system and the hub wiring.** All new files, plus exactly one import, one
+- **PR-1 — the system and the hub wiring. Shipped.** All new files, plus exactly one import, one
   `createHubAudio(...)` and one dispose line in `hubScene.ts` — a trivial rebase against P4.
-- **PR-2 — AVG and UI cues.** Touches `src/presentation/dialogue/*.svelte`, so it lands **after** the
-  UI token branch merges. The cues, the assets and the manifest entries all ship in PR-1; only the
-  call sites wait.
+- **PR-2 — AVG and UI cues. Shipped.** Touched `src/presentation/dialogue/*.svelte`, so it waited
+  for the UI token branch to merge, which it since has. The cues, the assets and the manifest entries
+  shipped in PR-1; the call sites — `DeferredAudio.play`, the typewriter and box-press ticks, and the
+  choices' move and confirm cues — have landed since, pinned in
+  `tests/presentation/dialogue/dialogueCues.test.ts` and `tests/presentation/dialogue/modalFocus.test.ts`.
+  Neither §6 nor §7 was written with these in mind and still speaks only to the footstep/music/ambience
+  half of the system; extending them to the dialogue cues is follow-up, not this correction.
 
 ## 9. Out of scope
 
