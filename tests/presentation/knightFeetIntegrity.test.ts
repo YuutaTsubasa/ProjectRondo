@@ -24,8 +24,9 @@ import { qm, norm, axis } from '../../tools/knight-feet/glb.mjs';
  * A fixture too small to reach a branch is the failure mode this file is most exposed to, and it
  * happened: the first version declared no accessor bounds and perturbed no key individually, so the
  * bounds recompute, the angular-motion assertion, the unit-length check and the BIN-byte sweep were
- * all unreachable — four of the eight numbered assertions could be deleted with every case green.
- * The foot outputs now declare min/max, and there is a case per assertion.
+ * all unreachable — four checks, spanning three of the eight numbered assertions, could be deleted
+ * with every case green (`integrity.mjs` files the unit-length check and the bounds recompute both
+ * under assertion 4). There is now a case for each of the four.
  */
 
 /** glTF component type 5126 = FLOAT, and a VEC4 is four of them. */
@@ -57,6 +58,14 @@ const KEYS_PER_CLIP = 2;
 const CLIPS = ['0_T-Pose', 'Idle'] as const;
 /** Indices of the two ankles in the fixture's node list. */
 const FOOT_NODES = [0, 1];
+/**
+ * Only the left ankle's rotation tracks declare min/max.
+ *
+ * Bounding both would trade one unreached branch for another: the shipped knight declares no bounds
+ * on any foot accessor, so the `continue` that skips the recompute — and the allowlist gate that
+ * refuses to let an accessor gain or lose a bound — would go unexercised. One of each covers both.
+ */
+const BOUNDED_FOOT = 0;
 
 /**
  * A minimal knight: two ankles and one unrelated bone, each with a rotation track per clip.
@@ -65,15 +74,13 @@ const FOOT_NODES = [0, 1];
  * allowed to move. Every quaternion starts at identity so the corrected file's values are exactly
  * the correction being applied, which keeps the expectations readable.
  */
-function rawGlb(): { json: Json; bin: Buffer } {
-  // Explicit identity rotations, as a real export carries: `calibrate.mjs` composes onto
-  // `node.rotation` and would throw on a node that omits it, so a fixture without one would be
-  // testing an input the tool cannot be handed.
-  const nodes = [
-    { name: 'LeftFoot', rotation: [...IDENTITY] },
-    { name: 'RightFoot', rotation: [...IDENTITY] },
-    { name: 'Spine', rotation: [...IDENTITY] },
-  ];
+function rawGlb({ omitFootRotation = false } = {}): { json: Json; bin: Buffer } {
+  // Explicit identity rotations by default, as a real export carries — `calibrate.mjs` composes onto
+  // `node.rotation` and would throw on a node that omits it. But `checkIntegrity` is a separate
+  // entry point with its own CLI, taking any two GLBs, and glTF lets a node omit `rotation` to mean
+  // identity: `omitFootRotation` builds that shape so the branch handling it has a case.
+  const foot = (name: string) => (omitFootRotation ? { name } : { name, rotation: [...IDENTITY] });
+  const nodes = [foot('LeftFoot'), foot('RightFoot'), { name: 'Spine', rotation: [...IDENTITY] }];
   const accessors: Json[] = [];
   const bufferViews: Json[] = [];
   const animations: Json[] = [];
@@ -114,7 +121,7 @@ function rawGlb(): { json: Json; bin: Buffer } {
       const output = push(
         Array.from({ length: KEYS_PER_CLIP }, (_, k) => axis([1, 0, 0], 0.05 * (k + 1) * (node + 1))),
         4,
-        FOOT_NODES.includes(node),
+        node === BOUNDED_FOOT,
       );
       samplers.push({ input, output, interpolation: 'LINEAR' });
       channels.push({ sampler: samplers.length - 1, target: { node, path: 'rotation' } });
@@ -154,8 +161,8 @@ function calibrate(raw: { json: Json; bin: Buffer }): { json: Json; bin: Buffer 
   const accessors = json.accessors as Json[];
   const bufferViews = json.bufferViews as Json[];
 
-  [0, 1].forEach((node) => {
-    nodes[node].rotation = norm(qm(IDENTITY, REST[node]));
+  FOOT_NODES.forEach((node) => {
+    nodes[node].rotation = norm(qm(nodes[node].rotation ?? IDENTITY, REST[node]));
     for (const anim of animations) {
       const channel = (anim.channels as Json[]).find(
         (c) => (c.target as Json).node === node && (c.target as Json).path === 'rotation',
@@ -183,7 +190,7 @@ function calibrate(raw: { json: Json; bin: Buffer }): { json: Json; bin: Buffer 
     knightFootCalibration: {
       version: 1,
       undoParentPitchDegrees: PITCH_DEGREES,
-      corrections: [0, 1].map((node) => ({
+      corrections: FOOT_NODES.map((node) => ({
         name: (nodes[node] as Json).name,
         node,
         rest: { q: REST[node], deg: 1 },
@@ -239,6 +246,33 @@ describe('checkIntegrity accepts a real calibration', () => {
 
   it('passes two identical already-calibrated files', () => {
     expect(check(corrected)).toBeNull();
+  });
+});
+
+describe('checkIntegrity on nodes that omit their rotation', () => {
+  // glTF lets a node leave `rotation` out to mean identity, and `checkIntegrity` is its own entry
+  // point taking any two GLBs — it declares IDENTITY for this case and reads it that way. Copying the
+  // original's absent `rotation` onto the expected value used to *create* an own key holding
+  // `undefined`, which deepStrictEqual counts as a difference, so a pair with not one differing byte
+  // was reported as tampering. Two sites had it; both are covered here.
+  it('passes two identical files whose ankles omit rotation', () => {
+    const bare = rawGlb({ omitFootRotation: true });
+    const a = join(dir, 'bare-a.glb');
+    const b = join(dir, 'bare-b.glb');
+    writeFileSync(a, writeGlb(bare.json, bare.bin));
+    writeFileSync(b, writeGlb(bare.json, bare.bin));
+    expect(() => checkIntegrity(a, b)).not.toThrow();
+  });
+
+  it('still catches an unrelated bone moving in such a file', () => {
+    const bare = rawGlb({ omitFootRotation: true });
+    const moved = structuredClone(bare.json) as Json;
+    (moved.nodes as Json[])[2].rotation = [0.1, 0, 0, 0.995];
+    const a = join(dir, 'bare-a.glb');
+    const b = join(dir, 'bare-c.glb');
+    writeFileSync(a, writeGlb(bare.json, bare.bin));
+    writeFileSync(b, writeGlb(moved, bare.bin));
+    expect(() => checkIntegrity(a, b)).toThrow(/Unexpected node change Spine/);
   });
 });
 
@@ -324,15 +358,8 @@ describe('checkIntegrity holds the receipt to what the file carries', () => {
   });
 });
 
-/** Rewrites one key of a foot rotation track, leaving the declared bounds alone unless told. */
-const editFootKey = (
-  json: Json,
-  bin: Buffer,
-  clip: string,
-  key: number,
-  make: (q: number[]) => number[],
-  rebound = false,
-) => {
+/** Rewrites one key of a foot rotation track, recomputing any declared bounds as a real run would. */
+const editFootKey = (json: Json, bin: Buffer, clip: string, key: number, make: (q: number[]) => number[]) => {
   const anim = (json.animations as Json[]).find((a) => a.name === clip)!;
   const channel = (anim.channels as Json[])[0]; // LeftFoot
   const sampler = (anim.samplers as Json[])[channel.sampler as number];
@@ -341,7 +368,6 @@ const editFootKey = (
   const at = (view.byteOffset as number) + key * QUAT_BYTES;
   const q = [0, 1, 2, 3].map((c) => bin.readFloatLE(at + c * 4));
   make(q).forEach((x, c) => bin.writeFloatLE(x, at + c * 4));
-  if (!rebound) return;
   const all = Array.from({ length: accessor.count as number }, (_, k) =>
     [0, 1, 2, 3].map((c) => bin.readFloatLE((view.byteOffset as number) + k * QUAT_BYTES + c * 4)),
   );
@@ -349,8 +375,9 @@ const editFootKey = (
   if (accessor.max) accessor.max = [0, 1, 2, 3].map((c) => Math.max(...all.map((v) => v[c])));
 };
 
-// One case per numbered assertion that the first version of this fixture could not reach. Each was
-// confirmed to go green when the assertion it targets is neutered, and red again when it is restored.
+// One case per check the first version of this fixture could not reach — four checks across three
+// numbered assertions. Each was confirmed to go green when the check it targets is neutered, and red
+// again when it is restored.
 describe('checkIntegrity checks the corrected keys themselves', () => {
   it('catches declared bounds left stale after the keys moved', () => {
     expect(
@@ -366,17 +393,39 @@ describe('checkIntegrity checks the corrected keys themselves', () => {
   // The correction is a constant rotation, which leaves every step between adjacent keys unchanged;
   // that is what makes the assertion safe for a real run and what makes a *non*-constant edit the
   // only thing it can catch.
+  // The right ankle declares no bounds, which is the shape the shipped knight has. "Recomputed"
+  // does not cover an accessor acquiring a bound it never had, so the allowlist requires the key on
+  // both sides — without a case, that gate is merely executed rather than asserted.
+  it('catches an unbounded accessor acquiring bounds', () => {
+    expect(
+      check(raw, (json, bin) => {
+        const anim = (json.animations as Json[]).find((a) => a.name === 'Idle')!;
+        const channel = (anim.channels as Json[])[1]; // RightFoot, the unbounded one
+        const sampler = (anim.samplers as Json[])[channel.sampler as number];
+        const accessor = (json.accessors as Json[])[sampler.output as number];
+        const view = (json.bufferViews as Json[])[accessor.bufferView as number];
+        // Bounds that are *correct* for the corrected keys, so the recompute is satisfied and the
+        // only thing left that can object is the allowlist refusing an accessor a bound it never had.
+        const keys = Array.from({ length: accessor.count as number }, (_, k) =>
+          [0, 1, 2, 3].map((c) => bin.readFloatLE((view.byteOffset as number) + k * QUAT_BYTES + c * 4)),
+        );
+        accessor.min = [0, 1, 2, 3].map((c) => Math.min(...keys.map((q) => q[c])));
+        accessor.max = [0, 1, 2, 3].map((c) => Math.max(...keys.map((q) => q[c])));
+      }),
+    ).toMatch(/Something outside the ankles changed/);
+  });
+
   it('catches a key moved on its own, changing the step to its neighbour', () => {
     expect(
       check(raw, (json, bin) =>
-        editFootKey(json, bin, 'Idle', 1, (q) => norm(qm(q, axis([1, 0, 0], 0.4))), true),
+        editFootKey(json, bin, 'Idle', 1, (q) => norm(qm(q, axis([1, 0, 0], 0.4)))),
       ),
     ).toMatch(/Angular motion changed/);
   });
 
   it('catches a corrected quaternion that is no longer unit length', () => {
     expect(
-      check(raw, (json, bin) => editFootKey(json, bin, 'Idle', 0, (q) => q.map((x) => x * 1.5), true)),
+      check(raw, (json, bin) => editFootKey(json, bin, 'Idle', 0, (q) => q.map((x) => x * 1.5))),
     ).toMatch(/Quaternion not normalized/);
   });
 
