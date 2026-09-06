@@ -38,10 +38,26 @@
 | `src/domain/hub/character/movementConfig.ts` | modify | Their types |
 | `src/domain/hub/character/characterMovement.ts` | modify | The dash branch inside `step` |
 | `tests/domain/hub/character/homingMovement.test.ts` | create | The dash branch, kept out of the existing movement suite |
-| `src/presentation/babylon/crystals.ts` | create | Procedural crystals and their world positions. Takes a `Scene` |
-| `src/presentation/babylon/playerController.ts` | modify | Press → selection → offset into the domain |
+| `tests/domain/hub/character/characterMovement.test.ts` | modify | Its input fixture gains `homingTarget: null` |
+| `tests/domain/hub/character/valueTypes.test.ts` | modify | The five constants in `DEFAULT_CONFIG`, and the new fields on `NONE_INPUT` and `IDLE` |
+| `src/presentation/babylon/crystals.ts` | create | Procedural crystals, their world positions, and the hit flash. Takes a `Scene` |
+| `src/presentation/babylon/homingLock.ts` | create | The lock lifecycle: which crystal a dash is committed to, its entry estimate, and the reticle's separate preview |
+| `tests/presentation/homingLock.test.ts` | create | The lock alone, and composed with the ground machine over the press both could claim |
+| `src/presentation/babylon/homingReticle.ts` | create | The ring drawn on the crystal a press would hit right now |
+| `src/presentation/babylon/homingColors.ts` | create | The one red the reticle and the hit flash both read, so aim and arrival cannot drift apart |
+| `src/presentation/babylon/jumpPose.ts` | create | One off-ground signal for the pose, and which seam the jump clip starts from |
+| `tests/presentation/jumpPose.test.ts` | create | The seam choice, and the probe frames that find floor mid-dash and under a low crystal |
+| `src/presentation/babylon/groundContact.ts` | modify | Keep the bounce's climb off the probe, and keep a press on a frame a dash owns out of the jump |
+| `tests/presentation/groundContact.test.ts` | modify | The bounce and dash-in-flight cases added to the existing suite |
+| `src/presentation/babylon/slopeMotion.ts` | modify | `solverVelocity`: keep the surface's climb off a jump's and a dash's own vertical velocity |
+| `tests/presentation/slopeMotion.test.ts` | modify | The frames that must bypass `alignToSurface`, added to the existing suite |
+| `src/presentation/babylon/playerController.ts` | modify | Press → selection → offset into the domain; flash the crystal on the bounce |
 | `src/presentation/babylon/knight.ts` | modify | Dash pose, the bounce's clip seam, the trail |
 | `src/presentation/babylon/hubScene.ts` | modify | Build the test crystals |
+
+Code only. The Flying Kick clip's binaries and pipeline files live in Task 8's own Files block instead,
+because whether they move at all depends on how the retarget run goes — the task is sequenced last
+precisely so a failed run costs nothing here.
 
 ---
 
@@ -53,7 +69,7 @@
 
 **Interfaces:**
 - Consumes: nothing.
-- Produces: `sub(a, b)`, `add(a, b)`, `scale(a, k)`, `lengthSquared(a)`, `length(a)`, `normalize(a)`, `dot(a, b)` — all over `Vec3`, all returning `Vec3` except `lengthSquared`/`length`/`dot` which return `number`.
+- Produces: `sub(a, b)`, `scale(a, k)`, `lengthSquared(a)`, `length(a)`, `normalize(a)`, `dot(a, b)` — all over `Vec3`, all returning `Vec3` except `lengthSquared`/`length`/`dot` which return `number`. Not `add`: mirroring `vec2.ts` suggests it, but nothing in this phase adds two `Vec3`s — the dash offset is built by `sub` and consumed by `scale` — and an export with no caller is a surface to maintain in exchange for nothing.
 
 `vec3.ts` today is three lines: the type, `vec3()` and `ZERO3`. The cone test needs subtraction, length, normalization and a dot product, and none exist. `src/domain/math/vec2.ts` already has the 2D equivalents — mirror its names and its conventions exactly, so a reader who knows one knows the other.
 
@@ -63,13 +79,12 @@ Create `tests/domain/math/vec3.test.ts`:
 
 ```ts
 import { describe, it, expect } from 'vitest';
-import { vec3, ZERO3, add, sub, scale, lengthSquared, length, normalize, dot } from '../../../src/domain/math/vec3';
+import { vec3, ZERO3, sub, scale, lengthSquared, length, normalize, dot } from '../../../src/domain/math/vec3';
 
 const P = 10;
 
 describe('vec3 arithmetic', () => {
-  it('adds and subtracts componentwise', () => {
-    expect(add(vec3(1, 2, 3), vec3(10, 20, 30))).toEqual(vec3(11, 22, 33));
+  it('subtracts componentwise', () => {
     expect(sub(vec3(10, 20, 30), vec3(1, 2, 3))).toEqual(vec3(9, 18, 27));
   });
 
@@ -105,7 +120,7 @@ describe('vec3 arithmetic', () => {
 - [ ] **Step 2: Run the test to verify it fails**
 
 Run: `pnpm test tests/domain/math/vec3.test.ts`
-Expected: FAIL — `add`, `sub`, `scale`, `lengthSquared`, `length`, `normalize` and `dot` are not exported.
+Expected: FAIL — `sub`, `scale`, `lengthSquared`, `length`, `normalize` and `dot` are not exported.
 
 - [ ] **Step 3: Write the implementation**
 
@@ -116,7 +131,6 @@ export interface Vec3 { readonly x: number; readonly y: number; readonly z: numb
 export const vec3 = (x: number, y: number, z: number): Vec3 => ({ x, y, z });
 export const ZERO3: Vec3 = vec3(0, 0, 0);
 
-export const add = (a: Vec3, b: Vec3): Vec3 => vec3(a.x + b.x, a.y + b.y, a.z + b.z);
 export const sub = (a: Vec3, b: Vec3): Vec3 => vec3(a.x - b.x, a.y - b.y, a.z - b.z);
 export const scale = (a: Vec3, k: number): Vec3 => vec3(a.x * k, a.y * k, a.z * k);
 export const dot = (a: Vec3, b: Vec3): number => a.x * b.x + a.y * b.y + a.z * b.z;

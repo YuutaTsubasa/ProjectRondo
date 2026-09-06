@@ -34,6 +34,13 @@ export const CRYSTAL_EXTENT = CRYSTAL_SIZE * 2 * Math.SQRT2;
  * Emissive tint. Bright and unlit so a crystal reads as a target from across the field rather than
  * as scenery — the same reasoning `scatter.ts` uses for its emissive floors, taken further because
  * this one is supposed to catch the eye.
+ *
+ * **Untuned**: only the brightness is reasoned about above; the hue is not. `(0.35, 0.75, 0.95)` is a
+ * blue-cyan typed once because nothing else in the hub is one — `scatter.ts`'s grass and rock are
+ * greens and greys — and never looked at again as a colour. The browser pass that watched a crystal
+ * only checked that a flash eases back to this value, not whether this value is the right one to ease
+ * back to. It is the base {@link CRYSTAL_DIFFUSE} and {@link CRYSTAL_SPECULAR} are shades of, so it is
+ * the one to retune first; retuning either of those without it only moves them relative to a guess.
  */
 const CRYSTAL_EMISSIVE = new Color3(0.35, 0.75, 0.95);
 
