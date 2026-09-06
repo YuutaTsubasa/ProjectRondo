@@ -48,6 +48,16 @@ import { load, norm, qm, axis } from './glb.mjs';
 /** The ankle nodes this tool is allowed to have changed. */
 const FOOT_NODE = /^(Left|Right)Foot$/;
 
+/**
+ * How far apart two rotations are, as the absolute cosine of the angle between them.
+ *
+ * Rotation-invariant, which is the point: composing a constant with both keys leaves this unchanged,
+ * so comparing it before and after catches a correction that stretched or squashed the clip while
+ * ignoring the constant the calibration is supposed to add. Module scope because it closes over
+ * nothing and was being rebuilt once per key.
+ */
+const step = (q, r) => Math.abs(q.reduce((s, x, i) => s + x * r[i], 0) / (Math.hypot(...q) * Math.hypot(...r)));
+
 /** The one-frame reference pose. calibrate.mjs fits it separately and applies no pre-rotation to it. */
 const REFERENCE_CLIP = '0_T-Pose';
 

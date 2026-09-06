@@ -47,7 +47,9 @@ describe('the studio IBL panorama', () => {
   });
 
   it('carries enough bytes to be the panorama and not a stub', () => {
-    // 512x256 RGBE is ~393 KB uncompressed; anything in the low kilobytes is a truncated fetch.
+    // RGBE is four bytes per pixel, so 512x256 is 524,288 bytes of payload — the figure
+    // `public/env/CREDITS.md` records and `tools/env/inspect_studio_hdr.mjs` re-derives. This bound
+    // is well under it: what it catches is a truncated fetch, not a resize.
     expect(readFileSync(file()).byteLength).toBeGreaterThan(100_000);
   });
 });

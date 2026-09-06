@@ -10,8 +10,8 @@ describe('knightReceivesShadow', () => {
   });
 
   it('includes body meshes', () => {
-    // Names are not a contiguous 0..41 range — the shipped set contains Mesh_122/222/322 and no
-    // Mesh_12/22/32/42 — which is exactly why the prefix test below matters.
+    // Names are not a contiguous 0..41 range — the shipped set contains Mesh_122/222/322 in place
+    // of Mesh_12/22/32 — which is exactly why the prefix test below matters.
     expect(knightReceivesShadow('Mesh_0')).toBe(true);
     expect(knightReceivesShadow('Mesh_122')).toBe(true);
   });

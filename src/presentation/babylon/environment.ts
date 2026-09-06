@@ -25,6 +25,9 @@ const AMBIENT_GROUND_SCALE = 0.3;
  *  visible while costing load-time convolution and memory. */
 const IBL_FACE_SIZE = 128;
 
+/** The panorama. Named so the failure warning can quote the path it actually asked for. */
+const IBL_URL = '/env/studio.hdr';
+
 /** Scales the environment's contribution to every PBR material. 1.0 would be the panorama's own baked
  *  radiance; 1.4 is tuned live against the armour mask.
  *
@@ -166,7 +169,7 @@ export function createEnvironment(scene: Scene): Environment {
   // `scene.environmentTexture` before the assignment below puts the dead texture straight back.
   let iblFailed = false;
   const ibl = new HDRCubeTexture(
-    '/env/studio.hdr',
+    IBL_URL,
     scene,
     IBL_FACE_SIZE,
     /* noMipmap */ false, // default; the roughness mip chain below is built from these mips
@@ -174,7 +177,13 @@ export function createEnvironment(scene: Scene): Environment {
     /* gammaSpace */ false, // default; RGBE is already linear
     /* prefilterOnLoad */ true, // NOT the default: builds the roughness mip chain, so rough steel reflects a blurred environment
     /* onLoad */ undefined,
-    /* onError */ (message, exception) => {
+    // No parameters: Babylon does not pass any on this path. When prefiltering is on,
+    // `EnvCubeTexture` wraps the callback and calls the original as `previousOnError()`, bare, and
+    // `allowTexturePrefiltering` is true on every engine but WebGL1, NullEngine and native — so on any
+    // browser this ships to, a `message` parameter would always be undefined. (`applyBodyPbr`'s
+    // onError in `knight.ts` does receive them; that is `Texture`, not the raw-cube path. The two
+    // read alike and are not.) The URL is the only detail worth logging, and it is a constant.
+    /* onError */ () => {
       // Dropping the failed texture is load-bearing, not tidying. `PBRBaseMaterial.isReadyForSubMesh`
       // requires `_getReflectionTexture().isReadyOrNotBlocking()`, and `_getReflectionTexture()` falls
       // back to `scene.environmentTexture` for any material without its own — i.e. every PBR material
@@ -192,8 +201,9 @@ export function createEnvironment(scene: Scene): Environment {
       iblFailed = true;
       scene.environmentTexture = null;
       console.warn(
-        `[environment] studio IBL failed to load — dropped so the PBR materials can still render; the armour will read as dark, unlit metal until it is fixed. ${message ?? ''}`,
-        exception,
+        `[environment] ${IBL_URL} failed to load — dropped so the PBR materials can still render; ` +
+          'the armour will read as dark, unlit metal until it is fixed. Babylon reports no reason on ' +
+          'this path; check the network panel for the request.',
       );
     },
   );
