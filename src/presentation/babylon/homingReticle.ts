@@ -17,7 +17,7 @@ import { HOMING_RED_RGB } from './homingColors';
  * ({@link CRYSTAL_EXTENT}). The stroke straddles that centreline, half of it further out and half
  * further in — but that is a *radial* half either side, and this number is a diameter, so measured the
  * way this number is the band runs a whole stroke under and a whole stroke over it. At the current
- * {@link RING_STROKE_FRACTION} a stroke is 0.05 extents (0.06366 u against `CRYSTAL_EXTENT` 1.273), so
+ * {@link RING_STROKE_FRACTION} a stroke is 0.05 extents (0.0636 u against `CRYSTAL_EXTENT` 1.2728), so
  * the ink spans 0.45 to 0.55 extents in diameter (0.573 u to 0.700 u), centred on the 0.5 this names.
  *
  * Deliberately well under 1: the ring sits *inside* the crystal's silhouette rather than enclosing it.

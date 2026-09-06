@@ -21,8 +21,11 @@ export const MovementConstants = {
   /**
    * Homing attack. ALL FIVE ARE UNTUNED — four are derived starting points and `homingRange` is a
    * plain guess, and no pass has changed any of them. That is not the same as no evidence: the
-   * 2026-09-05 browser pass exercised all five and every check passed at its derived value, which
-   * is why none was retuned. But it ran at commit `d3b64cb`, before `05f1923` made the dash correct
+   * 2026-09-05 browser pass exercised all five. Four checks passed at their derived value; the fifth,
+   * `homingMaxDuration`'s, failed — the knight bounced straight up off an obstruction instead of
+   * falling — and still did not lead to a retune, because the cause was a mechanism defect (the
+   * timeout was unreachable dead code) that no value of the constant could have fixed. But it ran at
+   * commit `d3b64cb`, before `05f1923` made the dash correct
    * course toward its target every frame, and it covered less than the list of names suggests — no
    * check measures dash speed by eye, for instance. Read the design spec §7 before treating any one
    * of these as evidenced; it records per constant what its check did and did not cover. Tune live
