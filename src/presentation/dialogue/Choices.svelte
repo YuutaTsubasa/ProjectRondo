@@ -11,7 +11,8 @@
    *
    * The bound is not the 300 ms the sample runs for (`tools/audio/preprocess.mjs` cuts `ui_move` at
    * 0.3 s). Measured off the shipped file in 10 ms windows, it is a decaying blip rather than a
-   * 300 ms tone: peak at the start, 12.6 dB down by 100 ms and 20 dB down in RMS, so a move landing
+   * 300 ms tone: peak at the start, and by the window at t=100 ms the peak is 12.6 dB down from the
+   * first window's peak and the RMS is 12.4 dB down from the first window's RMS — so a move landing
    * past that window puts a new attack over a tail instead of over another attack.
    *
    * Which is also why this is not `TYPE_MIN_MS`'s rule of "never overlap at all". A typing tick is
