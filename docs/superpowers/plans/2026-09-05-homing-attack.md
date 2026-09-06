@@ -90,18 +90,26 @@ precisely so a failed run costs nothing here.
 
 ### What no task below builds
 
-The table above is a true inventory of what shipped. The nine tasks below are not: **twelve of the
-table's rows are described by no task in this plan.** Seven are the shipped modules the table below
-names. Three more are the suites written for those modules — `tests/presentation/homingLock.test.ts`,
-`jumpPose.test.ts` and `jumpSound.test.ts`. The last two are the existing suites the same work
-extended: `tests/presentation/groundContact.test.ts`, since Task 5 modifies `groundContact.ts` but
-has no test step, and `tests/presentation/slopeMotion.test.ts`, since no task's Files block names
-`slopeMotion.ts` either. The table below records where each of the seven modules came from — most
-were carved out of Tasks 5 and 6 by review rounds after the fact, because a rule that decides
-something the player sees had been left inside a render observable where only playing the game could
-check it; the audio pair no task reached at all. Their reasoning lives in their own module doc
-comments — this file has none to offer about them, and a reader must not conclude from the task list
-that the plan anticipated them.
+The table above is a true inventory of what shipped. The nine tasks below are not — and this section
+deliberately does not say by how many rows they fall short. **The rule instead: a row is covered only
+if some task's Files list below names that exact path. Grep this file for the path and look at where
+the hits land — a path named in no Files list is built by no task here, however often the prose
+mentions it.** Stated as a rule on purpose: every earlier revision of this section counted the
+uncovered rows instead, and every such count was found short at the next review, each correction
+being itself an edit the next count had to absorb. A rule needs no maintenance to stay true, and
+`grep` can check it against the file as it stands.
+
+What the rule turns up is not a fringe of stragglers. It is the shipped modules the table below
+names; the suites written for those modules; the presentation suites this work extended, since Task 5
+modifies `groundContact.ts` with no test step and no Files list names `slopeMotion.ts` at all; and
+the domain suites it extended too — `tests/domain/hub/character/characterMovement.test.ts` and
+`tests/domain/hub/character/valueTypes.test.ts` were both changed by this work and named by no task.
+
+The table below records where each of those modules came from — most were carved out of Tasks 5 and 6
+by review rounds after the fact, because a rule that decides something the player sees had been left
+inside a render observable where only playing the game could check it; the audio pair no task reached
+at all. Their reasoning lives in their own module doc comments — this file has none to offer about
+them, and a reader must not conclude from the task list that the plan anticipated them.
 
 | Shipped module | Carved out of | The question it owns |
 | --- | --- | --- |
@@ -459,9 +467,14 @@ world position would force `step` to know where the player is, and it does not: 
 `{velocity, facing, isGrounded}`, and position belongs to the Havok controller. Adding position to the
 domain would create a second source of truth for it. Presentation knows both points and can subtract.
 
-A consequence worth stating: the dash direction is **fixed at entry** and not re-aimed each frame.
-Targets are static and the dash lasts under a second, so course correction would be invisible — and
-Sonic's own homing attack is a straight line to a locked target.
+The resolution above is the part that shipped. The consequence this task drew from it did **not**:
+it read "the offset is what presentation sends" as also meaning "so the domain need only read it
+once", and fixed the dash direction at entry on the reasoning that static targets and a sub-second
+flight make course correction invisible. `stepHoming` re-derives direction and remaining distance
+from the live offset every frame instead — spec §4 records the dash as genuinely homing, and §5
+records that reading the offset live is what lets `remaining` fail to reach zero, which is the only
+reason the timeout is reachable at all. How often the domain reads the offset was never what this
+resolution was about; the two questions were run together here, and only the first one held.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -743,7 +756,7 @@ Run: `pnpm test tests/domain/hub/character/homingMovement.test.ts`
 Expected: PASS, 10 tests.
 
 Run: `pnpm test`
-Expected: 26 files, 161 tests. **The existing movement tests must still pass unchanged** — if any fails, the dash branch is intercepting a case it should not, which is a real defect and not a test to adjust.
+Expected: 26 files, 161 tests. **No existing movement assertion may need adjusting** — if one fails, the dash branch is intercepting a case it should not, which is a real defect and not a test to rewrite. The suite's fixture is a separate matter, and it did change: `characterMovement.test.ts`'s `MovementInput` literal gains `homingTarget: null` because the type widened, exactly as the File Structure table records. This step originally said the suite passed *unchanged*, which conflated the two.
 
 Run: `pnpm exec tsc --noEmit`
 Expected: clean. Every construction of a `CharacterMotion` or `MovementInput` literal now needs the new fields; the compiler will name them.

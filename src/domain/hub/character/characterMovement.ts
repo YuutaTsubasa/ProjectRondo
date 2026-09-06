@@ -85,9 +85,9 @@ export const isHomingFrame = (motion: CharacterMotion, input: MovementInput): bo
  * ends the dash exactly like the timeout below, safely, rather than trusting it.
  *
  * Arrival is still checked BEFORE the timeout: arriving is a success and should beat a timeout that
- * fires on the same frame, and this ordering matters at real frame times (`playerController` clamps
- * to `MAX_DT = 1/30`, well under `homingMaxDuration`), so the two branches almost never compete — but
- * when they do, the friendlier outcome should win.
+ * fires on the same frame. At real frame times the two branches almost never compete at all, since
+ * `playerController` clamps to `MAX_DT = 1/30`, well under `homingMaxDuration` — so the ordering
+ * decides an outcome only rarely, but on the frame it does the friendlier one should win.
  */
 const stepHoming = (
   motion: CharacterMotion, elapsedSoFar: number, offset: Vec3 | null, config: MovementConfig, delta: number,
