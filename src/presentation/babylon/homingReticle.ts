@@ -25,6 +25,11 @@ import { HOMING_RED_RGB } from './homingColors';
  * the crystal, and 1.1 still read as too heavy — so the marker is not meant to trace the target's
  * outline at all. It only has to be findable: small, centred, and read at a glance as "that one".
  *
+ * **Untuned**, for the reason {@link RETICLE_ALPHA} gives for its own marking: those on-screen rounds
+ * looked at three values and stopped at this one, which is not the same as measuring it against
+ * anything — and they judged the ring against a crystal whose own `CRYSTAL_SIZE` is itself marked
+ * Untuned, so the extent this is a multiple of may yet move under it. Retune by eye.
+ *
  * Scaling off `CRYSTAL_EXTENT` rather than `CRYSTAL_SIZE` matters even now that the ratio is < 1:
  * `CRYSTAL_SIZE` is a polyhedron-builder scale factor, not a dimension (see its doc in `crystals.ts`),
  * so a ratio against it would mean nothing in world units and would not track a retune of the crystal.

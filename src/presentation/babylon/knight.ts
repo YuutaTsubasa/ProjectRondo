@@ -839,7 +839,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
 
 /**
  * Loads the knight GLB, parents it to `parent` (the physics-driven player root), scales it to
- * {@link TARGET_HEIGHT}, seats its feet at the capsule bottom, and returns the four animation
+ * {@link TARGET_HEIGHT}, seats its feet at the capsule bottom, and returns the five animation
  * groups with Idle playing. The mesh inherits the parent's facing rotation. `motion` is polled each
  * frame to keep the feet planted only while the character is actually on the ground.
  *
