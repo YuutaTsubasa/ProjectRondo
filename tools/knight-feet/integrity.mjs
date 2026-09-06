@@ -136,7 +136,6 @@ export function checkIntegrity(originalPath, correctedPath) {
         assert(Math.abs(Math.hypot(...bb[k]) - 1) < 1e-6, 'Quaternion not normalized');
         for (let x = 0; x < 16; x++) changed.add(base + k * stride + x);
         if (k) {
-          const step = (q, r) => Math.abs(q.reduce((s, x, i) => s + x * r[i], 0) / (Math.hypot(...q) * Math.hypot(...r)));
           maxSpeedError = Math.max(maxSpeedError, Math.abs(step(aa[k - 1], aa[k]) - step(bb[k - 1], bb[k])));
         }
       }
@@ -300,9 +299,11 @@ export function checkIntegrity(originalPath, correctedPath) {
         const src = a.read(from.samplers[ch.sampler].output);
         const dst = b.read(anim.samplers[ch.sampler].output);
         const motion = anim.name !== REFERENCE_CLIP;
-        const step = motion ? c.animation.q : c.tpose.q;
+        // Named for what it is, not `step` — that is the angular-distance helper at module scope,
+        // and one name for two unrelated things in one file is how the shadowing above survived.
+        const fitted = motion ? c.animation.q : c.tpose.q;
         for (let k = 0; k < dst.length; k++) {
-          close(norm(qm(motion ? qm(pre, src[k]) : src[k], step)), dst[k], motion ? 'animation' : 'tpose');
+          close(norm(qm(motion ? qm(pre, src[k]) : src[k], fitted)), dst[k], motion ? 'animation' : 'tpose');
         }
       }
     }
