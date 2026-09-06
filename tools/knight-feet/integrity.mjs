@@ -23,9 +23,15 @@
  *     rotation-invariant measure of that step, so comparing it before and after catches a correction
  *     that squashed or stretched the clip. Tolerance 1e-6 against float32 keys.
  *  6. Every byte of the BIN chunk outside the corrected quaternions is unchanged.
- *  7. **Everything else in the glTF JSON is deep-equal** — accessors, bufferViews, materials,
+ *  7. **The receipt accounts for the ankles.** Every foot rotation this run found changed is
+ *     claimed by an `asset.extras.knightFootCalibration` correction, and each correction's three
+ *     fitted rotations — `rest.q`, `tpose.q`, `animation.q` — reproduce what the corrected file
+ *     actually carries, by the same identities `calibrate.mjs` writes. Checking `animation.q`
+ *     composes the pre-rotation, so `undoParentPitchDegrees` is settled too. Without this the foot
+ *     exemptions in 2 and 3 would be a blanket amnesty.
+ *  8. **Everything else in the glTF JSON is deep-equal** — accessors, bufferViews, materials,
  *     textures, images, samplers, scenes and the rest. Assertions 1-2 exist for their messages; this
- *     one exists so the guarantee does not depend on having listed the right blocks. Three
+ *     one exists so the guarantee does not depend on having listed the right blocks. Exactly three
  *     differences are allowed through by name: the two foot node rotations, the min/max of the
  *     accessors this run rewrote (whose new values assertion 4 checks rather than trusts), and
  *     `asset.extras.knightFootCalibration` — that one key, not the `asset` block around it.
@@ -34,6 +40,7 @@
  * files racing to re-read `process.argv` and agreeing only by coincidence.
  */
 import assert from 'node:assert/strict';
+import { isDeepStrictEqual } from 'node:util';
 import { fileURLToPath } from 'node:url';
 import { load, norm, qm, axis } from './glb.mjs';
 
@@ -57,6 +64,14 @@ export function checkIntegrity(originalPath, correctedPath) {
   const b = load(correctedPath);
   /** Byte offsets in the BIN chunk this run accounts for as deliberately rewritten. */
   const changed = new Set();
+  /**
+   * Foot nodes whose rotation or rotation tracks actually differ between the two files.
+   *
+   * The two foot exemptions above are granted unconditionally — any `Left|RightFoot` rotation, any
+   * foot rotation track — so this is what stops them being a blanket amnesty. Every foot the run
+   * finds changed has to be claimed by a receipt correction, which is then held to reproducing it.
+   */
+  const touchedFeet = new Set();
 
   assert.deepEqual(a.j.animations, b.j.animations, 'Animation timelines/channels changed');
   assert.deepEqual(a.j.skins, b.j.skins, 'Skin changed');
@@ -66,7 +81,10 @@ export function checkIntegrity(originalPath, correctedPath) {
     const actual = { ...b.j.nodes[i] };
     // Copy the one field the calibration is allowed to have written, so any *other* difference —
     // including a renamed or re-parented foot — still fails the comparison below.
-    if (FOOT_NODE.test(actual.name)) actual.rotation = a.j.nodes[i].rotation;
+    if (FOOT_NODE.test(actual.name)) {
+      if (!isDeepStrictEqual(actual.rotation, a.j.nodes[i].rotation)) touchedFeet.add(i);
+      actual.rotation = a.j.nodes[i].rotation;
+    }
     assert.deepEqual(a.j.nodes[i], actual, 'Unexpected node change ' + actual.name);
   }
 
@@ -92,6 +110,7 @@ export function checkIntegrity(originalPath, correctedPath) {
       }
       channels++;
       correctedAccessors.add(acc);
+      if (!isDeepStrictEqual(aa, bb)) touchedFeet.add(ch.target.node);
       const ac = a.j.accessors[acc];
       const view = a.j.bufferViews[ac.bufferView];
       const base = (view.byteOffset ?? 0) + (ac.byteOffset ?? 0);
@@ -199,7 +218,19 @@ export function checkIntegrity(originalPath, correctedPath) {
   // already-calibrated files compared against each other are a different question (nothing changed),
   // and these rotations describe the step from raw to corrected, not from corrected to corrected.
   const receipt = b.j.asset.extras?.knightFootCalibration;
+
+  // Every ankle this run found changed has to be claimed by the receipt. Without this the two foot
+  // exemptions are unconditional while the only thing that examines what they let through is not:
+  // a corrected file with the receipt deleted had both ankles and all 739 keys waved through, and
+  // so did one with a further constant pitch composed into every key — soles no longer level, which
+  // is the defect this tool exists to fix — because the angular-motion assertion is blind to a
+  // constant rotation by construction and nothing else was looking.
+  const claimed = new Set((receipt?.corrections ?? []).map((c) => c.node));
+  const unclaimed = [...touchedFeet].filter((n) => !claimed.has(n)).map((n) => b.j.nodes[n].name);
+  assert.deepEqual(unclaimed, [], `Foot rotations changed with no receipt entry to account for them: ${unclaimed}`);
+
   if (receipt && a.j.asset.extras?.knightFootCalibration === undefined) {
+    assert(Array.isArray(receipt.corrections), 'Receipt has no corrections array');
     const pre = axis([1, 0, 0], (-(receipt.undoParentPitchDegrees ?? 0) * Math.PI) / 180);
     for (const c of receipt.corrections) {
       // Bounds-checked before dereferencing: a hand-edited receipt is one of the inputs this loop
@@ -209,6 +240,9 @@ export function checkIntegrity(originalPath, correctedPath) {
       assert(FOOT_NODE.test(b.j.nodes[c.node].name), `Receipt names a non-foot node: ${c.name}`);
       assert.equal(b.j.nodes[c.node].name, c.name, 'Receipt node index and name disagree');
 
+      for (const field of ['rest', 'tpose', 'animation']) {
+        assert(Array.isArray(c[field]?.q), `Receipt's ${c.name} has no ${field}.q`);
+      }
       const close = (want, got, what) => {
         assert(Array.isArray(got), `${c.name}: no rotation to check ${what} against`);
         const off = Math.max(...want.map((x, i) => Math.abs(x - got[i])));
