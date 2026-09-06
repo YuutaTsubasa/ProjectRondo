@@ -45,9 +45,14 @@ export interface Player {
   readonly root: TransformNode;
   motion: CharacterMotion;
   /**
-   * Off the ground, debounced, as decided by `groundContact`. Visuals read this rather than the raw
-   * support probe (which chatters) or `motion.isGrounded` (which also encodes the takeoff guard), so
-   * that the pose and the physics are answering the same question.
+   * Off the ground for the CAPSULE, debounced, as decided by `groundContact` — preferred to the raw
+   * support probe (which chatters) and to `motion.isGrounded` (which also encodes the takeoff guard).
+   *
+   * It is not the signal visuals read, and must not be treated as one. It answers only for the
+   * capsule, and the probe genuinely finds floor mid-dash and under a low crystal, where the knight
+   * is visibly in flight. Everything above the capsule therefore reads `jumpPose.isOffGround`, which
+   * widens this with `homing` and `bounced`; this field is one of that rule's three inputs, not its
+   * answer. See `jumpPose.ts` for the frames that separate them.
    */
   airborne: boolean;
   /** The live movement config — the same object `window.moveConfig` mutates, so readers track dev tuning. */

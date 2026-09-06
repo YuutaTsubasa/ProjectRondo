@@ -1,6 +1,31 @@
 # Homing Attack Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> ## STATUS: FINISHED WORK, HISTORICAL RECORD — DO NOT EXECUTE, DO NOT COPY CODE OUT OF IT
+>
+> **This is not a plan to work. It is the decomposition the homing attack *started* from, kept for
+> the reasoning it carries and for nothing else.** The feature shipped. What ships is the source; the
+> design of record is the spec, `docs/superpowers/specs/2026-09-05-homing-attack-design.md`. Where
+> this file and either of those disagree, this file is wrong and they are right.
+>
+> It says so at the head rather than being repaired block by block because repairing it does not
+> converge and should not be attempted. Twenty-two review rounds reworked the shipped code; a ninth
+> task was added mid-flight to replace an input contract Tasks 3 and 5 had already been written
+> against; six modules in the File Structure table below are built by no task here at all (see
+> *[What no task below builds](#what-no-task-below-builds)*). Rewriting the task blocks to match the
+> source would make this document a second copy of the source — a second source of truth for code
+> that has one, which is the very mistake Task 3's own reasoning rejects — and it would start
+> drifting again on the next commit.
+>
+> Read the prose. It is where the decisions live: the offset-not-position resolution (Task 3), why
+> the timeout is mandatory rather than defensive (Task 3, Task 9), why the cone is a true 3D test
+> (Task 2), why the bounce starts at a measured clip seam (Task 6).
+>
+> **Do not read the fenced code blocks as the shipped design, and do not paste from them.** Every one
+> of them is the code *as first planned*. Several are known-wrong against the modules that shipped;
+> each of those carries a **SUPERSEDED** note naming what replaced it and what is wrong with it, and
+> pasting one back in would reintroduce a defect a review round already removed. The `- [ ]`
+> checkboxes are inert: nothing here is outstanding, and they are left unticked as the honest record
+> of a plan that was never worked box-by-box in this form.
 
 **Goal:** Give the knight a 3D-Sonic-style homing attack — jump, press jump again, dash to the nearest crystal inside the camera's cone, bounce off it, chain.
 
@@ -61,6 +86,29 @@
 Code only. The Flying Kick clip's binaries and pipeline files live in Task 8's own Files block instead,
 because whether they move at all depends on how the retarget run goes — the task is sequenced last
 precisely so a failed run costs nothing here.
+
+### What no task below builds
+
+The table above is a true inventory of what shipped. The nine tasks below are not: **seven of the
+table's rows are described by no task in this plan.** They were carved out of Tasks 5 and 6 by review
+rounds after the fact, each because a rule that decides something the player sees had been left inside
+a render observable where only playing the game could check it. Their reasoning lives in their own
+module doc comments — this file has none to offer about them, and a reader must not conclude from the
+task list that the plan anticipated them.
+
+| Shipped module | Carved out of | The question it owns |
+| --- | --- | --- |
+| `homingLock.ts` | Task 5's press resolution | Which crystal a dash is committed to, held for the whole flight, plus the reticle's separate preview |
+| `homingReticle.ts` | Task 5 | The ring drawn on the crystal a press would hit right now |
+| `homingColors.ts` | Tasks 4 and 6 | The one red the reticle and the hit flash both read |
+| `jumpPose.ts` | Task 6 | `isOffGround` — the widened off-ground signal the capsule probe alone gets wrong mid-dash and under a low crystal |
+| `jumpSound.ts` | (nothing — the plan never reached audio) | Which jump cue a frame plays, off the same widened signal |
+| `hubAudio.ts` edit | (same) | Wiring those cues and that gate into the existing footstep observable |
+| `slopeMotion.ts` edit | Task 5's ground handling | Keeping the surface's climb off a jump's and a dash's own vertical velocity |
+
+Task 9, at the end, is the one addition that *did* get written up as a task, because it changed an
+input contract Tasks 3 and 5 had already passed review on. It is the only task below that describes
+what ships without qualification.
 
 ---
 
@@ -192,6 +240,12 @@ The config is a **structural subset** of `MovementConfig`, declared here rather 
 
 - [ ] **Step 1: Write the failing test**
 
+> **SUPERSEDED** by `tests/domain/hub/character/homingTarget.test.ts` as shipped. The tie-break case
+> below calls `selectHomingTarget` twice with identical arguments and asserts the same thing about
+> each; a pure function's second call exercises nothing its first did not, so that case tests nothing
+> beyond the first line. The shipped case asks the two *input orders* instead, which is what actually
+> pins the tie to the lower index rather than to iteration luck.
+
 Create `tests/domain/hub/character/homingTarget.test.ts`:
 
 ```ts
@@ -265,6 +319,22 @@ Expected: FAIL — `Failed to resolve import ".../homingTarget"`.
 
 - [ ] **Step 3: Write the implementation**
 
+> **SUPERSEDED** by `src/domain/hub/character/homingTarget.ts` as shipped. Two things below are wrong
+> and must not be copied back:
+>
+> 1. **The hand-rolled index loop with `best` / `bestDistance` accumulators violates principle 8
+>    (prefer declarative iteration over hand-rolled loops).** The shipped `selectHomingTarget` is a
+>    `map` / `filter` / `reduce` over a `MeasuredCandidate`, which measures each offset once and keeps
+>    the tie-break — the incumbent wins on `<=` — as an explicit rule rather than a loop invariant. No
+>    later task supersedes Task 2 the way Task 9 supersedes Task 3, so nothing else in this file
+>    corrects it.
+> 2. **The doc block below is abridged.** As first written it credited the trail as a consumer of the
+>    returned index; the trail runs off `motion.homing` and never sees one, so that half-sentence is
+>    struck here rather than left standing as a false claim a re-execution would write back. The real
+>    consumers, which the shipped doc names, are `stepHomingLock` (it holds the index for the whole
+>    flight and re-subtracts the player's position each frame to get the live offset), `crystals.flash`,
+>    and the reticle.
+
 Create `src/domain/hub/character/homingTarget.ts`:
 
 ```ts
@@ -288,8 +358,8 @@ export interface HomingSelectionConfig {
  * is within `homingConeHalfAngle` of `cameraForward`. Among those, the nearest wins; an exact tie
  * goes to the lower index so the result never depends on iteration luck.
  *
- * Returns an INDEX, not a position: the caller needs to know *which* crystal, for the trail and for
- * anything a level wants to attach to a specific anchor.
+ * Returns an INDEX, not a position: the caller needs to know *which* crystal, for anything a level
+ * wants to attach to a specific anchor.
  *
  * `cameraForward` is normalized here rather than assumed unit-length — it comes from a camera, and a
  * non-unit vector would inflate the dot product and silently widen the cone.
@@ -388,6 +458,11 @@ Sonic's own homing attack is a straight line to a locked target.
 
 - [ ] **Step 1: Write the failing test**
 
+> **SUPERSEDED** by Task 9, which rewrote this suite: `cannot restart while already dashing` asserted
+> a fixed entry direction and is false by design once the dash genuinely homes, and the gravity and
+> steering cases must now be fed a live shrinking offset because `NONE_INPUT`'s null `homingTarget`
+> legitimately ends a dash. Task 9's Step 1 lists the changes.
+
 Create `tests/domain/hub/character/homingMovement.test.ts`:
 
 ```ts
@@ -481,6 +556,15 @@ Expected: FAIL — `homing` is not a property of `CharacterMotion`, `homingTarge
 
 - [ ] **Step 3: Add the state, the input field and the constants**
 
+> **SUPERSEDED.** `HomingDash` below carries `{direction, remaining, elapsed}`; **Task 9 narrowed it
+> to `{elapsed}` alone**, and that is what ships — direction and remaining distance are re-derived
+> from a live offset every frame, which is the whole reason the timeout is reachable. The
+> `MovementInput.homingTarget` doc below says "non-null only on the frame the press is resolved to a
+> target"; shipped, it is non-null on every frame of the dash, and a null one mid-dash ends the dash.
+> The five constants shipped with their derivations reworked — `homingRange` 12 is now documented as
+> a guess derived from nothing, not as "three of the knight's jump apexes" — and **all five are still
+> Untuned**; see the note on Task 7.
+
 In `src/domain/hub/character/characterMotion.ts`, add above `CharacterMotion`:
 
 ```ts
@@ -557,6 +641,14 @@ In `src/domain/hub/character/movementConstants.ts`, extend the object and docume
 In `src/domain/hub/character/movementConfig.ts`, add the five fields to `MovementConfig` with `readonly … : number`, and a line pointing at `homingTarget.ts`'s `HomingSelectionConfig`, which `MovementConfig` structurally satisfies.
 
 - [ ] **Step 4: Write the dash branch**
+
+> **SUPERSEDED** by `characterMovement.ts` as shipped, via Task 9. `enterHoming` no longer exists;
+> `step` asks the exported `isHomingFrame(motion, input)` — exported because presentation cannot
+> recover it from the result, since a dash short enough to arrive on its entry frame never raises
+> `motion.homing` at all — and `stepHoming` takes `(motion, elapsedSoFar, offset, config, delta)`,
+> deriving direction and remaining distance from that live offset every frame. The dead-reckoned
+> `remaining` below is precisely the defect Task 9 was written to fix: it made
+> `homingMaxDuration`'s abort branch unreachable.
 
 In `src/domain/hub/character/characterMovement.ts`, import the Vec3 helpers and add the branch at the top of `step`:
 
@@ -679,14 +771,37 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 - Modify: `src/presentation/babylon/hubScene.ts`
 
 **Interfaces:**
-- Consumes: `rng` from `src/domain/math/rng.ts`, `terrainHeight` from `./terrainHeight`.
+- Consumes: a `Scene`, and `Vec3` from `src/domain/math/vec3.ts`. Nothing else — the positions come
+  straight from the caller's `spots`, so there is no `rng` and no `terrainHeight` here. (An earlier
+  draft of this entry credited both; neither appears in the code block twelve lines below, and neither
+  is imported by the shipped module.)
 - Produces: `createCrystals(scene: Scene, spots: readonly CrystalSpot[]): Crystals`, where
   `interface CrystalSpot { readonly x: number; readonly y: number; readonly z: number }` and
-  `interface Crystals { readonly positions: readonly Vec3[] }`.
+  `interface Crystals { readonly positions: readonly Vec3[] }`. **Superseded:** shipped, `spots` is
+  `readonly Vec3[]` (no `CrystalSpot`) and `Crystals` also carries `flash(index)` — see the note under
+  Step 1.
 
 No test file: this is presentation, verified in-browser per the repo's split (spec §10).
 
 - [ ] **Step 1: Write the module**
+
+> **SUPERSEDED** by `src/presentation/babylon/crystals.ts` as shipped, which diverges in four ways:
+>
+> 1. **`CrystalSpot` does not exist.** `createCrystals` takes `readonly Vec3[]` — a placement is a
+>    point, and a second name for the same `{x, y, z}` shape bought nothing.
+> 2. **`Crystals` has a `flash(index)`**, and each crystal owns its own `StandardMaterial` so one
+>    flash cannot touch its neighbours. That is a trade-off with a stated cost (a material is a
+>    draw-call state change, and the tower mode will place far more than five crystals), not a free
+>    upgrade; the shipped doc records it.
+> 3. **`CRYSTAL_SIZE` is not a half-height.** The block below documented it as one — "Half-height of a
+>    crystal, in world units" — and that is the claim this branch measured and disproved, so the line
+>    is corrected in place rather than left standing. `CreatePolyhedron`'s `size` scales the unit
+>    template, so 0.45 yields a full extent of `2 * sqrt(2) * 0.45` = 1.273 u, confirmed in the browser
+>    against every crystal's bounding box. The shipped module exports `CRYSTAL_EXTENT` for that real
+>    dimension and marks `CRYSTAL_SIZE` **Untuned**, because 0.45 was picked under the wrong belief.
+> 4. **The colours are shared and marked.** The flash red comes from `homingColors.ts`, so the
+>    reticle's aim and the hit's arrival cannot drift apart, and every appearance constant carries an
+>    **Untuned** marking.
 
 Create `src/presentation/babylon/crystals.ts`:
 
@@ -699,7 +814,7 @@ import '@babylonjs/core/Materials/standardMaterial';
 import { Color3 } from '@babylonjs/core/Maths/math.color';
 import { type Vec3, vec3 } from '../../domain/math/vec3';
 
-/** Half-height of a crystal, in world units. The knight is ~1.9 tall, so this reads as a held object. */
+/** The `size` argument to `CreatePolyhedron` below — NOT a world-unit half-height; see the note above. */
 const CRYSTAL_SIZE = 0.45;
 
 /**
@@ -816,7 +931,16 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 
 - [ ] **Step 1: Give the player controller the crystals and the camera's true forward**
 
-`createPlayer` gains a `crystals: Crystals` parameter, and `hubScene.ts` passes the value from Task 4.
+> **SUPERSEDED.** The `jumpAvailable` partition and the true-3D aim below are both real and shipped;
+> the code that carries them is not. `selectedOffset` does not exist. Selection, the lock held across
+> the dash's whole flight, its entry estimate and the reticle's *separate* preview selection are all
+> `stepHomingLock` in `homingLock.ts` — pulled out because each of those edges decides something the
+> player sees and none of them could be checked from inside a render observable. The offset is
+> recomputed against the locked crystal **every frame of the dash**, not once at the press (Task 9),
+> and is measured from `controller.getPosition()` rather than the smoothed visual root. The ground
+> machine also gained `dashInFlight` and `bounced` inputs so a press on a frame a dash owns is
+> declined rather than spent, and the press the lock commits is retracted from the jump buffer
+> afterwards. Read `playerController.ts` and `homingLock.ts` for the shipped shape.
 
 `stepGroundContact` gains a `jumpAvailable` on its result — "would a press be spent as a jump if one
 were made this frame", i.e. `jumpRequested` without the live press. The dash gate is its complement,
@@ -916,6 +1040,25 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 - Consumes: `Player.motion.homing` (Task 3).
 - Produces: nothing new.
 
+> **SUPERSEDED** in all three steps by `knight.ts` and `jumpPose.ts` as shipped:
+>
+> - **Step 1's placeholder spin never survived.** Task 8's retarget run succeeded, so the Flying Kick
+>   clip ships and the spin was deleted with it. `KnightMotionSample` carries `homing`,
+>   `homingEntrySeconds` (the kick slice is retimed onto the dash's real screen time, the way the jump
+>   segment is retimed onto `airtime`) and `bounced`, not `homing` alone.
+> - **Step 2's trigger is wrong.** The bounce is read from `bounced` — the domain's own verdict,
+>   carried through `Player.homingBounced` — and *never* from `homing`'s falling edge with a positive
+>   vertical velocity, as below. `homing` clears on a timeout too, and by then `motion.velocity` holds
+>   Havok's post-solve value, which collide-and-slide can cancel; and a dash short enough to arrive on
+>   its entry frame never raises `homing` at all yet still bounces. The 0.76 s seam itself is right and
+>   shipped, chosen for the reason the step gives. Which cue a frame plays is `stepJumpPose`'s, not
+>   this file's.
+> - **Step 3's trail must not be generated off `root`.** `root` is the glTF `__root__`, so a `TrailMesh`
+>   fed it draws the ribbon from ground level; the shipped trail hangs off a `trailGenerator`
+>   `TransformNode` parented to `root` at half the model's raw height, in `root`'s pre-scale space.
+>   Babylon's `TrailMesh` `diameter` argument is a **radius**, checked against the installed source,
+>   and both trail constants ship **Untuned**.
+
 - [ ] **Step 1: Spin during the dash**
 
 `driveKnightAnimation` polls a `KnightMotionSample`. Extend that sample with `homing: boolean`, sourced
@@ -988,6 +1131,13 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 This task is the point of the phase. The five constants are derived guesses; none is a measurement
 until someone has played it.
 
+> **WHAT ACTUALLY HAPPENED.** The browser pass ran (at `d3b64cb`) and **no constant was tuned**. It
+> spent itself on a defect instead: `homingMaxDuration`'s abort branch could never fire, which is
+> Task 9. All five constants still ship **Untuned**, and several appearance constants added since —
+> the crystal's size and colours, the reticle's, the trail's — ship Untuned too. So the phase's stated
+> point is the one thing it did not deliver, and the tuning below is still owed. Do not read the past
+> tense of this task as a record that it was done.
+
 - [ ] **Step 1: Run it with the Browser pane displayed**
 
 Start the dev server with `preview_start` (config `dev`) and **make sure the pane is displayed** — a
@@ -1055,6 +1205,12 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 **This task is sequenced last and blocks nothing.** If it fails, Task 6's placeholder spin ships and
 this becomes its own piece of work. That is a real outcome, not a formality — the pipeline has
 documented traps and the GLB regeneration touches a known defect class.
+
+> **WHAT ACTUALLY HAPPENED.** The retarget run succeeded: `FlyingKick` is in `SRC` and `NON_LOOPING`,
+> the fifth clip is loaded and named in the guard, and Task 6's placeholder spin is gone. Step 6's
+> condition did **not** hold — the regenerated GLB still ships `normalTexture.scale: 0` and
+> `emissiveStrength: 0`, so `knight.ts` still carries the load-time corrections and the README
+> paragraph stands.
 
 - [ ] **Step 1: Stage the FBX under the repo's naming convention**
 
@@ -1265,25 +1421,45 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 
 ## Self-Review
 
-**Spec coverage.** §2's settled decisions → Tasks 3 (bounce, trigger, no-air-dash), 4 (crystals
-persist, procedural). §3 selection → Task 2, every listed case including the coincident target and the
-non-unit `cameraForward`. §4 the dash → Task 3. §5 the timeout → Task 3, with its own test. §6
-chaining without a counter → Task 3's chain test. §7 constants → Task 3 creates them Untuned, Task 7
-tunes them. §8 presentation table → Tasks 4, 5, 6; `TrailMesh` and the 0.76 s seam both in Task 6.
+> This section certified the plan against the spec **as the plan was written**, before any of it ran.
+> It is kept as part of the record, but it is not a certificate of the shipped work and must not be
+> read as one — both paragraphs below have been corrected where they had gone from optimistic to
+> false. Certifying coverage is this section's whole job, which is exactly why a stale version of it
+> is worse than none.
+
+**Spec coverage — where it holds, and where it does not.** §2's settled decisions → Tasks 3 (bounce,
+trigger, no-air-dash), 4 (crystals persist, procedural). §3 selection → Task 2, every listed case
+including the coincident target and the non-unit `cameraForward`. §4 the dash → Task 3, **as amended
+by Task 9**: §4's live-offset homing is Task 9's, not Task 3's. §5 the timeout → Task 3 wrote it and
+Task 9 made it reachable; Task 3's version could never fire. §6 chaining without a counter → Task 3's
+chain test. §7 constants → Task 3 creates them Untuned; **Task 7 did not tune them, and all five still
+ship Untuned.**
+
+**§8's presentation table is where coverage breaks, and it is not a small gap.** Seven of its twelve
+rows are built by **no task in this plan**: `homingLock.ts`, `homingReticle.ts`, `homingColors.ts`,
+`jumpPose.ts`, `jumpSound.ts`, the `hubAudio.ts` edit and the `slopeMotion.ts` edit. Tasks 4, 5 and 6
+cover the other five (`crystals.ts`, `playerController.ts`, `groundContact.ts`, `knight.ts`,
+`hubScene.ts`) and no more. `TrailMesh` and the 0.76 s seam are in Task 6, but the rule that decides
+*when* the bounce seam plays is `jumpPose.ts`'s and is in no task. See
+*[What no task below builds](#what-no-task-below-builds)* for what each of the seven owns.
+
 §9 the clip → Task 8, including the scalar check and the guard message. §10 testing → domain tests in
-Tasks 1–3, the browser gate in Task 7. §11 out of scope → nothing here builds any of it.
+Tasks 1–3, the browser gate in Task 7 — but the presentation suites that ship (`homingLock`,
+`jumpPose`, `jumpSound`, and the `groundContact` and `slopeMotion` additions) belong to the seven rows
+above and are likewise in no task. §11 out of scope → nothing here builds any of it.
 
 **Type consistency.** `selectHomingTarget(from, cameraForward, candidates, config) → number | null` is
-defined in Task 2 and called with exactly those four arguments in Task 5. `HomingDash` is defined in
-Task 3 as `{direction, remaining, elapsed}`, and **Task 9 narrows it to `{elapsed}` alone**, which is
-what ships: `direction` and `remaining` become per-frame derivations inside `stepHoming` rather than
-carried state, leaving `motion.homing !== null` (Tasks 5 and 6) and `motion.homing.elapsed` (Task 3's
-`step`) as the only reads anywhere. This paragraph was written when the plan had eight tasks and is
-the one place the ninth's interface change had to be carried back to, since certifying the types is
-its whole job.
-`MovementInput.homingTarget` is a `Vec3 | null` offset everywhere it appears. `Crystals.positions` is
-produced in Task 4 and indexed in Task 5 by the index Task 2 returns. The Vec3 helpers are imported
-under `length3` / `normalize3` / `scale3` aliases in `characterMovement.ts` because that file already
+defined in Task 2 and called with exactly those four arguments — from Task 5's `selectedOffset` as
+planned, and from `homingLock.ts`'s `stepHomingLock` as shipped. `HomingDash` is defined in Task 3 as
+`{direction, remaining, elapsed}`, and **Task 9 narrows it to `{elapsed}` alone**, which is what ships:
+`direction` and `remaining` become per-frame derivations inside `stepHoming` rather than carried state,
+leaving `motion.homing !== null` (Tasks 5 and 6) and `motion.homing.elapsed` (Task 3's `step`) as the
+only reads anywhere. This paragraph was written when the plan had eight tasks and is the one place the
+ninth's interface change had to be carried back to, since certifying the types is its whole job.
+`MovementInput.homingTarget` is a `Vec3 | null` offset everywhere it appears — supplied on the press
+frame as Task 3 has it, and on every frame of the dash as Task 9 has it. `Crystals.positions` is
+produced in Task 4 and indexed by the index Task 2 returns. The Vec3 helpers are imported under
+`length3` / `normalize3` / `scale3` aliases in `characterMovement.ts` because that file already
 imports the Vec2 functions under the bare names.
 
 **Two things this plan decides that the spec left open, both recorded rather than absorbed:**
