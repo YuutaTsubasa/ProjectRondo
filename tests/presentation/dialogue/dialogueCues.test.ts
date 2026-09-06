@@ -16,6 +16,12 @@ import { renderOverlay, q, resetOverlay } from './overlayHarness';
 
 /** The reveal's own interval: Line.svelte's default for its `charMs` prop. */
 const CHAR_MS = 24;
+/**
+ * Line.svelte's own `TYPE_MIN_MS`: the shortest gap between two typing ticks, whichever of the two
+ * generators asks for one. DialogueOverlay's `typeCue` is where that bound is applied, so it spans
+ * the reveal and the press on the box rather than holding inside one `<Line>`.
+ */
+const TYPE_MIN_MS = 70;
 /** Choices.svelte's own `MOVE_MIN_MS`: the shortest gap between two move cues. */
 const MOVE_MIN_MS = 100;
 
@@ -84,7 +90,17 @@ describe('the typing cue', () => {
     tick(CHAR_MS * 3);
     expect(countOf(playCue, 'ui.type')).toBe(1);
 
-    // The press sounds its own tick; the six characters it then draws at once must not sound six
+    // Stand the press one whole window past that tick so the gate below grants it: what this pins is
+    // what the reveal-all DRAWS, and the press landing inside the window is the test after it.
+    // `advanceTimersByTime` rather than `tick()`, because `tick()` walks in whole CHAR_MS slices and
+    // 70 is not a multiple of 24 -- chars 4 and 5 are drawn on the way there and neither reaches the
+    // reveal's own accumulator, so the last tick is still the one on char 3.
+    vi.advanceTimersByTime(TYPE_MIN_MS);
+    flushSync();
+    expect(revealed()).toBe(NINE.slice(0, 5));
+    expect(countOf(playCue, 'ui.type')).toBe(1);
+
+    // The press sounds its own tick; the four characters it then draws at once must not sound four
     // more, which is the burst the throttle exists to prevent.
     q<HTMLButtonElement>('.hit')!.click();
     flushSync();
@@ -92,11 +108,47 @@ describe('the typing cue', () => {
     expect(countOf(playCue, 'ui.type')).toBe(2);
   });
 
+  it('holds the press back behind a reveal tick it would otherwise land on top of', () => {
+    vi.useFakeTimers();
+    const { session, playCue } = renderOverlay(SCRIPT);
+    tick(0);
+    tick(CHAR_MS * 3);
+    expect(countOf(playCue, 'ui.type')).toBe(1);
+
+    // The two ticks are generated in different components -- the reveal in <Line>, the press here --
+    // and play the same 60 ms sample, so nothing inside either one can keep them off each other. A
+    // press that reveals-all is the commonest press in a typewriter UI and lands wherever it lands
+    // inside the reveal's 72 ms cycle; this one lands directly on the tick just paid out. It makes
+    // no second sound: the player has already heard a tick for it, the reveal it interrupts stops
+    // with it, and what a second one would add is the smeared double-hit rather than an answer.
+    q<HTMLButtonElement>('.hit')!.click();
+    flushSync();
+    expect(revealed()).toBe(NINE);
+    expect(countOf(playCue, 'ui.type')).toBe(1);
+
+    // One tick short of the window and it is still held -- which, with the press a whole window out
+    // in the test above, stands on both sides of TYPE_MIN_MS itself rather than merely inside some
+    // window. This press advances the line rather than revealing one, so the hold is not a property
+    // of the reveal-all either.
+    vi.advanceTimersByTime(TYPE_MIN_MS - 1);
+    flushSync();
+    const line = session.line;
+    q<HTMLButtonElement>('.hit')!.click();
+    flushSync();
+    expect(session.line).not.toBe(line);
+    expect(countOf(playCue, 'ui.type')).toBe(1);
+  });
+
   it('sounds the press whether it finishes the line or starts the next one', () => {
     vi.useFakeTimers();
     const { session, playCue } = renderOverlay(SCRIPT);
     tick(0);
     tick(CHAR_MS * NINE.length);
+    // The ninth character sounded as it was drawn, and the press shares that tick's window, so stand
+    // clear of it: this is about a press ADVANCING sounding like a press revealing, not about the
+    // window they share, which the test above pins from both sides.
+    vi.advanceTimersByTime(TYPE_MIN_MS);
+    flushSync();
     const finished = countOf(playCue, 'ui.type');
     const line = session.line;
 
@@ -114,6 +166,9 @@ describe('the typing cue', () => {
     tick(0);
     tick(CHAR_MS * NINE.length);
     expect(revealed()).toBe(NINE);
+    // Clear of the last character's tick, for the reason the test above gives.
+    vi.advanceTimersByTime(TYPE_MIN_MS);
+    flushSync();
     const finished = countOf(playCue, 'ui.type');
 
     // The third thing a press can do, and the one the box's comment used to leave out: the line is
@@ -256,8 +311,8 @@ describe('the choice cues', () => {
     tick(0);
     session.advance();
     // Flushed but not advanced: the panel is mounted and its mount-focus task is queued, so a
-    // pointer moving inside that task races it. The move wins, and arrives from outside the panel,
-    // so it is silent.
+    // pointer moving inside that task races it. The move wins, and it is the arrival that gives the
+    // panel its first selection, so it is the opening and silent.
     tick(0);
     const options = [...document.querySelectorAll<HTMLButtonElement>('.choice')];
     expect(options).toHaveLength(2);
@@ -288,6 +343,27 @@ describe('the choice cues', () => {
     expect(countOf(playCue, 'ui.move')).toBe(2);
   });
 
+  it('sounds the way back in after focus has left the options without leaving the modal', () => {
+    const { playCue, options } = atChoices();
+
+    options[1].focus();
+    expect(countOf(playCue, 'ui.move')).toBe(1);
+
+    // The opening is told from a move by whether an option has held the selection yet, and not by
+    // where `relatedTarget` says focus arrived from. That reading -- "from outside the panel means
+    // the panel had none, which is only ever the opening" -- was false: focus can leave the options
+    // without leaving the modal, and every route back in then looked like the mount focus and went
+    // silent. A press on the scrim is cancelled now (modalFocus.test.ts), but that closes one route
+    // rather than the class of them, and the rule has to hold whichever way focus was lost.
+    (document.activeElement as HTMLElement).blur();
+    expect(document.activeElement).toBe(document.body);
+
+    tick(MOVE_MIN_MS);
+    options[0].focus();
+    expect(document.activeElement).toBe(options[0]);
+    expect(countOf(playCue, 'ui.move')).toBe(2);
+  });
+
   it('does not sound the panel taking its own focus', () => {
     vi.useFakeTimers();
     const { session, playCue } = renderOverlay(SCRIPT);
@@ -296,7 +372,7 @@ describe('the choice cues', () => {
     tick(1000);
 
     // Focus has landed on the first option by now, and that is the panel opening rather than the
-    // player moving: `relatedTarget` on that focus event is outside the panel.
+    // player moving: no option had held the selection before it, which is the whole of the test.
     expect(document.activeElement).toBe(q('.choice'));
     expect(countOf(playCue, 'ui.move')).toBe(0);
   });

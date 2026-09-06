@@ -3,7 +3,7 @@
   import type { DialogueSession } from './dialogueSession.svelte';
   import Portrait from './Portrait.svelte';
   import Nameplate from './Nameplate.svelte';
-  import Line from './Line.svelte';
+  import Line, { TYPE_MIN_MS } from './Line.svelte';
   import Choices from './Choices.svelte';
   import Controls from './Controls.svelte';
   import Backlog from './Backlog.svelte';
@@ -42,6 +42,51 @@
     if (target.isConnected) target.focus();
   });
 
+  /** When the last typing tick sounded, on the monotonic clock. See {@link typeCue}. */
+  let lastType = Number.NEGATIVE_INFINITY;
+  /**
+   * Sounds one typing tick, at most one per {@link TYPE_MIN_MS}, whichever of the two generators
+   * asked for it.
+   *
+   * `ui.type` has two sources and they play the same 60 ms sample: `<Line>`'s reveal, paced by its
+   * own accumulator, and the press below. Neither can see the other — the press fires knowing
+   * nothing about when the line last ticked — and a press lands at an arbitrary point inside the
+   * reveal's 72 ms cycle, so a press that reveals-all, the commonest press in a typewriter UI,
+   * mostly started a second `ui.type` while the first was still sounding. `soundBank.play` starts a
+   * fresh instance per call rather than restarting the sound, and hands out a different recording
+   * each time, so the two genuinely stacked. `TYPE_MIN_MS`'s "consecutive ticks never overlap" only
+   * ever held inside one `<Line>`.
+   *
+   * The bound belongs here rather than in either component because this is the only place both
+   * generators meet: the overlay owns `playCue`, so every `ui.type` in the dialogue passes through
+   * this function. `<Line>` keeps its accumulator as the reveal's cadence — which character asks —
+   * and this is what decides whether the ask is granted.
+   *
+   * First come, first served, with no exemption for the press, because at the moment two ticks
+   * collide the reveal's has already been played and only the press's is still refusable: exempting
+   * the press is the same as not having the bound. And a held press tick is not the box going
+   * silent. The tick it is held behind sounded under 70 ms earlier — well inside the window a sound
+   * is still heard as answering the press that landed in it — and the reveal it interrupts stops
+   * with it, so the player hears one tick around the press either way, which is the whole point of
+   * the tick. The exemption would buy the smeared double-hit instead.
+   *
+   * A press on a line that has finished revealing — every advance taken at reading speed, and the
+   * one that ends the dialogue — comes after a gap no reveal is filling and so sounds. What is held
+   * is a press landing inside 70 ms of a tick the reveal just paid out: the reveal-all, and an
+   * advance taken within a breath of the last character. `dialogueCues.test.ts` stands on both
+   * sides of that edge rather than leaving this paragraph to be taken on trust.
+   *
+   * `performance.now()`, not `Date.now()`, for the reason Choices.svelte gives at `MOVE_MIN_MS`: it
+   * is monotonic, so a clock adjustment cannot leave the box silent for however far the clock
+   * jumped back.
+   */
+  function typeCue() {
+    const now = performance.now();
+    if (now - lastType < TYPE_MIN_MS) return;
+    lastType = now;
+    playCue?.('ui.type');
+  }
+
   function advance() {
     session.advance();
     if (session.isFinished) { finish(); }
@@ -59,11 +104,11 @@
     // below because the tick belongs to the press, not to what the press turns out to do. There are
     // three of those: finishing the reveal, starting the next line, and -- on a completed final line
     // -- falling through `advance()` into `finish()`, which unmounts this component. The last one
-    // puts no text on screen, and still sounds: the box acknowledges every press the same way, and
-    // going silent on the one press that takes the box away would read as a press that missed.
-    // Line.svelte holds the first tick of a new line back by one throttle window so this and it do
-    // not land on top of each other.
-    playCue?.('ui.type');
+    // puts no text on screen, and asks for a tick like the other two: the box acknowledges every
+    // press the same way, and going silent on the one press that takes the box away would read as a
+    // press that missed. Via typeCue, which is what keeps this and the reveal's ticks off each
+    // other, and which answers all three of these alike.
+    typeCue();
     if (lineRef?.reveal()) return;
     advance();
   }
@@ -81,7 +126,10 @@
   // still runs (inert does not stop an interval, and onBoxClick returns early while choices are
   // open), so without this the player hears typing for text they are not reading and cannot skip,
   // under the panel's own move and confirm cues. The backlog covers the box the same way.
-  const typed = () => { if (!modalOpen) playCue?.('ui.type'); };
+  //
+  // The modal check is outside typeCue, not inside it: a tick suppressed here makes no sound, so it
+  // must not consume the window and silence the next one that would.
+  const typed = () => { if (!modalOpen) typeCue(); };
 
   // Reset the typewriter-done flag whenever the line changes ({#key session.line} remounts <Line>).
   $effect(() => { session.line; lineDone = false; });

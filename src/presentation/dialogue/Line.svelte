@@ -5,8 +5,15 @@
    * The reveal runs a character every `charMs` — 24 by default — while the tick sample is 60 ms long,
    * so one sound per character would stack three deep and read as a machine gun rather than as
    * typing. 70 keeps consecutive ticks from overlapping at all.
+   *
+   * The accumulator below only paces the ticks THIS component generates, and it is not what makes
+   * that rule hold: `ui.type` has a second source, the press on the dialogue box, and neither
+   * component can see the other's. The window that spans both is applied once, in
+   * `DialogueOverlay.typeCue`, which owns `playCue` and is the only place the two meet. Exported for
+   * it, so the reveal is paced to the same figure the sound gate enforces rather than to a second
+   * one that could drift from it.
    */
-  const TYPE_MIN_MS = 70;
+  export const TYPE_MIN_MS = 70;
 </script>
 
 <script lang="ts">
@@ -23,9 +30,10 @@
     let i = 0;
     // Starts at zero, so the first tick lands one throttle window into the line rather than on its
     // first character. A line almost always begins because the box was just pressed, and that press
-    // sounds its own tick (DialogueOverlay.onBoxClick) — firing again 24 ms later would flam the two
-    // into one smeared hit. The lines that start without a press, the first of a script and any AUTO
-    // advance, simply begin a window late.
+    // sounds its own tick (DialogueOverlay.onBoxClick); asking for a second one 24 ms later would
+    // only spend a tick the overlay's gate then drops. The lines that start without a press, the
+    // first of a script and any AUTO advance, open the same way rather than on their very first
+    // character.
     let sinceTick = 0;
     clearInterval(timer);
     timer = setInterval(() => {
