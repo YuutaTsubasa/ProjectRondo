@@ -315,7 +315,9 @@ stays the project owner's call and is untouched here.
 | `src/presentation/babylon/playerController.ts` | edit | Wire the press and the lock into the domain step; flash the crystal on the bounce |
 | `src/presentation/babylon/groundContact.ts` | edit | Keep the bounce's climb off the probe, and keep a press on a frame a dash owns out of the jump (`GroundContactInput.bounced`, `dashInFlight`) |
 | `src/presentation/babylon/slopeMotion.ts` | edit | `solverVelocity`: keep the surface's climb off a jump's and a dash's own vertical velocity |
-| `src/presentation/babylon/jumpPose.ts` | new | One off-ground signal for the pose, and which seam the jump clip starts from — the probe finds floor mid-dash and under a low crystal, so `airborne` alone gets the bounce wrong |
+| `src/presentation/babylon/jumpPose.ts` | new | Which seam the jump clip starts from, and `isOffGround` — the widened off-ground signal the probe alone gets wrong mid-dash and under a low crystal, read by the pose and, since `740f333`, by `jumpSound.ts` too |
+| `src/presentation/audio/jumpSound.ts` | new | Which jump cue a frame asks the sound bank to play, and the same `isOffGround` reading gating the footstep cadence |
+| `src/presentation/audio/hubAudio.ts` | edit | Wire `jumpSound.ts`'s cues and off-ground gate into the render observable that already drives the footstep cadence |
 | `src/presentation/babylon/knight.ts` | edit | Dash animation, the bounce's clip seam, the trail |
 | `src/presentation/babylon/hubScene.ts` | edit | Build the test crystals |
 
@@ -385,9 +387,10 @@ dashing, aborts at the timeout and restores gravity, and cannot enter while alre
 **The presentation rules get Vitest too.** A rule that merely *runs* inside a render loop is testable
 the moment it is lifted out of one, and this repo lifts them: `groundContact.ts` and `slopeMotion.ts`
 already have suites under `tests/presentation/`, which this phase extends for the bounce and the dash;
-§8's `homingLock.ts` and `jumpPose.ts` are new suites on the same reasoning. Their edges — commit on a
-press, hold the lock for the whole dash, release it the frame it ends, answer the reticle separately —
-each misbehave for one frame at a time, which is exactly what a browser pass cannot catch.
+§8's `homingLock.ts`, `jumpPose.ts` and `jumpSound.ts` are new suites on the same reasoning. Their
+edges — commit on a press, hold the lock for the whole dash, release it the frame it ends, answer the
+reticle separately, play the takeoff and land cues on `isOffGround`'s two flips — each misbehave for
+one frame at a time, which is exactly what a browser pass cannot catch.
 
 **What is left is verified in the browser**: the meshes, the materials, the trail, the render
 observable — and the feel, which is the whole point of the phase, so this gate is real rather than
