@@ -59,8 +59,17 @@ export interface JumpPoseResult {
   readonly cue: JumpClipCue;
 }
 
+/**
+ * The widened off-ground rule itself, exported because the pose is not its only consumer: the audio
+ * layer asks the same question (`jumpSound.ts`), and a second spelling of it beside this one is the
+ * exact duplication `groundContact.ts` was written to end. Everything above the capsule reads this;
+ * only the capsule itself reads `airborne`.
+ */
+export const isOffGround = (input: JumpPoseInput): boolean =>
+  input.airborne || input.homing || input.bounced;
+
 export const stepJumpPose = (state: JumpPoseState, input: JumpPoseInput): JumpPoseResult => {
-  const offGround = input.airborne || input.homing || input.bounced;
+  const offGround = isOffGround(input);
   return {
     state: { offGround },
     // A bounce outranks the rising edge on any frame that raises both — a dash short enough to
