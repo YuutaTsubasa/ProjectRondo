@@ -20,7 +20,7 @@ import { HOMING_RED_RGB } from './homingColors';
  * across the field) but nobody has chosen it deliberately; retune by eye. `0.25` would restore roughly
  * the originally intended proportion.
  */
-export const CRYSTAL_SIZE = 0.45;
+const CRYSTAL_SIZE = 0.45;
 
 /**
  * A crystal's actual full extent, in world units, on every axis — the number to reason about when
