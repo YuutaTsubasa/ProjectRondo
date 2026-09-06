@@ -26,8 +26,10 @@ interface MeasuredCandidate {
  * goes to the lower index so the result never depends on iteration luck.
  *
  * Returns an INDEX, not a position: every consumer names the crystal rather than a point in space.
- * `stepHomingLock` holds the index for the dash's whole flight and re-subtracts `candidates[index]`
- * from the player every frame to get the live offset, `crystals.flash` lights that crystal on
+ * `stepHomingLock` holds the index for the dash's whole flight and re-subtracts the player's position
+ * from `candidates[index]` every frame to get the live offset — the vector *from the player to the
+ * crystal*, the one direction `movementInput.ts` and spec §3 both pin down, since taking it the other
+ * way round aims the dash at the origin's side of the crystal. `crystals.flash` lights that crystal on
  * arrival, and the reticle reads its position back out of the list — and an index is what anything a
  * level wants to attach to a specific anchor would key off too.
  *

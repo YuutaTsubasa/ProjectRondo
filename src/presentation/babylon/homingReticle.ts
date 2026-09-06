@@ -14,9 +14,11 @@ import { HOMING_RED_RGB } from './homingColors';
 
 /**
  * Reticle diameter — of the ring stroke's *centreline* — as a multiple of a crystal's own full extent
- * ({@link CRYSTAL_EXTENT}). The ink runs half a stroke either side of it: at the current
- * {@link RING_STROKE_FRACTION} the drawn band spans 0.45 to 0.55 extents (0.573 u to 0.700 u against
- * `CRYSTAL_EXTENT` 1.273), centred on the 0.5 extents this names.
+ * ({@link CRYSTAL_EXTENT}). The stroke straddles that centreline, half of it further out and half
+ * further in — but that is a *radial* half either side, and this number is a diameter, so measured the
+ * way this number is the band runs a whole stroke under and a whole stroke over it. At the current
+ * {@link RING_STROKE_FRACTION} a stroke is 0.05 extents (0.06366 u against `CRYSTAL_EXTENT` 1.273), so
+ * the ink spans 0.45 to 0.55 extents in diameter (0.573 u to 0.700 u), centred on the 0.5 this names.
  *
  * Deliberately well under 1: the ring sits *inside* the crystal's silhouette rather than enclosing it.
  * Two larger values were watched against the running scene first — 1.35 read as a halo floating around
@@ -31,9 +33,10 @@ const RETICLE_EXTENT_RATIO = 0.5;
 
 /**
  * Where across the plane's width {@link ringTexture} lays its stroke — the circle it arcs sits at this
- * fraction of the texture, with the rest transparent padding. The *centreline*, not the outer edge:
- * the stroke straddles it, so the ink reaches {@link RING_STROKE_FRACTION} / 2 beyond on each side
- * (0.72 to 0.88 of the texture at the current numbers).
+ * fraction of the texture, with the rest transparent padding. The *centreline*, not the outer edge,
+ * and a diameter, not a radius: {@link ringTexture} halves it for `ctx.arc`, and the stroke then
+ * straddles that arc by {@link RING_STROKE_FRACTION} / 2 = 0.04 of the texture width either side
+ * radially — ink over radii 0.36 to 0.44, which is 0.72 to 0.88 measured the way this number is.
  *
  * {@link RETICLE_DIAMETER} divides by this so that `RETICLE_EXTENT_RATIO` names a real fraction of the
  * crystal rather than one deflated by the padding: without the division, a nominal 1.35x margin
@@ -44,8 +47,9 @@ const RETICLE_EXTENT_RATIO = 0.5;
 const RING_TEXTURE_FRACTION = 0.8;
 
 /** Plane size, in world units. The visible ring's stroke centreline is `CRYSTAL_EXTENT *
- *  RETICLE_EXTENT_RATIO` across, its outer edge half a stroke wider; the plane is wider still by the
- *  transparent padding {@link RING_TEXTURE_FRACTION} accounts for. */
+ *  RETICLE_EXTENT_RATIO` across, its outer edge a whole stroke wider across (half a stroke radially at
+ *  each end); the plane is wider still by the transparent padding {@link RING_TEXTURE_FRACTION}
+ *  accounts for. */
 const RETICLE_DIAMETER = (CRYSTAL_EXTENT * RETICLE_EXTENT_RATIO) / RING_TEXTURE_FRACTION;
 
 /**

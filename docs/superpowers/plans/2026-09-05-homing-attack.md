@@ -806,24 +806,41 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 **Files:**
 - Modify: `src/presentation/babylon/playerController.ts`
 - Modify: `src/presentation/babylon/hubScene.ts`
+- Modify: `src/presentation/babylon/groundContact.ts`
 
 **Interfaces:**
 - Consumes: `selectHomingTarget` (Task 2), `MovementInput.homingTarget` (Task 3), `Crystals.positions` (Task 4).
-- Produces: nothing new; `createPlayer` gains a `crystals` parameter.
+- Produces: `GroundContactResult.jumpAvailable` — `jumpRequested` without the live press, so the dash
+  can be gated on exactly the presses the ground machine will not spend.
+- Produces: nothing else new; `createPlayer` gains a `crystals` parameter.
 
 - [ ] **Step 1: Give the player controller the crystals and the camera's true forward**
 
 `createPlayer` gains a `crystals: Crystals` parameter, and `hubScene.ts` passes the value from Task 4.
 
+`stepGroundContact` gains a `jumpAvailable` on its result — "would a press be spent as a jump if one
+were made this frame", i.e. `jumpRequested` without the live press. The dash gate is its complement,
+so every press goes to exactly one of the two machines and none can fall between them.
+
 Inside the per-frame update, where the `MovementInput` is currently assembled, resolve the press:
 
 ```ts
-// The jump key is edge-triggered and consumed once. Airborne, it means "home"; grounded, it means
-// "jump" — the domain decides which, but only one of the two can be true, so the same press feeds
-// both fields and `step` reads whichever applies.
+// The jump key is edge-triggered and consumed once, and the same press feeds both fields: the two
+// gates are one boolean and its complement, so `step` reads whichever applies.
+//
+// The dash gate is `!jumpAvailable` and deliberately NOT `player.airborne`, which is the
+// FALL_GRACE_SECONDS (0.2 s) animation debounce: a jump stops being legal at COYOTE_SECONDS (0.15 s),
+// so gating on the debounce leaves the 0.05 s between them refusing both — the press is consumed,
+// becomes no jump, and never reaches the dash either.
+//
+// And the aim point is the physics capsule's position, NOT `root`'s: `root.position.y` is the
+// smoothed visual height, whose steady-state lag while the capsule climbs at `homingSpeed` is ~1.9 u.
+// The dash's arrival test needs its remaining distance under `homingSpeed * dt` (0.4–0.8 u), so
+// measuring from the visual root floors that distance above the threshold and a steep dash always
+// times out instead of arriving.
 const pressed = input.consumeJump();
-const homingTarget = pressed && player.airborne
-  ? selectedOffset(root.getAbsolutePosition(), follow, crystals)
+const homingTarget = pressed && !jumpAvailable
+  ? selectedOffset(controller.getPosition(), follow, crystals)
   : null;
 
 const movementInput: MovementInput = {
@@ -870,11 +887,16 @@ Expected: 161 passing.
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/presentation/babylon/playerController.ts src/presentation/babylon/hubScene.ts
+git add src/presentation/babylon/playerController.ts src/presentation/babylon/hubScene.ts \
+  src/presentation/babylon/groundContact.ts
 git commit -m "feat(homing): resolve the press against the camera cone
 
-The jump key does double duty -- grounded it jumps, airborne it homes -- so
-one press feeds both input fields and the domain reads whichever applies.
+The jump key does double duty -- where a jump is available it jumps, and
+everywhere else it homes -- so one press feeds both input fields and the
+domain reads whichever applies. The dash gate is groundContact's new
+jumpAvailable negated rather than the airborne animation debounce, which
+lags coyote time by 0.05s and would leave a press in that window refused
+as a jump and never offered as a dash.
 
 The aim vector is the camera's true 3D forward, not planarBasis().forward:
 that one is flattened to X/Z for locomotion, and a crystal directly overhead
@@ -1140,7 +1162,7 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 **Files:**
 - Modify: `src/domain/hub/character/characterMotion.ts` (`HomingDash` doc comment)
 - Modify: `src/domain/hub/character/characterMovement.ts` (`step`, `stepHoming`)
-- Modify: `src/presentation/babylon/playerController.ts` (`homingCrystal` lock, live offset)
+- Modify: `src/presentation/babylon/playerController.ts` (the `HomingLock` held across frames, live offset)
 - Modify: `tests/domain/hub/character/homingMovement.test.ts`
 - Modify: `docs/superpowers/specs/2026-09-05-homing-attack-design.md` (§4, §5)
 
@@ -1161,10 +1183,11 @@ passed review on.
   `stepHoming(motion, elapsedSoFar, input.homingTarget, config, delta)` whether entering
   (`elapsedSoFar = 0`) or continuing (`elapsedSoFar = motion.homing.elapsed`), and `stepHoming` derives
   both `direction` and `remaining` fresh from the offset argument every frame.
-- Changes: `playerController.ts` holds a `homingCrystal: number | null` closure variable across frames
-  for as long as `player.motion.homing` is non-null, and recomputes the LIVE offset from the player's
-  current position to that same crystal every frame the dash is in flight — not only on the press
-  frame — feeding it into `MovementInput.homingTarget`.
+- Changes: `playerController.ts` holds the lock across frames — `homingLock.ts`'s `HomingLock` union,
+  which carries the crystal and its entry estimate together because a lock with one and not the other
+  means nothing — for as long as `player.motion.homing` is non-null, and recomputes the LIVE offset
+  from the player's current position to that same crystal every frame the dash is in flight, not only
+  on the press frame, feeding it into `MovementInput.homingTarget`.
 
 - [ ] **Step 1: Update the failing/changed tests first**
 
@@ -1189,10 +1212,17 @@ is still checked before the timeout (arriving should beat a timeout landing on t
 
 - [ ] **Step 3: Supply the live offset from presentation**
 
-`playerController.ts`: lock `homingCrystal` on a fresh press exactly as before, but stop computing the
-offset once at entry — recompute `homingOffset(root.getAbsolutePosition(), crystals, homingCrystal)`
-every frame the dash is in flight and pass that into `MovementInput.homingTarget` each frame, not only
-the press frame.
+`playerController.ts`: commit the lock on a fresh press exactly as before, but stop computing the
+offset once at entry — recompute it against the locked crystal every frame the dash is in flight and
+pass that into `MovementInput.homingTarget` each frame, not only the press frame.
+
+Measure the offset from `controller.getPosition()`, the physics capsule, and not from
+`root.getAbsolutePosition()`: `root.position.y` is the smoothed visual height, and its steady-state lag
+while the capsule climbs at `homingSpeed` is ~1.9 u. Everything `stepHoming` now derives from this
+offset — the direction, the remaining distance, and so both the arrival test and the timeout this task
+exists to make reachable — would then be measured from a point the capsule is not at, and a lag that
+never shrinks floors the remaining distance above the arrival threshold of `homingSpeed * delta`
+(0.4–0.8 u). A steep dash would then time out every time, which is the same dead branch in the mirror.
 
 - [ ] **Step 4: Update the spec**
 
