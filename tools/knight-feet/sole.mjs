@@ -12,12 +12,30 @@
  * vertex indices* are re-measured in every other pose — so before/after comparisons are of the same
  * physical piece of leather, not of whatever happens to be lowest in each pose.
  */
-import { bounds } from './glb.mjs';
 
 /** Centroid of a list of points. */
 const mean = (p) => [0, 1, 2].map((k) => p.reduce((s, v) => s + v[k], 0) / p.length);
 
 /** Component-wise `a - b`. */
+/**
+ * The boot meshes, by glTF node name, mapped to the ankle each is skinned to.
+ *
+ * Everything in this block is what a character swap has to change, which is why it is here rather
+ * than inside `landmarks` — `docs/knight-foot-calibration.md` names these as the first thing to
+ * revisit, and a value named at module scope is one a reader can find from that sentence.
+ */
+const BOOT_MESHES = { Mesh_7: 'LeftFoot', Mesh_26: 'RightFoot' };
+
+/** Heel patch: behind the ankle, low on the boot. World-space metres in the rest pose. */
+const HEEL = { maxZ: -0.035, maxY: 0.035 };
+
+/** Toe patch: ahead of the ankle, and tighter in Y because the toe box curves upward — a looser
+ *  ceiling drags the upper into the patch and tilts the centroid. */
+const TOE = { minZ: 0.055, maxY: 0.012 };
+
+/** Vertices a patch must contain before its centroid is worth trusting. */
+const MIN_PATCH = 50;
+
 export const sub = (a, b) => a.map((x, i) => x - b[i]);
 
 /** Unit-length copy of a vector. */
@@ -55,15 +73,15 @@ export const unit = (a) => a.map((x) => x / Math.hypot(...a));
  */
 export function landmarks(g) {
   return g.meshes
-    .filter((m) => ['Mesh_7', 'Mesh_26'].includes(m.name))
+    .filter((m) => m.name in BOOT_MESHES)
     .map((m) => {
       const p = g.skin(g.evaluate(null), m);
-      const foot = m.name === 'Mesh_7' ? 'LeftFoot' : 'RightFoot';
+      const foot = BOOT_MESHES[m.name];
       const node = g.j.nodes.findIndex((n) => n.name === foot);
       const pick = (keep) => p.map((v, i) => ({ v, i })).filter((x) => keep(x.v)).map((x) => x.i);
-      const heel = pick((v) => v[2] < -0.035 && v[1] < 0.035);
-      const toe = pick((v) => v[2] > 0.055 && v[1] < 0.012);
-      if (node < 0 || heel.length < 50 || toe.length < 50) {
+      const heel = pick((v) => v[2] < HEEL.maxZ && v[1] < HEEL.maxY);
+      const toe = pick((v) => v[2] > TOE.minZ && v[1] < TOE.maxY);
+      if (node < 0 || heel.length < MIN_PATCH || toe.length < MIN_PATCH) {
         throw Error('This calibration requires the current knight boot geometry');
       }
       return { m, node, foot, heel, toe };
@@ -88,5 +106,5 @@ export function measured(g, lm, s) {
   const v = sub(t, h);
   // atan2(rise, horizontal run): the angle the heel->toe line makes with the ground plane, so it is
   // independent of which way the knight is facing.
-  return { pitch: (Math.atan2(v[1], Math.hypot(v[0], v[2])) * 180) / Math.PI, heel: h, toe: t, min: bounds(p).min };
+  return { pitch: (Math.atan2(v[1], Math.hypot(v[0], v[2])) * 180) / Math.PI, heel: h, toe: t };
 }

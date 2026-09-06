@@ -184,10 +184,16 @@ export function load(path) {
   };
 
   // Nothing below evaluates morph targets, so a driven one would deform the mesh in the runtime and
-  // not here — see the scope note at the top of this file. Checked against every static `weights`
-  // array and every key of every `weights` channel, because a clip can drive a weight the node's own
-  // default leaves at 0.
+  // not here — see the scope note at the top of this file.
+  //
+  // Both spellings of the static array, because glTF has two and they are not interchangeable:
+  // `mesh.weights` is the default and `node.weights` overrides it per instance (Babylon resolves
+  // exactly that order). This pipeline writes `mesh.weights` — all 42 meshes carry it and no node
+  // does — so a guard that read only the node array would be checking the one that is never present
+  // and missing the one that always is. Plus every key of every `weights` channel, since a clip can
+  // drive a weight both static arrays leave at 0.
   const drivenMorph = () => {
+    for (const m of j.meshes) if ((m.weights ?? []).some((w) => w !== 0)) return `mesh ${m.name ?? ''}`;
     for (const n of j.nodes) if ((n.weights ?? []).some((w) => w !== 0)) return `node ${n.name ?? ''}`;
     for (const clip of j.animations ?? [])
       for (const c of clip.channels) {
@@ -259,7 +265,6 @@ export function load(path) {
           name: n.name,
           skin: n.skin,
           positions: read(p.attributes.POSITION),
-          indices: p.indices === undefined ? null : read(p.indices).flat(),
           // Both joint/weight sets when the primitive carries them, so a vertex with more than four
           // influences skins correctly. This is a live path, not future-proofing: 27 of this model's
           // 42 primitives carry JOINTS_1/WEIGHTS_1, with secondary weights up to 0.056, and reading
