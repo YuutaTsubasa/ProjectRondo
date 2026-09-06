@@ -82,6 +82,38 @@ describe('modal focus', () => {
     expect(document.activeElement).toBe(first);
   });
 
+  it('a press on the scrim keeps the selection instead of blurring it to <body>', async () => {
+    const { session } = renderOverlay(SCRIPT);
+    await settle();
+    session.advance();
+    await settle();
+    const first = q<HTMLButtonElement>('.choice')!;
+    expect(document.activeElement).toBe(first);
+
+    // What is asserted is the cancellation itself, and that is not a shortcut: jsdom implements
+    // neither the default action being cancelled nor the focus move it performs, so there is no
+    // blur here to observe either way. In a browser the chain is `pointerdown` -> the compatibility
+    // mouse events -> `mousedown` moving focus, and `pointerdown` is the one point where it is still
+    // cancellable. `.scrim` covers the viewport with pointer-events and nothing in it but the
+    // options is focusable, so uncancelled a press on the wash, on the 10px gaps between the blocks
+    // or on the prompt text takes the selection to <body> -- and the fill is `:focus`-only and the
+    // modal cannot be dismissed, which leaves an unanswerable question with no row marked.
+    const press = (el: Element) => {
+      const e = new window.Event('pointerdown', { bubbles: true, cancelable: true });
+      el.dispatchEvent(e);
+      flushSync();
+      return e.defaultPrevented;
+    };
+    expect(press(q('.scrim')!)).toBe(true);
+    expect(press(q('.question')!)).toBe(true);
+    expect(press(q('.prompt')!)).toBe(true);
+
+    // A press ON an option is left alone, or the option could never take focus and the panel would
+    // be unusable by pointer.
+    expect(press(first)).toBe(false);
+    expect(document.activeElement).toBe(first);
+  });
+
   it('the dialogue line reaches assistive technology, and the typewriter does not', async () => {
     renderOverlay(SCRIPT);
     await settle();

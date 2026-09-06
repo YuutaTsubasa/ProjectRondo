@@ -16,12 +16,12 @@
    * past that window puts a new attack over a tail instead of over another attack.
    *
    * Which is also why this is not `TYPE_MIN_MS`'s rule of "never overlap at all". A typing tick is
-   * decoration and a dropped one is invisible, so `Line.svelte` can afford to clear the whole
-   * sample; a move cue answers something the player just did, and a deliberate walk down a list at
-   * four or five rows a second has to sound on every row. 100 ms caps this at ten a second — past
-   * anything reachable by pressing a key at a time — and what it actually catches is the sweep and
-   * the held key, where the list is a blur and one sound per 100 ms reads as motion rather than as
-   * a pile.
+   * decoration and a dropped one is invisible, so `DialogueOverlay.typeCue` can afford to clear the
+   * whole sample; a move cue answers something the player just did, and a deliberate walk down a
+   * list at four or five rows a second has to sound on every row. 100 ms caps this at ten a second
+   * — past anything reachable by pressing a key at a time — and what it actually catches is the
+   * sweep and the held key, where the list is a blur and one sound per 100 ms reads as motion
+   * rather than as a pile.
    */
   const MOVE_MIN_MS = 100;
 </script>
@@ -37,35 +37,41 @@
     } = $props();
 
   let silentFocus = false;
+  /** Whether an option has held the selection yet. See {@link moved}. */
+  let selected = false;
   /** When the last move sounded, on the monotonic clock. See {@link MOVE_MIN_MS}. */
   let lastMove = Number.NEGATIVE_INFINITY;
   /**
-   * Sounds the move when focus arrives from another option in this panel, at most one per
-   * {@link MOVE_MIN_MS}.
+   * Sounds the move when focus arrives on an option, at most one per {@link MOVE_MIN_MS}.
    *
    * The panel has one selection, and it is the focused option: the pointer moves focus rather than
    * reporting a second kind of selection beside it, so "the selection moved" has exactly one event
-   * and there is nothing to de-duplicate. `relatedTarget` on a focus event is the element that LOST
-   * focus -- not where the pointer came from -- and that is enough to tell the arrival that is not a
-   * move apart from a move without remembering anything: focus reaching this panel from outside it
-   * (`<body>`, the scrim, or null) means the panel had none, which is only ever the opening, either
-   * the mount focus itself or the pointer that beats it in the race `moveSelectionTo` settles.
-   * Afterwards the selection is always on an option, so every later arrival is a move -- the pointer
-   * coming in from off the list onto a different option included, since it carries the option that
-   * had focus and the selection genuinely did change. Clicking the option the pointer already
-   * selected fires no focus event at all.
+   * and there is nothing to de-duplicate. Every arrival on an option is therefore a move -- the
+   * pointer coming in from off the list included, since the selection genuinely did change. Clicking
+   * the option the pointer already selected fires no focus event at all.
    *
-   * The one arrival from inside the panel that is not a move is the panel re-focusing itself, which
-   * `relatedTarget` cannot tell from a move, so it is silenced at its source by `silentFocus`: when
-   * a choice's target is itself a choice node the panel is not remounted (see the effect below), so
+   * Two arrivals are not the player moving, and each is told apart by state rather than inferred.
+   * The FIRST is the panel's opening, which is `selected` below: either the mount focus or the
+   * pointer that beats it in the race `moveSelectionTo` settles, and until one of them lands there
+   * is no selection for a move to have come from. This used to be read off `relatedTarget` --
+   * "focus from outside the panel means the panel had none, which is only ever the opening" -- and
+   * that claim was false. `.scrim` takes pointer events and nothing inside it but the options is
+   * focusable, so a click on the wash, on the gaps or on the prompt blurred the selection to
+   * `<body>` without leaving the modal, and the player's way back in then read as an opening and
+   * went silent. `onpointerdown` on the scrim now keeps that blur from happening at all; this flag
+   * is what makes the rule hold whatever route focus leaves by.
+   *
+   * The SECOND is the panel re-focusing itself, silenced at its source by `silentFocus`: when a
+   * choice's target is itself a choice node the panel is not remounted (see the effect below), so
    * the re-focus moves focus off the option just answered and onto the first option of the new
    * question. It is the panel posing a question, not the player answering one — and without this,
    * answering on the second row sounded a move that answering on the first did not, because there
    * the unkeyed `{#each}` re-uses a button that already has focus and no focus event fires at all.
    */
-  const moved = (from: EventTarget | null) => {
-    if (silentFocus) return;
-    if (!(from instanceof Node) || !panel?.contains(from)) return;
+  const moved = () => {
+    const opening = !selected;
+    selected = true;
+    if (silentFocus || opening) return;
     // The throttle is on the SOUND and on nothing else: the selection follows the pointer at
     // whatever rate the pointer moves, which is the panel doing what it is told, and it is only the
     // 300 ms sample that cannot keep up. `performance.now()`, not `Date.now()`: it is monotonic, so
@@ -104,6 +110,28 @@
     option.focus({ preventScroll: true });
   };
 
+  /**
+   * Keeps the selection where it is when a press lands on the scrim rather than on an option.
+   *
+   * Moving focus is the default action of a press, and on everything in this panel but an option
+   * that default is to move it to nothing: `.scrim` covers the viewport with `pointer-events: auto`,
+   * and neither it, `.panel` nor `.question` is focusable, so a press on the wash, on the 10px gaps
+   * or on the prompt text blurred the focused option to `<body>`. The modal cannot be dismissed and
+   * the fill is `:focus`-only, so what that left on screen was an unanswerable question with no
+   * option selected. Cancelled here instead, which is the one point where the press is still
+   * cancellable -- `pointerdown`'s default action is the compatibility mouse events, `mousedown`
+   * among them, and it is `mousedown` that moves focus.
+   *
+   * A press ON an option is left alone, or the option could never take focus and the panel would be
+   * unusable by pointer. The cost is that the prompt cannot be selected with the mouse, which is
+   * what the backlog is for.
+   */
+  const keepFocus = (e: PointerEvent) => {
+    const target = e.target;
+    if (target instanceof Element && target.closest('button')) return;
+    e.preventDefault();
+  };
+
   // Same as the backlog: this modal cannot be dismissed and must be answered, so it takes focus
   // rather than leaving it on whatever inert has just switched off behind the scrim.
   let panel: HTMLDivElement | undefined = $state();
@@ -137,7 +165,9 @@
 </script>
 
 <!-- Full-screen takeover; the option list sits in the centre of the screen. -->
-<div class="scrim">
+<!-- svelte-ignore a11y_no_static_element_interactions -- the handler cancels a default action rather
+     than adding an interaction; there is nothing here for a keyboard to reach it with. -->
+<div class="scrim" onpointerdown={keepFocus}>
   <div
     class="panel"
     bind:this={panel}
@@ -161,7 +191,7 @@
       <button
         class="choice"
         onclick={() => onSelect(i)}
-        onfocus={(e) => moved(e.relatedTarget)}
+        onfocus={() => moved()}
         onpointermove={(e) => moveSelectionTo(e.currentTarget)}
       >
         <span class="inner"><span class="caret" aria-hidden="true">❯</span><span>{choice.label}</span></span>
@@ -184,10 +214,10 @@
      the composite, not the token -- over white the gap is rgb(199,215,255) and the block
      rgb(234,240,255) -- and they are pure black and pure white on purpose, the same two extremes
      the frame's 1.5:1 / 4.4:1 pair further down is measured against: stopping the bright end at a
-     mid-grey scene of about rgb(150) reads 1.98:1, more than half again the contrast the panel
-     actually has at its worst, and against extremes the other range in this file does not use. That is the silhouette
-     of the modal, not a boundary anything has to be read from -- each option is framed on its own
-     glass -- and it is the cost of showing the scene at all.
+     mid-grey scene of about rgb(150) would both read 1.98:1 -- more than half again the contrast
+     the panel actually has at its worst -- and measure it against extremes the other range in
+     this file does not use. That is the modal's silhouette, not a boundary anything is read from --
+     each option is framed on its own glass -- and it is the cost of showing the scene at all.
 
      Which matters because of what is behind it: the standing portrait, the dialogue box and the
      live hub. In an AVG the moment of choosing is a moment you are meant to still see the scene.
