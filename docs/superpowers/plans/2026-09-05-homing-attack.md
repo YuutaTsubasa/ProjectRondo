@@ -90,12 +90,18 @@ precisely so a failed run costs nothing here.
 
 ### What no task below builds
 
-The table above is a true inventory of what shipped. The nine tasks below are not: **seven of the
-table's rows are described by no task in this plan.** They were carved out of Tasks 5 and 6 by review
-rounds after the fact, each because a rule that decides something the player sees had been left inside
-a render observable where only playing the game could check it. Their reasoning lives in their own
-module doc comments — this file has none to offer about them, and a reader must not conclude from the
-task list that the plan anticipated them.
+The table above is a true inventory of what shipped. The nine tasks below are not: **twelve of the
+table's rows are described by no task in this plan.** Seven are the shipped modules the table below
+names. Three more are the suites written for those modules — `tests/presentation/homingLock.test.ts`,
+`jumpPose.test.ts` and `jumpSound.test.ts`. The last two are the existing suites the same work
+extended: `tests/presentation/groundContact.test.ts`, since Task 5 modifies `groundContact.ts` but
+has no test step, and `tests/presentation/slopeMotion.test.ts`, since no task's Files block names
+`slopeMotion.ts` either. The table below records where each of the seven modules came from — most
+were carved out of Tasks 5 and 6 by review rounds after the fact, because a rule that decides
+something the player sees had been left inside a render observable where only playing the game could
+check it; the audio pair no task reached at all. Their reasoning lives in their own module doc
+comments — this file has none to offer about them, and a reader must not conclude from the task list
+that the plan anticipated them.
 
 | Shipped module | Carved out of | The question it owns |
 | --- | --- | --- |

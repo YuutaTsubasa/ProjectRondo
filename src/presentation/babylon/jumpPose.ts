@@ -23,6 +23,14 @@
  * So the pose asks a question the probe cannot answer wrongly. A dash and the bounce that ends it
  * are off the ground by construction, whatever the probe found underneath, and the signal that
  * results has no gap for an edge to fire in.
+ *
+ * The widening moves one edge rather than removing it. A press made after `COYOTE_SECONDS` has
+ * stopped it being a jump but before `FALL_GRACE_SECONDS` has raised `airborne` is a dash begun below
+ * the debounce — the window `homingLock` exists to route here rather than lose — and it raises this
+ * signal on the dash's own entry frame. `'launch'` is what that frame wants: it is the first
+ * off-ground frame anything above the capsule has seen; `offGround` then stays true until touchdown,
+ * so no later edge can fire; and a dash that times out rather than bouncing plays no clip of its own,
+ * leaving nothing else to put the knight in an airborne pose for the rest of that fall.
  */
 
 export interface JumpPoseInput {

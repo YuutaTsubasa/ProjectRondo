@@ -262,13 +262,15 @@ verified. Reading the list for coverage is the mistake the range statement above
 
 The bullets below are recorded as measurements of the `d3b64cb` build, not the shipped one.
 
-**Of those four checks, two passed at their derived value — the `homingRange`/`homingConeHalfAngle`
-pair and `homingBounceSpeed`. One failed: `homingMaxDuration`'s, whose bullet below records what
-happened. The fourth measured nothing about the constant it is filed under — `homingSpeed` was read
-only in domain telemetry, and no check looks at how a dash reads on screen. Every constant keeps its
-Untuned marking all the same, and none was changed.** Task 7's own rule is to tune only when a check fails and a constant change fixes it; here
-no check that a constant can fix failed, so touching any of the five would have been an unjustified
-edit this repo's review already treats as a defect.
+**Of those four checks, two passed at the values that still ship: `homingBounceSpeed` at its derived
+value, and the `homingRange`/`homingConeHalfAngle` pair at one derived value and one guess — the
+preamble above records that `homingRange` shipped without one. One failed: `homingMaxDuration`'s,
+whose bullet below records what happened. The fourth measured nothing about the constant it is
+filed under — `homingSpeed` was read only in domain telemetry, and no check looks at how a dash
+reads on screen. Every constant keeps its Untuned marking all the same, and none was changed.**
+Task 7's own rule is to tune only when a check fails and a constant change fixes it; here no check
+that a constant can fix failed, so touching any of the five would have been an unjustified edit this
+repo's review already treats as a defect.
 
 - `homingRange` (12) and `homingConeHalfAngle` (0.6109 rad): checked against the `(3,4,-10)` /
   `(-3,4,-10)` pair. Positioned so one crystal was centred in the fixed camera cone and the other was

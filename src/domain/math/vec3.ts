@@ -5,7 +5,7 @@ export const ZERO3: Vec3 = vec3(0, 0, 0);
 export const sub = (a: Vec3, b: Vec3): Vec3 => vec3(a.x - b.x, a.y - b.y, a.z - b.z);
 export const scale = (a: Vec3, k: number): Vec3 => vec3(a.x * k, a.y * k, a.z * k);
 export const dot = (a: Vec3, b: Vec3): number => a.x * b.x + a.y * b.y + a.z * b.z;
-export const lengthSquared = (a: Vec3): number => a.x * a.x + a.y * a.y + a.z * a.z;
+const lengthSquared = (a: Vec3): number => a.x * a.x + a.y * a.y + a.z * a.z;
 export const length = (a: Vec3): number => Math.sqrt(lengthSquared(a));
 
 export const normalize = (a: Vec3): Vec3 => {

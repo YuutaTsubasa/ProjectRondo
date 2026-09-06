@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { vec3, ZERO3, sub, scale, lengthSquared, length, normalize, dot } from '../../../src/domain/math/vec3';
+import { vec3, ZERO3, sub, scale, length, normalize, dot } from '../../../src/domain/math/vec3';
 
 const P = 10;
 
@@ -12,8 +12,7 @@ describe('vec3 arithmetic', () => {
     expect(scale(vec3(1, -2, 3), 2)).toEqual(vec3(2, -4, 6));
   });
 
-  it('measures length and squared length', () => {
-    expect(lengthSquared(vec3(3, 4, 12))).toBe(169);
+  it('measures length', () => {
     expect(length(vec3(3, 4, 12))).toBeCloseTo(13, P);
   });
 

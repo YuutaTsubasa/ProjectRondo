@@ -50,6 +50,15 @@ describe('stepJumpPose', () => {
     expect(timeout.cue).toBeNull();
   });
 
+  it('launches on a dash begun before an uncommanded fall has reached `airborne`', () => {
+    // A press past COYOTE_SECONDS but inside FALL_GRACE_SECONDS dashes with `airborne` still false —
+    // the window `homingLock` exists to stop losing. The entry frame is then the first off-ground
+    // frame this machine has seen, and it must start the segment: `offGround` stays true until
+    // touchdown, so no later edge can, and a dash that times out plays no clip of its own.
+    const [, dashEntry] = run([frame(), frame({ homing: true })]);
+    expect(dashEntry.cue).toBe('launch');
+  });
+
   it('answers a bounce, not a launch, for a dash that arrives on its own entry frame', () => {
     // Such a dash never raises `homing`, so its arrival is also the first off-ground frame this
     // machine sees — the launch edge and the bounce both want it, and the bounce is the truth.
