@@ -34,6 +34,7 @@ src/domain/audio/          pure, Vitest-covered
   locomotionGait.ts  clip weights + phases -> the cadence's sample
   musicDirector.ts   game state -> desired track
   audioMixer.ts      per-bus gain from volumes + mute
+  variantRotation.ts which recording a repeated cue plays next
 src/presentation/audio/    thin
   audioEngine.ts     AudioV2 engine, three buses, first-gesture unlock
   manifest.ts        cue -> file(s), bus, volume, streaming
@@ -388,6 +389,13 @@ The decision logic is pure, so it is unit-tested rather than debugged in the bro
 - **`musicDirector`** — intro → playing changes track exactly once, and is idempotent while the state
   holds.
 - **`audioMixer`** — mute overrides everything, values clamp, master multiplies.
+- **`variantRotation`** — hands a cue's variants out in order from the first; counts each cue on its
+  own, so a move sounding between two typing ticks does not push `ui.type` along; keeps counting past
+  the number of files a cue has, because the wrap belongs to `soundBank`'s `pick` and a rotation that
+  wrapped here would be wrong for every cue that lost a file to a failed load; and gives two
+  rotations separate counters. `soundBank`'s own tests pin that `pick` wraps; nothing pinned that
+  anything advances the index, and a counter shared across cues or reset on every call sounds only
+  like a cue repeating more than it should.
 - **`surfaceCue`** — the surface → cue mapping, and that what it returns is a `SoundCue`.
 
 Six things that are not pure are tested anyway, because none of them has a cheap way to be seen:
@@ -443,8 +451,12 @@ Six things that are not pure are tested anyway, because none of them has a cheap
   request is replayed, that a later one reaches the live graph, that a `dispose` landing mid-build
   disposes the graph the build goes on to finish and does *not* start music on it, that a repeated
   dispose cannot double-dispose or restart, and that a rejected build is warned and swallowed with the
-  handle still usable. Every one of those fails inaudibly: no throw, just a silent game or an
-  `AudioContext` outliving the page.
+  handle still usable. Pins the **opposite** contract for one-shot cues, which are *dropped* rather
+  than held — before the graph exists and after disposal, and forwarded once it is up. A music scene
+  is a state, so whenever the graph arrives the answer is still the same one; a cue is an event tied
+  to the moment it happened, and a typing tick replayed when the build finishes would sound seconds
+  after the character it belonged to was drawn. Every one of those fails inaudibly: no throw, just a
+  silent game or an `AudioContext` outliving the page.
 - **The manifest against the disk** (`tests/presentation/audioManifest.test.ts`) — every cue names a
   file that exists under `public/`, and every path is served from the public root. `manifest.ts`'s
   `satisfies` gets as far as "each entry is a string"; this is what makes a path that names nothing a
