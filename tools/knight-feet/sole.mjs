@@ -72,7 +72,7 @@ export const unit = (a) => a.map((x) => x / Math.hypot(...a));
  */
 export function landmarks(g) {
   return g.meshes
-    .filter((m) => m.name in BOOT_MESHES)
+    .filter((m) => Object.hasOwn(BOOT_MESHES, m.name))
     .map((m) => {
       const p = g.skin(g.evaluate(null), m);
       const foot = BOOT_MESHES[m.name];
