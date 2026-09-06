@@ -101,8 +101,15 @@ export interface HomingLockResult {
    * `spendBufferedJump`, which retracts it; without that the press the lock took also stayed live for
    * a further `JUMP_BUFFER_SECONDS` and came back as a second, unrequested jump.
    *
-   * False for every press the lock *declines* — mid-dash, or with no crystal in the cone — which is
-   * exactly the set `groundContact`'s problem 5 keeps buffered.
+   * False for three different presses, and only two of them are this machine declining one: a press
+   * arriving mid-dash, and a press with no crystal in the cone. Those two, and only those two, are the
+   * set `groundContact`'s problem 5 keeps buffered — nothing has spent them, so the buffer is right to
+   * hold them.
+   *
+   * The third is a press made while {@link HomingLockInput.pressWouldDash} is false — grounded, or
+   * inside the coyote window — where `candidate` is already `null` before `jumpPressed` is consulted.
+   * That press is not buffered and must not be retracted: the ground machine has already spent it as
+   * an ordinary jump.
    */
   readonly consumedPress: boolean;
 }

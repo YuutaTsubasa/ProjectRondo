@@ -194,8 +194,10 @@ describe('isHomingFrame', () => {
   it('is true for a dash that starts AND arrives inside one frame — the case the result cannot show', () => {
     // `homingSpeed * delta` covers the whole offset, so `step` returns `homing: null` and the bounce
     // velocity together: nothing downstream can see that a dash happened. This is reachable in play —
-    // `homingSpeed * MAX_DT` is 0.8 units and a crystal's own extent is 1.273 — so the crystal flash,
-    // the trail and the knight's pose all read this predicate instead of the result.
+    // `homingSpeed * MAX_DT` is 0.8 units and a crystal's own extent is 1.273 — so the two consumers
+    // that must not miss the bounce, the crystal flash and the solver's climb routing, read this
+    // predicate instead of the result. The trail and the Flying Kick pose are deliberately not among
+    // them: they run off `motion.homing`, which this dash never raises.
     const input = pressTowards(vec3(0, 0, -0.1));
     expect(isHomingFrame(AIRBORNE, input)).toBe(true);
     const r = step(AIRBORNE, input, C, 1 / 60);

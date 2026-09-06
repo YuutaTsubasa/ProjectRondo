@@ -47,8 +47,13 @@ export const step = (
  *
  * Exported because presentation cannot recover this from the result. A dash whose target is within
  * `homingSpeed * delta` at entry arrives on its own entry frame, so `CharacterMotion.homing` is never
- * once non-null for it — yet it still bounces, and the trail, the crystal flash and the knight's pose
- * all have to know it happened (`playerController` asks this before calling `step`).
+ * once non-null for it — yet it still bounces, and two things must not miss that: the crystal flash,
+ * which says a crystal was hit, and the solver routing that lets the bounce leave the ground.
+ * `playerController` asks this before calling `step` and feeds both, and the `homingBounced` it
+ * derives is also what carries the bounce to the knight's clip seam.
+ *
+ * The dash trail and the Flying Kick pose are NOT among them: they run off `motion.homing`, which an
+ * entry-frame dash never raises, and leaving them out is a feel decision — see `playerController`.
  *
  * A zero-length offset is deliberately not filtered out: {@link stepHoming} reads one as an arrival
  * and bounces, so entry and mid-flight agree rather than an entry-frame zero silently degrading into

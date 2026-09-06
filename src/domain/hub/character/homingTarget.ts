@@ -25,8 +25,11 @@ interface MeasuredCandidate {
  * is within `homingConeHalfAngle` of `cameraForward`. Among those, the nearest wins; an exact tie
  * goes to the lower index so the result never depends on iteration luck.
  *
- * Returns an INDEX, not a position: the caller needs to know *which* crystal, for the trail and for
- * anything a level wants to attach to a specific anchor.
+ * Returns an INDEX, not a position: every consumer names the crystal rather than a point in space.
+ * `stepHomingLock` holds the index for the dash's whole flight and re-subtracts `candidates[index]`
+ * from the player every frame to get the live offset, `crystals.flash` lights that crystal on
+ * arrival, and the reticle reads its position back out of the list — and an index is what anything a
+ * level wants to attach to a specific anchor would key off too.
  *
  * `cameraForward` is normalized here rather than assumed unit-length — it comes from a camera, and a
  * non-unit vector would inflate the dot product and silently widen the cone.

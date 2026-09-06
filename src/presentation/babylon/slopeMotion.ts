@@ -35,8 +35,14 @@ const WALKABLE_SLOPE_COSINE = Math.cos((WALKABLE_SLOPE_DEGREES * Math.PI) / 180)
  * Adds the climb (or descent) that makes a horizontal velocity lie in the plane of the surface it is
  * standing on, leaving the horizontal part exactly as it was. `normal` must be unit length. A surface
  * steeper than {@link WALKABLE_SLOPE_DEGREES} is passed through untouched.
+ *
+ * NOT exported, and that is what holds the condition {@link solverVelocity} documents. It replaces
+ * `velocity.y` outright, so it is only correct on a frame whose vertical component the surface owns;
+ * leaving it reachable from outside the module made checking that optional for whoever picked this
+ * export instead — which is how a jump, a dash and a bounce were flattened in the first place.
+ * `solverVelocity` is the only way in, so the check cannot be skipped.
  */
-export const alignToSurface = (velocity: Vec3, normal: Vec3): Vec3 => {
+const alignToSurface = (velocity: Vec3, normal: Vec3): Vec3 => {
   if (normal.y < WALKABLE_SLOPE_COSINE) return velocity;
 
   const intoSlope = velocity.x * normal.x + velocity.z * normal.z;

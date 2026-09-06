@@ -62,8 +62,11 @@ angle between `cameraForward` and the direction from `from` to the candidate is 
 `homingConeHalfAngle`. Among the qualifying candidates the **nearest** wins; an exact tie resolves to
 the lower index, so the function is deterministic.
 
-It returns an **index**, not a position. The caller needs to know *which* crystal was hit — for the
-trail, for a later consumable variant, and for anything the tower wants to attach to a specific anchor.
+It returns an **index**, not a position. Every consumer names the crystal rather than a point in
+space: the lock holds the index for the dash's whole flight and re-derives the live offset from it
+each frame (§5), the hit flash lights that crystal on arrival, and the reticle reads its position back
+out of the list. An index is also what a later consumable variant, or anything the tower wants to
+attach to a specific anchor, would key off.
 
 The presentation layer is what bridges the two halves: it holds the crystal list, calls this with the
 camera's forward vector, and turns the index back into §4's `homingTarget` — the **offset**
