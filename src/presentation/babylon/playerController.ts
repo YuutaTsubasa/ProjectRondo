@@ -183,7 +183,7 @@ export function createPlayer(
     }, config);
     homingLock = lockResult.lock;
     if (lockResult.consumedPress) contact = spendBufferedJump(contact);
-    player.homingEntrySeconds = homingLock.entrySeconds;
+    player.homingEntrySeconds = homingLock.kind === 'locked' ? homingLock.entrySeconds : null;
     if (lockResult.preview === null) reticle.hide();
     else reticle.showAt(crystals.positions[lockResult.preview]);
 
@@ -216,7 +216,7 @@ export function createPlayer(
     // post-solve velocity. See `Player.homingBounced`.
     player.homingBounced = dashRan && next.homing === null && next.velocity.y > 0;
     if (player.homingBounced) {
-      if (homingLock.crystal !== null) crystals.flash(homingLock.crystal);
+      if (homingLock.kind === 'locked') crystals.flash(homingLock.crystal);
       else console.warn('[playerController] a homing dash bounced with no locked crystal to flash — this should be unreachable.');
     }
 

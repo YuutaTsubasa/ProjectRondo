@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
-  stepHomingLock, NO_HOMING_LOCK, type HomingLockConfig, type HomingLockInput,
+  stepHomingLock, NO_HOMING_LOCK,
+  type HomingLock, type HomingLockConfig, type HomingLockInput,
 } from '../../src/presentation/babylon/homingLock';
 import {
   stepGroundContact, spendBufferedJump, INITIAL_GROUND_CONTACT, COYOTE_SECONDS, FALL_GRACE_SECONDS,
@@ -16,6 +17,12 @@ const NEAR = vec3(0, 0, -6);
 const FAR = vec3(0, 0, -9);
 const BEHIND = vec3(0, 0, 8);
 
+// The lock is a union, so what a test wants to assert on — "which crystal, if any" — is a projection
+// of it rather than a field. Read through these two so a case says what it is checking and not how the
+// state happens to be shaped.
+const committed = (lock: HomingLock): number | null => (lock.kind === 'locked' ? lock.crystal : null);
+const entry = (lock: HomingLock): number | null => (lock.kind === 'locked' ? lock.entrySeconds : null);
+
 const frame = (overrides: Partial<HomingLockInput> = {}): HomingLockInput => ({
   dashInFlight: false,
   jumpPressed: false,
@@ -29,21 +36,20 @@ const frame = (overrides: Partial<HomingLockInput> = {}): HomingLockInput => ({
 describe('stepHomingLock', () => {
   it('commits to the crystal a press would hit, and reports the live offset to it', () => {
     const { lock, target } = stepHomingLock(NO_HOMING_LOCK, frame({ jumpPressed: true }), C);
-    expect(lock.crystal).toBe(0);
+    expect(committed(lock)).toBe(0);
     expect(target).toEqual(NEAR);
   });
 
   it('estimates the dash duration once, from the distance at the moment of the lock', () => {
     const { lock } = stepHomingLock(NO_HOMING_LOCK, frame({ jumpPressed: true }), C);
-    expect(lock.entrySeconds).toBeCloseTo(6 / C.homingSpeed, 9);
+    expect(entry(lock)).toBeCloseTo(6 / C.homingSpeed, 9);
   });
 
   it('locks nothing on a press with no candidate in the cone', () => {
     const { lock, target } = stepHomingLock(
       NO_HOMING_LOCK, frame({ jumpPressed: true, candidates: [BEHIND] }), C,
     );
-    expect(lock.crystal).toBeNull();
-    expect(lock.entrySeconds).toBeNull();
+    expect(lock).toEqual(NO_HOMING_LOCK);
     expect(target).toBeNull();
   });
 
@@ -51,21 +57,21 @@ describe('stepHomingLock', () => {
     const { lock, preview } = stepHomingLock(
       NO_HOMING_LOCK, frame({ jumpPressed: true, pressWouldDash: false }), C,
     );
-    expect(lock.crystal).toBeNull();
+    expect(lock).toEqual(NO_HOMING_LOCK);
     // And the reticle stays hidden, rather than pointing at a crystal the press will not fly to.
     expect(preview).toBeNull();
   });
 
   it('holds the same crystal for the whole dash, even as a nearer one comes into the cone', () => {
     const locked = stepHomingLock(NO_HOMING_LOCK, frame({ jumpPressed: true, candidates: [NEAR, FAR] }), C).lock;
-    expect(locked.crystal).toBe(0);
+    expect(committed(locked)).toBe(0);
     // A dash never retargets mid-flight (design spec §4), so index 1 — now much the nearer — must not
     // steal the lock, and a press landing mid-dash must not either.
     const held = stepHomingLock(locked, frame({
       dashInFlight: true, jumpPressed: true, candidates: [NEAR, vec3(0, 0, -1)],
     }), C);
-    expect(held.lock.crystal).toBe(0);
-    expect(held.lock.entrySeconds).toBe(locked.entrySeconds);
+    expect(committed(held.lock)).toBe(0);
+    expect(entry(held.lock)).toBe(entry(locked));
   });
 
   it('recomputes the offset to the held crystal every frame as the player closes on it', () => {
@@ -79,9 +85,21 @@ describe('stepHomingLock', () => {
   it('releases the lock the frame the dash ends, so the next press is free to pick anew', () => {
     const locked = stepHomingLock(NO_HOMING_LOCK, frame({ jumpPressed: true }), C).lock;
     const released = stepHomingLock(locked, frame({ dashInFlight: false }), C);
-    expect(released.lock.crystal).toBeNull();
-    expect(released.lock.entrySeconds).toBeNull();
+    expect(released.lock).toEqual(NO_HOMING_LOCK);
     expect(released.target).toBeNull();
+  });
+
+  it('lets the next press re-lock the crystal just bounced off, which nothing excludes (spec §6)', () => {
+    const locked = stepHomingLock(NO_HOMING_LOCK, frame({ jumpPressed: true, candidates: [NEAR] }), C).lock;
+    // Where the bounce leaves the player: the arrival puts them AT the crystal and sends them straight
+    // up, so `homingBounceSpeed²/(2*gravity)` = 1.6875 u above it, looking back down. Pinned because the
+    // spec's rule is that this is allowed and gains no height — the dash goes back down to the crystal —
+    // so a later exclusion would be a behaviour change, not a tidy-up.
+    const relocked = stepHomingLock(locked, frame({
+      jumpPressed: true, candidates: [NEAR], from: vec3(0, 1.6875, -6), cameraForward: vec3(0, -1, 0),
+    }), C);
+    expect(committed(relocked.lock)).toBe(0);
+    expect(relocked.consumedPress).toBe(true);
   });
 
   it('previews what a press would hit on every off-the-ground frame, press or not', () => {
@@ -108,7 +126,7 @@ describe('stepHomingLock', () => {
     it('says no for a press made mid-dash, which it holds the lock through rather than spends', () => {
       const locked = stepHomingLock(NO_HOMING_LOCK, frame({ jumpPressed: true }), C).lock;
       const held = stepHomingLock(locked, frame({ dashInFlight: true, jumpPressed: true }), C);
-      expect(held.lock.crystal).toBe(0); // still committed, so `crystal` alone would read as a spend
+      expect(committed(held.lock)).toBe(0); // still committed, so the crystal alone would read as a spend
       expect(held.consumedPress).toBe(false);
     });
 
@@ -122,7 +140,7 @@ describe('stepHomingLock', () => {
   it('previews the crystal a press would commit to, so the ring never points somewhere else', () => {
     const input = frame({ candidates: [FAR, NEAR] }); // nearest is index 1, so this is not index luck
     expect(stepHomingLock(NO_HOMING_LOCK, input, C).preview)
-      .toBe(stepHomingLock(NO_HOMING_LOCK, { ...input, jumpPressed: true }, C).lock.crystal);
+      .toBe(committed(stepHomingLock(NO_HOMING_LOCK, { ...input, jumpPressed: true }, C).lock));
   });
 });
 
@@ -152,9 +170,9 @@ describe('stepHomingLock composed with stepGroundContact', () => {
     const { lock } = stepHomingLock(
       NO_HOMING_LOCK, frame({ jumpPressed: true, pressWouldDash: !ground.jumpAvailable }), C,
     );
-    if (ground.jumpRequested && lock.crystal !== null) return 'both';
+    if (ground.jumpRequested && committed(lock) !== null) return 'both';
     if (ground.jumpRequested) return 'jump';
-    return lock.crystal === null ? 'nothing' : 'dash';
+    return committed(lock) === null ? 'nothing' : 'dash';
   };
 
   /** The same fall, with the button never touched: what the ring shows on the frame after `seconds`. */
@@ -218,7 +236,7 @@ describe('stepHomingLock composed with stepGroundContact', () => {
         jumpPressed: true, pressWouldDash: !ground.jumpAvailable, dashInFlight: over.dashInFlight,
       }), C);
       if (ground.jumpRequested) return 'jump';
-      return dash.lock.crystal !== null && dash.lock.crystal !== lock.crystal ? 'dash' : 'held';
+      return committed(dash.lock) !== null && committed(dash.lock) !== committed(lock) ? 'dash' : 'held';
     };
 
     it('turns an early chain press after a bounce into the next dash, not a hop', () => {
@@ -228,7 +246,7 @@ describe('stepHomingLock composed with stepGroundContact', () => {
     it('leaves a press made mid-dash to the buffer, rather than spending it on either', () => {
       // Nothing may act on it: the domain's homing branch does not read `jumpRequested`, and the lock
       // must not retarget mid-flight. `groundContact` keeps it buffered — pinned there.
-      expect(pressWith({ dashInFlight: true, bounced: false }, { crystal: 1, entrySeconds: 0.4 }))
+      expect(pressWith({ dashInFlight: true, bounced: false }, { kind: 'locked', crystal: 1, entrySeconds: 0.4 }))
         .toBe('held');
     });
   });

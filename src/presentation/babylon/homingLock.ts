@@ -9,21 +9,32 @@ import { selectHomingTarget, type HomingSelectionConfig } from '../../domain/hub
  * checked by playing the game. This one has several edges — commit on a press, hold the same crystal
  * for the whole dash, release it the frame the dash ends, and answer a second, independent selection
  * for the reticle — and each of them decides something the player sees.
+ *
+ * A union rather than a crystal and a duration that are each independently nullable, for the reason
+ * `GroundContact` gives in `groundContact.ts`: the two are never independent — the estimate is derived
+ * from the very offset that picks the crystal — so a lock carrying one without the other means
+ * nothing, and must not be constructible. `knight.ts` still guards its own arrival of these two, and
+ * has to: they reach it through `KnightMotionSample` as separate fields, which this type cannot narrow
+ * across.
  */
-export interface HomingLock {
-  /** Index into the candidate list, or null while nothing is locked. */
-  readonly crystal: number | null;
-  /**
-   * How long the locked dash is expected to take, in seconds: the straight-line distance at lock time
-   * over `homingSpeed`. Fixed for the dash's whole flight rather than recomputed — a dash that
-   * corrects course (design spec §4) keeps changing the live distance a recomputation would divide
-   * by, and `knight.ts` reads this once, to retime the Flying Kick clip onto the dash's real screen
-   * time.
-   */
-  readonly entrySeconds: number | null;
-}
+export type HomingLock =
+  /** Nothing is locked: no dash is committed, and there is no duration to estimate. */
+  | { readonly kind: 'idle' }
+  | {
+    readonly kind: 'locked';
+    /** Index into the candidate list the lock was built from. */
+    readonly crystal: number;
+    /**
+     * How long the locked dash is expected to take, in seconds: the straight-line distance at lock
+     * time over `homingSpeed`. Fixed for the dash's whole flight rather than recomputed — a dash that
+     * corrects course (design spec §4) keeps changing the live distance a recomputation would divide
+     * by, and `knight.ts` reads this once, to retime the Flying Kick clip onto the dash's real screen
+     * time.
+     */
+    readonly entrySeconds: number;
+  };
 
-export const NO_HOMING_LOCK: HomingLock = { crystal: null, entrySeconds: null };
+export const NO_HOMING_LOCK: HomingLock = { kind: 'idle' };
 
 /** The three numbers a lock needs: the two selection reads, plus the speed the estimate divides by. */
 export interface HomingLockConfig extends HomingSelectionConfig {
@@ -79,8 +90,8 @@ export interface HomingLockResult {
   readonly target: Vec3 | null;
   /**
    * What a press right now would hit — the reticle's crystal. A selection in its own right, never the
-   * committed {@link HomingLock.crystal}: the lock must not move mid-dash, while the reticle has to
-   * answer on every frame, including frames with no press at all.
+   * crystal a {@link HomingLock} is committed to: the lock must not move mid-dash, while the reticle
+   * has to answer on every frame, including frames with no press at all.
    */
   readonly preview: number | null;
   /**
@@ -108,28 +119,34 @@ export const stepHomingLock = (
   input: HomingLockInput,
   config: HomingLockConfig,
 ): HomingLockResult => {
-  // Not asked while a dash is in flight: the lock is committed and the trail already says what is
-  // happening, and wherever the press would still be taken as a jump — grounded, or anywhere the
-  // coyote window is open — pointing a reticle at a crystal would lie about what the press does.
-  const candidate = input.pressWouldDash && !input.dashInFlight
+  // A dash in flight neither re-selects nor re-estimates: the lock is carried through whole, which is
+  // also what keeps its entry estimate the press-frame one. No reticle either — the lock is committed
+  // and the trail already says what is happening — and no press is spent, since a crystal held from an
+  // earlier frame is not a press being taken.
+  if (input.dashInFlight) {
+    return {
+      lock,
+      target: lock.kind === 'locked' ? sub(input.candidates[lock.crystal], input.from) : null,
+      preview: null,
+      consumedPress: false,
+    };
+  }
+
+  // Wherever the press would still be taken as a jump — grounded, or anywhere the coyote window is
+  // open — pointing a reticle at a crystal would lie about what the press does.
+  const candidate = input.pressWouldDash
     ? selectHomingTarget(input.from, input.cameraForward, input.candidates, config)
     : null;
-  const crystal = input.dashInFlight ? lock.crystal : (input.jumpPressed ? candidate : null);
-  const target = crystal === null ? null : sub(input.candidates[crystal], input.from);
+  const crystal = input.jumpPressed ? candidate : null;
+  if (crystal === null) {
+    return { lock: NO_HOMING_LOCK, target: null, preview: candidate, consumedPress: false };
+  }
 
+  const target = sub(input.candidates[crystal], input.from);
   return {
-    lock: {
-      crystal,
-      // Only ever computed on the frame a crystal is freshly committed; a dash in flight carries its
-      // entry estimate forward untouched.
-      entrySeconds: input.dashInFlight
-        ? lock.entrySeconds
-        : (target === null ? null : length(target) / config.homingSpeed),
-    },
+    lock: { kind: 'locked', crystal, entrySeconds: length(target) / config.homingSpeed },
     target,
     preview: candidate,
-    // A crystal held from a previous frame is not a press being spent, so `dashInFlight` excludes
-    // itself; with it excluded, a non-null `crystal` can only have come from this frame's press.
-    consumedPress: !input.dashInFlight && crystal !== null,
+    consumedPress: true,
   };
 };

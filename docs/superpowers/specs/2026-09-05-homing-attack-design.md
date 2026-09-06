@@ -153,12 +153,34 @@ timeout: the dash ends safely rather than continuing on stale data.
 ## 6. Chaining needs no charge counter
 
 The entry condition is "airborne, and a target is in the cone". After a bounce the player is airborne
-and rising, so the next press works if — and only if — they can aim at another crystal. That is the
-whole rule. A charge counter would add state that says nothing the position and the camera do not
-already say, and in the tower it is crystal spacing that sets the rhythm, not an allowance.
+and rising, so the next press works if — and only if — they can aim at a crystal from where the bounce
+put them. That is the whole rule. A charge counter would add state that says nothing the position and
+the camera do not already say, and in the tower it is crystal spacing that sets the rhythm, not an
+allowance.
 
-An unbounded chain is therefore possible where crystals are dense. In the hub that is a playground and
-harmless. In the tower it is a level-design lever, and the tower's spec owns it.
+**The crystal just bounced off is one of those crystals**, and re-locking it is allowed. Nothing in
+`homingLock.ts` or `selectHomingTarget` excludes it — no recently-hit memory, no minimum re-lock
+distance, no cooldown — and that is the intended rule rather than an oversight, for three reasons.
+
+It gains no height, so it is not a ladder past §1's spacing grammar: the arrival puts the player *at*
+the crystal, the bounce is straight up at `homingBounceSpeed` 9 against `gravity` 24, and a re-lock
+dashes them back down to the crystal to bounce from the same place again. The loop is a hover whose
+ceiling is one apex, `homingBounceSpeed²/(2*gravity)` = 1.6875 u above the crystal, held by re-aiming
+the camera downward at a target below you for no gain — which is why it needs no rule to discourage it.
+
+Excluding it would cost the state this section rejects a charge counter for: the lock would have to
+remember which crystal it last hit and for how long, and that memory decides feel — how long the
+exclusion lasts is a tuning number on a mechanic nobody has played yet.
+
+And it would make the crystal the player is standing on the one target the next press cannot take. §2
+keeps crystals persistent so a fall can never make a route unwinnable; a lone crystal on a tower
+landing whose bounce cannot be spent on itself is the same shape of dead end, arrived at from the
+other side.
+
+`tests/presentation/homingLock.test.ts` pins the re-lock, so a later exclusion has to be argued as the
+behaviour change it would be. An unbounded chain is therefore possible where crystals are dense. In
+the hub that is a playground and harmless. In the tower it is a level-design lever, and the tower's
+spec owns it.
 
 ## 7. Constants — measured against the running scene, and left as they were
 
