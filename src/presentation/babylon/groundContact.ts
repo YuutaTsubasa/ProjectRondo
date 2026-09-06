@@ -24,7 +24,22 @@
  * 4. **Ground re-acquired mid-climb cancelled the jump.** Jumping while running uphill lifts the
  *    capsule clear, then the rising ground ahead comes back within probe reach while the character is
  *    still going up. Grounding there makes the domain zero the climb and the character sticks to the
- *    slope. The `rising` state below ignores the probe entirely until the climb is over.
+ *    slope. The `rising` state below ignores the probe entirely until the climb is over. A homing
+ *    bounce is the same shape of climb — the domain hands out `homingBounceSpeed` and then, from a
+ *    grounded motion, zeroes it on the very next frame — and a crystal low enough that the probe
+ *    finds floor under the arrival is exactly the case, so a bounce enters `rising` too.
+ * 5. **A press was spent on a jump the domain was never going to take.** The probe reports support on
+ *    frames of a homing dash — the skim `slopeMotion` records — and again under the crystal a dash
+ *    arrives at, and this machine used to answer such a frame with `jumpRequested`. On a dash frame
+ *    the domain's homing branch does not read `jumpRequested` at all, so the press produced nothing
+ *    and the buffer had already been emptied for it; on the frame after an arrival it produced an
+ *    ordinary jump, and reporting `grounded` for that jump is what stopped the same press reaching
+ *    `homingLock`, so chaining off a low crystal degraded silently into a hop. {@link
+ *    GroundContactInput.dashInFlight} and {@link GroundContactInput.bounced} are therefore read
+ *    *before* the press is spent, not after: on those frames the press stays in the buffer, and
+ *    `grounded` stays false so the lock is the machine offered it. Declining a press is not the same
+ *    as routing it, though — the press the lock then *takes* has to leave the buffer again, which is
+ *    {@link spendBufferedJump}.
  */
 
 /** How long after losing ground support a jump is still allowed. Covers the probe's 1-8 frame gaps. */
@@ -60,10 +75,11 @@ export type GroundContact =
   /** Standing on something. The only state a jump can start from without coyote time. */
   | { readonly kind: 'grounded' }
   /**
-   * A jump is under way and still climbing. The support probe is deliberately ignored here: it
-   * re-acquires as soon as ground comes back within reach, and grounding mid-climb would cancel the
-   * jump. Ends when the character stops rising — so a jump into a low ceiling cannot latch — or at
-   * {@link MAX_RISING_SECONDS}, whichever comes first.
+   * A climb the domain started — a jump, or the bounce off a homing arrival — is under way and still
+   * going up. The support probe is deliberately ignored here: it re-acquires as soon as ground comes
+   * back within reach, and grounding mid-climb would cancel the climb. Ends when the character stops
+   * rising — so a jump into a low ceiling cannot latch — or at {@link MAX_RISING_SECONDS}, whichever
+   * comes first.
    */
   | { readonly kind: 'rising'; readonly seconds: number }
   /** Off the ground and not climbing. `seconds` feeds coyote time and the fall grace. */
@@ -85,8 +101,21 @@ export interface GroundContactInput {
   readonly supported: boolean;
   /** A jump key-press was consumed this frame (edge-triggered). */
   readonly jumpPressed: boolean;
+  /**
+   * A homing dash is under way this frame — `CharacterMotion.homing !== null` from last frame's
+   * result, the same boolean `homingLock` is handed as `HomingLockInput.dashInFlight`. The domain
+   * spends such a frame in its homing branch, which never reads `jumpRequested`, so a press answered
+   * with a jump here would be answered by nothing at all.
+   */
+  readonly dashInFlight: boolean;
   /** Last frame's post-solve vertical velocity; positive is rising. */
   readonly verticalSpeed: number;
+  /**
+   * A homing dash arrived and the domain handed out its bounce on the PREVIOUS frame
+   * (`Player.homingBounced`). One frame late for the same reason {@link verticalSpeed} is: the domain
+   * step that decides it runs after this machine has already answered for the frame.
+   */
+  readonly bounced: boolean;
   readonly delta: number;
 }
 
@@ -97,6 +126,15 @@ export interface GroundContactResult {
   /** What to hand the domain as `jumpRequested`. */
   readonly jumpRequested: boolean;
   /**
+   * Whether a press would be spent as a jump if one were made this frame. {@link jumpRequested} is
+   * this AND a live press; splitting the two apart is what lets `homingLock` ask "would a press be a
+   * dash?" on frames with no press at all. Answering that from `grounded` cannot work, because
+   * `grounded` folds this frame's `jumpRequested` back in: across the coyote window of an uncommanded
+   * fall it reads false with no press and true with one, which is a reticle pointing at a crystal the
+   * next frame's press flies past as an ordinary jump. See `HomingLockInput.pressWouldDash`.
+   */
+  readonly jumpAvailable: boolean;
+  /**
    * What the animation layer should treat as "off the ground": true for a whole jump, and for a fall
    * that has outlasted {@link FALL_GRACE_SECONDS}, but never for the probe's brief dropouts.
    */
@@ -105,13 +143,21 @@ export interface GroundContactResult {
 
 export const stepGroundContact = (
   state: GroundContactState,
-  { supported, jumpPressed, verticalSpeed, delta }: GroundContactInput,
+  { supported, jumpPressed, dashInFlight, verticalSpeed, bounced, delta }: GroundContactInput,
 ): GroundContactResult => {
   const buffered = jumpPressed ? JUMP_BUFFER_SECONDS : Math.max(0, state.bufferedJumpFor - delta);
   const settled = advance(state.contact, supported, verticalSpeed, delta);
 
-  const jumpRequested = buffered > 0 && canJump(settled);
-  const contact: GroundContact = jumpRequested ? { kind: 'rising', seconds: 0 } : settled;
+  // A dash owns the frame it is flying on and the frame its bounce leaves the ground, so a press on
+  // either is not this machine's to spend (problem 5 above). Refusing it *before* the spend rather
+  // than overriding `contact` after is what routes it somewhere: `buffered` still holds it, and on
+  // the bounce frame `contact` is `rising`, so `grounded` is false and `homingLock` is handed the
+  // same press as the chain dash it was meant to be. On a dash frame the lock is already committed
+  // and ignores presses, so there the buffer is the whole of the answer.
+  const dashOwnsFrame = dashInFlight || bounced;
+  const jumpAvailable = !dashOwnsFrame && canJump(settled);
+  const jumpRequested = buffered > 0 && jumpAvailable;
+  const contact: GroundContact = jumpRequested || bounced ? { kind: 'rising', seconds: 0 } : settled;
 
   return {
     state: { contact, bufferedJumpFor: jumpRequested ? 0 : buffered },
@@ -119,9 +165,24 @@ export const stepGroundContact = (
     // grounded motion — that one frame of leniency is exactly what coyote time is.
     grounded: jumpRequested || contact.kind === 'grounded',
     jumpRequested,
+    jumpAvailable,
     airborne: isAirborne(contact),
   };
 };
+
+/**
+ * Retracts a buffered press that the homing lock spent as a dash.
+ *
+ * The order of the two machines is forced: the lock is gated on {@link GroundContactResult.jumpAvailable},
+ * so it cannot answer until this one has, and by then this one has already buffered the press it
+ * declined. Buffering it is right for the presses the lock declines in turn (problem 5) and wrong for
+ * the one it commits — a press spent as a dash that stays live for a further {@link JUMP_BUFFER_SECONDS}
+ * becomes a second, unrequested jump on the first frame inside that window on which a jump is legal
+ * again, which a dash arriving under a ceiling reaches in about four. So `playerController` calls this
+ * with `HomingLockResult.consumedPress`, and the press belongs to exactly one machine after all.
+ */
+export const spendBufferedJump = (state: GroundContactState): GroundContactState =>
+  ({ ...state, bufferedJumpFor: 0 });
 
 const advance = (
   contact: GroundContact, supported: boolean, verticalSpeed: number, delta: number,

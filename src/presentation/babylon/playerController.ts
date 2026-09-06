@@ -6,17 +6,21 @@ import {
   CharacterSupportedState,
 } from '@babylonjs/core/Physics/v2/characterController';
 
-import { step } from '../../domain/hub/character/characterMovement';
+import { step, isHomingFrame } from '../../domain/hub/character/characterMovement';
 import { DEFAULT_CONFIG, type MovementConfig } from '../../domain/hub/character/movementConfig';
 import { IDLE, type CharacterMotion } from '../../domain/hub/character/characterMotion';
+import type { MovementInput } from '../../domain/hub/character/movementInput';
 import { planarDirectionFromInput } from './cameraRelativeDirection';
 import { toBabylon, toVec3 } from './vectorConversions';
 import { CAPSULE_RADIUS, CAPSULE_HEIGHT } from './capsule';
 import { terrainHeight } from './terrainHeight';
 import type { FollowCamera } from './followCamera';
 import type { InputState } from './input';
-import { stepGroundContact, INITIAL_GROUND_CONTACT } from './groundContact';
-import { alignToSurface } from './slopeMotion';
+import type { Crystals } from './crystals';
+import { createHomingReticle } from './homingReticle';
+import { stepGroundContact, spendBufferedJump, INITIAL_GROUND_CONTACT } from './groundContact';
+import { stepHomingLock, NO_HOMING_LOCK } from './homingLock';
+import { solverVelocity } from './slopeMotion';
 
 /**
  * Frame-time clamp. A backgrounded tab stalls the render loop; on return the first frame's
@@ -41,13 +45,37 @@ export interface Player {
   readonly root: TransformNode;
   motion: CharacterMotion;
   /**
-   * Off the ground, debounced, as decided by `groundContact`. Visuals read this rather than the raw
-   * support probe (which chatters) or `motion.isGrounded` (which also encodes the takeoff guard), so
-   * that the pose and the physics are answering the same question.
+   * Off the ground for the CAPSULE, debounced, as decided by `groundContact` — preferred to the raw
+   * support probe (which chatters) and to `motion.isGrounded` (which also encodes the takeoff guard).
+   *
+   * It is not the signal visuals read, and must not be treated as one. It answers only for the
+   * capsule, and the probe genuinely finds floor mid-dash and under a low crystal, where the knight
+   * is visibly in flight. Everything above the capsule therefore reads `jumpPose.isOffGround`, which
+   * widens this with `homing` and `bounced`; this field is one of that rule's three inputs, not its
+   * answer. See `jumpPose.ts` for the frames that separate them.
    */
   airborne: boolean;
   /** The live movement config — the same object `window.moveConfig` mutates, so readers track dev tuning. */
   readonly config: MovementConfig;
+  /**
+   * Expected duration of the CURRENT homing dash, in seconds, or `null` while none is locked — see
+   * `HomingLock.entrySeconds`, which decides it. `knight.ts` reads this to retime the Flying Kick clip
+   * onto the dash's real screen time, the same way `KnightTuning.airtime` retimes the jump segment
+   * onto the jump's actual airtime.
+   */
+  homingEntrySeconds: number | null;
+  /**
+   * A homing dash ARRIVED at its crystal on this frame, as opposed to timing out. The two ends of a
+   * dash are otherwise indistinguishable downstream — `motion.homing` goes null either way — and the
+   * difference cannot be recovered later from `motion.velocity`, which by then holds Havok's
+   * POST-SOLVE velocity: collide-and-slide can cancel or project the bounce away, as a ceiling over a
+   * crystal under an overhang does. Decided once here, from the domain's own result, so the crystal
+   * flash and the knight's jump-clip restart cannot disagree about whether a bounce happened.
+   *
+   * Also fed back into `stepGroundContact` on the following frame, so that ground found under the
+   * crystal cannot cancel the rise this flash promises — see `GroundContactInput.bounced`.
+   */
+  homingBounced: boolean;
 }
 
 /**
@@ -60,6 +88,7 @@ export function createPlayer(
   root: TransformNode,
   follow: FollowCamera,
   input: InputState,
+  crystals: Crystals,
 ): Player {
   // Spawn the capsule's base ON the terrain surface (+ a small lift so it settles down onto it rather
   // than starting embedded — an embedded capsule pops through the one-sided MESH collider and falls).
@@ -77,40 +106,136 @@ export function createPlayer(
   // The Havok controller itself, for probing its solver settings live in dev.
   if (import.meta.env.DEV) (window as unknown as { charController: unknown }).charController = controller;
 
-  const player: Player = { root, motion: IDLE, airborne: false, config };
+  const player: Player = {
+    root, motion: IDLE, airborne: false, config, homingEntrySeconds: null, homingBounced: false,
+  };
   // Coyote time, jump buffering and the takeoff guard all live in this pure state — see groundContact.
   let contact = INITIAL_GROUND_CONTACT;
+  // Which crystal a dash is committed to, its entry estimate, and the reticle's separate selection —
+  // all decided by one tested machine rather than inline here. See homingLock.
+  let homingLock = NO_HOMING_LOCK;
+
+  // The red target ring the owner asked for, fed `preview` rather than the committed lock — see
+  // `HomingLockResult.preview`.
+  const reticle = createHomingReticle(scene);
 
   scene.onBeforeRenderObservable.add(() => {
     const dt = Math.min(scene.getEngine().getDeltaTime() / 1000, MAX_DT);
     if (dt <= 0) return;
 
+    // The jump key is edge-triggered and consumed once, then offered to BOTH the ground-contact
+    // machine below and the homing lock. The two gates are one boolean and its complement — the lock
+    // is handed `!jumpAvailable`, precisely the presses the ground machine will not spend — so every
+    // press goes to exactly one of them and none can fall between. That partition is the fix for a
+    // window in which one did: the lock used to be gated on `player.airborne`, the
+    // FALL_GRACE_SECONDS animation debounce, which lags COYOTE_SECONDS by 0.05 s, and a press inside
+    // that lag was consumed, refused as a jump and never offered as a dash. See
+    // `HomingLockInput.pressWouldDash`, which also says why the gate is not `!grounded`.
+    //
+    // Being grounded is not the only way the domain can decline a press, though: on a dash frame it
+    // takes the homing branch and never reads `jumpRequested` at all. So the ground machine is told
+    // when a dash owns the frame — `dashInFlight` below, and `bounced` for the frame the arrival's
+    // climb starts — and declines the press rather than spending it, which keeps it in the
+    // `JUMP_BUFFER_SECONDS` buffer and keeps `grounded` false through a bounce, so the chain press
+    // reaches the lock as a dash instead of coming back as an ordinary jump. See `groundContact`'s
+    // problem 5.
+    //
+    // Declining a press is not the same as routing it, though. The buffer holds every press the
+    // ground machine refuses, the one the lock goes on to commit as a dash included, and the order
+    // cannot be swapped to find out first — the lock is gated on `jumpAvailable`, which only the
+    // ground machine can answer. So the press the lock takes is retracted from the buffer below, and
+    // only the ones it declined stay in it; see `spendBufferedJump` for what the second spend was.
+    // What the buffer still cannot do is *hand* an older press to the lock: the lock is
+    // fed the frame's edge, so a chain press made before the arrival frame is remembered as a jump
+    // and not as a dash. Feeding the lock from the buffer too is a feel decision on a mechanic nobody
+    // has played yet (see `MovementConstants`' homing block), so it is left rather than guessed at.
+    const pressed = input.consumeJump();
     const support = controller.checkSupport(dt, DOWN);
+    // Last frame's dash state, read once and handed to both machines, so they cannot disagree about
+    // whether a dash is under way — which of the two the press belongs to turns on exactly this.
+    const dashInFlight = player.motion.homing !== null;
     const contactResult = stepGroundContact(contact, {
       supported: support.supportedState === CharacterSupportedState.SUPPORTED,
-      jumpPressed: input.consumeJump(),
+      jumpPressed: pressed,
+      dashInFlight,
       verticalSpeed: player.motion.velocity.y,
+      // Still last frame's value: it is only reassigned further down, after the domain step that
+      // decides it. That is the frame the bounce was emitted on, and this is the first frame the
+      // ground machine can protect the climb from a probe that has found floor under the crystal.
+      bounced: player.homingBounced,
       delta: dt,
     });
     contact = contactResult.state;
-    const { grounded, jumpRequested } = contactResult;
+    const { grounded, jumpRequested, jumpAvailable } = contactResult;
     player.airborne = contactResult.airborne;
 
-    const { right, forward } = follow.planarBasis();
-    const direction = planarDirectionFromInput(input.axis(), right, forward);
-    const next = step(
-      { ...player.motion, isGrounded: grounded },
-      { direction, jumpRequested, runRequested: input.isRunHeld() },
-      config,
-      dt,
-    );
+    const cam = follow.camera;
+    const lockResult = stepHomingLock(homingLock, {
+      dashInFlight,
+      jumpPressed: pressed,
+      pressWouldDash: !jumpAvailable,
+      // The physics capsule's position, NOT `root`'s: `root.position.y` is `visualY`, the smoothed
+      // visual height. While the capsule climbs steadily at `homingSpeed` 24, the smoothing at the
+      // foot of this observer leaves the rendered root standing behind the capsule, at the same
+      // instant, by `homingSpeed * dt * (1 - a) / a` for that line's own `a` — 1.52 u at 60 fps,
+      // 1.35 u at the MAX_DT clamp. A longer frame shrinks that gap rather than widening it (larger
+      // `dt`, larger `a`), so the clamp is the mild end and the worst case is the short-frame limit
+      // `homingSpeed / VISUAL_Y_SMOOTHING` = 1.71 u. Everything `stepHoming` derives from this offset
+      // — the dash direction, `remaining`, and so both the arrival test and the timeout — would then
+      // be measured from a point the capsule is not at, and a lag that never shrinks floors
+      // `remaining` at 1.35 u or more while the arrival test needs it under `homingSpeed * dt`
+      // (0.4–0.8 u), so a steep dash would never be seen arriving and would always time out instead.
+      // Read before this frame's `integrate`, which is the position the frame's velocity starts from.
+      from: toVec3(controller.getPosition()),
+      cameraForward: toVec3(cam.getTarget().subtract(cam.position)),
+      candidates: crystals.positions,
+    }, config);
+    homingLock = lockResult.lock;
+    if (lockResult.consumedPress) contact = spendBufferedJump(contact);
+    player.homingEntrySeconds = homingLock.kind === 'locked' ? homingLock.entrySeconds : null;
+    if (lockResult.preview === null) reticle.hide();
+    else reticle.showAt(crystals.positions[lockResult.preview]);
 
-    // Following the ground means adding the climb the surface demands — see slopeMotion. A jump is
-    // the one grounded frame that must keep its own vertical velocity, so it skips this.
-    const solverVelocity = grounded && !jumpRequested
-      ? alignToSurface(next.velocity, toVec3(support.averageSurfaceNormal))
-      : next.velocity;
-    controller.setVelocity(toBabylon(solverVelocity));
+    const { right, forward } = follow.planarBasis();
+    const domainMotion = { ...player.motion, isGrounded: grounded };
+    const movementInput: MovementInput = {
+      direction: planarDirectionFromInput(input.axis(), right, forward),
+      jumpRequested,
+      runRequested: input.isRunHeld(),
+      homingTarget: lockResult.target,
+    };
+    // Asked of the domain before the step, not read back off the result: a dash whose crystal is
+    // within `homingSpeed * dt` at entry arrives on its own entry frame, so `motion.homing` is never
+    // once non-null for it — and it is reachable, since the threshold is `homingSpeed * MAX_DT` = 0.8
+    // units against a crystal's own extent of 1.273. The player receives the full `homingBounceSpeed`
+    // for it either way, so the two things that must not miss it are the flash, which says a crystal
+    // was hit, and the solver routing below, which is what lets the bounce leave the ground.
+    //
+    // It reaches those two and nothing else. The trail and the Flying Kick pose come from
+    // `hubScene`'s `homing: player.motion.homing !== null`, which such a dash never raises — a
+    // one-frame ribbon and a clip retimed onto ~0.02s would be a flicker rather than feedback, so
+    // giving them a separate entry-frame path is a feel decision, on a move nobody has played yet.
+    const dashRan = isHomingFrame(domainMotion, movementInput);
+    const next = step(domainMotion, movementInput, config, dt);
+
+    // A crystal flashes on the BOUNCE, not on the dash simply ending: `stepHoming` clears `homing` on
+    // both an arrival and a timeout (design spec §4-5), and only the arrival hit something. The
+    // domain's own `next.velocity.y` is what separates them — arrival sets `homingBounceSpeed`, a
+    // timeout zeroes it — and it is read HERE, before `player.motion` below replaces it with Havok's
+    // post-solve velocity. See `Player.homingBounced`.
+    player.homingBounced = dashRan && next.homing === null && next.velocity.y > 0;
+    if (player.homingBounced) {
+      if (homingLock.kind === 'locked') crystals.flash(homingLock.crystal);
+      else console.warn('[playerController] a homing dash bounced with no locked crystal to flash — this should be unreachable.');
+    }
+
+    // Following the ground means adding the climb the surface demands — see slopeMotion, which also
+    // says why a jump and a dash have to be kept away from it.
+    const forSolver = solverVelocity(next.velocity, toVec3(support.averageSurfaceNormal), {
+      grounded,
+      ownsClimb: jumpRequested || dashRan,
+    });
+    controller.setVelocity(toBabylon(forSolver));
     controller.integrate(dt, support, NO_GRAVITY);
     const solved = controller.getPosition();
     root.position.x = solved.x;
