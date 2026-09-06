@@ -36,10 +36,12 @@
  *    ordinary jump, and reporting `grounded` for that jump is what stopped the same press reaching
  *    `homingLock`, so chaining off a low crystal degraded silently into a hop. {@link
  *    GroundContactInput.dashInFlight} and {@link GroundContactInput.bounced} are therefore read
- *    *before* the press is spent, not after: on those frames the press stays in the buffer, and
- *    `grounded` stays false so the lock is the machine offered it. Declining a press is not the same
- *    as routing it, though — the press the lock then *takes* has to leave the buffer again, which is
- *    {@link spendBufferedJump}.
+ *    *before* the press is spent, not after: on both the press stays in the buffer, and on the
+ *    bounce frame `contact` is `rising`, so `grounded` is false and the lock is the machine offered
+ *    it. A dash frame needs no such override — the lock is already committed there and ignores
+ *    presses, so the buffer is the whole of the answer, and a supported dash frame does report
+ *    `grounded`. Declining a press is not the same as routing it, though — the press the lock then
+ *    *takes* has to leave the buffer again, which is {@link spendBufferedJump}.
  */
 
 /** How long after losing ground support a jump is still allowed. Covers the probe's 1-8 frame gaps. */

@@ -25,11 +25,11 @@ export const MovementConstants = {
    * `homingMaxDuration`'s, failed — the knight bounced straight up off an obstruction instead of
    * falling — and still did not lead to a retune, because the cause was a mechanism defect (the
    * timeout was unreachable dead code) that no value of the constant could have fixed. But it ran at
-   * commit `d3b64cb`, before `05f1923` made the dash correct
-   * course toward its target every frame, and it covered less than the list of names suggests — no
-   * check measures dash speed by eye, for instance. Read the design spec §7 before treating any one
-   * of these as evidenced; it records per constant what its check did and did not cover. Tune live
-   * via `window.moveConfig` and record what they settle at.
+   * commit `d3b64cb`, before `05f1923` made the dash correct course toward its target every frame,
+   * and it covered less than the list of names suggests — no check measures dash speed by eye, for
+   * instance. Read the design spec §7 before treating any one of these as evidenced; it records per
+   * constant what its check did and did not cover. Tune live via `window.moveConfig` and record what
+   * they settle at.
    *
    * `homingSpeed` 24 is 3x `runSpeed`, so the dash reads as a dash rather than a fast run.
    * `homingBounceSpeed` 9 equals `jumpSpeed`, so a chain gains the height the player already has an

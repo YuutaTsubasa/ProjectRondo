@@ -262,7 +262,8 @@ verified. Reading the list for coverage is the mistake the range statement above
 
 The bullets below are recorded as measurements of the `d3b64cb` build, not the shipped one.
 
-**Every check passed at the derived value, so every constant keeps its Untuned marking. None was
+**Four checks passed at their derived value; the fifth, `homingMaxDuration`'s, failed — its bullet
+below records what happened. Every constant keeps its Untuned marking all the same, and none was
 changed.** Task 7's own rule is to tune only when a check fails and a constant change fixes it; here
 no check that a constant can fix failed, so touching any of the five would have been an unjustified
 edit this repo's review already treats as a defect.
