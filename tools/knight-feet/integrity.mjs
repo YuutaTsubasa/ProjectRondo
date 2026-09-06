@@ -84,7 +84,12 @@ export function checkIntegrity(originalPath, correctedPath) {
     // including a renamed or re-parented foot — still fails the comparison below.
     if (FOOT_NODE.test(actual.name)) {
       if (!isDeepStrictEqual(actual.rotation, a.j.nodes[i].rotation)) touchedFeet.add(i);
-      actual.rotation = a.j.nodes[i].rotation;
+      // Copied only when the original has the key. glTF lets a node omit `rotation` to mean
+      // identity — this module reads it that way twice elsewhere — and assigning `undefined` would
+      // *create* an own key, which deepStrictEqual counts as a difference. Two byte-identical files
+      // whose ankles omit it reported "Unexpected node change" before this.
+      if (Object.hasOwn(a.j.nodes[i], 'rotation')) actual.rotation = a.j.nodes[i].rotation;
+      else delete actual.rotation;
     }
     assert.deepEqual(a.j.nodes[i], actual, 'Unexpected node change ' + actual.name);
   }
@@ -173,7 +178,11 @@ export function checkIntegrity(originalPath, correctedPath) {
   const calibrating = a.j.asset.extras?.knightFootCalibration === undefined;
   const expected = structuredClone(b.j);
   for (let i = 0; i < a.j.nodes.length; i++) {
-    if (FOOT_NODE.test(expected.nodes[i].name)) expected.nodes[i].rotation = a.j.nodes[i].rotation;
+    if (!FOOT_NODE.test(expected.nodes[i].name)) continue;
+    // Same reason as the node loop above: an omitted `rotation` must stay omitted, not become an
+    // own key holding `undefined`.
+    if (Object.hasOwn(a.j.nodes[i], 'rotation')) expected.nodes[i].rotation = a.j.nodes[i].rotation;
+    else delete expected.nodes[i].rotation;
   }
   // calibrate.mjs recomputes min/max on the accessors it rewrites — its own comment calls a stale
   // pair "a spec violation that shows up downstream as wrong culling bounds rather than as a load

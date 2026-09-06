@@ -18,8 +18,14 @@ import { qm, norm, axis } from '../../tools/knight-feet/glb.mjs';
  *
  * The reason given for having no test was that it needs the uncalibrated intermediate, which is
  * never committed. That is true of the shipped asset and false of the function: it takes any two
- * GLBs. So the fixtures here are a hand-built pair of about a dozen nodes — no binary from `public/`
- * is touched, and the whole file runs in milliseconds.
+ * GLBs. So the fixtures here are a hand-built pair of three nodes — no binary from `public/` is
+ * touched, and the whole file runs in milliseconds.
+ *
+ * A fixture too small to reach a branch is the failure mode this file is most exposed to, and it
+ * happened: the first version declared no accessor bounds and perturbed no key individually, so the
+ * bounds recompute, the angular-motion assertion, the unit-length check and the BIN-byte sweep were
+ * all unreachable — four of the eight numbered assertions could be deleted with every case green.
+ * The foot outputs now declare min/max, and there is a case per assertion.
  */
 
 /** glTF component type 5126 = FLOAT, and a VEC4 is four of them. */
@@ -49,6 +55,8 @@ const IDENTITY = [0, 0, 0, 1];
 /** Two keys per clip, so the angular-motion assertion has a step to compare. */
 const KEYS_PER_CLIP = 2;
 const CLIPS = ['0_T-Pose', 'Idle'] as const;
+/** Indices of the two ankles in the fixture's node list. */
+const FOOT_NODES = [0, 1];
 
 /**
  * A minimal knight: two ankles and one unrelated bone, each with a rotation track per clip.
@@ -72,7 +80,7 @@ function rawGlb(): { json: Json; bin: Buffer } {
   const chunks: Buffer[] = [];
   let offset = 0;
 
-  const push = (values: number[][], size: number) => {
+  const push = (values: number[][], size: number, bounded = false) => {
     const buf = Buffer.alloc(values.length * size * 4);
     values.forEach((v, i) => v.forEach((x, c) => buf.writeFloatLE(x, (i * size + c) * 4)));
     chunks.push(buf);
@@ -82,17 +90,32 @@ function rawGlb(): { json: Json; bin: Buffer } {
       componentType: 5126,
       count: values.length,
       type: size === 4 ? 'VEC4' : 'SCALAR',
+      // glTF lets an accessor declare bounds, and `calibrate.mjs` recomputes them on the tracks it
+      // rewrites. The shipped knight happens to declare none, which is why the branch that checks
+      // them went unexercised for six rounds — so the fixture declares them.
+      ...(bounded
+        ? {
+            min: [0, 1, 2, 3].map((c) => Math.min(...values.map((v) => v[c]))),
+            max: [0, 1, 2, 3].map((c) => Math.max(...values.map((v) => v[c]))),
+          }
+        : {}),
     });
     offset += buf.length;
     return accessors.length - 1;
   };
 
   for (const clip of CLIPS) {
-    const input = push([[0], [1]].slice(0, KEYS_PER_CLIP), 1);
+    const input = push(Array.from({ length: KEYS_PER_CLIP }, (_, k) => [k]), 1);
     const samplers: Json[] = [];
     const channels: Json[] = [];
     nodes.forEach((_, node) => {
-      const output = push(Array.from({ length: KEYS_PER_CLIP }, () => [...IDENTITY]), 4);
+      // Distinct keys, so composing a constant leaves a *step* the angular-motion assertion can
+      // compare — identical keys would make that check vacuous.
+      const output = push(
+        Array.from({ length: KEYS_PER_CLIP }, (_, k) => axis([1, 0, 0], 0.05 * (k + 1) * (node + 1))),
+        4,
+        FOOT_NODES.includes(node),
+      );
       samplers.push({ input, output, interpolation: 'LINEAR' });
       channels.push({ sampler: samplers.length - 1, target: { node, path: 'rotation' } });
     });
@@ -142,12 +165,17 @@ function calibrate(raw: { json: Json; bin: Buffer }): { json: Json; bin: Buffer 
       const view = bufferViews[accessor.bufferView as number];
       const motion = anim.name !== '0_T-Pose';
       const step = motion ? ANIMATION[node] : TPOSE[node];
+      const written: number[][] = [];
       for (let k = 0; k < (accessor.count as number); k++) {
         const at = (view.byteOffset as number) + k * QUAT_BYTES;
         const q = [0, 1, 2, 3].map((c) => bin.readFloatLE(at + c * 4));
         const turned: number[] = norm(qm(motion ? qm(pre, q) : q, step));
         turned.forEach((x, c) => bin.writeFloatLE(x, at + c * 4));
+        written.push(turned);
       }
+      // As calibrate.mjs does: recompute the declared bounds from the values it just wrote.
+      if (accessor.min) accessor.min = [0, 1, 2, 3].map((c) => Math.min(...written.map((q) => q[c])));
+      if (accessor.max) accessor.max = [0, 1, 2, 3].map((c) => Math.max(...written.map((q) => q[c])));
     }
   });
 
@@ -296,6 +324,76 @@ describe('checkIntegrity holds the receipt to what the file carries', () => {
   });
 });
 
+/** Rewrites one key of a foot rotation track, leaving the declared bounds alone unless told. */
+const editFootKey = (
+  json: Json,
+  bin: Buffer,
+  clip: string,
+  key: number,
+  make: (q: number[]) => number[],
+  rebound = false,
+) => {
+  const anim = (json.animations as Json[]).find((a) => a.name === clip)!;
+  const channel = (anim.channels as Json[])[0]; // LeftFoot
+  const sampler = (anim.samplers as Json[])[channel.sampler as number];
+  const accessor = (json.accessors as Json[])[sampler.output as number];
+  const view = (json.bufferViews as Json[])[accessor.bufferView as number];
+  const at = (view.byteOffset as number) + key * QUAT_BYTES;
+  const q = [0, 1, 2, 3].map((c) => bin.readFloatLE(at + c * 4));
+  make(q).forEach((x, c) => bin.writeFloatLE(x, at + c * 4));
+  if (!rebound) return;
+  const all = Array.from({ length: accessor.count as number }, (_, k) =>
+    [0, 1, 2, 3].map((c) => bin.readFloatLE((view.byteOffset as number) + k * QUAT_BYTES + c * 4)),
+  );
+  if (accessor.min) accessor.min = [0, 1, 2, 3].map((c) => Math.min(...all.map((v) => v[c])));
+  if (accessor.max) accessor.max = [0, 1, 2, 3].map((c) => Math.max(...all.map((v) => v[c])));
+};
+
+// One case per numbered assertion that the first version of this fixture could not reach. Each was
+// confirmed to go green when the assertion it targets is neutered, and red again when it is restored.
+describe('checkIntegrity checks the corrected keys themselves', () => {
+  it('catches declared bounds left stale after the keys moved', () => {
+    expect(
+      check(raw, (json) => {
+        const anim = (json.animations as Json[]).find((a) => a.name === 'Idle')!;
+        const sampler = (anim.samplers as Json[])[(anim.channels as Json[])[0].sampler as number];
+        const accessor = (json.accessors as Json[])[sampler.output as number];
+        (accessor.min as number[])[0] += 0.25;
+      }),
+    ).toMatch(/accessor min was not recomputed from the corrected keys/);
+  });
+
+  // The correction is a constant rotation, which leaves every step between adjacent keys unchanged;
+  // that is what makes the assertion safe for a real run and what makes a *non*-constant edit the
+  // only thing it can catch.
+  it('catches a key moved on its own, changing the step to its neighbour', () => {
+    expect(
+      check(raw, (json, bin) =>
+        editFootKey(json, bin, 'Idle', 1, (q) => norm(qm(q, axis([1, 0, 0], 0.4))), true),
+      ),
+    ).toMatch(/Angular motion changed/);
+  });
+
+  it('catches a corrected quaternion that is no longer unit length', () => {
+    expect(
+      check(raw, (json, bin) => editFootKey(json, bin, 'Idle', 0, (q) => q.map((x) => x * 1.5), true)),
+    ).toMatch(/Quaternion not normalized/);
+  });
+
+  it('catches a byte changed outside the corrected quaternions', () => {
+    expect(
+      check(raw, (json, bin) => {
+        // A key *time*, which no exemption covers and which the JSON comparison cannot see.
+        const anim = (json.animations as Json[]).find((a) => a.name === 'Idle')!;
+        const sampler = (anim.samplers as Json[])[(anim.channels as Json[])[0].sampler as number];
+        const accessor = (json.accessors as Json[])[sampler.input as number];
+        const view = (json.bufferViews as Json[])[accessor.bufferView as number];
+        bin.writeFloatLE(9.5, view.byteOffset as number);
+      }),
+    ).toMatch(/Non-foot binary byte changed/);
+  });
+});
+
 describe('checkIntegrity refuses to treat a second pass as a calibration', () => {
   // The branch that was a blanket amnesty for five rounds: with the original already calibrated,
   // nothing was validating what the foot exemptions let through.
@@ -310,12 +408,18 @@ describe('checkIntegrity refuses to treat a second pass as a calibration', () =>
           const sampler = (anim.samplers as Json[])[channel.sampler as number];
           const accessor = (json.accessors as Json[])[sampler.output as number];
           const view = (json.bufferViews as Json[])[accessor.bufferView as number];
+          const written: number[][] = [];
           for (let k = 0; k < (accessor.count as number); k++) {
             const at = (view.byteOffset as number) + k * QUAT_BYTES;
             const q = [0, 1, 2, 3].map((c) => bin.readFloatLE(at + c * 4));
             const turned: number[] = norm(qm(q, extra));
             turned.forEach((x, c) => bin.writeFloatLE(x, at + c * 4));
+            written.push(turned);
           }
+          // Bounds recomputed too, so this reaches the already-calibrated assertion rather than
+          // tripping the bounds check on the way — a tamper that looks like an honest run.
+          if (accessor.min) accessor.min = [0, 1, 2, 3].map((c) => Math.min(...written.map((q) => q[c])));
+          if (accessor.max) accessor.max = [0, 1, 2, 3].map((c) => Math.max(...written.map((q) => q[c])));
         }
       }),
     ).toMatch(/Foot rotations changed between two already-calibrated files/);
