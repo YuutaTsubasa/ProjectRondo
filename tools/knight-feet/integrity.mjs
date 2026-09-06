@@ -14,7 +14,8 @@
  *     times, same interpolation modes, same primitives.
  *  2. Every node is deep-equal, except that the two `LeftFoot`/`RightFoot` nodes may have a new
  *     `rotation`. Nothing may be renamed, re-parented, translated or rescaled.
- *  3. Every non-foot animation track decodes to identical values.
+ *  3. Every animation track that is not a foot *rotation* decodes to identical values — the split
+ *     is on (node, path), so a translation or scale track on an ankle is compared, not exempted.
  *  4. Every corrected quaternion is still unit length (a drifting quaternion skews the whole limb).
  *  5. **Angular motion is preserved.** Composing a constant rotation with each key is supposed to
  *     leave the *step* between adjacent keys untouched; the dot product of neighbouring keys is a
@@ -64,8 +65,14 @@ export function checkIntegrity(originalPath, correctedPath) {
       const acc = anim.samplers[ch.sampler].output;
       const aa = a.read(acc);
       const bb = b.read(acc);
-      if (!FOOT_NODE.test(a.j.nodes[ch.target.node].name)) {
-        assert.deepEqual(aa, bb, `${anim.name}: non-foot track changed`);
+      // On (node, path), not the node alone. The calibration rewrites foot *rotation* and nothing
+      // else, so a translation or scale track aimed at an ankle must still be compared byte for
+      // byte — exempting it by node would make the one file whose job is "what else did you touch?"
+      // blind in the direction it exists to watch. It would also run a non-VEC4 accessor through
+      // the unit-length assertion and the 16-bytes-per-key marking below, both of which assume
+      // quaternions. Latent on this asset: both ankles carry rotation channels only.
+      if (!FOOT_NODE.test(a.j.nodes[ch.target.node].name) || ch.target.path !== 'rotation') {
+        assert.deepEqual(aa, bb, `${anim.name}: non-foot-rotation track changed`);
         continue;
       }
       channels++;

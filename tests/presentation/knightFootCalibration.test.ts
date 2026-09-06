@@ -127,8 +127,13 @@ describe('the shipped knight GLB is foot-calibrated', () => {
     });
   });
 
-  // The rest pose and 0_T-Pose are what the character is seated and scaled against on load
-  // (`loadKnight` measures the lowest skinned vertex); Idle is what it stands in 99% of the time.
+  // Idle is the pose that matters most: it is what the knight stands in almost all the time, and
+  // it is also what `loadKnight` seats him by — its `onAfterRenderObservable` pass calls
+  // `refreshBoundingInfo({ applySkeleton: true })` *after* `idle.play`, so the lowest skinned vertex
+  // it finds is an Idle vertex. The rest pose and `0_T-Pose` are not seated against (the initial
+  // scale comes from raw POSITION bounds, which no rotation-only correction can move, and
+  // `0_T-Pose` is never played) — they are here because they are the two poses the calibration
+  // fits separately, so a regression in either is one this file should name.
   // Uncalibrated these read about -10.8, -0.9 and -32.8 degrees respectively.
   it.each([
     ['the rest pose', null, 1],

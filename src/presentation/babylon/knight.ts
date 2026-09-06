@@ -144,7 +144,7 @@ const BODY_MR_URL = '/models/knight_mr.webp?v=2';
  * of the surface is below 0.3, and **none** of it is above 0.8 (whole-image, only 8.5% of texels
  * exceed 0.8). `applyBodyPbr` below carries a "0.25-0.6" figure that also disagreed with "near 1",
  * but it is no corroboration: it was measured on the `?v=1` map this PR replaces, and on the shipped
- * one the G channel spans 0.000-1.000 with 50.7% of texels below 0.25 and 28.3% above 0.6. Both notes
+ * one the G channel spans 0.000-1.000 with 49.5% of texels below 0.25 and 19.8% above 0.6. Both notes
  * were describing maps that are not the one in the tree. The premise is withdrawn; 1 is correct because
  * a metal's energy is its reflection and there is now something to reflect, and the luma it costs is
  * whatever `IBL_INTENSITY` was tuned against. Brightness is set there, not by this number, and that
@@ -635,7 +635,8 @@ async function swapHeadMaterial(meshes: readonly AbstractMesh[]): Promise<void> 
   // material reads it by default — but the face is hand-lit through `emissiveColor`/`FACE_EMISSIVE`,
   // and letting the IBL add its diffuse irradiance on top would lift the toon face off the values that
   // constant is calibrated against. Zero here keeps the face exactly as tuned, regardless of the
-  // environment; the armour keeps the scene default of 1.
+  // environment; the armour keeps the material default of 1, which Babylon multiplies by
+  // `scene.environmentIntensity` — `IBL_INTENSITY`, 1.4 — for an effective 1.4.
   facePbr.environmentIntensity = 0;
   for (const mesh of head) mesh.material = face;
 
