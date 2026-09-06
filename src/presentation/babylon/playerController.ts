@@ -175,11 +175,15 @@ export function createPlayer(
       jumpPressed: pressed,
       pressWouldDash: !jumpAvailable,
       // The physics capsule's position, NOT `root`'s: `root.position.y` is `visualY`, the smoothed
-      // visual height, and the filter's steady-state lag while the capsule climbs at `homingSpeed` 24
-      // is 1.92 u at 60 fps (2.14 u at the MAX_DT clamp). Everything `stepHoming` derives from this
-      // offset — the dash direction, `remaining`, and so both the arrival test and the timeout —
-      // would then be measured from a point the capsule is not at, and a lag that never shrinks
-      // floors `remaining` at ~1.9 u while the arrival test needs it under `homingSpeed * dt`
+      // visual height. While the capsule climbs steadily at `homingSpeed` 24, the smoothing at the
+      // foot of this observer leaves the rendered root standing behind the capsule, at the same
+      // instant, by `homingSpeed * dt * (1 - a) / a` for that line's own `a` — 1.52 u at 60 fps,
+      // 1.35 u at the MAX_DT clamp. A longer frame shrinks that gap rather than widening it (larger
+      // `dt`, larger `a`), so the clamp is the mild end and the worst case is the short-frame limit
+      // `homingSpeed / VISUAL_Y_SMOOTHING` = 1.71 u. Everything `stepHoming` derives from this offset
+      // — the dash direction, `remaining`, and so both the arrival test and the timeout — would then
+      // be measured from a point the capsule is not at, and a lag that never shrinks floors
+      // `remaining` at 1.35 u or more while the arrival test needs it under `homingSpeed * dt`
       // (0.4–0.8 u), so a steep dash would never be seen arriving and would always time out instead.
       // Read before this frame's `integrate`, which is the position the frame's velocity starts from.
       from: toVec3(controller.getPosition()),

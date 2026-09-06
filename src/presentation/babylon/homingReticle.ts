@@ -48,6 +48,18 @@ const RETICLE_EXTENT_RATIO = 0.5;
  * renders its centreline at 1.35 * 0.8 = 1.08x — measured in the browser as a 1.374-unit ring around a
  * 1.273-unit crystal, i.e. a stroke landing almost exactly on the silhouette, which is the reading
  * `RETICLE_EXTENT_RATIO` exists to avoid.
+ *
+ * That division is also what makes this a second control on how thick the ring reads, not only on
+ * where the padding sits: it pins the centreline diameter to `CRYSTAL_EXTENT * RETICLE_EXTENT_RATIO`
+ * whatever this is, while the stroke stays a fraction of a plane this divides into — so the ink's
+ * world width is `RING_STROKE_FRACTION * CRYSTAL_EXTENT * RETICLE_EXTENT_RATIO / RING_TEXTURE_FRACTION`.
+ * At 0.9 the centreline would still be 0.6364 u and the ink alone would thin from 0.0636 to 0.0566 u.
+ *
+ * **Untuned**: 0.8 is the padding this module was introduced with (`b78325c`) and has never been
+ * moved — the on-screen rounds that settled {@link RETICLE_EXTENT_RATIO} and {@link RETICLE_ALPHA}
+ * left it alone. Retune it together with {@link RING_STROKE_FRACTION}, never on its own: the two
+ * multiply into the one thickness the player sees, so moving the padding rescales that thickness as
+ * a side effect.
  */
 const RING_TEXTURE_FRACTION = 0.8;
 
@@ -106,6 +118,9 @@ const RETICLE_ALPHA = 0.6;
 /**
  * Ring stroke thickness, as a fraction of {@link RETICLE_TEXTURE_SIZE} — so it scales with the
  * texture rather than being a pixel count that would thin out if the resolution changed.
+ *
+ * Not the only thing the on-screen thickness turns on: {@link RETICLE_DIAMETER} divides the plane by
+ * {@link RING_TEXTURE_FRACTION}, so the ink's world width is this over that (see there). Retune both.
  *
  * **Untuned**: 0.08 is the value the first draft of this module was written with, and unlike
  * {@link RETICLE_EXTENT_RATIO} and {@link RETICLE_ALPHA} it was never one of the numbers the

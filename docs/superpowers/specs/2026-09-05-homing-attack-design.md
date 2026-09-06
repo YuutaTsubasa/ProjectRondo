@@ -239,8 +239,9 @@ verified. Reading the list for coverage is the mistake the range statement above
   from Havok's post-solve velocity, and gated on `isHomingFrame` rather than on `motion.homing`, so a
   dash that arrives on its own entry frame now flashes and bounces like any other.
 - `685ad02` — the dash aims from the physics capsule's position, not from the smoothed visual root,
-  which at `homingSpeed` lags it by ~1.9 units mid-climb. Every arrival and timeout below was measured
-  from the lagging point.
+  which at `homingSpeed` stands 1.52 units behind it mid-climb at 60 fps (1.35 units at the frame-time
+  clamp, and at most 1.71 as frames get shorter). Every arrival and timeout below was measured from the
+  lagging point.
 - `132415e` — the bounce and the dash routed to the solver through `slopeMotion`'s `solverVelocity`
   instead of through `alignToSurface`, so neither has the surface's climb added on top of it, plus
   `GroundContactInput.bounced` so ground found under the crystal cannot cancel the rise.

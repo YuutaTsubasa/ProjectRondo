@@ -912,7 +912,7 @@ export async function loadKnight(
   // seating above puts its origin at the CAPSULE's bottom — the knight's FEET, not its body — so a
   // `TrailMesh` fed `root` as its generator draws the ribbon from ground level regardless of where the
   // character actually is (the bug the owner saw). A dedicated generator node fixes it without moving
-  // `root` itself, which everything else in this file (foot planting, the terrain re-anchor above)
+  // `root` itself, which everything else in this file (foot planting, the terrain re-anchor below)
   // depends on staying exactly where it is.
   //
   // Same coordinate-space trap `DASH_TRAIL_DIAMETER` documents: `trailGenerator` is parented to `root`,

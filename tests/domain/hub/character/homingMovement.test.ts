@@ -58,9 +58,10 @@ describe('homing dash', () => {
   });
 
   it('bounces straight up on arrival and clears the dash', () => {
-    // One frame long enough to cover the whole 6-unit offset, short enough to stay under
-    // homingMaxDuration (0.6s) so the timeout does not also fire on this frame — see the
-    // pre-flight correction to this brief.
+    // One frame long enough to cover the whole 6-unit offset at `homingSpeed` 24, so the arrival is
+    // decided on it. Nothing else constrains the length: `stepHoming` tests arrival strictly before
+    // the timeout (see `characterMovement`), so no `dt` could make the timeout fire on an arriving
+    // frame instead.
     const r = step(AIRBORNE, pressTowards(vec3(0, 0, -6)), C, 0.3);
     expect(r.homing).toBeNull();
     expect(r.velocity.y).toBeCloseTo(C.homingBounceSpeed, P);
