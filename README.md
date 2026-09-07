@@ -88,15 +88,14 @@ gltf-transform resize __prototype__/knight_web.glb /tmp/k.glb --width 1024 --hei
 gltf-transform webp /tmp/k.glb /tmp/knight-uncalibrated.glb --quality 80
 
 # 3. Level heel-to-toe pitch in rest/T-Pose/Idle and correct the ankle offset in every motion clip.
-#    The last argument is a fixed pre-rotation in degrees. Use 0: nothing in this repository bakes
-#    an ankle offset for it to cancel, and the shipped GLB is built with 0. (An earlier build used
-#    20; re-exporting from the committed pipeline showed it does not need one — see the doc below.)
-node tools/knight-feet/calibrate.mjs /tmp/knight-uncalibrated.glb public/models/knight_web.glb 0
+#    This took a third argument, a fixed pre-rotation in degrees; it has been removed and passing
+#    one is now an error. Nothing in this repository bakes an ankle offset for it to cancel.
+node tools/knight-feet/calibrate.mjs /tmp/knight-uncalibrated.glb public/models/knight_web.glb
 node tools/knight-feet/verify.mjs /tmp/knight-uncalibrated.glb public/models/knight_web.glb
 ```
 
 See [foot calibration and validation](docs/knight-foot-calibration.md) for the measurements and for
-what is known about the pre-rotation argument.
+what was known about the retired pre-rotation argument.
 
 Bump the `?v=N` query on the GLB URL in `src/presentation/babylon/knight.ts` after rebuilding so
 browsers refetch it. Then delete the 68 MB `__prototype__/knight_web.glb` intermediate and the

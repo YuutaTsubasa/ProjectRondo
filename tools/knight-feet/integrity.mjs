@@ -236,7 +236,8 @@ export function checkIntegrity(originalPath, correctedPath) {
   // below is for. The receipt is also what makes a second run refuse to double-apply.
   //
   // All three fitted rotations, not just the one on the node. `tpose.q` rewrote every key of the
-  // reference clip's foot track and `animation.q` every key of the other four, so checking `rest.q`
+  // reference clip's foot track and `animation.q` every key of the other five — 12 channels and 828
+  // keys on the shipped GLB, as this function's own return value reports — so checking `rest.q`
   // alone left the receipt free to misdescribe the two corrections that touched the most data.
   // Checking `animation.q` also settles `undoParentPitchDegrees`, which an earlier version of this
   // comment called unconfirmable: the motion identity composes the pre-rotation that number defines,

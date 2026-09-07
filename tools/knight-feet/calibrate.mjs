@@ -1,7 +1,7 @@
 /**
  * Levels the knight's boot soles in the exported GLB, in place of a re-rig.
  *
- *   node tools/knight-feet/calibrate.mjs input.glb output.glb [pre-rotation degrees: use 0]
+ *   node tools/knight-feet/calibrate.mjs input.glb output.glb
  *   node tools/knight-feet/verify.mjs    input.glb output.glb
  *
  * **What is wrong with the export.** The imported rest pose points the shoe roughly 10.8 degrees
@@ -69,12 +69,14 @@ const SEARCH_LO = -60;
 const SEARCH_HI = 30;
 const SEARCH_ITERATIONS = 28;
 
-const [, , input, out, preRotationDegrees = '0'] = process.argv;
-if (!input || !out || !['0', '20'].includes(preRotationDegrees)) {
+const [, , input, out, ...extra] = process.argv;
+if (!input || !out) throw Error('Usage: node calibrate.mjs input.glb output.glb');
+// The retired pre-rotation argument used to sit here. A stale recipe still passing `20` has to fail
+// loudly: ignoring it would quietly produce a 0 build under a command that reads like a 20 one.
+if (extra.length) {
   throw Error(
-    'Usage: node calibrate.mjs input.glb output.glb [fixed pre-rotation degrees]\n' +
-      '  0   what the shipped GLB is built with, and what every fresh export needs\n' +
-      '  20  retired: reproduces nothing that ships. See docs/knight-foot-calibration.md',
+    `Unexpected argument "${extra[0]}" — the pre-rotation argument was removed; ` +
+      'see docs/knight-foot-calibration.md',
   );
 }
 if (input === out) throw Error('Use a separate output so the source remains available for verification');
@@ -100,17 +102,6 @@ if (g.j.animations.map((a) => a.name).sort().join(',') !== EXPECTED_CLIPS) {
  * correction has to live if it is to be composed with that node's own rotation.
  */
 const transposeDir = (m, p) => [0, 1, 2].map((i) => m[i * 4] * p[0] + m[i * 4 + 1] * p[1] + m[i * 4 + 2] * p[2]);
-
-/**
- * The fixed pre-rotation, as a quaternion: `-degrees` about X, applied in the ankle's parent frame.
- * See the module header for what is and is not known about it. Identity when the argument is `0`.
- */
-const preRotation = axis([1, 0, 0], (-Number(preRotationDegrees) * Math.PI) / 180);
-
-/** Applies {@link preRotation} to both ankles of a posed node list, in the parent frame (left-multiply). */
-const applyPreRotation = (nodes) => {
-  for (const lm of lms) nodes[lm.node].rotation = qm(preRotation, nodes[lm.node].rotation);
-};
 
 const corrections = [];
 for (const lm of lms) {
@@ -149,10 +140,8 @@ for (const lm of lms) {
    *
    * @param clip Clip name, or `null` for the file's rest pose.
    * @param times Times to average the pitch over — one entry for a static pose.
-   * @param withPreRotation Whether to apply {@link preRotation} to the pose first. True only for the
-   *   motion fit, because only the motion clips are written with it.
    */
-  const solveFor = (clip, times, withPreRotation) => {
+  const solveFor = (clip, times) => {
     let lo = SEARCH_LO;
     let hi = SEARCH_HI;
     for (let iteration = 0; iteration < SEARCH_ITERATIONS; iteration++) {
@@ -161,7 +150,6 @@ for (const lm of lms) {
       let total = 0;
       for (const time of times) {
         const posed = g.evaluate(clip, time, (nodes) => {
-          if (withPreRotation) applyPreRotation(nodes);
           nodes[lm.node].rotation = qm(nodes[lm.node].rotation, q);
         });
         total += measured(g, lm, posed).pitch;
@@ -179,14 +167,13 @@ for (const lm of lms) {
     name: lm.foot,
     node: lm.node,
     localAxis,
-    rest: solveFor(null, [0], false),
-    tpose: solveFor(REFERENCE_CLIP, [0], false),
+    rest: solveFor(null, [0]),
+    tpose: solveFor(REFERENCE_CLIP, [0]),
     // One correction for every motion clip, fitted over a whole Idle cycle so it lands on the
     // clip's mean rather than on whichever single frame happened to be sampled.
     animation: solveFor(
       FIT_CLIP,
       Array.from({ length: FIT_SAMPLES }, (_, i) => (duration * i) / (FIT_SAMPLES - 1)),
-      true,
     ),
   });
 }
@@ -220,7 +207,7 @@ for (const c of corrections) {
     const isMotion = a.name !== REFERENCE_CLIP;
     const values = g
       .read(s.output)
-      .map((q) => norm(qm(isMotion ? qm(preRotation, q) : q, isMotion ? c.animation.q : c.tpose.q)));
+      .map((q) => norm(qm(q, isMotion ? c.animation.q : c.tpose.q)));
     writeAccessor(s.output, values);
     // glTF lets an accessor declare min/max, and a stale pair is a spec violation that shows up
     // downstream as wrong culling bounds rather than as a load error. Recompute only what was there.
@@ -237,7 +224,10 @@ g.j.asset.extras = {
   ...g.j.asset.extras,
   knightFootCalibration: {
     version: 1,
-    undoParentPitchDegrees: Number(preRotationDegrees),
+    // Always 0: this tool applies no parent-frame pre-rotation. The field stays in the receipt
+    // because `integrity.mjs` reconstructs the motion identity through it, and because a nonzero
+    // value is how a GLB built by the retired mode identifies itself.
+    undoParentPitchDegrees: 0,
     corrections,
   },
 };

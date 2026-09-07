@@ -158,9 +158,14 @@ const TRAIL_EMISSIVE = new Color3(0.08, 0.22, 0.95);
  * wide, and neither number is directly comparable to {@link TARGET_HEIGHT} or to any other world-space
  * measurement in this file. The measured width below closes on that arithmetic exactly, which is what
  * says the factor of two is real and not a misreading of the library: `knight_web.glb`'s bind-pose
- * extent on its long axis is 0.9794 units, so `root.scaling` is `1.9 / 0.9794` = 1.9399, and
- * `2 * 0.2 * 1.9399` = 0.776 — the number that was measured. Dropping the factor of two predicts 0.388
- * instead.
+ * extent on its long axis is 0.9801 units, so `root.scaling` is `1.9 / 0.9801` = 1.9386, and
+ * `2 * 0.2 * 1.9386` = 0.775. Dropping the factor of two predicts 0.388 instead, so the measurement
+ * separates the two readings by a factor of two however the model is scaled.
+ *
+ * The 0.776 measured below was taken in the browser against the *previous* character, whose extent
+ * was 0.9794 — this PR swapped the model, and nobody has re-measured the ribbon on screen since. The
+ * arithmetic moved by 0.001 and what the measurement established, the factor of two, does not depend
+ * on the model at all.
  *
  * **Untuned**, and unlike {@link TRAIL_EMISSIVE} above — retuned off the same browser pass — this one
  * came out of that pass unchanged: the ribbon measured 0.776 world units across on screen, close to the

@@ -10,9 +10,9 @@ For each ankle, `tools/knight-feet/calibrate.mjs` fits the single constant rotat
 
 Only the two foot-node rotations and their twelve animation rotation tracks change (828 quaternion keys). Mesh vertices, indices, skin weights, inverse bind matrices, textures, other bones and animation timing remain unchanged. The toe-weight asymmetry in the source was inspected but is not altered by this fix.
 
-## The pre-rotation argument, and what is not known about it
+## The pre-rotation argument, what was not known about it, and why it is gone
 
-`calibrate.mjs` takes a third argument: a fixed pre-rotation in degrees, which left-multiplies every motion-clip ankle key by a rotation of `-degrees` about parent-frame X before the constant correction is fitted and applied. **The shipped GLB is built with `0`**, recorded in its own `asset.extras.knightFootCalibration.undoParentPitchDegrees`. An earlier build of this asset used `20`.
+`calibrate.mjs` used to take a third argument: a fixed pre-rotation in degrees, which left-multiplied every motion-clip ankle key by a rotation of `-degrees` about parent-frame X before the constant correction was fitted and applied. It accepted `0` or `20`. **It has been removed**, and the tool now takes only an input and an output. The receipt still records `asset.extras.knightFootCalibration.undoParentPitchDegrees`, always `0`; the field stays because `integrity.mjs` reconstructs the motion identity through it, and because a nonzero value is how a GLB built by the retired mode identifies itself.
 
 An earlier version of this document, of `calibrate.mjs` and of the README explained that `20` as undoing a "+20 degree" ankle rotation baked by a previous `extract_anims.gd`. **That explanation is withdrawn.** No revision of `__prototype__/tools/extract_anims.gd` in this repository's history applies any ankle or foot rotation. Checked on every branch, and back through the rename that moved the script under `__prototype__/tools/`: every revision constructs exactly one rotation quaternion, the -5 degree `ADDUCT_DEG` thigh correction the script still carries. There is nothing here for the `20` to undo, and where it came from is not recorded anywhere in this repository. It is a fixed pre-rotation that the shipped asset happens to have been built with, and nothing more.
 
@@ -28,9 +28,11 @@ The earlier note compared the two modes on a reconstruction of that older export
 | Jump | 2.11 degrees |
 | Run | **2.73 degrees** (the worst case anywhere) |
 
-`0` is the smaller intervention: it applies only the fitted local correction, where `20` also rewrites every motion key with a pre-rotation nothing in this repository asks for.
+`0` was the smaller intervention: it applied only the fitted local correction, where `20` also rewrote every motion key with a pre-rotation nothing in this repository asks for.
 
-`20` now reproduces nothing that ships, and it is no longer reachable in practice either: its only input was that five-clip export, and `calibrate.mjs`'s `EXPECTED_CLIPS` guard — widened to the six-clip set when `FlyingKick` arrived — rejects it before the pre-rotation argument is read. Re-deriving the table above would mean deliberately widening that guard as well. The argument survives because the receipt records it and `integrity.mjs` verifies it against the corrected keys, so the field still has to mean something; `0` is the only value any rebuild should pass.
+**Why the mode was removed rather than documented.** It reproduced nothing that ships, it undid nothing this repository bakes, and its provenance was never established — but it stayed reachable: run against today's six-clip export, `calibrate.mjs raw.glb out.glb 20` completed, wrote `undoParentPitchDegrees: 20`, and passed `verify.mjs`. Nothing downstream separated the result from a `0` build, because the fit forces rest / `0_T-Pose` / `Idle` level at either value and the pre-rotation is a constant left-multiply that the ankle-swing guard cannot see. A `20` build dropped into `public/` would have shipped green. Three review rounds each spent a finding on a different sentence explaining why the mode was kept, and each explanation turned out to be false; the mode was the problem, not the sentences.
+
+Removing it is behaviour-preserving for anything this repository builds: re-running the current tool on the intermediate that produced the shipped GLB reproduces that file byte for byte (md5 `8ef316fe…`). Passing a third argument is now an error rather than silently ignored, so a stale recipe fails loudly instead of quietly producing a `0` build.
 
 ## Measurements
 
@@ -56,10 +58,10 @@ Babylon previews were inspected for Idle, walking on each support leg, a running
 Follow the README export recipe. For a newly exported, texture-optimized GLB:
 
 ```powershell
-node tools/knight-feet/calibrate.mjs path/to/raw.glb path/to/fixed.glb 0
+node tools/knight-feet/calibrate.mjs path/to/raw.glb path/to/fixed.glb
 node tools/knight-feet/verify.mjs path/to/raw.glb path/to/fixed.glb
 ```
 
-`0` is the only value any rebuild from this repository should use; see the section above for what `20` was and why it is retained.
+There is no third argument; see the section above for what it was and why it went.
 
 The script refuses an already calibrated GLB. Calibration data and the selected pre-rotation are recorded under `asset.extras.knightFootCalibration`. It is specific to the current knight meshes and bone convention; changing character geometry requires renewed measurements and visual review, and `tools/knight-feet/sole.mjs`'s hard-coded boot mesh names and vertex thresholds are the first thing that will stop matching.
