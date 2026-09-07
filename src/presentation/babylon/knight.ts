@@ -174,13 +174,17 @@ const TRAIL_EMISSIVE = new Color3(0.08, 0.22, 0.95);
  *
  * **0.9801 is the wrong number, from three directions at once, and it was published here once.** It
  * is the GLB's own long axis — the Z extent of the POSITION accessors, which is what ends up
- * vertical once the model is in the scene. Calibration rotates ankle nodes and touches no vertex,
- * so that figure is byte-identical in the uncalibrated intermediate and in the shipped file, and on the
- * *intermediate* it is also the hierarchy extent exactly, because that file's soles still sit at
- * `y = 0`. Levelling them lifts the soles off the floor, which shortens the skinned bind pose to
- * 0.9576 and moves `root.scaling` by 2.3%; 0.9801 survives in the shipped file only as `max.y`. So
- * it is simultaneously a real accessor extent, the right hierarchy extent for the wrong file, and
- * half of the right one for this file — and it is none of the three things this line needs.
+ * vertical once the model is skinned. Nothing in the file rotates it: all 42 mesh nodes hang off the
+ * single scene root `knight` and not one of them carries a TRS, and the loader adds only a
+ * handedness flip. It is the skin that turns it, its inverse bind matrices mapping mesh-local Z onto
+ * the skeleton's Y — which is why the unskinned Y extent is 0.197036, the accessor range, against a
+ * skinned 0.957617. Calibration rotates ankle nodes and touches no vertex, so that figure is
+ * byte-identical in the uncalibrated intermediate and in the shipped file, and on the *intermediate*
+ * it is also the hierarchy extent exactly, because that file's soles still sit at `y = 0`. Levelling
+ * them lifts the soles off the floor, which shortens the skinned bind pose to 0.9576 and moves
+ * `root.scaling` by 2.3%; 0.9801 survives in the shipped file only as `max.y`. So it is at once a
+ * real accessor extent, the right hierarchy extent for the wrong file, and half of the right one for
+ * this file — and it is none of the three things this line needs.
  *
  * **Untuned**, and unlike {@link TRAIL_EMISSIVE} above — retuned off the same browser pass — this
  * one came out of that pass unchanged: the ribbon measured 0.776 world units across on screen — on

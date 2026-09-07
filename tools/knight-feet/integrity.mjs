@@ -58,7 +58,7 @@ const FOOT_NODE = /^(Left|Right)Foot$/;
  */
 const step = (q, r) => Math.abs(q.reduce((s, x, i) => s + x * r[i], 0) / (Math.hypot(...q) * Math.hypot(...r)));
 
-/** The one-frame reference pose. calibrate.mjs fits it separately and applies no pre-rotation to it. */
+/** The one-frame reference pose. calibrate.mjs fits it separately from the motion clips. */
 const REFERENCE_CLIP = '0_T-Pose';
 
 /** No rotation, for a node whose `rotation` glTF omits. */
@@ -276,7 +276,7 @@ export function checkIntegrity(originalPath, correctedPath) {
 
   // Every ankle this run found changed has to be claimed by the receipt. Without this the two foot
   // exemptions are unconditional while the only thing that examines what they let through is not:
-  // a corrected file with the receipt deleted had both ankles and all 739 keys waved through.
+  // a corrected file with the receipt deleted had both ankles and all 828 keys waved through.
   const claimed = new Set((receipt?.corrections ?? []).map((c) => c.node));
   const unclaimed = [...touchedFeet].filter((n) => !claimed.has(n)).map((n) => b.j.nodes[n].name);
   assert.deepEqual(unclaimed, [], `Foot rotations changed with no receipt entry to account for them: ${unclaimed}`);
