@@ -31,7 +31,8 @@ describe('knightReceivesShadow', () => {
  * `HEAD_MESHES` is the one list in this file whose correctness lives in a binary, and its own doc
  * says the failure is silent in both directions on a character swap. This resolves it against the
  * shipped GLB so at least the "name no longer exists, or exists twice" half cannot pass unnoticed —
- * which is also what keeps the mesh counts quoted in that doc and in `knight.ts` from going stale.
+ * which is also what keeps the mesh counts quoted in that doc, in `knight.ts` and in `shadows.ts`
+ * from going stale.
  */
 const GLB = fileURLToPath(new URL('../../public/models/knight_web.glb', import.meta.url));
 

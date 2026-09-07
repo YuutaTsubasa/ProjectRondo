@@ -47,8 +47,7 @@ const CASCADE_BLEND = 0.1;
  * shadow (1190 px vs 1145 px at 0.01 — marginally better, not worse). See spec §7 Task 8.
  *
  * That 62 was the count when this validation ran. The medieval-knight character swap (`knight.ts`,
- * `shadowPolicy.ts`) takes the knight's receiving body from 31 meshes to 40 — the shipped GLB has 42
- * mesh-bearing nodes and `HEAD_MESHES` in `shadowPolicy.ts` excludes two — so the shipped
+ * `shadowPolicy.ts`) takes the knight's receiving body from 31 meshes to 40, so the shipped
  * casting-and-receiving count is now 71, not 62 — this validation has not been re-run at 71 and no
  * longer describes the shipped configuration. See `knight.ts`'s `applyBodyPbr` doc, near its
  * `NORMAL_BIAS` mention, for the same note from the other side.
