@@ -28,7 +28,9 @@ The earlier note compared the two modes on a reconstruction of that older export
 | Jump | 2.11 degrees |
 | Run | **2.73 degrees** (the worst case anywhere) |
 
-`0` is the smaller intervention: it applies only the fitted local correction, where `20` also rewrites every motion key with a pre-rotation nothing in this repository asks for. `20` is kept reachable solely so the shipped asset can be reproduced from its source export.
+`0` is the smaller intervention: it applies only the fitted local correction, where `20` also rewrites every motion key with a pre-rotation nothing in this repository asks for.
+
+`20` now reproduces nothing that ships. Its input was that older export, which the committed pipeline no longer produces, and the shipped GLB is built with `0`. It is retained only so the comparison above can be re-derived should that export ever resurface — not as an option for any rebuild.
 
 ## Measurements
 
@@ -38,10 +40,10 @@ Pitch uses the world-space centroids of fixed heel and toe sole-surface vertices
 | --- | --- | --- |
 | Rest | -10.790 / -10.826 degrees | 1.5e-8 / -5.8e-8 degrees |
 | T-Pose | -0.842 / -0.889 degrees | 1.8e-6 / -6.9e-7 degrees |
-| Idle mean | -13.246 / -12.608 degrees | +0.0007 / -0.0026 degrees |
-| Idle range | right -13.634 to -12.923; left -12.992 to -12.216 | right -0.389 to +0.328; left -0.497 to +0.428 degrees |
+| Idle mean | -13.246 / -12.611 degrees | +0.0007 / -0.0026 degrees |
+| Idle range | right -13.640 to -12.915; left -13.106 to -12.175 | right -0.389 to +0.328; left -0.497 to +0.428 degrees |
 
-All five motion clips were sampled at 60 Hz, plus rest and T-Pose. The verifier requires every rest/T-Pose/Idle measurement to remain within one degree of level. It also checks all motion measurements are finite, every corrected quaternion is normalized, per-key angular changes are preserved, all other animation tracks are identical, and every binary byte outside the corrected quaternion ranges is unchanged. There are 11,887,720 unchanged binary bytes across 828 corrected keys in 12 channels, and the maximum adjacent-key quaternion dot-product error is 7.0e-9.
+All five motion clips were sampled at 60 Hz, plus rest and T-Pose. (`verify.mjs` reads that list off the file rather than carrying its own, so a clip added to the export cannot go unsampled while the summary line counts it.) The verifier requires every rest/T-Pose/Idle measurement to remain within one degree of level. It also checks all motion measurements are finite, every corrected quaternion is normalized, per-key angular changes are preserved, all other animation tracks are identical, and every binary byte outside the corrected quaternion ranges is unchanged. There are 11,887,720 unchanged binary bytes across 828 corrected keys in 12 channels, and the maximum adjacent-key quaternion dot-product error is 7.0e-9.
 
 Babylon previews were inspected for Idle, walking on each support leg, a running support pose, and airborne/landing jump poses. This validates the ankle/sole posture correction. It does not implement terrain IK or certify per-frame ground contact: the existing game's vertical seating/terrain logic still owns placement, and normal toe-off and airborne foot pitch remain in the source motions.
 
@@ -58,6 +60,6 @@ node tools/knight-feet/calibrate.mjs path/to/raw.glb path/to/fixed.glb 0
 node tools/knight-feet/verify.mjs path/to/raw.glb path/to/fixed.glb
 ```
 
-Pass `20` only to reproduce the shipped asset from its own source export; see the section above.
+`0` is the only value any rebuild from this repository should use; see the section above for what `20` was and why it is retained.
 
 The script refuses an already calibrated GLB. Calibration data and the selected pre-rotation are recorded under `asset.extras.knightFootCalibration`. It is specific to the current knight meshes and bone convention; changing character geometry requires renewed measurements and visual review, and `tools/knight-feet/sole.mjs`'s hard-coded boot mesh names and vertex thresholds are the first thing that will stop matching.

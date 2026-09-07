@@ -4,8 +4,8 @@
  *   node tools/knight-feet/verify.mjs original.glb corrected.glb
  *
  * Two independent questions, both of which have to pass before anything prints "PASS":
- *  1. **Is it level?** Re-measures sole pitch in the rest pose, `0_T-Pose` and every motion clip
- *     at 60 Hz, and requires rest / `0_T-Pose` / `Idle` to stay within one degree of level at every
+ *  1. **Is it level?** Re-measures sole pitch in the rest pose, `0_T-Pose` and every motion clip the
+ *     file carries, at 60 Hz, and requires rest / `0_T-Pose` / `Idle` within one degree of level at every
  *     sample. The motion clips are only required to stay finite — a running foot is *supposed* to
  *     pitch, and pinning it flat would be the bug.
  *  2. **Is anything else different?** Delegated to `integrity.mjs`, on the same two paths this script
@@ -19,8 +19,6 @@ import { load } from './glb.mjs';
 import { landmarks, measured } from './sole.mjs';
 import { checkIntegrity } from './integrity.mjs';
 
-/** Poses to sample: the file's own rest pose, then every clip. */
-const POSES = [null, '0_T-Pose', 'Idle', 'Walk', 'Run', 'Jump'];
 /** Poses required to be level, and how far off level they may be, in degrees. */
 const MUST_BE_LEVEL = ['rest', '0_T-Pose', 'Idle'];
 const LEVEL_TOLERANCE = 1;
@@ -34,8 +32,24 @@ const original = load(originalPath);
 const g = load(correctedPath);
 const lms = landmarks(original);
 
+/**
+ * Poses to sample: the file's own rest pose, then every clip the file actually carries.
+ *
+ * Read off the GLB rather than listed here, because a literal list and a derived count are two lists
+ * that drift. They did: this script printed its clip count from `integrity.clips` while sampling a
+ * hardcoded list that stopped at `Jump`, so `FlyingKick` was reported as covered and never posed.
+ */
+const poses = [null, ...g.j.animations.map((a) => a.name)];
+
+// The level list is a policy, not a coverage claim, so it stays spelled out -- but a name in it that
+// matches no pose would quietly check nothing, which is how a renamed clip would slip through.
+const sampled = new Set(poses.map((p) => p ?? 'rest'));
+for (const name of MUST_BE_LEVEL) {
+  assert(sampled.has(name), `${name} is required to be level but the file carries no such pose`);
+}
+
 const report = [];
-for (const name of POSES) {
+for (const name of poses) {
   const anim = g.j.animations.find((a) => a.name === name);
   const duration = anim ? Math.max(...anim.samplers.map((s) => g.read(s.input).at(-1)[0])) : 0;
   const n = name ? Math.ceil(duration * SAMPLE_HZ) : 0;
@@ -75,9 +89,9 @@ for (const r of report.filter((r) => MUST_BE_LEVEL.includes(r.clip))) {
 // Runs before anything claims success: an integrity failure used to surface as a bare assertion
 // stack trace underneath a line that had already printed "PASS".
 const integrity = checkIntegrity(originalPath, correctedPath);
-// Counted, not spelled out: the clip set grew by one when the homing attack landed, and a hardcoded
-// figure in this line would have gone on claiming four.
-const motionClips = integrity.clips.filter((c) => c !== '0_T-Pose').length;
+// Counted off `report`, which is what the loop above actually visited, so this line cannot claim
+// coverage the run did not perform. Deriving it from `integrity.clips` did exactly that.
+const motionClips = report.filter((r) => r.clip !== 'rest' && r.clip !== '0_T-Pose').length;
 console.log(JSON.stringify(integrity));
 console.log(
   `PASS: ${MUST_BE_LEVEL.join(', ')} soles level; ${motionClips} motion clips sampled at ${SAMPLE_HZ} Hz; ` +

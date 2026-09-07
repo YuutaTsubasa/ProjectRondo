@@ -10,7 +10,7 @@ import { landmarks, measured } from '../../tools/knight-feet/sole.mjs';
  * `tools/knight-feet/calibrate.mjs` levels the boot soles *after* the Godot export, and the README
  * makes it step 3 of the rebuild recipe. Skipping it re-ships the bug it fixed — the knight standing
  * on his heels with his toes in the air — and every other signal stays green: the file still loads,
- * still has four clips, still animates, and a `?v` bump in `knight.ts` still looks like a normal
+ * still has all six clips, still animates, and a `?v` bump in `knight.ts` still looks like a normal
  * rebuild. `verify.mjs` and `integrity.mjs` are the deeper checks, but both need the *uncalibrated*
  * intermediate, which is never committed, so neither can run here.
  *
@@ -24,6 +24,10 @@ const GLB = fileURLToPath(new URL('../../public/models/knight_web.glb', import.m
 const LEVEL_TOLERANCE_DEGREES = 1;
 /** Idle is a cycle, so a single frame proves nothing; this many evenly spaced poses across it do. */
 const IDLE_SAMPLES = 12;
+/** The one clip that is a reference pose rather than motion, as `calibrate.mjs` names it. */
+const REFERENCE_CLIP = '0_T-Pose';
+
+type Channel = { sampler: number; target: { node: number; path: string } };
 
 /** Conjugate of a unit quaternion, i.e. its inverse. */
 const conjugate = (q: number[]): number[] => [-q[0], -q[1], -q[2], q[3]];
@@ -134,7 +138,7 @@ describe('the shipped knight GLB is foot-calibrated', () => {
   // scale comes from raw POSITION bounds, which no rotation-only correction can move, and
   // `0_T-Pose` is never played) — they are here because they are the two poses the calibration
   // fits separately, so a regression in either is one this file should name.
-  // Uncalibrated these read about -10.8, -0.9 and -32.8 degrees respectively.
+  // Uncalibrated these read about -10.8, -0.9 and -13.2 degrees respectively.
   it.each([
     ['the rest pose', null, 1],
     ['0_T-Pose', '0_T-Pose', 1],
@@ -148,12 +152,50 @@ describe('the shipped knight GLB is foot-calibrated', () => {
 
   // The correction is a constant rotation, so it must not have flattened the clips that are supposed
   // to pitch. Without this, "level everywhere" would also pass.
-  it('leaves the moving clips moving', () => {
-    for (const clip of ['Walk', 'Run', 'Jump']) {
-      const all = pitches(clip, 12);
-      expect(all.every((p) => Number.isFinite(p.pitch))).toBe(true);
-      const spread = Math.max(...all.map((p) => p.pitch)) - Math.min(...all.map((p) => p.pitch));
-      expect(spread, `${clip} sole pitch spread`).toBeGreaterThan(10);
+  //
+  // Two things this checks the hard way, both learned by getting them wrong:
+  //
+  // The clip list is read off the file, not spelled out. Spelled out it was ['Walk', 'Run', 'Jump']
+  // and stayed that way when `FlyingKick` joined the export, so the one clip newly brought into the
+  // correction was the one clip nothing here covered. A literal list of clips to cover always omits
+  // the newest one, which is the one most likely to be wrong.
+  //
+  // And what it measures is each ankle's own rotation track, not the skinned sole pitch. Sole pitch
+  // is the ankle composed with everything above it, so in a clip that swings the whole leg the
+  // parent chain supplies a large spread by itself: flattening both of `FlyingKick`'s ankle tracks
+  // to a constant 60 degrees leaves its sole pitch ranging over 80-odd degrees, and a spread
+  // threshold reads that as healthy motion. The local track is what `calibrate.mjs` rewrites, so it
+  // is the thing whose survival this file is entitled to claim.
+  it('leaves every moving clip moving', () => {
+    const feet = receipt.corrections.map((c: { node: number }) => c.node);
+    const motion = g.j.animations.filter((a: { name: string }) => a.name !== REFERENCE_CLIP);
+    expect(motion.map((a: { name: string }) => a.name).sort(),
+      'the shipped clip set changed; re-read this guard before widening it')
+      .toEqual(['FlyingKick', 'Idle', 'Jump', 'Run', 'Walk']);
+
+    for (const a of motion) {
+      const tracks = a.channels.filter(
+        (c: Channel) => c.target.path === 'rotation' && feet.includes(c.target.node),
+      );
+      expect(tracks, `${a.name} has no ankle rotation track`).toHaveLength(feet.length);
+
+      for (const ch of tracks) {
+        const keys = g.read(a.samplers[ch.sampler].output);
+        // Largest angle between any key and the first. A track rewritten to a constant collapses to
+        // ~0 (float32 rounding leaves a few hundredths of a degree); the smallest genuine figure in
+        // the shipped file is Idle's 11.2, and the kick reaches 84.
+        const swing = Math.max(
+          ...keys.map((q: number[]) => {
+            const dot = Math.abs(q.reduce((t, x, i) => t + x * keys[0][i], 0));
+            return (2 * Math.acos(Math.min(1, dot)) * 180) / Math.PI;
+          }),
+        );
+        expect(swing, `${a.name} node ${ch.target.node}: ankle rotation barely moves`).toBeGreaterThan(5);
+      }
+
+      // Skinning still has to produce real numbers at every sample.
+      expect(pitches(a.name, 12).every((p) => Number.isFinite(p.pitch)),
+        `${a.name} has a non-finite sole pitch`).toBe(true);
     }
   });
 });

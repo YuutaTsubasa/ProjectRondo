@@ -17,6 +17,9 @@ obj/
 Thumbs.db
 
 # Godot export artifacts
+# Godot rewrites ProjectRondo.csproj when it bumps the C# SDK reference and leaves the previous
+# copy beside it. It is a backup of a tracked file, and a re-export committed one by accident.
+*.csproj.old
 export.cfg
 export_presets.cfg
 *.translation

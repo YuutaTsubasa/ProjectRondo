@@ -1,12 +1,12 @@
 /**
  * Levels the knight's boot soles in the exported GLB, in place of a re-rig.
  *
- *   node tools/knight-feet/calibrate.mjs input.glb output.glb [pre-rotation degrees: 0 or 20]
+ *   node tools/knight-feet/calibrate.mjs input.glb output.glb [pre-rotation degrees: use 0]
  *   node tools/knight-feet/verify.mjs    input.glb output.glb
  *
  * **What is wrong with the export.** The imported rest pose points the shoe roughly 10.8 degrees
  * nose-down (heel-to-toe line, measured — see `sole.mjs`), and the retargeted `Idle` compounds that
- * to about -32.8 degrees, so the knight stands on his heels with his toes in the air. Every clip is
+ * to about -13.2 degrees, so the knight stands on his heels with his toes in the air. Every clip is
  * retargeted mocap and the mesh is shipped as one baked GLB, so there is nothing upstream in this
  * repository to fix: the correction is applied to the exported file.
  *
@@ -23,22 +23,24 @@
  *
  * **The third argument is a fixed pre-rotation, and its provenance is unknown.** It left-multiplies
  * every motion-clip ankle key by a rotation of `-degrees` about parent-frame X before the constant
- * correction is fitted and applied. The shipped `public/models/knight_web.glb` was built with `20`,
+ * correction is fitted and applied. The shipped `public/models/knight_web.glb` is built with **`0`**,
  * which is recorded in its own `asset.extras.knightFootCalibration.undoParentPitchDegrees`. An
- * earlier revision of this tool described that as undoing a "+20 degree" offset baked by a previous
- * `extract_anims.gd`; **that explanation is withdrawn.** No revision of `extract_anims.gd` in this
+ * earlier build of this asset used `20`, and an earlier revision of this tool described that as
+ * undoing a "+20 degree" offset baked by a previous `extract_anims.gd`; **that explanation is
+ * withdrawn.** No revision of `extract_anims.gd` in this
  * repository's history applies any ankle or foot rotation — the only rotation it has ever baked is
  * the -5 degree thigh adduction it still carries — so there is nothing in this repository the `20`
  * undoes, and where it came from is not recorded anywhere here.
  *
- * **So use `0` for a fresh export.** Both values leave rest, `0_T-Pose` and `Idle` equally level (the
- * fit forces that), and both pass `verify.mjs`. What they change is the other three clips: measured
- * on a reconstruction of an older pre-calibration GLB, sampling rest, `0_T-Pose` and every clip at
- * 60 Hz, `0` and `20` agree to within 0.30 degrees of sole pitch on `Idle` and differ by at most
- * **2.73 degrees** anywhere (worst case `Run`, right foot). `0` is the smaller intervention — it
- * applies only the fitted local correction, where `20` also rewrites every motion key with a
- * pre-rotation nothing in this repository asks for. `20` is kept reachable solely so the shipped
- * asset can be reproduced from its source export.
+ * **Use `0`. Every export this repository can produce needs `0`.** Both values leave rest,
+ * `0_T-Pose` and `Idle` equally level (the fit forces that), and both pass `verify.mjs`. What they
+ * change is the motion clips: measured on a reconstruction of the older pre-calibration GLB — the one
+ * the `20` build came from, which the committed pipeline no longer produces — `0` and `20` agreed to
+ * within 0.30 degrees of sole pitch on `Idle` and differed by at most **2.73 degrees** anywhere
+ * (worst case `Run`, right foot).
+ *
+ * `20` reproduces nothing that currently ships. It is retained only so that comparison can be
+ * re-derived if that older export ever resurfaces; see `docs/knight-foot-calibration.md`.
  */
 import fs from 'node:fs';
 import { load, qm, norm, axis } from './glb.mjs';
@@ -67,8 +69,8 @@ const [, , input, out, preRotationDegrees = '0'] = process.argv;
 if (!input || !out || !['0', '20'].includes(preRotationDegrees)) {
   throw Error(
     'Usage: node calibrate.mjs input.glb output.glb [fixed pre-rotation degrees]\n' +
-      '  0   a fresh export — nothing in this repository bakes an ankle offset to cancel\n' +
-      '  20  reproduces the shipped public/models/knight_web.glb from its own source export',
+      '  0   what the shipped GLB is built with, and what every fresh export needs\n' +
+      '  20  retired: reproduces nothing that ships. See docs/knight-foot-calibration.md',
   );
 }
 if (input === out) throw Error('Use a separate output so the source remains available for verification');
