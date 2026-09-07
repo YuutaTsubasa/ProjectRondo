@@ -144,7 +144,7 @@ export function checkIntegrity(originalPath, correctedPath) {
       // alone would let a run that rewrote the quaternions and forgot to recompute min/max pass
       // exactly as a correct one does — the stale-bounds spec violation calibrate.mjs warns about,
       // waved through by the file that exists to catch it. Recomputed here from the corrected keys,
-      // which are already decoded. Dead on today's asset: none of the 10 foot-rotation accessors
+      // which are already decoded. Dead on today's asset: none of the 12 foot-rotation accessors
       // carries a bound at all, which is also why the omission was invisible.
       for (const bound of ['min', 'max']) {
         if (!Object.hasOwn(b.j.accessors[acc], bound)) continue;

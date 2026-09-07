@@ -127,9 +127,11 @@ const TYPE_SIZES = { SCALAR: 1, VEC2: 2, VEC3: 3, VEC4: 4, MAT4: 16 };
  * a pose that never renders.
  *
  * Verified against the shipped GLB: exactly one node carries this name, its own rest rotation is
- * absent (identity), `Idle`/`Walk`/`Run`/`Jump` each carry a rotation channel for it, and `0_T-Pose`
- * carries none — so the `0_T-Pose` exclusion below is a no-op on this asset and is kept only because
- * a one-frame reference pose is not something to silently rewrite.
+ * absent (identity), all five motion clips — `Idle`, `Walk`, `Run`, `Jump` and `FlyingKick` — carry a
+ * rotation channel for it, and `0_T-Pose` carries none, so the `0_T-Pose` exclusion below is a no-op
+ * on this asset and is kept only because a one-frame reference pose is not something to silently
+ * rewrite. The conclusion rests on that list being exhaustive, so it is spelled out rather than
+ * abbreviated: it was written for a four-clip export and did not notice `FlyingKick` arriving.
  */
 const RETARGET_ROOT_BONE = 'RL_BoneRoot';
 

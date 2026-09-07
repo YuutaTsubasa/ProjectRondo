@@ -175,13 +175,17 @@ const TRAIL_EMISSIVE = new Color3(0.08, 0.22, 0.95);
  * **0.9801 is the wrong number, from three directions at once, and it was published here once.** It
  * is the GLB's own long axis — the Z extent of the POSITION accessors, which is what ends up
  * vertical once the model is skinned. Nothing in the file rotates it: all 42 mesh nodes hang off the
- * single scene root `knight` and not one of them carries a TRS, and the loader adds only a
- * handedness flip. It is the skin that turns it, its inverse bind matrices mapping mesh-local Z onto
- * the skeleton's Y — which is why the unskinned Y extent is 0.197036, the accessor range, against a
- * skinned 0.957617. Calibration rotates ankle nodes and touches no vertex, so that figure is
- * byte-identical in the uncalibrated intermediate and in the shipped file, and on the *intermediate*
- * it is also the hierarchy extent exactly, because that file's soles still sit at `y = 0`. Levelling
- * them lifts the soles off the floor, which shortens the skinned bind pose to 0.9576 and moves
+ * single scene root `knight` and not one of them carries a TRS. Nor does the loader — the hub scene
+ * is right-handed, so `__root__` is left at identity and contributes no transform at all (see
+ * {@link loadKnight}, which says the same thing where it sets the facing). It is the skin that turns
+ * it, its inverse bind matrices mapping mesh-local Z onto the skeleton's Y — which is why the
+ * unskinned Y extent is 0.197036, the accessor range, against a skinned 0.957617. Measured under
+ * both handedness settings, the Y extent is 0.957617 either way; only `__root__`'s Z flip differs.
+ *
+ * Calibration rotates ankle nodes and touches no vertex, so that figure is byte-identical in the
+ * uncalibrated intermediate and in the shipped file, and on the *intermediate* it is also the
+ * hierarchy extent exactly, because that file's soles still sit at `y = 0`. Levelling them lifts
+ * the soles off the floor, which shortens the skinned bind pose to 0.9576 and moves
  * `root.scaling` by 2.3%; 0.9801 survives in the shipped file only as `max.y`. So it is at once a
  * real accessor extent, the right hierarchy extent for the wrong file, and half of the right one for
  * this file — and it is none of the three things this line needs.
