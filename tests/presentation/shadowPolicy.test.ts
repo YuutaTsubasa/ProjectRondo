@@ -31,7 +31,7 @@ describe('knightReceivesShadow', () => {
  * `HEAD_MESHES` is the one list in this file whose correctness lives in a binary, and its own doc
  * says the failure is silent in both directions on a character swap. This resolves it against the
  * shipped GLB so at least the "name no longer exists, or exists twice" half cannot pass unnoticed —
- * which is also what keeps the mesh counts those docs quote from going stale: the 42 in that doc
+ * which is also what keeps three files' mesh counts from going stale: the 42 in `shadowPolicy.ts`
  * and in `knight.ts`, the 40 in both of those and in `shadows.ts`. Those two figures only —
  * `knight.ts` and `shadows.ts` also quote 71, the 40 plus a 31-mesh environment half (20 tree
  * spots, 8 pillars, the pedestal, rock, bush), and nothing here pins that half: add a tree spot and
