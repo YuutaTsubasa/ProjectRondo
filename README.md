@@ -80,17 +80,17 @@ The knight model + retargeted animations live in the Godot prototype. Re-export 
 Godot --headless --path __prototype__ --import
 Godot --headless --path __prototype__ --script res://tools/extract_anims.gd
 
-# 1. Export a GLB (mesh + Idle/Walk/Run/Jump) from Godot headless
+# 1. Export a GLB (mesh + Idle/Walk/Run/Jump/FlyingKick) from Godot headless
 Godot --headless --path __prototype__ --script res://tools/export_web_glb.gd
 
 # 2. Texture-only optimization (do NOT simplify/quantize/resample — it corrupts the skeletal animation)
 gltf-transform resize __prototype__/knight_web.glb /tmp/k.glb --width 1024 --height 1024
 gltf-transform webp /tmp/k.glb /tmp/knight-uncalibrated.glb --quality 80
 
-# 3. Level heel-to-toe pitch in rest/T-Pose/Idle and correct the ankle offset in all four clips.
+# 3. Level heel-to-toe pitch in rest/T-Pose/Idle and correct the ankle offset in every motion clip.
 #    The last argument is a fixed pre-rotation in degrees. Use 0: nothing in this repository bakes
-#    an ankle offset for it to cancel. (The shipped GLB was built with 20, whose origin is not
-#    recorded anywhere here — see the doc below.)
+#    an ankle offset for it to cancel, and the shipped GLB is built with 0. (An earlier build used
+#    20; re-exporting from the committed pipeline showed it does not need one — see the doc below.)
 node tools/knight-feet/calibrate.mjs /tmp/knight-uncalibrated.glb public/models/knight_web.glb 0
 node tools/knight-feet/verify.mjs /tmp/knight-uncalibrated.glb public/models/knight_web.glb
 ```

@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   stepGroundContact,
+  spendBufferedJump,
   INITIAL_GROUND_CONTACT,
   COYOTE_SECONDS,
   JUMP_BUFFER_SECONDS,
@@ -14,7 +15,10 @@ const frames = (seconds: number) => Math.ceil(seconds / DT) + 1;
 
 /** One frame with everything quiet unless overridden. */
 const frame = (state: GroundContactState, over: Partial<Parameters<typeof stepGroundContact>[1]> = {}) =>
-  stepGroundContact(state, { supported: true, jumpPressed: false, verticalSpeed: 0, delta: DT, ...over });
+  stepGroundContact(state, {
+    supported: true, jumpPressed: false, dashInFlight: false, verticalSpeed: 0, bounced: false,
+    delta: DT, ...over,
+  });
 const settle = (state: GroundContactState, n: number, over = {}) => {
   let s = state;
   for (let i = 0; i < n; i += 1) s = frame(s, over).state;
@@ -79,6 +83,54 @@ describe('stepGroundContact', () => {
       const stopped = frame(s, { supported: true, verticalSpeed: -0.1 });
       expect(stopped.grounded).toBe(true);
       expect(stopped.airborne).toBe(false);
+    });
+  });
+
+  describe('a homing bounce', () => {
+    it('is not cancelled by ground the probe finds under the crystal', () => {
+      // The bounce is a climb the domain owns, exactly like a jump — and the domain zeroes the
+      // vertical speed of any motion it is handed as grounded, so grounding here would delete the
+      // rise one frame after Havok was given it, while the crystal had already flashed for it.
+      const r = frame(INITIAL_GROUND_CONTACT, { supported: true, bounced: true, verticalSpeed: 12 });
+      expect(r.grounded).toBe(false);
+      expect(r.airborne).toBe(true);
+    });
+
+    it('lands again as soon as the bounce stops rising', () => {
+      const s = frame(INITIAL_GROUND_CONTACT, { supported: true, bounced: true, verticalSpeed: 12 }).state;
+      expect(frame(s, { supported: true, verticalSpeed: -0.1 }).grounded).toBe(true);
+    });
+
+    it('does not turn a press on the bounce frame into an ordinary jump', () => {
+      // The chain press: the probe found floor under the crystal, so without reading `bounced` first
+      // this frame settles to `grounded`, answers the press as a jump, and reports grounded — which
+      // is exactly what stops `stepHomingLock` being offered the press. The chain would degrade into
+      // a hop. Composed against the real lock in homingLock.test.ts.
+      const r = frame(INITIAL_GROUND_CONTACT, {
+        supported: true, bounced: true, verticalSpeed: 12, jumpPressed: true,
+      });
+      expect(r.jumpRequested).toBe(false);
+      expect(r.grounded).toBe(false);
+    });
+  });
+
+  describe('a dash in flight', () => {
+    // A dash frame is spent in the domain's homing branch, which never reads `jumpRequested`.
+    const dashing = { dashInFlight: true, supported: true, verticalSpeed: 6 };
+
+    it('does not spend a press on a jump the domain will not read', () => {
+      // The skimming case: the probe reports support mid-dash, so this frame would otherwise settle
+      // to `grounded` and answer the press with a jump that goes nowhere at all.
+      const airborne = settle(INITIAL_GROUND_CONTACT, 2, { supported: false, verticalSpeed: -0.2 });
+      expect(frame(airborne, { ...dashing, jumpPressed: true }).jumpRequested).toBe(false);
+    });
+
+    it('keeps that press in the buffer rather than swallowing it', () => {
+      const airborne = settle(INITIAL_GROUND_CONTACT, 2, { supported: false, verticalSpeed: -0.2 });
+      const pressed = frame(airborne, { ...dashing, jumpPressed: true });
+      // The dash ends on the next frame without a bounce (a timeout onto ground); the press it
+      // declined is still worth a jump, where before it had been consumed and thrown away.
+      expect(frame(pressed.state, { supported: true, verticalSpeed: -0.1 }).jumpRequested).toBe(true);
     });
   });
 
@@ -161,6 +213,22 @@ describe('stepGroundContact', () => {
       expect(pressed.jumpRequested).toBe(false); // too far off the ground to jump yet
       s = frame(pressed.state, { supported: false, verticalSpeed: -5 }).state;
       expect(frame(s, { supported: true, verticalSpeed: -5 }).jumpRequested).toBe(true);
+    });
+
+    it('drops a press the homing lock spent, so it cannot come back as a second jump', () => {
+      // The buffer holds every press this machine declines, including the one the lock is about to
+      // commit as a dash — it cannot know which until the lock has answered, and the lock answers
+      // second. `spendBufferedJump` is how the press leaves again. Driven end to end, against the
+      // real lock and the arrival that reaches a legal jump frame, in homingLock.test.ts.
+      const falling = settle(INITIAL_GROUND_CONTACT, frames(COYOTE_SECONDS), {
+        supported: false, verticalSpeed: -5,
+      });
+      const pressed = frame(falling, { supported: false, verticalSpeed: -5, jumpPressed: true });
+      expect(pressed.jumpRequested).toBe(false); // too far off the ground: this press is the lock's
+      const landing = { supported: true, verticalSpeed: -5 } as const;
+      expect(frame(spendBufferedJump(pressed.state), landing).jumpRequested).toBe(false);
+      // Without the retraction that very same frame fires one, which is the double spend itself.
+      expect(frame(pressed.state, landing).jumpRequested).toBe(true);
     });
 
     it('forgets a press that goes unused for longer than the buffer', () => {

@@ -17,9 +17,10 @@
   --c-blue-soft: #7aa0ff;
   --c-pale: #eef2ff;
   /* Bare channels for the colours a component needs at an alpha: --c-white-rgb backs the glass,
-     the focus halo and white-on-blue text; --c-blue-soft-rgb the backlog's entry rules. Neither
-     white nor ink has a hex counterpart here -- white is only ever used at an alpha, and nothing
-     needs ink at one. tests/app/tokens.test.ts keeps --c-blue-soft and its companion in sync. */
+     the focus halo and white-on-blue text; --c-blue-soft-rgb the backlog's entry rules and the
+     choices' scrim, which are the only two and pick different alphas. Neither white nor ink has a
+     hex counterpart here -- white is only ever used at an alpha, and nothing needs ink at one.
+     tests/app/tokens.test.ts keeps --c-blue-soft and its companion in sync. */
   --c-white-rgb: 255, 255, 255;
   --c-blue-soft-rgb: 122, 160, 255;
 

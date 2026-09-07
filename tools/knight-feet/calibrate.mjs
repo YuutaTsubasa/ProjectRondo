@@ -19,7 +19,7 @@
  *
  * Three rotations are fitted per foot rather than one, because the three poses do not share an ankle
  * rotation: the file's own rest pose, the one-frame `0_T-Pose`, and one fitted against 31 evenly
- * spaced `Idle` poses that is then applied to all four motion clips.
+ * spaced `Idle` poses that is then applied to every motion clip.
  *
  * **The third argument is a fixed pre-rotation, and its provenance is unknown.** It left-multiplies
  * every motion-clip ankle key by a rotation of `-degrees` about parent-frame X before the constant
@@ -33,7 +33,7 @@
  *
  * **So use `0` for a fresh export.** Both values leave rest, `0_T-Pose` and `Idle` equally level (the
  * fit forces that), and both pass `verify.mjs`. What they change is the other three clips: measured
- * on a reconstruction of the pre-calibration GLB, sampling rest, `0_T-Pose` and all four clips at
+ * on a reconstruction of an older pre-calibration GLB, sampling rest, `0_T-Pose` and every clip at
  * 60 Hz, `0` and `20` agree to within 0.30 degrees of sole pitch on `Idle` and differ by at most
  * **2.73 degrees** anywhere (worst case `Run`, right foot). `0` is the smaller intervention — it
  * applies only the fitted local correction, where `20` also rewrites every motion key with a
@@ -44,8 +44,15 @@ import fs from 'node:fs';
 import { load, qm, norm, axis } from './glb.mjs';
 import { landmarks, measured, sub, unit } from './sole.mjs';
 
-/** Clips the shipped knight carries, sorted. A different set means a different export; stop. */
-const EXPECTED_CLIPS = '0_T-Pose,Idle,Jump,Run,Walk';
+/**
+ * Clips the shipped knight carries, sorted. A different set means a different export; stop.
+ *
+ * `FlyingKick` joined in #39 (the homing attack's dash). It is a motion clip, so it takes the same
+ * ankle correction as Walk/Run/Jump — the fit is still made against Idle, and every motion clip
+ * receives the constant it produces. Widening this list is a deliberate act: the guard exists so a
+ * clip set nobody expected stops the run rather than being silently calibrated.
+ */
+const EXPECTED_CLIPS = '0_T-Pose,FlyingKick,Idle,Jump,Run,Walk';
 /** The one clip that is a reference pose rather than motion — fitted and corrected on its own. */
 const REFERENCE_CLIP = '0_T-Pose';
 /** Clip the animated correction is fitted against, and how many evenly spaced poses to fit over. */
@@ -168,7 +175,7 @@ for (const lm of lms) {
     localAxis,
     rest: solveFor(null, [0], false),
     tpose: solveFor(REFERENCE_CLIP, [0], false),
-    // One correction for all four motion clips, fitted over a whole Idle cycle so it lands on the
+    // One correction for every motion clip, fitted over a whole Idle cycle so it lands on the
     // clip's mean rather than on whichever single frame happened to be sampled.
     animation: solveFor(
       FIT_CLIP,

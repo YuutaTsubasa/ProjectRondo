@@ -1,0 +1,23 @@
+<Project Sdk="Godot.NET.Sdk/4.7.1">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <EnableDynamicLoading>true</EnableDynamicLoading>
+    <RootNamespace>ProjectRondo</RootNamespace>
+    <!-- The Godot game project lives at the repo root; keep its C# compilation to the
+         presentation layer only, so the Domain and test projects are not globbed in. -->
+    <DefaultItemExcludes>$(DefaultItemExcludes);src\**;tests\**</DefaultItemExcludes>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="OneOf" Version="3.0.271" />
+    <PackageReference Include="Optional" Version="4.0.0" />
+    <PackageReference Include="R3" Version="1.3.0" />
+    <PackageReference Include="ZLinq.Godot" Version="1.5.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="src/ProjectRondo.Domain/ProjectRondo.Domain.csproj" />
+  </ItemGroup>
+
+</Project>

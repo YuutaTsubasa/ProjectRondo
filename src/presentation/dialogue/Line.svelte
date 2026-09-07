@@ -1,5 +1,24 @@
+<script module lang="ts">
+  /**
+   * Shortest gap between two typing ticks, in milliseconds.
+   *
+   * The reveal runs a character every `charMs` — 24 by default — while the tick sample is 60 ms long,
+   * so one sound per character would stack three deep and read as a machine gun rather than as
+   * typing. 70 keeps consecutive ticks from overlapping at all.
+   *
+   * The accumulator below only paces the ticks THIS component generates, and it is not what makes
+   * that rule hold: `ui.type` has a second source, the press on the dialogue box, and neither
+   * component can see the other's. The window that spans both is applied once, in
+   * `DialogueOverlay.typeCue`, which owns `playCue` and is the only place the two meet. Exported for
+   * it, so the reveal is paced to the same figure the sound gate enforces rather than to a second
+   * one that could drift from it.
+   */
+  export const TYPE_MIN_MS = 70;
+</script>
+
 <script lang="ts">
-  let { text, charMs = 24, onDone }: { text: string; charMs?: number; onDone?: () => void } = $props();
+  let { text, charMs = 24, onDone, onType }:
+    { text: string; charMs?: number; onDone?: () => void; onType?: () => void } = $props();
   let shown = $state('');
   let complete = $state(false);
   let timer: ReturnType<typeof setInterval> | undefined;
@@ -9,9 +28,23 @@
   $effect(() => {
     shown = ''; complete = false;
     let i = 0;
+    // Starts at zero, so the first tick lands one throttle window into the line rather than on its
+    // first character. A line almost always begins because the box was just pressed, and that press
+    // sounds its own tick (DialogueOverlay.onBoxClick); asking for a second one 24 ms later would
+    // only spend a tick the overlay's gate then drops. The lines that start without a press, the
+    // first of a script and any AUTO advance, open the same way rather than on their very first
+    // character.
+    let sinceTick = 0;
     clearInterval(timer);
     timer = setInterval(() => {
       i++; shown = text.slice(0, i);
+      // Accumulating `charMs` rather than reading a clock: it is the interval this timer was given,
+      // so the throttle stays right when a caller slows the reveal down — past TYPE_MIN_MS every
+      // character sounds, which is what a slow typewriter should do. `finish()` deliberately makes
+      // no sound: reveal-all draws the rest of the line at once, and one tick per skipped character
+      // is the burst this throttle exists to prevent.
+      sinceTick += charMs;
+      if (sinceTick >= TYPE_MIN_MS) { sinceTick = 0; onType?.(); }
       if (i >= text.length) finish();
     }, charMs);
     return () => clearInterval(timer);

@@ -4,7 +4,7 @@
  *   node tools/knight-feet/verify.mjs original.glb corrected.glb
  *
  * Two independent questions, both of which have to pass before anything prints "PASS":
- *  1. **Is it level?** Re-measures sole pitch in the rest pose, `0_T-Pose` and all four motion clips
+ *  1. **Is it level?** Re-measures sole pitch in the rest pose, `0_T-Pose` and every motion clip
  *     at 60 Hz, and requires rest / `0_T-Pose` / `Idle` to stay within one degree of level at every
  *     sample. The motion clips are only required to stay finite — a running foot is *supposed* to
  *     pitch, and pinning it flat would be the bug.
@@ -75,9 +75,12 @@ for (const r of report.filter((r) => MUST_BE_LEVEL.includes(r.clip))) {
 // Runs before anything claims success: an integrity failure used to surface as a bare assertion
 // stack trace underneath a line that had already printed "PASS".
 const integrity = checkIntegrity(originalPath, correctedPath);
+// Counted, not spelled out: the clip set grew by one when the homing attack landed, and a hardcoded
+// figure in this line would have gone on claiming four.
+const motionClips = integrity.clips.filter((c) => c !== '0_T-Pose').length;
 console.log(JSON.stringify(integrity));
 console.log(
-  `PASS: ${MUST_BE_LEVEL.join(', ')} soles level; all four motion clips sampled at ${SAMPLE_HZ} Hz; ` +
+  `PASS: ${MUST_BE_LEVEL.join(', ')} soles level; ${motionClips} motion clips sampled at ${SAMPLE_HZ} Hz; ` +
     `${integrity.correctedKeys} keys corrected across ${integrity.correctedRotationChannels} channels and ` +
     `${integrity.untouchedBinaryBytes} binary bytes unchanged.`,
 );
