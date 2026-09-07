@@ -30,7 +30,7 @@ The earlier note compared the two modes on a reconstruction of that older export
 
 `0` is the smaller intervention: it applies only the fitted local correction, where `20` also rewrites every motion key with a pre-rotation nothing in this repository asks for.
 
-`20` now reproduces nothing that ships. Its input was that older export, which the committed pipeline no longer produces, and the shipped GLB is built with `0`. It is retained only so the comparison above can be re-derived should that export ever resurface — not as an option for any rebuild.
+`20` now reproduces nothing that ships, and it is no longer reachable in practice either: its only input was that five-clip export, and `calibrate.mjs`'s `EXPECTED_CLIPS` guard — widened to the six-clip set when `FlyingKick` arrived — rejects it before the pre-rotation argument is read. Re-deriving the table above would mean deliberately widening that guard as well. The argument survives because the receipt records it and `integrity.mjs` verifies it against the corrected keys, so the field still has to mean something; `0` is the only value any rebuild should pass.
 
 ## Measurements
 

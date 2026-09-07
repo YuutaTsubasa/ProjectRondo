@@ -27,10 +27,10 @@
  * which is recorded in its own `asset.extras.knightFootCalibration.undoParentPitchDegrees`. An
  * earlier build of this asset used `20`, and an earlier revision of this tool described that as
  * undoing a "+20 degree" offset baked by a previous `extract_anims.gd`; **that explanation is
- * withdrawn.** No revision of `extract_anims.gd` in this
- * repository's history applies any ankle or foot rotation — the only rotation it has ever baked is
- * the -5 degree thigh adduction it still carries — so there is nothing in this repository the `20`
- * undoes, and where it came from is not recorded anywhere here.
+ * withdrawn.** No revision of `extract_anims.gd` in this repository's history applies any ankle or
+ * foot rotation — the only rotation it has ever baked is the -5 degree thigh adduction it still
+ * carries — so there is nothing in this repository the `20` undoes, and where it came from is not
+ * recorded anywhere here.
  *
  * **Use `0`. Every export this repository can produce needs `0`.** Both values leave rest,
  * `0_T-Pose` and `Idle` equally level (the fit forces that), and both pass `verify.mjs`. What they
@@ -39,8 +39,12 @@
  * within 0.30 degrees of sole pitch on `Idle` and differed by at most **2.73 degrees** anywhere
  * (worst case `Run`, right foot).
  *
- * `20` reproduces nothing that currently ships. It is retained only so that comparison can be
- * re-derived if that older export ever resurfaces; see `docs/knight-foot-calibration.md`.
+ * **`20` is dead, and reaching it takes more than passing `20`.** It reproduces nothing that ships,
+ * and the only input it was ever for is that five-clip export — which `EXPECTED_CLIPS` below now
+ * rejects before the pre-rotation is read, since the set it admits was widened to six for
+ * `FlyingKick`. Re-deriving the comparison above would mean widening that guard too, which its own
+ * comment calls a deliberate act. The argument is kept because the receipt records it and
+ * `integrity.mjs` verifies it, so the field has to mean something; nothing here should pass it.
  */
 import fs from 'node:fs';
 import { load, qm, norm, axis } from './glb.mjs';
