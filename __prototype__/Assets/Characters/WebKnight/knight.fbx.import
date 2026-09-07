@@ -3,13 +3,13 @@
 importer="scene"
 importer_version=1
 type="PackedScene"
-uid="uid://bu4n2v5p1khvf"
-path="res://.godot/imported/knight.fbx-bb05d379a6c31d477a1a7b5a03e661d2.scn"
+uid="uid://je8i35jrua1l"
+path="res://.godot/imported/knight.fbx-c337d17fce7f23d29747e56125394638.scn"
 
 [deps]
 
-source_file="res://Assets/Characters/MedievalKnight/knight.fbx"
-dest_files=["res://.godot/imported/knight.fbx-bb05d379a6c31d477a1a7b5a03e661d2.scn"]
+source_file="res://Assets/Characters/WebKnight/knight.fbx"
+dest_files=["res://.godot/imported/knight.fbx-c337d17fce7f23d29747e56125394638.scn"]
 
 [params]
 

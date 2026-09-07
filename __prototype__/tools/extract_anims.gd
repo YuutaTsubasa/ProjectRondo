@@ -1,5 +1,11 @@
 extends SceneTree
 
+# Foot calibration is NOT done here. tools/knight-feet/calibrate.mjs levels the boot soles on the
+# exported GLB, after this script has run. This script bakes exactly one rotation, the ADDUCT_DEG
+# thigh correction below, and it has never baked an ankle or foot rotation in any revision in this
+# repository's history. calibrate.mjs used to take a pre-rotation argument to cancel one; it has
+# been removed, and passing anything as a third argument is now an error.
+
 const SRC := {
 	"Idle": "res://Assets/Animations/Idle.fbx",
 	"Walk": "res://Assets/Animations/Walking.fbx",
@@ -20,7 +26,7 @@ const R_THIGH := "Skeleton3D:RightUpperLeg"
 var _adduct_axis := Vector3(0, 0, 1)
 
 func _initialize():
-	var knight: Node = load("res://Assets/Characters/MedievalKnight/knight.fbx").instantiate()
+	var knight: Node = load("res://Assets/Characters/WebKnight/knight.fbx").instantiate()
 	var ksk := _find(knight, "Skeleton3D") as Skeleton3D
 	# `export_web_glb.gd` parents the baked AnimationPlayer directly on this same knight root, so every
 	# track path below ("Skeleton3D:...", used verbatim from the source clips — see the loop) resolves
@@ -58,7 +64,7 @@ func _adduct(anim: Animation, track_path: String, sign: float) -> void:
 	var ti := anim.find_track(NodePath(track_path), Animation.TYPE_ROTATION_3D)
 	# Same invariant as the Skeleton3D path assert in _initialize(): the very re-import that would
 	# change this prefix out from under `_adduct` is the case that assert exists to catch loudly. A
-	# silent `return` here would drop the -5° A-stance correction from all four clips while
+	# silent `return` here would drop the -5° A-stance correction from all five clips while
 	# `_initialize` still prints "added … tracks=…" and "SAVED err=0", with no other signal.
 	assert(ti >= 0, "expected a ROTATION_3D track at %s to apply the A-stance correction; got none" % track_path)
 	var dq := Quaternion(_adduct_axis, deg_to_rad(ADDUCT_DEG) * sign)

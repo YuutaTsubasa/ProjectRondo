@@ -156,18 +156,49 @@ const TRAIL_EMISSIVE = new Color3(0.08, 0.22, 0.95);
  *
  * So `0.2` is a radius in the GLB's own local units, the on-screen ribbon is `2 * 0.2 * root.scaling`
  * wide, and neither number is directly comparable to {@link TARGET_HEIGHT} or to any other world-space
- * measurement in this file. The measured width below closes on that arithmetic exactly, which is what
- * says the factor of two is real and not a misreading of the library: `knight_web.glb`'s bind-pose
- * extent on its long axis is 0.9794 units, so `root.scaling` is `1.9 / 0.9794` = 1.9399, and
- * `2 * 0.2 * 1.9399` = 0.776 — the number that was measured. Dropping the factor of two predicts 0.388
- * instead.
+ * measurement in this file. The measured width below closed on that arithmetic exactly for the
+ * character it was taken against, which is what says the factor of two is real and not a misreading
+ * of the library.
  *
- * **Untuned**, and unlike {@link TRAIL_EMISSIVE} above — retuned off the same browser pass — this one
- * came out of that pass unchanged: the ribbon measured 0.776 world units across on screen, close to the
- * knight's own torso width and reading thick, but no better width was tried, so 0.2 is still the
- * arrival value rather than a chosen one. Retune it in local units against an actual screenshot, or
- * take the world-space width wanted, halve it and divide by `root.scaling` at the call site — both
- * corrections, not just the scaling one.
+ * The height `loadKnight` divides by is `getHierarchyBoundingVectors(true)`'s **Y** extent, and by
+ * then the glTF loader has called `refreshBoundingInfo(true, true)` on every primitive, so it is the
+ * skin applied to the bind pose — not a POSITION accessor range. Measured on the shipped GLB with
+ * the installed Babylon: `min.y` 0.0225, `max.y` 0.9801, extent **0.9576**, so `root.scaling` is
+ * `1.9 / 0.9576` = **1.9841** and `2 * 0.2 * 1.9841` = **0.794**. Dropping the factor of two
+ * predicts 0.397 instead — a separation that holds whatever the model scales to.
+ *
+ * The 0.776 below was measured in the browser against the *previous* character, and it did close on
+ * that character's arithmetic exactly: extent 0.9794, scaling 1.9399, ribbon 0.776. This PR swapped
+ * the model and nobody has re-measured the ribbon on screen since, so 0.794 is a prediction, not a
+ * reading.
+ *
+ * **0.9801 is the wrong number, from three directions at once, and it was published here once.** It
+ * is the GLB's own long axis — the Z extent of the POSITION accessors, which is what ends up
+ * vertical once the model is skinned. Nothing in the file rotates it: all 42 mesh nodes hang off the
+ * single scene root `knight` and not one of them carries a TRS. Nor does the loader — the hub scene
+ * is right-handed, so `__root__` is left at identity and contributes no transform at all (see
+ * {@link loadKnight}, which says the same thing where it sets the facing). It is the skin that turns
+ * it, its inverse bind matrices mapping mesh-local Z onto the skeleton's Y — which is why the
+ * unskinned Y extent is 0.197036, the accessor range, against a skinned 0.957617. Measured under
+ * both handedness settings, the Y extent is 0.957617 either way: left-handed puts *both* a
+ * `[1, 1, -1]` scale and a 180-degree Y rotation on `__root__`, and scale-then-rotate composes them
+ * into an **X** mirror — X reflects, Y and Z come back bit-identical.
+ *
+ * Calibration rotates ankle nodes and touches no vertex, so that figure is byte-identical in the
+ * uncalibrated intermediate and in the shipped file, and on the *intermediate* it is also the
+ * hierarchy extent exactly, because that file's soles still sit at `y = 0`. Levelling them lifts
+ * the soles off the floor, which shortens the skinned bind pose to 0.9576 and moves
+ * `root.scaling` by 2.3%; 0.9801 survives in the shipped file only as `max.y`. So it is at once a
+ * real accessor extent, the right hierarchy extent for the wrong file, and half of the right one for
+ * this file — and it is none of the three things this line needs.
+ *
+ * **Untuned**, and unlike {@link TRAIL_EMISSIVE} above — retuned off the same browser pass — this
+ * one came out of that pass unchanged: the ribbon measured 0.776 world units across on screen — on
+ * the character of the day, and it is wider now — close to the knight's own torso width and reading
+ * thick, but no better width was tried, so 0.2 is still the arrival value rather than a chosen one.
+ * Retune it in local units against an actual screenshot, or take the world-space width wanted,
+ * halve it and divide by `root.scaling` at the call site — both corrections, not just the scaling
+ * one.
  */
 const DASH_TRAIL_DIAMETER = 0.2;
 /**
@@ -217,85 +248,90 @@ const DASH_TRAIL_LENGTH = 24;
  * disagreed because each used a differently hand-placed box with the idle animation *running*, so the
  * head sat at a different angle in each; both are superseded by the table above.
  *
- * **This table is from the previous character** (whose head was `Mesh_0` + `Mesh_32`/`Mesh_33` — see
- * `HEAD_MESHES` in `shadowPolicy.ts`), not the current four-mesh head this file swaps in
- * (`Mesh_1`/`Mesh_20`/`Mesh_43`/`Mesh_46`), and has not been retaken since. A different head mesh with
- * a different face texture in a different frame composition will not reproduce these figures. Left
- * here because `FACE_EMISSIVE` below was *tuned* against this table, so the constant's provenance is
- * this measurement even though the measurement no longer describes what ships — re-measure on the
- * current head before trusting the numbers, and note the constant itself may want retuning once that's
- * done.
+ * **This table is from an earlier character** (whose head was `Mesh_0` + `Mesh_32`/`Mesh_33`), not the
+ * current head this file swaps in (`Mesh_1` + `Mesh_23`; see `HEAD_MESHES` in `shadowPolicy.ts`), and
+ * has not been retaken since. A different head mesh with a different face texture in a different frame
+ * composition will not reproduce these figures. Left here because `FACE_EMISSIVE` below was *tuned*
+ * against this table, so the constant's provenance is this measurement even though the measurement no
+ * longer describes what ships — re-measure on the current head before trusting the numbers, and note
+ * the constant itself may want retuning once that's done.
  *
- * Previously described here as inseparable from the hair — that was wrong. `shadowPolicy.ts` (`HEAD_MESHES`)
- * establishes that `Mesh_1` is hair only (no face, no neck, no skin) and `Mesh_20` is the face/head
- * skin: they are already separate meshes, both listed separately in `HEAD_MESHES`, both put on the
- * same emissive clone by `swapHeadMaterial` below. So the hair lift (near-black to a warm brown) and
- * the face lift are two separate meshes on one shared material, not one mesh carrying both — they
- * could be tuned independently (e.g. a second, hair-only material) if that were ever wanted. Left as
- * one shared `FACE_EMISSIVE` for now; the lift on the hair reads as an improvement, not a defect.
+ * On the current (stylized fantasy) head, `Mesh_1` carries the face *and* the hair together and
+ * `Mesh_23` is the inner head; the eyes are painted into the face texture, so there is no separate
+ * eyeball mesh. Both head meshes share one material and `swapHeadMaterial` below puts the same emissive
+ * clone on both, so the face lift and the hair lift ride one shared `FACE_EMISSIVE`. They could be
+ * split (e.g. a hair-only material) if that were ever wanted; the hair lift reads as an improvement.
  */
 const FACE_EMISSIVE = 0.45;
 
 /** Cache-buster for the packed metallic/roughness map; bump when the map is rebuilt. */
-const BODY_MR_URL = '/models/knight_mr.webp?v=1';
+const BODY_MR_URL = '/models/knight_mr.webp?v=2';
 
 /**
- * How metallic the armour is allowed to read, deliberately below the physically-correct 1.
+ * How metallic the armour reads — now the physically-correct 1.
  *
- * A metal has no diffuse — its albedo becomes the specular F0 — so it can only show what it reflects.
- * This scene has no environment texture (`scene.environmentTexture` is null; nothing in `src/` ever
- * sets one), so at `metallic = 1` the ~36% of texels the packed map flags as metal have nothing to
- * reflect but the sun's specular lobe and render near-black. The armour's own albedo is dark to begin
- * with — mean luma 71.8/255, 39.5% of its texels below 32 — so there is little headroom to lose.
+ * A metal has no diffuse — its albedo becomes the specular F0 — so it can only show what it reflects,
+ * and the scene now gives it something to reflect: `createEnvironment` (in `environment.ts`) sets
+ * `scene.environmentTexture` to a neutral studio IBL. Before that environment existed this was held at
+ * 0.6, trading physical correctness for brightness, because at `metallic = 1` the majority of the
+ * plate — 76.4% of the packed map's texels read metallic > 0.5, and 84.8% area-weighted through the
+ * body's UVs — had nothing to reflect but the sun's specular lobe and rendered near-black.
+ * With the IBL in place that concession is no longer needed and the plate reads as true silver steel —
+ * this was the fix for the "darker than Tripo3D" report (Tripo's viewer lights the model with an HDRI;
+ * this scene had none).
  *
- * Holding some diffuse back is the concession that buys the plate its shape without an IBL. Measured
- * over the armour's own pixels (mask taken by hiding the body and diffing, 50 850 px), scene frozen,
- * zero reproducibility and restore controls, at `BODY_DIRECT_INTENSITY`:
+ * What justifies 1 is the environment, not the roughness. An earlier version of this note argued that
+ * the map is "near 1 rough over most of the plate", so rough-metal specular stands in for the diffuse
+ * irradiance it replaces and the change costs little luma. That is false of this map: sampled through
+ * the body meshes' own `TEXCOORD_0` and weighted by triangle area, mean roughness is **0.320**, 64.2%
+ * of the surface is below 0.3, and **none** of it is above 0.8 (whole-image, only 8.5% of texels
+ * exceed 0.8). `applyBodyPbr` below carries a "0.25-0.6" figure that also disagreed with "near 1",
+ * but it is no corroboration: it was measured on the `?v=1` map this PR replaces, and on the shipped
+ * one the G channel spans 0.000-1.000 with 49.5% of texels below 0.25 and 19.8% above 0.6. Both notes
+ * were describing maps that are not the one in the tree. The premise is withdrawn; 1 is correct because
+ * a metal's energy is its reflection and there is now something to reflect, and the luma it costs is
+ * whatever `IBL_INTENSITY` was tuned against. Brightness is set there, not by this number, and that
+ * constant's doc is the single place the shipped plate's measured luma lives.
  *
- * | metallic | mean luma | pixels below 30 |
- * | --- | --- | --- |
- * | 1.0 | 34.0 | 66.6% |
- * | 0.8 | 46.4 | 42.4% |
- * | **0.6** | **56.0** | **35.3%** |
- * | 0.4 | 64.1 | 32.5% |
+ * An earlier note here put the 0.6→1.0 sweep at ~118.6→114.3 and used the gap to justify raising
+ * `IBL_INTENSITY` to 1.4. That put the shipped configuration at 114.3 where two other notes put it at
+ * ~117, and made the two constants justify each other in a circle. It could not be re-measured (the
+ * mask measurement needs the running scene), so it is withdrawn rather than left standing as a third
+ * disagreeing figure.
  *
- * 0.4 is brighter still but the steel starts reading as plastic, losing the dark-to-light contrast
- * that makes it look like metal. If an environment texture is ever added, raise this back toward 1
- * and re-measure — the correct fix is the IBL, not this number.
- *
- * This table, `BODY_DIRECT_INTENSITY`'s below, and the "~36%" metal-texel figure above were all
- * measured through the *lossy* `knight_mr.webp` that ships today (its header is `VP8 `, not
- * `VP8L` — see the README's regeneration recipe). Lossy WebP chroma-subsamples and cross-contaminates
- * the G/B channels this map packs roughness and metallic into, so re-packing losslessly per that
- * recipe changes the inputs these numbers came from and invalidates this table; re-measure after
- * re-packing rather than trusting these figures against the new map.
+ * The metal-texel and roughness figures above were measured on the `knight_mr.webp` **this PR
+ * ships** (`?v=2`), which is not the map the pre-PR numbers came from: the swap took metallic > 0.5
+ * from 53.3% to 76.4% of texels. They, and `IBL_INTENSITY`'s luma figures, were measured
+ * through that *lossy* map (its header is `VP8 `, not `VP8L` — see the
+ * README's regeneration recipe). Lossy WebP chroma-subsamples and cross-contaminates the G/B channels
+ * this map packs roughness and metallic into, so re-packing losslessly per that recipe changes the
+ * inputs these numbers came from; re-measure after re-packing rather than trusting them against the new
+ * map, and note the mask figures move with the model, so re-measure on a character swap too.
  */
-const BODY_METALLIC = 0.6;
+const BODY_METALLIC = 1.0;
 
 /**
- * Direct-light multiplier for the armour, compensating for the same missing IBL.
+ * Direct-light multiplier for the armour — back to the neutral 1.0.
  *
- * `directIntensity` scales only this material's response to the scene's lights, so it lifts the
- * armour without touching the terrain, foliage or the toon face (which is its own material). Measured
- * at `BODY_METALLIC`, same mask and controls: 1.0 -> 43.5, 1.3 -> 50.1, **1.6 -> 56.0**, 2.0 -> 63.2.
+ * `directIntensity` scales only this material's response to the scene's *direct* lights, so it lifts
+ * the armour without touching the terrain, foliage or the toon face (which is its own material). It was
+ * pushed to 1.6 only to over-drive the sun and stand in for the missing image-based lighting; now that
+ * `createEnvironment` sets `scene.environmentTexture` (see `BODY_METALLIC` above), keeping the 1.6
+ * would double-count the fill the environment already supplies and blow out the sunlit plates. The
+ * environment now carries the fill, so this returns to 1.0 and `IBL_INTENSITY` is the brightness lever.
  *
- * Together with `BODY_METALLIC` this takes the armour from **27.6 mean luma with 72.2% of its pixels
- * below 30** to **56.0 with 35.3%** — roughly double the brightness, with the near-black half of the
- * surface halved. That was the reported problem: the plate read as a flat silhouette, and its shapes
- * merged into one another rather than looking see-through.
- *
- * Like `BODY_METALLIC`'s table, this was measured through the *lossy* `knight_mr.webp` that ships
- * today; re-packing losslessly per the README's recipe changes the G/B inputs and invalidates these
- * figures too — re-measure after re-packing.
+ * What the armour actually measures at this value is recorded once, on `IBL_INTENSITY` in
+ * `environment.ts`, rather than restated here: three copies of that figure across two files had
+ * drifted apart. The lossy-`knight_mr.webp` caveat on `BODY_METALLIC` applies to it too.
  */
-const BODY_DIRECT_INTENSITY = 1.6;
+const BODY_DIRECT_INTENSITY = 1.0;
 
 /**
  * Corrects the GLB-shipped `normalTexture.scale: 0` on the knight's material while every mesh —
  * head included — still shares that one material object, so the correction is in place before
  * anything clones it.
  *
- * Must run before {@link applyFaceMaterial}. Every one of the knight's 47 meshes ships sharing a
+ * Must run before {@link applyFaceMaterial}. Every one of the knight's 42 meshes ships sharing a
  * single glTF material at the point `loadKnight` calls this; `swapHeadMaterial` (inside
  * `applyFaceMaterial`, called right after) is what first splits the head onto its own clone via
  * `Material.clone()`. `Material.clone()` runs every texture slot through `SerializationHelper.Clone`,
@@ -303,8 +339,8 @@ const BODY_DIRECT_INTENSITY = 1.6;
  * the clone ends up with its own `bumpTexture` *wrapper*, carrying whatever `level` the source had at
  * clone time. Correct the source here, before that clone exists, and the clone inherits the fix for
  * free. Correcting it only in {@link applyBodyPbr} instead — which runs after the split, and only
- * touches the body's copy of the material — would leave the head's four meshes, including `Mesh_1`
- * (the 9232-vertex hair), on the shipped `level: 0`. Babylon's loader copies `normalTexture.scale`
+ * touches the body's copy of the material — would leave the head's two meshes, including the
+ * 8047-vertex `Mesh_1` that carries the face, on the shipped `level: 0`. Babylon's loader copies `normalTexture.scale`
  * straight into `bumpTexture.level` (`glTFLoader.pure.js`), and PBR materials compile with
  * `NORMALXYSCALE` defined, so `perturbNormalBase` evaluates `normalize(n * vec3(scale, scale, 1.0))`
  * with `scale = 0` — the unperturbed geometric normal, i.e. a dead normal map on whichever mesh never
@@ -361,7 +397,7 @@ function correctSharedNormalScale(meshes: readonly AbstractMesh[]): void {
  * The other export-side defect this material ships with — `normalTexture.scale: 0` — is corrected
  * earlier, by {@link correctSharedNormalScale}, *before* {@link applyFaceMaterial} clones this
  * material for the head. Fixing it here instead, after the clone already exists, would leave the
- * clone (and so all four head meshes) on the shipped, uncorrected `level`; see that function's doc.
+ * clone (and so both head meshes) on the shipped, uncorrected `level`; see that function's doc.
  *
  * Runs *after* {@link applyFaceMaterial}, so the head's toon clone — cloned before this — keeps a
  * non-metallic, unlit face. The whole body shares one material, so setting it once covers every mesh.
@@ -427,8 +463,8 @@ function applyBodyPbr(meshes: readonly AbstractMesh[], scene: Scene): void {
   // is off `source`. `applyFaceMaterial` warn-and-skips from seven different guard points (name-count
   // mismatch, no material, split head materials, no albedoTexture, `clone()` returning null, a clone
   // without an albedoTexture, or a compile failure that rolls the head back to `source`), and on every
-  // one of them the head meshes are still on this exact material object. Applying `metallic = 0.6`,
-  // `directIntensity = 1.6` and unculled two-sided lighting to it would make the face metallic and
+  // one of them the head meshes are still on this exact material object. Applying `BODY_METALLIC`,
+  // `BODY_DIRECT_INTENSITY` and unculled two-sided lighting to it would make the face metallic and
   // light-tracking — a worse outcome than the matte face `applyFaceMaterial`'s own doc promises when it
   // skips. Detect that by identity, not by name, and skip loudly instead.
   if (meshes.some((m) => HEAD_MESHES.includes(m.name) && m.material === source)) {
@@ -454,9 +490,12 @@ function applyBodyPbr(meshes: readonly AbstractMesh[], scene: Scene): void {
   //
   // This also reaches the shadow map, not just the camera pass: `ShadowGenerator._renderSubMeshForShadowMap`
   // passes the material's own `backFaceCulling` straight through, so turning it off here turns
-  // culling off for all four CSM cascade renders too, and these 43 meshes both cast and receive.
+  // culling off for all four CSM cascade renders too, and these 40 meshes both cast and receive.
   // Measured the consequence directly (same frozen frame, 70 436 knight pixels, zero
-  // reproducibility control), body culled vs. unculled:
+  // reproducibility control), body culled vs. unculled. **Inherited, not re-measured:** this table
+  // was taken at `metallic = 0.6`, `directIntensity = 1.6` and no environment texture, all three of
+  // which this PR changed, so treat the absolute luma as historical and the culled-vs-unculled delta
+  // as the part that still carries. Re-measure before tuning against it:
   //
   // | | body culled | body unculled | delta |
   // | --- | --- | --- | --- |
@@ -466,8 +505,10 @@ function applyBodyPbr(meshes: readonly AbstractMesh[], scene: Scene): void {
   // With shadows off the change is aggregate-neutral, as expected — the seam pixels are a small
   // fraction of the body. With shadows on, the back faces write depth into the same cascades these
   // meshes sample, and that darkens the knight by ~1.6 luma (~3%). The near-black fraction barely
-  // moves (30.68% -> 30.73%), so this is a mild uniform darkening, not new acne — accepted, and it
-  // slightly offsets `BODY_METALLIC`/`BODY_DIRECT_INTENSITY` above. `NORMAL_BIAS = 0.04` in
+  // moves (30.68% -> 30.73%), so this is a mild uniform darkening, not new acne — accepted. It used
+  // to say this "slightly offsets `BODY_METALLIC`/`BODY_DIRECT_INTENSITY`", which was true when those
+  // were 0.6 and 1.6 and were the brightening levers; both are 1.0 now and neither sets brightness, so
+  // what a ~1.6-luma darkening works against is `IBL_INTENSITY` in `environment.ts`. `NORMAL_BIAS = 0.04` in
   // `shadows.ts` (Task 8) was validated against this material CULLED, so that validation no longer
   // describes what ships — but the table above shows no acne increase with it unculled, so this is
   // recorded rather than re-tuned. The extra fragment cost across four cascades is real and
@@ -475,9 +516,10 @@ function applyBodyPbr(meshes: readonly AbstractMesh[], scene: Scene): void {
   //
   // A second, independent way this PR invalidates that same Task 8 validation: it was measured at
   // 62 meshes casting-and-receiving (31 `tripo_part_*` knight-body meshes + 31 environment meshes,
-  // spec §7). This PR takes the knight's receiving body from 31 meshes to 43 (see `HEAD_MESHES` /
-  // `knightReceivesShadow` in `shadowPolicy.ts`), so the shipped casting-and-receiving count is now
-  // 74, not 62. `NORMAL_BIAS = 0.04`'s acne validation was never re-run at 74 — it is recorded here
+  // spec §7; the environment half is inherited from that spec, not re-counted here). This PR takes
+  // the knight's receiving body from 31 meshes to 40 — the shipped GLB has 42 mesh-bearing nodes and
+  // `HEAD_MESHES` in `shadowPolicy.ts` excludes two — so the shipped casting-and-receiving count is
+  // now 71, not 62. `NORMAL_BIAS = 0.04`'s acne validation was never re-run at 71 — it is recorded here
   // rather than re-tuned, same as the culled/unculled point above, and both are noted at
   // `shadows.ts`'s `NORMAL_BIAS` declaration and its WebGL1-fallback comment.
   //
@@ -550,7 +592,9 @@ function applyBodyPbr(meshes: readonly AbstractMesh[], scene: Scene): void {
       // Babylon reads roughness from the metallic texture's ALPHA channel by default, and alpha takes
       // precedence over green — so setting Green alone does nothing. The packed map is fully opaque
       // (alpha 255 everywhere, verified by reading it back), which pinned roughness at 1.0 and discarded
-      // the 0.25-0.6 the G channel actually carries. Turning this off is what lets the packing take effect.
+      // the range the G channel actually carries — on the shipped `?v=2` map that is 0.000-1.000, mean
+      // 0.320 area-weighted through the body's UVs. (The "0.25-0.6" this line used to quote was measured
+      // on the `?v=1` map and did not survive the swap.) Turning this off is what lets the packing work.
       source.useRoughnessFromMetallicTextureAlpha = false;
       source.metallic = BODY_METALLIC;
       source.roughness = 1;
@@ -585,10 +629,10 @@ const FACE_COMPILE_TIMEOUT_MS = 10_000;
 /**
  * Gives the head its own material so the face can be lit differently from the armour.
  *
- * Every one of the knight's 47 meshes ships sharing a single glTF material, so the head needs a clone
+ * Every one of the knight's 42 meshes ships sharing a single glTF material, so the head needs a clone
  * before anything can be changed about it in isolation.
  *
- * `forceCompilationAsync` is not optional: swapping the material on a 101-bone skinned mesh triggers an
+ * `forceCompilationAsync` is not optional: swapping the material on a 100-bone skinned mesh triggers an
  * async shader rebuild, and the mesh renders as *nothing at all* until it finishes — long enough to
  * look like a bug and to poison any measurement taken in the meantime.
  *
@@ -611,15 +655,15 @@ async function applyFaceMaterial(meshes: readonly AbstractMesh[]): Promise<void>
 }
 
 /**
- * Guards, clones, puts the clone on the four head meshes, awaits its compile, and rolls the meshes
+ * Guards, clones, puts the clone on both head meshes, awaits its compile, and rolls the meshes
  * back if that fails. Split out from {@link applyFaceMaterial} so the try/catch there covers all of it.
  */
 async function swapHeadMaterial(meshes: readonly AbstractMesh[]): Promise<void> {
   const head = meshes.filter((m) => HEAD_MESHES.includes(m.name));
   // Each expected name must appear exactly once. Counting `head.length` would not establish that:
   // glTF does not require unique node names and the loader does not dedupe them, so a GLB with two
-  // `Mesh_1`s and no `Mesh_46` still totals four — and the face would be applied to part of the head
-  // with an eyeball left on the dark shared material.
+  // `Mesh_1`s and no `Mesh_23` still totals two — and the face lighting would land on the outer head
+  // twice while the inner head kept the dark shared material.
   const wrongCount = HEAD_MESHES.map((name) => ({ name, n: meshes.filter((m) => m.name === name).length })).filter(
     (x) => x.n !== 1,
   );
@@ -638,8 +682,8 @@ async function swapHeadMaterial(meshes: readonly AbstractMesh[]): Promise<void> 
     return;
   }
   // "Clone the head's material" only means anything while the head actually shares one. Splitting the
-  // eyes onto their own material is an ordinary thing for a re-export to do, and would otherwise paint
-  // the eye material across the face, the hair and the neck with every name check still passing.
+  // hair, or the inner head, onto its own material is an ordinary thing for a re-export to do, and
+  // would otherwise paint one of those materials across the whole head with every name check passing.
   if (head.some((m) => m.material !== source)) {
     const names = [...new Set(head.map((m) => m.material?.name ?? 'none'))].join(', ');
     console.warn(
@@ -734,6 +778,14 @@ async function swapHeadMaterial(meshes: readonly AbstractMesh[]): Promise<void> 
     );
   }
   facePbr.emissiveIntensity = 1;
+  // Opt the face out of the scene's image-based lighting. `createEnvironment` sets
+  // `scene.environmentTexture` for the armour's metallic PBR (see `BODY_METALLIC`), and every PBR
+  // material reads it by default — but the face is hand-lit through `emissiveColor`/`FACE_EMISSIVE`,
+  // and letting the IBL add its diffuse irradiance on top would lift the toon face off the values that
+  // constant is calibrated against. Zero here keeps the face exactly as tuned, regardless of the
+  // environment; the armour keeps the material default of 1, which Babylon multiplies by
+  // `scene.environmentIntensity` — `IBL_INTENSITY`, 1.4 — for an effective 1.4.
+  facePbr.environmentIntensity = 0;
   for (const mesh of head) mesh.material = face;
 
   let abandoned = false;
@@ -755,7 +807,7 @@ async function swapHeadMaterial(meshes: readonly AbstractMesh[]): Promise<void> 
       'face shader compile',
     );
   } catch (err) {
-    // The clone adds an EMISSIVE define on top of a 101-bone skinned variant already near the
+    // The clone adds an EMISSIVE define on top of a 100-bone skinned variant already near the
     // vertex-uniform ceiling, so this can fail where its parent succeeded. Put the head back on the
     // material that already compiles rather than letting the rejection escape into hubScene.
     abandoned = true;
@@ -856,7 +908,7 @@ export async function loadKnight(
 ): Promise<Knight> {
   // ?v bust: the browser aggressively caches the GLB, so a plain reload keeps serving an old copy.
   // Bump this whenever knight_web.glb is rebuilt so clients refetch it.
-  const result = await ImportMeshAsync('/models/knight_web.glb?v=6', scene);
+  const result = await ImportMeshAsync('/models/knight_web.glb?v=11', scene);
   const root = result.meshes[0] as TransformNode;
   root.parent = parent;
   root.position.setAll(0);

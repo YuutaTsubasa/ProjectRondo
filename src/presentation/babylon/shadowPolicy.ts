@@ -2,35 +2,49 @@
 // `environment: 'node'`). knight.ts imports HEAD_MESHES from here rather than declaring its own, so
 // the face-material list and the shadow-receiver list cannot drift apart.
 
-/** The head group of the medieval knight, by mesh name. Rendered each mesh alone to confirm what it
- *  actually is (previous comment here mis-described both, see `docs/HANDOFF.md`'s note on the same
- *  mistake): `Mesh_1` (9232 verts, world Y 1.592-1.900) is HAIR ONLY — no face, no neck, no skin.
- *  `Mesh_20` (1948 verts, Y 1.568-1.764) is the face/head skin, and it reaches *below* `Mesh_1`'s
- *  bottom (1.568 vs 1.592) — down past the neckline into the collar region (the body tops out at
- *  1.595) — so `Mesh_20`, not `Mesh_1`, carries the neck. `Mesh_43` (204 verts) and `Mesh_46` (153
- *  verts) are the two eyeballs. All four together are the top-of-body cluster by world height. Both
- *  eyeballs must be listed or the uncovered one keeps the lit shared material and reads dark against
- *  the bright face. The other 43 meshes are body and armour; `knightReceivesShadow` below marks all
- *  43 of them as shadow receivers.
+/** The head group of the stylized fantasy knight, by mesh name — which is the glTF **node** name,
+ *  since that is what Babylon names the runtime mesh after.
  *
- *  Because `Mesh_20` reaches into the collar region, the collar does not receive shadows either —
- *  the same coupling `FACE_EMISSIVE` already lives with (see `knight.ts`).
+ *  Counted off the shipped `public/models/knight_web.glb`: it has **42** mesh-bearing nodes, all
+ *  sharing one material, and these two are the whole head. Both are above every other mesh in the
+ *  model, measured in the GLB's own space at rest (before `loadKnight` scales it to `TARGET_HEIGHT`,
+ *  roughly 2x): `Mesh_1` is 8047 verts spanning Y 0.8245-0.9801 and is the topmost mesh in the
+ *  model; `Mesh_23` is 1533 verts spanning Y 0.8117-0.8996, so it reaches *below* `Mesh_1`'s bottom,
+ *  and it overlaps the body, which tops out at 0.8281. Nothing else comes near: the two of them are
+ *  the only meshes above the body's ceiling.
  *
- *  These names are model-specific and they changed once already: the previous character's head was
- *  `Mesh_0` + `Mesh_32`/`Mesh_33`. **Any character swap must update this list**, and the failure is
- *  quiet in both directions — a stale entry that still resolves to some mesh in the new model
- *  (exactly what happened here: `Mesh_0` went from head mesh to body mesh across this swap) leaves
- *  that body mesh flat-lit and out of the shadow set, while a head mesh never added to this list
- *  puts a shadow terminator across the face. `applyFaceMaterial`'s exactly-once check does not catch
- *  either: it only inspects the names already in this list, so it warns solely when one of *those*
- *  names is absent from the model or duplicated — neither of which is the shape of the two failures
- *  above. Updating this list correctly on a character swap is on the person doing the swap; nothing
- *  here verifies it for them.
+ *  That `Mesh_1` is specifically face + hair together and `Mesh_23` the inner head is inherited from
+ *  the character swap's own visual inspection and has not been re-derived here; what the geometry
+ *  above establishes is only that the head is exactly these two. Likewise the eyes being painted into
+ *  the face texture: what is checked is that there is no third mesh up here to be an eyeball.
+ *
+ *  Because `Mesh_23` overlaps the body's top, whatever it covers there does not receive shadows
+ *  either — the same coupling `FACE_EMISSIVE` already lives with (see `knight.ts`).
+ *
+ *  The other **40** meshes are body and armour; `knightReceivesShadow` below marks all 40 of them as
+ *  shadow receivers.
+ *
+ *  These names are model-specific and they have changed once already: the previous character's head
+ *  was `Mesh_0` + `Mesh_32`/`Mesh_33`, and this model has no `Mesh_43` or `Mesh_46` at all. **Any
+ *  character swap must update this list**, and the failure is quiet in both directions — a stale
+ *  entry that still resolves to some mesh in the new model (exactly what happened here: `Mesh_0` went
+ *  from head mesh to a 12228-vert body mesh across this swap) leaves that body mesh flat-lit and out
+ *  of the shadow set, while a head mesh never added to this list puts a shadow terminator across the
+ *  face. `applyFaceMaterial`'s exactly-once check does not catch either: it only inspects the names
+ *  already in this list, so it warns solely when one of *those* names is absent from the model or
+ *  duplicated — neither of which is the shape of the two failures above.
+ *
+ *  What catches the first half is `tests/presentation/shadowPolicy.test.ts`, and only because it asks
+ *  a question about **geometry** rather than about names: the head is the part of the model that sits
+ *  above the body, so the two meshes reaching highest in the rest pose are the head, whatever they are
+ *  called. A stale entry pointing at a body mesh fails that even though the name still resolves — the
+ *  exactly-once check, at runtime or in a test, cannot tell the difference. Deciding which meshes
+ *  belong here is still on the person doing the swap; what is automated is being told they are wrong.
  *
  *  Two consumers share this list on purpose: `knight.ts` gives these meshes their own face material,
  *  and `knightReceivesShadow` below excludes them from receiving shadows. One definition means the
  *  two cannot drift apart. */
-export const HEAD_MESHES: readonly string[] = ['Mesh_1', 'Mesh_20', 'Mesh_43', 'Mesh_46'];
+export const HEAD_MESHES: readonly string[] = ['Mesh_1', 'Mesh_23'];
 
 /**
  * True for every knight mesh that should receive the sun's shadow — everything but the head.

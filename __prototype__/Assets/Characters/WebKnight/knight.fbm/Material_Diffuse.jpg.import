@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://dwigqb68oanw2"
-path="res://.godot/imported/Material_Normal.jpg-6f8a4d2a929395f6138ad3bbb1ea07ab.ctex"
+uid="uid://8e2npkif4si3"
+path="res://.godot/imported/Material_Diffuse.jpg-73ecfa33c330f130a52d3a3044936c03.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://Assets/Characters/MedievalKnight/knight.fbm/Material_Normal.jpg"
-dest_files=["res://.godot/imported/Material_Normal.jpg-6f8a4d2a929395f6138ad3bbb1ea07ab.ctex"]
+source_file="res://Assets/Characters/WebKnight/knight.fbm/Material_Diffuse.jpg"
+dest_files=["res://.godot/imported/Material_Diffuse.jpg-73ecfa33c330f130a52d3a3044936c03.ctex"]
 
 [params]
 
