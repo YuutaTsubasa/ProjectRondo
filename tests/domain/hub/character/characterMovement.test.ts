@@ -9,7 +9,7 @@ import { vec3 } from '../../../../src/domain/math/vec3';
 
 const P = 3;
 const inputToward = (rawX: number, rawY: number, jump = false, run = false): MovementInput =>
-  ({ direction: fromRaw(vec2(rawX, rawY)), jumpRequested: jump, runRequested: run });
+  ({ direction: fromRaw(vec2(rawX, rawY)), jumpRequested: jump, runRequested: run, homingTarget: null });
 const planarSpeed = (m: CharacterMotion) => length(vec2(m.velocity.x, m.velocity.z));
 
 describe('CharacterMovement.step', () => {

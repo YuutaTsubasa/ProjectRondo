@@ -10,6 +10,7 @@ import { WALK_THRESHOLD, type Knight, type KnightMotionSample } from '../babylon
 import { createGameAudio } from './audioEngine';
 import { phaseOf, weightOf } from './clipSample';
 import { createDeferredAudio, type DeferredAudio } from './deferredAudio';
+import { jumpSoundFrom, stepJumpSound, type JumpSoundState } from './jumpSound';
 import { createMusicCrossfade } from './musicCrossfade';
 import { loadSoundBank, type SoundBank } from './soundBank';
 
@@ -64,8 +65,9 @@ export type HubAudio = DeferredAudio;
  * `motion` is the reading the animation layer already takes — the *same* function `hubScene` hands to
  * `driveKnightAnimation`, not a second one built beside it. `groundContact.ts` exists because two
  * consumers deciding "is it on the ground" independently drifted apart, and planar speed beside it is
- * the same shape of duplication: sound and pose answer "how fast, and airborne?" from one reading or
- * they will eventually answer it differently.
+ * the same shape of duplication: sound and pose answer "how fast, and off the ground?" from one
+ * source, and through one rule — `jumpSound.ts` and `jumpPose.ts` both widen `airborne` via the same
+ * `isOffGround` — or they will eventually answer it differently.
  */
 export function createHubAudio(
   scene: Scene,
@@ -117,29 +119,34 @@ async function buildHubAudio(
     const variants = createVariantRotation();
 
     const cadence = createFootstepCadence();
-    let wasAirborne = motion().airborne;
+    // Seeded from the first sample rather than from a standing pose — see `jumpSoundFrom`.
+    let jumpSound: JumpSoundState = jumpSoundFrom(motion());
 
     observer = scene.onBeforeRenderObservable.add(() => {
       const elapsed = scene.getEngine().getDeltaTime() / 1000;
       // The same `motion` the animation layer reads, called again here — see this module's doc
       // comment. One source, two readings a frame; not one reading shared between them.
-      const { planarSpeed, airborne } = motion();
+      const sample = motion();
+      const { planarSpeed } = sample;
 
-      // Take-off and landing ride the edges of the same `airborne` flag the jump clip uses, rather
-      // than a second reading of the ground probe. `groundContact.ts` exists because two consumers
-      // deciding "is it grounded" independently drifted apart; sound and pose stay on one source.
+      // Take-off and landing ride the edges of the same widened off-ground signal the jump clip's
+      // pose rides, not the bare `airborne` flag: the support probe finds floor mid-dash and beside a
+      // low crystal, so `airborne` goes false for single frames in the middle of a flight. See
+      // `jumpSound.ts` for what those frames sound like when this layer trusts it.
       //
-      // Both are the one armour sample, so the playback rate is the only thing telling them apart —
-      // without it a jump is the same 0.145 s clip twice, 1.6 dB apart, which reads as one event
-      // stuttering rather than as leaving the ground and arriving back on it. Up for the push-off,
-      // down for the landing: the shift is what makes one read as lighter and the other as heavier,
-      // and ±12 % is about as far as it goes before it stops sounding like the same armour.
-      if (airborne !== wasAirborne) {
-        soundBank.play(airborne ? 'jump.takeoff' : 'jump.land', {
-          playbackRate: airborne ? JUMP_RATE : LAND_RATE,
+      // Both cues are the one armour sample, so the playback rate is the only thing telling them
+      // apart — without it a jump is the same 0.145 s clip twice, 1.6 dB apart, which reads as one
+      // event stuttering rather than as leaving the ground and arriving back on it. Up for the
+      // push-off, down for the landing: the shift is what makes one read as lighter and the other as
+      // heavier, and ±12 % is about as far as it goes before it stops sounding like the same armour.
+      const jump = stepJumpSound(jumpSound, sample);
+      jumpSound = jump.state;
+      const { offGround } = jump.state;
+      if (jump.cue) {
+        soundBank.play(jump.cue, {
+          playbackRate: jump.cue === 'jump.takeoff' ? JUMP_RATE : LAND_RATE,
         });
       }
-      wasAirborne = airborne;
 
       const { walk, run } = knight.animations;
       // Which clip to believe, and whether the character is moving at all, is decided by
@@ -153,7 +160,11 @@ async function buildHubAudio(
           runWeight: weightOf(run),
           walkPhase: phaseOf(walk),
           runPhase: phaseOf(run),
-          airborne,
+          // The cadence's "no footfalls while the feet are not on the ground" gate, so it is fed the
+          // same widened signal the cues above ride — on the bare flag, a dash's skim frame and a
+          // low-crystal arrival un-gate the run cadence at `homingSpeed` for as long as the
+          // locomotion weights stay up.
+          airborne: offGround,
           elapsed,
         }),
       );

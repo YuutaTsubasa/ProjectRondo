@@ -5,10 +5,12 @@ const SRC := {
 	"Walk": "res://Assets/Animations/Walking.fbx",
 	"Run": "res://Assets/Animations/Running.fbx",
 	"Jump": "res://Assets/Animations/Jump.fbx",
+	"FlyingKick": "res://Assets/Animations/FlyingKick.fbx",
 }
 # Jump is a one-shot arc (crouch, launch, land); looping it would snap the knight
-# back to the crouch mid-air. Every other clip is a cycle.
-const NON_LOOPING := ["Jump"]
+# back to the crouch mid-air. FlyingKick is likewise a one-shot dash attack; looping
+# it would make the knight kick repeatedly for the whole dash. Every other clip is a cycle.
+const NON_LOOPING := ["Jump", "FlyingKick"]
 # Inward thigh correction to counter the model's wide A-stance rest pose.
 const ADDUCT_DEG := -5.0
 const L_THIGH := "Skeleton3D:LeftUpperLeg"
