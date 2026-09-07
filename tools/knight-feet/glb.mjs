@@ -46,9 +46,10 @@ export const point = (m, p) => [0, 1, 2].map((i) => m[i] * p[0] + m[4 + i] * p[1
  *
  * Order is the whole game in this tool, so it is worth stating once: with glTF's convention a node's
  * local rotation `r` maps a local direction into its parent's frame. So `qm(r, q)` applies `q`
- * **first, in the node's own local frame** (a post-rotation — what the sole correction is), while
- * `qm(q, r)` applies `q` **after** `r`, i.e. in the parent's frame (a pre-rotation — what
- * `calibrate.mjs`'s fixed parent-frame pre-rotation is).
+ * **first, in the node's own local frame** (a post-rotation — which is what the sole correction is,
+ * at every call site in `calibrate.mjs`), while `qm(q, r)` applies `q` **after** `r`, i.e. in the
+ * parent's frame (a pre-rotation). `integrity.mjs` still needs the pre-rotation reading to
+ * reconstruct the motion identity from a receipt's `undoParentPitchDegrees`.
  */
 export const qm = (a, b) => [
   a[3] * b[0] + a[0] * b[3] + a[1] * b[2] - a[2] * b[1],

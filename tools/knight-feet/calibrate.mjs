@@ -21,30 +21,22 @@
  * rotation: the file's own rest pose, the one-frame `0_T-Pose`, and one fitted against 31 evenly
  * spaced `Idle` poses that is then applied to every motion clip.
  *
- * **The third argument is a fixed pre-rotation, and its provenance is unknown.** It left-multiplies
- * every motion-clip ankle key by a rotation of `-degrees` about parent-frame X before the constant
- * correction is fitted and applied. The shipped `public/models/knight_web.glb` is built with **`0`**,
- * which is recorded in its own `asset.extras.knightFootCalibration.undoParentPitchDegrees`. An
- * earlier build of this asset used `20`, and an earlier revision of this tool described that as
- * undoing a "+20 degree" offset baked by a previous `extract_anims.gd`; **that explanation is
- * withdrawn.** No revision of `extract_anims.gd` in this repository's history applies any ankle or
- * foot rotation — the only rotation it has ever baked is the -5 degree thigh adduction it still
- * carries — so there is nothing in this repository the `20` undoes, and where it came from is not
- * recorded anywhere here.
+ * **There was a third argument, a fixed pre-rotation in degrees, and it is gone.** It accepted `0`
+ * or `20`, and left-multiplied every motion-clip ankle key by a rotation of `-degrees` about
+ * parent-frame X before the constant correction was fitted. Passing anything as a third argument is
+ * now an error, and this tool applies no pre-rotation at all.
  *
- * **Use `0`. Every export this repository can produce needs `0`.** Both values leave rest,
- * `0_T-Pose` and `Idle` equally level (the fit forces that), and both pass `verify.mjs`. What they
- * change is the motion clips: measured on a reconstruction of the older pre-calibration GLB — the one
- * the `20` build came from, which the committed pipeline no longer produces — `0` and `20` agreed to
- * within 0.30 degrees of sole pitch on `Idle` and differed by at most **2.73 degrees** anywhere
- * (worst case `Run`, right foot).
+ * It went because it was reachable and produced a file nothing downstream could tell apart. The fit
+ * forces rest, `0_T-Pose` and `Idle` level at either value, and a constant left-multiply is
+ * invisible to the ankle-swing guard in `tests/presentation/knightFootCalibration.test.ts`, so a
+ * `20` build dropped into `public/` shipped green. Its provenance was never established either: no
+ * revision of `extract_anims.gd` in this repository's history bakes any ankle or foot rotation —
+ * only the -5 degree thigh adduction it still carries — so there was nothing here for the `20` to
+ * undo. `docs/knight-foot-calibration.md` keeps the full account and the comparison figures.
  *
- * **`20` is dead, and reaching it takes more than passing `20`.** It reproduces nothing that ships,
- * and the only input it was ever for is that five-clip export — which `EXPECTED_CLIPS` below now
- * rejects before the pre-rotation is read, since the set it admits was widened to six for
- * `FlyingKick`. Re-deriving the comparison above would mean widening that guard too, which its own
- * comment calls a deliberate act. The argument is kept because the receipt records it and
- * `integrity.mjs` verifies it, so the field has to mean something; nothing here should pass it.
+ * `asset.extras.knightFootCalibration.undoParentPitchDegrees` survives in the receipt, always `0`:
+ * `integrity.mjs` reconstructs the motion identity through it, and a nonzero value is how a GLB
+ * built by the retired mode identifies itself.
  */
 import fs from 'node:fs';
 import { load, qm, norm, axis } from './glb.mjs';

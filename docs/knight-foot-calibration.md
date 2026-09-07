@@ -64,4 +64,4 @@ node tools/knight-feet/verify.mjs path/to/raw.glb path/to/fixed.glb
 
 There is no third argument; see the section above for what it was and why it went.
 
-The script refuses an already calibrated GLB. Calibration data and the selected pre-rotation are recorded under `asset.extras.knightFootCalibration`. It is specific to the current knight meshes and bone convention; changing character geometry requires renewed measurements and visual review, and `tools/knight-feet/sole.mjs`'s hard-coded boot mesh names and vertex thresholds are the first thing that will stop matching.
+The script refuses an already calibrated GLB. Calibration data is recorded under `asset.extras.knightFootCalibration`, including `undoParentPitchDegrees`, which this tool now always writes as `0`. It is specific to the current knight meshes and bone convention; changing character geometry requires renewed measurements and visual review, and `tools/knight-feet/sole.mjs`'s hard-coded boot mesh names and vertex thresholds are the first thing that will stop matching.

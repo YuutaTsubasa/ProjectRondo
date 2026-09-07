@@ -3,8 +3,8 @@ extends SceneTree
 # Foot calibration is NOT done here. tools/knight-feet/calibrate.mjs levels the boot soles on the
 # exported GLB, after this script has run. This script bakes exactly one rotation, the ADDUCT_DEG
 # thigh correction below, and it has never baked an ankle or foot rotation in any revision in this
-# repository's history — so pass 0 as calibrate.mjs's pre-rotation argument for anything exported
-# from here.
+# repository's history. calibrate.mjs used to take a pre-rotation argument to cancel one; it has
+# been removed, and passing anything as a third argument is now an error.
 
 const SRC := {
 	"Idle": "res://Assets/Animations/Idle.fbx",

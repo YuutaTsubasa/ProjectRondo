@@ -151,7 +151,7 @@ const TPOSE = [axis([1, 0, 0], 0.02), axis([1, 0, 0], 0.03)];
 const ANIMATION = [axis([1, 0, 0], 0.21), axis([1, 0, 0], 0.23)];
 const PITCH_DEGREES = 20;
 
-/** Applies what `calibrate.mjs` applies, so the corrected file is one a real run could have made. */
+/** Applies what `calibrate.mjs` applies, so the corrected file is shaped like one the retired pre-rotation mode made — which is the only thing that could have produced a nonzero `undoParentPitchDegrees`, and exactly what `integrity.mjs` still has to reconstruct correctly when it meets one. */
 function calibrate(raw: { json: Json; bin: Buffer }): { json: Json; bin: Buffer } {
   const json = structuredClone(raw.json) as Json;
   const bin = Buffer.from(raw.bin);
