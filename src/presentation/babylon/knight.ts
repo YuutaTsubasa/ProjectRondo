@@ -180,7 +180,9 @@ const TRAIL_EMISSIVE = new Color3(0.08, 0.22, 0.95);
  * {@link loadKnight}, which says the same thing where it sets the facing). It is the skin that turns
  * it, its inverse bind matrices mapping mesh-local Z onto the skeleton's Y — which is why the
  * unskinned Y extent is 0.197036, the accessor range, against a skinned 0.957617. Measured under
- * both handedness settings, the Y extent is 0.957617 either way; only `__root__`'s Z flip differs.
+ * both handedness settings, the Y extent is 0.957617 either way: left-handed puts *both* a
+ * `[1, 1, -1]` scale and a 180-degree Y rotation on `__root__`, and scale-then-rotate composes them
+ * into an **X** mirror — X reflects, Y and Z come back bit-identical.
  *
  * Calibration rotates ankle nodes and touches no vertex, so that figure is byte-identical in the
  * uncalibrated intermediate and in the shipped file, and on the *intermediate* it is also the
