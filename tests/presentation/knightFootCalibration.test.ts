@@ -134,10 +134,17 @@ describe('the shipped knight GLB is foot-calibrated', () => {
   // Idle is the pose that matters most: it is what the knight stands in almost all the time, and
   // it is also what `loadKnight` seats him by — its `onAfterRenderObservable` pass calls
   // `refreshBoundingInfo({ applySkeleton: true })` *after* `idle.play`, so the lowest skinned vertex
-  // it finds is an Idle vertex. The rest pose and `0_T-Pose` are not seated against (the initial
-  // scale comes from raw POSITION bounds, which no rotation-only correction can move, and
-  // `0_T-Pose` is never played) — they are here because they are the two poses the calibration
-  // fits separately, so a regression in either is one this file should name.
+  // it finds is an Idle vertex. `0_T-Pose` is never played, so nothing seats against it at all.
+  //
+  // The rest pose is a different case, and an earlier version of this comment had it backwards: it
+  // claimed the initial scale comes from raw POSITION bounds that no rotation-only correction can
+  // move. It does not. `loadKnight` divides `TARGET_HEIGHT` by `getHierarchyBoundingVectors(true)`'s
+  // Y extent, which the glTF loader has already refreshed with the skin, so it is the bind pose as
+  // skinned — and levelling the soles lifts them off `y = 0`. Measured: the uncalibrated
+  // intermediate reads 0.9801 and the file calibrate.mjs makes from it reads 0.9576, moving
+  // `root.scaling` from 1.9386 to 1.9841. A rotation-only correction moves the knight's scale by
+  // 2.3%. Both poses are here because they are the two the calibration fits separately, so a
+  // regression in either is one this file should name.
   // Uncalibrated these read about -10.8, -0.9 and -13.2 degrees respectively.
   it.each([
     ['the rest pose', null, 1],

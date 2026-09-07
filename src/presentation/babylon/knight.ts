@@ -158,29 +158,37 @@ const TRAIL_EMISSIVE = new Color3(0.08, 0.22, 0.95);
  * wide, and neither number is directly comparable to {@link TARGET_HEIGHT} or to any other world-space
  * measurement in this file. The measured width below closed on that arithmetic exactly for the
  * character it was taken against, which is what says the factor of two is real and not a misreading
- * of the library. The height `loadKnight` divides
- * by is `getHierarchyBoundingVectors(true)`'s Y extent, which is **skeleton-applied** — the glTF
- * loader refreshes every primitive's bounds with the skin before this runs — so it is not the raw
- * POSITION accessor range, and on a calibrated file the two differ. Measured on the shipped GLB with
- * Babylon itself: `min.y` 0.0225, `max.y` 0.9801, extent **0.9576**, so `root.scaling` is
- * `1.9 / 0.9576` = **1.9841** and `2 * 0.2 * 1.9841` = **0.794**. Dropping the factor of two predicts
- * 0.397 instead — a separation that holds whatever the model scales to.
+ * of the library.
  *
- * The 0.776 measured below was taken in the browser against the *previous* character, and it did
- * close on that character's arithmetic exactly (extent 0.9794, scaling 1.9399, ribbon 0.776 — its
- * bind-pose `min.y` was 0, which is why extent and `max.y` coincided there). This PR swapped the
- * model and nobody has re-measured the ribbon on screen since, so the 0.794 above is a prediction,
- * not a reading. Note the trap: the new file's `max.y` is still 0.9801 and its *uncalibrated*
- * intermediate's extent is 0.9801 too, so that figure looks like a plausible extent from two
- * directions and is neither. Calibration lifts the soles off `y = 0`, which is what shortens the
- * bind pose and moves `root.scaling` by 2.3%.
+ * The height `loadKnight` divides by is `getHierarchyBoundingVectors(true)`'s **Y** extent, and by
+ * then the glTF loader has called `refreshBoundingInfo(true, true)` on every primitive, so it is the
+ * skin applied to the bind pose — not a POSITION accessor range. Measured on the shipped GLB with
+ * the installed Babylon: `min.y` 0.0225, `max.y` 0.9801, extent **0.9576**, so `root.scaling` is
+ * `1.9 / 0.9576` = **1.9841** and `2 * 0.2 * 1.9841` = **0.794**. Dropping the factor of two
+ * predicts 0.397 instead — a separation that holds whatever the model scales to.
  *
- * **Untuned**, and unlike {@link TRAIL_EMISSIVE} above — retuned off the same browser pass — this one
- * came out of that pass unchanged: the ribbon measured 0.776 world units across on screen — on the
- * character of the day, and it is wider now — close to the knight's own torso width and reading
- * thick, but no better width was tried, so 0.2 is still the arrival value rather than a chosen one. Retune it in local units against an actual screenshot, or
- * take the world-space width wanted, halve it and divide by `root.scaling` at the call site — both
- * corrections, not just the scaling one.
+ * The 0.776 below was measured in the browser against the *previous* character, and it did close on
+ * that character's arithmetic exactly: extent 0.9794, scaling 1.9399, ribbon 0.776. This PR swapped
+ * the model and nobody has re-measured the ribbon on screen since, so 0.794 is a prediction, not a
+ * reading.
+ *
+ * **0.9801 is the wrong number, from three directions at once, and it was published here once.** It
+ * is the GLB's own long axis — the Z extent of the POSITION accessors, which is what ends up
+ * vertical once the model is in the scene. Calibration rotates ankle nodes and touches no vertex,
+ * so that figure is byte-identical in the uncalibrated intermediate and in the shipped file, and on the
+ * *intermediate* it is also the hierarchy extent exactly, because that file's soles still sit at
+ * `y = 0`. Levelling them lifts the soles off the floor, which shortens the skinned bind pose to
+ * 0.9576 and moves `root.scaling` by 2.3%; 0.9801 survives in the shipped file only as `max.y`. So
+ * it is simultaneously a real accessor extent, the right hierarchy extent for the wrong file, and
+ * half of the right one for this file — and it is none of the three things this line needs.
+ *
+ * **Untuned**, and unlike {@link TRAIL_EMISSIVE} above — retuned off the same browser pass — this
+ * one came out of that pass unchanged: the ribbon measured 0.776 world units across on screen — on
+ * the character of the day, and it is wider now — close to the knight's own torso width and reading
+ * thick, but no better width was tried, so 0.2 is still the arrival value rather than a chosen one.
+ * Retune it in local units against an actual screenshot, or take the world-space width wanted,
+ * halve it and divide by `root.scaling` at the call site — both corrections, not just the scaling
+ * one.
  */
 const DASH_TRAIL_DIAMETER = 0.2;
 /**
