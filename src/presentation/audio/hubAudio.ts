@@ -68,6 +68,16 @@ export type HubAudio = DeferredAudio;
  * the same shape of duplication: sound and pose answer "how fast, and off the ground?" from one
  * source, and through one rule — `jumpSound.ts` and `jumpPose.ts` both widen `airborne` via the same
  * `isOffGround` — or they will eventually answer it differently.
+ *
+ * `options.music`, when `false`, only withholds the music director: `buildHubAudio` still awaits
+ * `loadSoundBank(audio)` first, and that call fetches every cue in `MANIFEST` — including both
+ * `streaming: true` music tracks — regardless of this flag. So a level built with `music: false`
+ * still pays for those two downloads; it only guarantees nothing will ever play them. That is fine
+ * today only because the tower is reachable exclusively through the hub's colonnade, and the hub
+ * always builds its audio with music on, so by the time a `music: false` level exists the tracks are
+ * already fetched and cached. It stops being fine the moment something is reachable without passing
+ * through the hub first — at that point this flag would need to become a real load-time filter, not
+ * just a playback gate.
  */
 export function createHubAudio(
   scene: Scene,

@@ -217,6 +217,11 @@ jump cues and the music director in one function, so this needs that function to
 character layer alone — a switch at its top level, not a rewrite. That file was hardened over 18
 review rounds by another session and is not to be restructured for this.
 
+The switch only withholds the director; the sound bank it sits on top of loads the whole manifest,
+music included, before the switch is ever read. That is harmless only because the tower has no
+entrance but the hub's colonnade, and the hub has already loaded both tracks by the time it does. A
+level reachable without passing through the hub would need a real fix, not this switch.
+
 If the split turns out not to be that cheap, the fallback is **no audio in the tower at all**,
 recorded as a known gap. Silence in a level is a defect; silence pretending to be a design is worse.
 
