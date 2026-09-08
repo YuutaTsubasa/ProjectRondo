@@ -61,7 +61,7 @@
   const playCue = (cue: SoundCue) => hub?.audio.play(cue);
 
   function finishIntro() {
-    gameMode.toPlaying();
+    gameMode.toHub();
     hub?.suspendInput(false);                     // hand control back to gameplay
     hub?.audio.setMusicScene('playing');
   }
