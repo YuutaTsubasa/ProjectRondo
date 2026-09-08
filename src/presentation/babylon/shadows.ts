@@ -100,7 +100,9 @@ export interface Shadows {
  * so that `??` only saves you if `scene.activeCamera === camera`. (The WebGL1 fallback branch is
  * different: `new ShadowGenerator(FALLBACK_MAP_SIZE, sun)` is passed no camera, so its constructor
  * stores `camera ?? null` and registers itself under that same `null` key — on that path the no-arg
- * fallback resolves it regardless of `scene.activeCamera`.) `characterRig.ts` sets `scene.activeCamera` and then invokes this callback with that camera, so the cascaded branch holds today — but it is an
+ * fallback resolves it regardless of `scene.activeCamera`.) `characterRig.ts` sets
+ * `scene.activeCamera` and then invokes this callback with that camera, so the cascaded
+ * branch holds today — but it is an
  * ongoing invariant, not a one-time ordering requirement. Repoint `scene.activeCamera` at a different
  * camera later (a cutscene or AVG camera) without updating the generator and, on the cascaded branch,
  * every shadow stops rendering silently, no error, no console warning — see `docs/HANDOFF.md` §7.
