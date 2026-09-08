@@ -170,7 +170,7 @@ field directly, and a tower has no height field:
 | Site | What it does | In a tower |
 |---|---|---|
 | `playerController.ts:95` | Spawn is `terrainHeight(0,0) + …` | Wrong outright — the spawn must become a parameter |
-| `followCamera.ts:92,105` | Keeps the camera above `terrainHeight` | Probably benign *by luck* — the clamp only pushes the camera up, and a camera 60 u above a field whose flattest recorded site sits at 1.17 (`landmark.ts`) is already far above it. Not benign by design, and not sampled: the field's actual range, and its `EDGE_RADIUS`/`BARRIER_TOP` behaviour, are unmeasured here |
+| `followCamera.ts:92,105` | Keeps the camera above `terrainHeight` | **Now measured — see §13.2, which supersedes this cell.** Benign only *near the hub origin*: `terrainHeight` has no domain guard and keeps returning 14–18 outside the field, so a tower placed beyond `EDGE_RADIUS` pins the camera at y ≈ 15–18 whatever the player does. The injected ground query below is a blocker, not tidiness |
 | `knight.ts:854,858` | Foot-plant raycast falls back to `terrainHeight` when it misses | Only the fallback, but the fallback is the hub's ground under a tower |
 
 The honest resolution is to make "what is the ground here" an injected query rather than an imported
@@ -224,6 +224,11 @@ recorded as a known gap. Silence in a level is a defect; silence pretending to b
 
 Both are cheap to probe and expensive to discover late, so both are probed before content.
 
+**Both have now been probed — read §13 before acting on this section.** It supersedes the two bullets
+above: the `setPosition` failure was a console aliasing artefact and teleporting works, while the
+camera's behaviour on a vertical fall turned out worse than "unknown, probably fine". The bullets are
+kept as the record of what was believed before the probe ran.
+
 ## 11. Testing and verification
 
 - **Vitest** for the two domain pieces (§8) and the portal's edge trigger, red before green.
@@ -244,3 +249,113 @@ Both are cheap to probe and expensive to discover late, so both are probed befor
 - **Restructuring `hubAudio.ts`** beyond the one switch §9 needs.
 - **A second climbing vocabulary beyond jumping and homing** — wall runs, grapples, moving platforms.
   The alternation this design commits to is between the two moves that already ship.
+
+## 13. Probe findings
+
+Both §10 risks were probed in the browser before any content was authored (Task 1, 2026-09-08). The
+verdict is **go**: Risk A is a false alarm with a precise cause, and Risk B is real, larger than §10
+assumed, and costs work rather than design.
+
+**How these numbers were taken.** The Browser pane reported itself hidden the whole session and frame
+delivery was erratic (1.93 fps measured over one early 6.7 s window; 118 fps averaged over the
+session), so nothing here depends on the render loop: every trace is a synchronous burst of
+`scene.render()` calls inside one console evaluation, driving `onBeforeRenderObservable` exactly as a
+frame does, at the engine's own measured 6.3–6.8 ms delta. Two checks that this is faithful: a 20 u
+fall at `gravity` 24 measured **1.290 s** against §4's analytic 1.291 s, and the 58.32 u drop from
+y = 60 measured **2.208 s** against 2.205 s. Screenshots were taken with `engine.stopRenderLoop()`
+held, because `followCamera` — unlike `playerController` — does not clamp `dt`, so a stalled loop's
+half-second frame lets the camera fully catch up and produces a screenshot that flatly contradicts the
+trace.
+
+### 13.1 Risk A — `setPosition` works; the PR #39 report was a measurement artefact
+
+`charController.setPosition` moves the capsule **exactly and immediately** — measured
+`y 1.7727 → 11.7727` on a `+10`, no `integrate` needed, and the teleport persists with physics
+resuming from the new height.
+
+The reason PR #39 saw "no effect" is that `PhysicsCharacterController.getPosition()` returns the
+controller's **live internal `Vector3`**, not a copy (`characterController.js:285`). Confirmed here:
+`alias === c.getPosition()` is `true`, and a reference captured before the call reads back the new `y`
+after it. So the natural console idiom
+`const before = c.getPosition(); c.setPosition(…); before.y === c.getPosition().y` compares an object
+with itself and is always true. §10's premise is withdrawn: **checkpoints work, and §2's respawn
+decision does not need re-opening.**
+
+The three candidate causes §10 listed were all checked and cleared. In particular `playerController`'s
+observable does **not** re-seed the controller: its dataflow is controller → `root`, one way.
+
+**What a respawn actually has to do.** `setPosition` alone is not a respawn, and neither is
+`setPosition` plus `controller.setVelocity(0)`. Measured: after both, from a 19.7 u/s fall, the next
+frame reads `player.motion.velocity.y = −19.87` and the capsule keeps falling — because
+`playerController` recomputes `controller.setVelocity(...)` from the **domain's**
+`player.motion.velocity` every frame before `integrate`, so a controller-side zero survives less than
+one frame. `createPlayer` must therefore expose a `teleport(position)` that resets four things at
+once: the controller position, the controller velocity, `player.motion.velocity`, and `visualY`.
+
+The fourth is not optional either. `visualY` (here) and `smoothY` (`followCamera`) are private closure
+state with no reset, so a raw teleport to y = 60 left the knight at 6.6 and the camera at 5.1 and then
+*glided* them up through 53 units at rates 14 and 9. A checkpoint respawn built on `setPosition` alone
+reads as a swoop across the level rather than a cut.
+
+**Where a checkpoint may be placed.** Measured over 60 stepped frames: open air and "0.3 u above the
+surface" both settle cleanly; a capsule teleported into the middle of a pillar squeezes out sideways
+at ~0.7 u/s; a capsule teleported **3 u below** a surface is lost outright (−2.54 → −4.62, still
+falling) because the ground collider is one-sided. Checkpoints are points in open air above their
+platform, never points on it.
+
+### 13.2 Risk B — the camera, measured
+
+**The ground clamp at height is a confirmed no-op, and §7's "benign by luck" is too generous.**
+Across an entire 20 u fall the grounded branch (`followCamera.ts:92`) was false on every frame — the
+anchor is the raw `t.y` — and the clamp (`:105`) evaluated to 0.61 against a camera between 21.75 and
+6.84, never active. Losing the terrain *anchor* costs the tower nothing: the anchor hides the capsule
+micro-stepping across terrain triangles, and flat-topped box platforms give it nothing to micro-step
+across. The *smoothing* is not lost — that lerp is unconditional and still runs.
+
+What is not benign is the clamp's dependence on `terrainHeight` having no domain guard. §7 records the
+field's range as unmeasured; measured now on a 0.5 u grid it is **−1.547 to 16.939** over the 100×100
+field (−1.547 to 5.598 inside `EDGE_RADIUS`) — and outside the field the function simply keeps going:
+`terrainHeight(60,0) = 17.2`, `(200,0) = 17.5`, `(500,500) = 14.4`. Placing the tower anywhere outside
+`EDGE_RADIUS` — the obvious "out of the way" choice — pins the camera at **y ≈ 15–18** regardless of
+the player, so the whole of section 1 would be played from seventeen units overhead. §7's injected
+"what is the ground here" query is load-bearing: without it, the tower's *coordinates* silently decide
+whether its camera works.
+
+**The player falls out of the frame.** On the spec's own case — a 20 u section fall, 1.290 s — the
+knight's root crosses the bottom edge of the frame at **t = 0.844 s, 43 % of the fall and 8.6 of its
+20 u**, and screenshots at t = 1.10 s and at the touchdown frame show no knight at all. The camera is
+`FOVMODE_VERTICAL_FIXED` at `fov` 0.8, so the vertical half-angle is 22.92° on any window aspect —
+this is not an artefact of the pane's shape. The cause is two smoothers in series, both tuned against
+a hub whose fastest vertical motion is a 1.69 u jump at ~9 u/s. At 30.98 u/s (the end of a 20 u fall)
+`VISUAL_Y_SMOOTHING` 14 leaves the rendered knight `v/14 = 2.21 u` above the capsule (measured 1.80),
+and `verticalSmoothing` 9 leaves the camera's aim a further `v/9 = 3.44 u` above the knight (measured
+3.35).
+
+The same 1.80 u also means the knight is seen **landing about a body height above the floor** and then
+sinking into place over ~0.3 s. Invisible in the hub; on every tower fall it will not be.
+
+**The camera has no obstruction handling at all.** `followCamera` consults exactly one piece of world
+geometry — the analytic `terrainHeight`. No ray cast, no occlusion test, no pull-in. Demonstrated by
+parking the camera on the axis of `plazaPillar_0` (radius 0.45): it was not deflected by a millimetre,
+and because the material is `backFaceCulling: true`, from inside the pillar renders **nothing** — the
+column silently disappears and the world is seen through it. Against a tower column this is the
+everyday case, and the failure mode is the level popping out of existence rather than a black screen.
+
+**Pitch limits — reasoned, not watched.** Pointer lock cannot be acquired from automation and
+`yaw`/`pitch` are closure-private, so this was derived from `followCamera.ts`'s own formula with the
+live config: at `minPitch` −1.2 the camera sits 5.56 u above the aim point at 1.81 u horizontal, a
+look-down of **71.95°**, and the frustum's lower edge reaches 94.87° — just past vertical. So the
+ground directly below the player is in frame at full down-pitch, near its bottom edge, but can never
+be centred. Sighting the next platform down is possible; a straight-down look is not. **Untested.**
+
+### 13.3 What this changes
+
+Nothing in §1–§9 is invalidated. Three tasks gain work:
+
+- **Respawn is a `teleport()`, not a `setPosition()`** — four resets, per §13.1, or the character
+  arrives at the checkpoint still falling and glides in from wherever it was.
+- **§7's injected ground query is a blocker, not a tidiness refactor** — it is what decides whether
+  the tower can be placed anywhere but the hub's origin.
+- **The camera needs budgeted work the plan does not currently carry**: a vertical follow fast enough
+  to keep the player framed through a 1.3 s drop, and an answer for a camera that passes through the
+  column and erases it. Both are work items, neither is a design change.
