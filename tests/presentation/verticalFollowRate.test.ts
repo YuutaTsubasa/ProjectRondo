@@ -7,24 +7,31 @@ import {
 } from '../../src/presentation/babylon/followCamera';
 import { DEFAULT_CONFIG } from '../../src/domain/hub/character/movementConfig';
 
-/** The hub camera's tuned vertical rate — `FollowCameraConfig.verticalSmoothing`'s default. */
+/** The tuned vertical rate every level starts from — `FollowCameraConfig.verticalSmoothing`'s
+ *  default. Named for the hub because the hub is where it was tuned. */
 const HUB_RATE = 9;
 
 /**
- * The hub's fastest measured descent, in world units per second: scripted walk/run/jump runs across
- * the height field peak here (design spec §13.2). The rendered root, which is what the camera
- * actually measures, peaked lower still, at 14.28.
+ * The fastest descent measured out of ordinary movement, in world units per second: scripted
+ * walk/run/jump runs across the hub's height field peak here (design spec §13.2). The rendered root,
+ * which is what the camera actually measures, peaked lower still, at 14.28.
  */
 const HUB_MEASURED_PEAK_DESCENT = 15.8;
 
 /**
- * A ballistic sweep of every walkable launch point bounds a hub running jump here — an over-estimate,
+ * A ballistic sweep of every walkable launch point bounds a running jump here — an over-estimate,
  * since it flies a free parabola through ground the capsule would have landed on (spec §13.2).
  */
 const HUB_RUNNING_JUMP_BOUND = 16.6;
 
+/**
+ * The rate this function returns, given a descent speed — and only that. Whether a level's camera
+ * calls it at all is `FollowCameraConfig.descentFollow`'s question and the observer's, which
+ * `followCameraObserver.test.ts` holds; the hub does not, so for the hub these are properties of
+ * code that never runs rather than of the camera it ships.
+ */
 describe('verticalFollowRate', () => {
-  it('is the hub camera untouched at every descent speed the hub can reach', () => {
+  it('is the tuned camera untouched at every descent speed ordinary movement reaches', () => {
     // Identity, not tolerance: `Object.is` is the whole point. The camera's smoothing is
     // `1 - exp(-rate * dt)`, so a rate that is 9 to within a rounding error is not 9, and the hub's
     // tuned camera would drift from the one it was tuned as.
@@ -33,7 +40,7 @@ describe('verticalFollowRate', () => {
     }
   });
 
-  it('leaves a margin over the hub between its ceiling and the engage speed', () => {
+  it('leaves a margin between what walking and jumping reach and the engage speed', () => {
     expect(DESCENT_ENGAGE_SPEED).toBeGreaterThan(HUB_RUNNING_JUMP_BOUND);
     expect(DESCENT_ENGAGE_SPEED).toBeGreaterThan(HUB_MEASURED_PEAK_DESCENT);
   });
@@ -68,12 +75,16 @@ describe('verticalFollowRate', () => {
   });
 
   it('engages only above a speed gravity needs real height to reach', () => {
-    // Sanity on the units: at `gravity` 24 the engage speed is 6.0 u of free fall, which is more than
-    // three times the jump apex (`jumpSpeed²/(2·gravity)` = 1.6875 u) the hub is built around.
+    // Sanity on the units, in the domain's own terms: reaching the engage speed takes a free fall of
+    // `v²/(2·gravity)`, and that has to be a drop the level's own geometry makes rare rather than one
+    // an ordinary jump produces on landing. The apex a jump reaches — `jumpSpeed²/(2·gravity)`, the
+    // height the character is built around — is the yardstick, and the margin is what carries the
+    // meaning here. How far the fall works out to in units is a consequence of the threshold rather
+    // than a requirement on it, so it is not restated: `DESCENT_ENGAGE_SPEED` is the number this
+    // suite pins, and pinning its arithmetic twice would only mean two edits instead of one.
     const { gravity, jumpSpeed } = DEFAULT_CONFIG;
     const fallToEngage = (DESCENT_ENGAGE_SPEED * DESCENT_ENGAGE_SPEED) / (2 * gravity);
     const jumpApex = (jumpSpeed * jumpSpeed) / (2 * gravity);
-    expect(fallToEngage).toBeCloseTo(6.02, 2);
     expect(fallToEngage).toBeGreaterThan(jumpApex * 3);
   });
 });

@@ -316,6 +316,17 @@ state with no reset, so a raw teleport to y = 60 left the knight at 6.6 and the 
 *glided* them up through 53 units at rates 14 and 9. A checkpoint respawn built on `setPosition` alone
 reads as a swoop across the level rather than a cut.
 
+**And the fourth reset has to reach `root`, not only `visualY` — Task 11's review found the respawn
+still gliding.** `root` is written from `visualY` once a frame in `playerController`'s observer, and a
+respawn is decided in a *later* observer, so on the frame it fires `root` still holds the height of the
+fall; `FollowCamera.snap()` re-seeds from `root`, so it seeded there. Measured on the real 24 u tower
+fall: the camera passed the checkpoint frame **3.6 u below** where it belonged and took **24 frames
+(0.40 s at 60 fps)** to climb back within 0.1 u. `teleport` now writes `root` as well, and `snap()`
+forces the node's world matrix — Babylon caches it per *render id*, so a mid-frame write is otherwise
+invisible to `getAbsolutePosition` until the next frame — and re-places the camera inside the same
+frame. The camera is then **exactly** at the checkpoint on the frame the respawn is decided, and does
+not move afterwards: 0 glide frames.
+
 **Where a checkpoint may be placed.** Measured over 60 stepped frames: open air and "0.3 u above the
 surface" both settle cleanly; a capsule teleported into the middle of a pillar squeezes out sideways
 at ~0.7 u/s; a capsule teleported **3 u below** a surface is lost outright (−2.54 → −4.62, still
@@ -380,10 +391,18 @@ Three residuals, all measured:
 the bottom edge at 19.6 u/s, so anything at or above that engages too late. Below: the hub has to stay
 under it, and the hub was measured rather than assumed — scripted walk/run/jump runs across the height
 field peak at **15.8 u/s** (rendered root 14.28), and an exhaustive ballistic sweep of every walkable
-launch point bounds a running jump at **16.6 u/s**. 17 was chosen. What the hub *can* reach is
-**19.8 u/s**, by falling off the top of the homing chain — not walking, running or jumping, and on
-those frames the hub's camera does now track tighter. Everything else in the hub is untouched, verified
-by a 1200-frame camera trace identical to ten decimal places with and without the term.
+launch point bounds a running jump at **16.6 u/s**. 17 was chosen.
+
+**What the hub can reach is `homingSpeed` 24, which is why the term is now per-level.** The review of
+Task 11 found the disclosure above understated: a player can lock a crystal *below* them, and a
+downward dash pulls the capsule at a flat 24 u/s, so the rendered root passes 17 u/s after 0.088 s and
+`DESCENT_FULL_SPEED` after 0.099 s — the ramp **saturates** and the hub would get the full rate 44, not
+a value near the tuned 9. Falling off the top of the homing chain reaches 19.8 u/s on its own. So
+`descentFollow` is a `CharacterRigOptions` flag each level states: the tower yes, the hub no, and the
+hub's crystals stay what `hubScene.ts` calls them, a playground rather than level design. Below the
+threshold nothing changed either way — a 1200-frame hub trace was identical to ten decimal places with
+and without the term, and an 800-frame scripted route clear of the crystals is **bit-identical** with
+`descentFollow` forced on against the shipping off (rendered root peaking at 14.278, capsule 15.8).
 
 **The camera has no obstruction handling at all.** `followCamera` consults exactly one piece of world
 geometry — the analytic `terrainHeight`. No ray cast, no occlusion test, no pull-in. Demonstrated

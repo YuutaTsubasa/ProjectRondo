@@ -19,6 +19,13 @@ export interface CharacterRigOptions {
   readonly groundHeight: GroundHeight;
   readonly spawn: Vector3;
   readonly crystals: Crystals;
+  /**
+   * Whether this level's camera tightens its vertical follow through a fast descent — see
+   * `FollowCameraConfig.descentFollow`, which has the arithmetic. Stated by every level rather
+   * than defaulted, because the answer is a fact about the level's drops and its crystals, and a
+   * level that inherits it silently is a level nobody decided it for.
+   */
+  readonly descentFollow: boolean;
 }
 
 export interface CharacterRig {
@@ -67,7 +74,8 @@ export interface CharacterRig {
  */
 export async function createCharacterRig(scene: Scene, options: CharacterRigOptions): Promise<CharacterRig> {
   const root = new TransformNode('player', scene);
-  const follow = createFollowCamera(scene, root, options.canvas, options.groundHeight);
+  const follow = createFollowCamera(
+    scene, root, options.canvas, options.groundHeight, options.descentFollow);
   scene.activeCamera = follow.camera;
   const shadows = options.makeShadows(follow.camera);
 

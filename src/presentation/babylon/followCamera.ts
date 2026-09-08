@@ -6,8 +6,10 @@ import type { GroundHeight } from './groundHeight';
 import { CAPSULE_HALF } from './capsule';
 
 /** While |playerY − groundLevel| is under this, treat the player as grounded and anchor the camera to
- *  the smooth terrain (not the jittery capsule); a jump clears it at once. Covers float + slope rest. */
-const GROUNDED_BAND = 0.5;
+ *  the smooth terrain (not the jittery capsule); a jump clears it at once. Covers float + slope rest.
+ *  Exported for the observer's test, which needs to stand a character exactly inside the band and
+ *  then take the ground away — the one-frame anchor step the descent measurement must not see. */
+export const GROUNDED_BAND = 0.5;
 
 /** Minimum gap the camera keeps above the terrain beneath it, so it never dips through the ground. */
 const CAMERA_GROUND_CLEARANCE = 0.6;
@@ -16,7 +18,7 @@ const CAMERA_GROUND_CLEARANCE = 0.6;
  * Where the descent-aware vertical follow starts and finishes engaging, in world units per second of
  * downward target motion, and the smoothing rate it reaches. **All three Untuned** — nobody has
  * played a tower fall. What they are is the output of two measurements: what the frustum needs, and
- * what the hub can and cannot reach.
+ * what ordinary movement can and cannot reach.
  *
  * **Why the follow needs a second rate at all.** An exponential smoother trails a target descending at
  * `v` by `v / rate`. At {@link FollowCameraConfig.verticalSmoothing} 9 that is 3.44 u at the 30.98 u/s
@@ -26,11 +28,16 @@ const CAMERA_GROUND_CLEARANCE = 0.6;
  * crossed the bottom edge **8.16 u in, at t = 0.80 s and 19.6 u/s**, and by the respawn was 1.40 of a
  * frame-height down, with the head itself 1.19 — no knight on screen at all, which is design spec
  * §13.2's finding reproduced (it measured 8.6 u / 0.844 s on its own trace). With the term, the same
- * fall keeps the root at 0.73–0.85 of the frame from the moment it engages.
+ * fall keeps the root between **0.73 and 0.99** of the frame from the moment it engages — one 0.99
+ * peak on the transition itself, which the last paragraph is about, and 0.73–0.85 for the rest of
+ * the way down.
  *
  * **Why it engages at 17 u/s.** This is bounded on both sides, and the window is narrow. Above:
  * unaided, the root reaches the bottom edge at 19.6 u/s, so a threshold at or above that engages too
- * late to help. Below: the hub has to stay under it. Two measurements of the hub's ceiling —
+ * late to help. Below: an ordinary jump has to stay under it, or the term fires on a player who is
+ * merely hopping between platforms. Two measurements of what the shared movement config reaches by
+ * walking, running and jumping — both taken in the hub, because its height field gives a jump more
+ * to fall off than the tower's flat slabs do —
  *
  * - **In play, 15.8 u/s.** Scripted walk/run/jump runs across the height field, clear of the homing
  *   test crystals, peaked there (`motion.velocity.y`), and the *rendered* root — the thing this term
@@ -40,15 +47,25 @@ const CAMERA_GROUND_CLEARANCE = 0.6;
  *   meets the terrain again) tops out there. It is an over-estimate: it flies a free parabola through
  *   ground the capsule would have landed on.
  *
- * 17 clears the stricter of the two. Verified rather than argued: the same scripted hub runs give a
- * camera trace **identical to ten decimal places** with and without this term, across 1200 frames.
+ * 17 clears the stricter of the two, and by enough that opting a level in is not a tuning decision
+ * about its walking and jumping: the same scripted hub runs, replayed with the term forced ON and
+ * with it absent, give a camera trace **identical to ten decimal places** across 1200 frames — and
+ * again, once this became a per-level choice, over an 800-frame scripted route kept clear of the
+ * test crystals, where `descentFollow` on and off produced **bit-identical** camera positions on
+ * every frame and the rendered root peaked at 14.278 u/s (the capsule at 15.8), the same two numbers
+ * the bullets above record.
  *
- * **What the hub CAN reach is 19.8 u/s, and it is not walking, running or jumping** — it is falling
- * off the top of the homing chain, whose test crystals reach y = 8 with a bounce above that. On those
- * frames this term does engage and the hub camera tracks tighter than it used to. That is stated, not
- * designed around: `followCamera` is given a transform, not a character, and cannot tell that fall
- * from a tower fall. The ramp is what keeps it cheap — just over the threshold the rate has barely
- * moved off 9, so brushing it is not a step change.
+ * **What a homing dash reaches is `homingSpeed` 24, and that is why this is a level's choice rather
+ * than everyone's** — see {@link FollowCameraConfig.descentFollow}. Nothing stops a player locking a
+ * crystal BELOW them, and a downward dash pulls the capsule at a flat 24 u/s: the rendered root eases
+ * toward that at `VISUAL_Y_SMOOTHING` 14, so it passes 17 u/s at `−ln(1 − 17/24)/14` = **0.088 s** and
+ * `DESCENT_FULL_SPEED` at 0.099 s, and from there to the end of the dash the ramp is **saturated** —
+ * the term returns its full rate, not a value near `verticalSmoothing`. Falling off the top of the
+ * homing chain reaches 19.8 u/s by itself. `followCamera` is handed a transform, not a character, and
+ * cannot tell any of that from a tower fall, so the level says whether it wants the term at all: the
+ * hub does not, because its crystals are a playground and not level design (`hubScene.ts`), and a
+ * camera nobody tuned for a dash should not be re-tuned by one. That makes "the hub's camera is
+ * unchanged" a fact about which branch runs, rather than a bound with a disclosed exception.
  *
  * `DESCENT_SMOOTHING` 44 is sized on the other end of the fall. The deepest drop the tower's
  * checkpoint spacing allows before the respawn fires is section 2's 28 u (falling from just under
@@ -67,9 +84,18 @@ const CAMERA_GROUND_CLEARANCE = 0.6;
  * 60 fps) before recovering. At 30 fps the same peak is 1.02 — the root leaves the frame for two
  * frames — because a longer frame is a bigger per-frame step and the unaided lag at the threshold is
  * already 2.2 u. The knight's head stays at 0.81 throughout it. Closing that gap means engaging
- * earlier than the hub allows, which is the thing this must not do.
+ * earlier than an ordinary jump allows, which is the thing this must not do.
  */
 export const DESCENT_ENGAGE_SPEED = 17;
+/**
+ * Where the ramp reaches the full rate. **Untuned like the other two, and its 1 u/s width is a
+ * guess** — nothing has measured how long a blend between two follow rates should take, because
+ * nobody has watched one. What the width buys is arithmetic and only that: at `gravity` 24 a fall
+ * crosses 1 u/s in 1/24 s, so the change is spread over **2.5 frames at 60 fps** (1.25 at 30) rather
+ * than landing inside one. Both directions cost something — at zero width the rate steps, and a
+ * wider ramp holds the camera below its full rate to a speed at which the lag it has to undo is
+ * larger, which is the transition the last paragraph of {@link DESCENT_ENGAGE_SPEED} measures.
+ */
 const DESCENT_FULL_SPEED = 18;
 export const DESCENT_SMOOTHING = 44;
 
@@ -78,8 +104,9 @@ export const DESCENT_SMOOTHING = 44;
  * {@link DESCENT_ENGAGE_SPEED} for every number in it.
  *
  * Exported for its test, and the property the test is there to hold is the first line: at or below
- * the engage speed this returns `base` **identically**, not approximately, which is what makes "the
- * hub's camera is unchanged" a fact about the arithmetic rather than a claim about tuning.
+ * the engage speed this returns `base` **identically**, not approximately, so a level that does opt
+ * in is still bit-for-bit the tuned camera everywhere below the threshold. A level that has not
+ * opted in never reaches this function at all — see {@link FollowCameraConfig.descentFollow}.
  */
 export function verticalFollowRate(base: number, descentSpeed: number): number {
   const engaged = Math.min(1, Math.max(0,
@@ -107,6 +134,15 @@ export interface FollowCameraConfig {
    *  lower = smoother). Damps the capsule's small Y steps over the terrain collider so the camera
    *  doesn't judder up/down on slopes. */
   verticalSmoothing: number;
+  /**
+   * Whether the vertical follow measures how fast the target is descending and raises its own rate
+   * above {@link DESCENT_ENGAGE_SPEED}. **Off unless a level asks for it**, and the level is the only
+   * thing that can answer: a fall long enough to need it is the tower's, while the same speeds are
+   * reachable in the hub by a homing dash aimed downward, in a camera nobody tuned for one. See
+   * {@link DESCENT_ENGAGE_SPEED} for that arithmetic. With it off, `verticalSmoothing` is the rate on
+   * every frame — the same single expression this file had before the term existed.
+   */
+  descentFollow: boolean;
 }
 
 const DEFAULT_CONFIG: FollowCameraConfig = {
@@ -120,6 +156,7 @@ const DEFAULT_CONFIG: FollowCameraConfig = {
   nearPlane: 0.05,
   initialPitch: 0.15,
   verticalSmoothing: 9,
+  descentFollow: false,
 };
 
 export interface FollowCamera {
@@ -135,11 +172,18 @@ export interface FollowCamera {
    */
   setEnabled(value: boolean): void;
   /**
-   * Drops the vertical follow's smoothed state, so the next frame re-seeds it at wherever the target
-   * now is instead of easing across from where the target used to be. For a teleport — a checkpoint
-   * respawn — where the ease is not a smoothing but a swoop: the smoothing is `verticalSmoothing` 9
-   * per second, so a 53-unit jump was measured gliding in over ~0.5 s. Pair it with `Player.teleport`,
-   * which resets the three things on the character's side; this one is the camera's.
+   * Re-seeds the vertical follow at wherever the target is NOW and re-places the camera there, so a
+   * teleport reads as a cut rather than as a swoop across the level: the smoothing is
+   * `verticalSmoothing` 9 per second, and a 53-unit jump was measured gliding in over ~0.5 s without
+   * this. Pair it with `Player.teleport`, which resets what the character holds; this one is the
+   * camera's.
+   *
+   * **Call it after the target has been moved, never before.** It re-seeds *from* the target, so
+   * snapping first would seed the cut at the position the character is leaving. That is exactly what
+   * this used to do, measured on a real tower respawn: the re-seed was left to the next frame and
+   * `teleport` had not yet reached `root`, so the camera passed the checkpoint frame **3.6 u below**
+   * where it belonged and took **24 frames (0.40 s at 60 fps)** to climb back within 0.1 u of it. It
+   * now arrives on the checkpoint on the frame the respawn is decided, and does not move after.
    */
   snap(): void;
   /** Removes the canvas pointer listeners. */
@@ -151,8 +195,9 @@ export function createFollowCamera(
   target: TransformNode,
   canvas: HTMLCanvasElement,
   groundHeight: GroundHeight,
+  descentFollow: boolean,
 ): FollowCamera {
-  const config: FollowCameraConfig = { ...DEFAULT_CONFIG };
+  const config: FollowCameraConfig = { ...DEFAULT_CONFIG, descentFollow };
   if (import.meta.env.DEV) {
     // Tune live from the console, e.g. `cameraConfig.aimHeight = 0.1`. Changes apply next frame.
     (window as unknown as { cameraConfig: FollowCameraConfig }).cameraConfig = config;
@@ -178,17 +223,16 @@ export function createFollowCamera(
   /** Last frame's raw target Y, for measuring how fast the thing being followed is descending. */
   let lastTargetY: number | null = null;
   /**
-   * Observer frames left in which the descent measurement is suppressed, because a `snap()` says the
-   * target has just been teleported and the jump is not a speed. Two, not one: `Player.teleport`
-   * writes the controller and the smoothed visual height, and `root` only picks that up in
-   * `playerController`'s own observer — which runs AFTER this one, since the camera is built before
-   * the player. So the frame a snap arrives on still reads the OLD `t.y` into `lastTargetY`, and the
-   * whole teleport shows up as one frame's movement on the frame after that.
+   * Places the camera from wherever the target is at the moment of the call. The frame's own work,
+   * and also `snap()`'s: a respawn is decided in an observer that runs AFTER this one, so re-seeding
+   * and leaving the placement to the next frame is a frame of camera looking at a place the character
+   * has left — and, before `Player.teleport` wrote `root`, a frame that re-seeded from the *old*
+   * height and then eased back up to the checkpoint at rate 9 over 0.40 s. Called with `dt` 0 from a
+   * snap, which is the seed branch below and measures no descent, so the destination — not a
+   * teleport-sized step — is what `lastTargetY` carries into the next frame.
    */
-  let teleportSettleFrames = 0;
-  scene.onBeforeRenderObservable.add(() => {
+  const place = (dt: number) => {
     camera.minZ = config.nearPlane;
-    const dt = scene.getEngine().getDeltaTime() / 1000;
     const t = target.getAbsolutePosition();
     // Follow X/Z tightly, but ease the vertical follow: the capsule's Y micro-steps as it crosses the
     // terrain collider's triangles (worst on descent), so copying it rigidly juddered the camera. When
@@ -202,18 +246,17 @@ export function createFollowCamera(
     // How fast the target is falling, from the RAW `t.y` and never from `targetY`: `targetY` steps
     // by up to GROUNDED_BAND when the grounded branch flips, and one frame of that reads as ~30 u/s
     // of descent that the character is not doing — which would engage the term below on an ordinary
-    // hub jump, the one thing this must not touch. `t.y` is the smoothed visual height and moves
-    // continuously. A teleport up reads as a negative descent and is floored at zero.
-    const teleporting = teleportSettleFrames > 0;
-    if (teleporting) teleportSettleFrames--;
-    const descent = teleporting || lastTargetY === null || dt <= 0
-      ? 0
-      : Math.max(0, (lastTargetY - t.y) / dt);
+    // jump between platforms, which this must not touch. `t.y` is the smoothed visual height and
+    // moves continuously. A teleport up reads as a negative descent and is floored at zero.
+    const descent = lastTargetY === null || dt <= 0 ? 0 : Math.max(0, (lastTargetY - t.y) / dt);
     lastTargetY = t.y;
-    // Below DESCENT_ENGAGE_SPEED this is exactly `config.verticalSmoothing` and the hub's camera is
-    // untouched; above it the follow tightens so the player stays in frame through a fall. See
-    // DESCENT_SMOOTHING for the frustum arithmetic and for the hub bound the threshold clears.
-    const rate = verticalFollowRate(config.verticalSmoothing, descent);
+    // Below DESCENT_ENGAGE_SPEED this is exactly `config.verticalSmoothing`; above it the follow
+    // tightens so the player stays in frame through a fall. In a level that has not asked for the
+    // term the expression is not evaluated at all. See DESCENT_SMOOTHING for the frustum arithmetic
+    // and DESCENT_ENGAGE_SPEED for what the threshold has to clear and what it deliberately does not.
+    const rate = config.descentFollow
+      ? verticalFollowRate(config.verticalSmoothing, descent)
+      : config.verticalSmoothing;
     if (smoothY === null || dt <= 0) smoothY ??= targetY;
     else smoothY += (targetY - smoothY) * (1 - Math.exp(-rate * dt));
     const anchor = new Vector3(t.x, smoothY, t.z);
@@ -229,7 +272,8 @@ export function createFollowCamera(
     position.y = Math.max(position.y, config.minCameraHeight, groundUnderCamera);
     camera.position.copyFrom(position);
     camera.setTarget(anchor.add(new Vector3(0, config.aimHeight, 0)));
-  });
+  };
+  scene.onBeforeRenderObservable.add(() => place(scene.getEngine().getDeltaTime() / 1000));
 
   return {
     camera,
@@ -242,12 +286,23 @@ export function createFollowCamera(
       const r = new Vector3(rgt.x, 0, rgt.z).normalize();
       return { right: { x: r.x, z: r.z }, forward: { x: f.x, z: f.z } };
     },
-    // `null` rather than a value, so the re-seed happens in the observer against the target's position
-    // on the frame it actually runs — the same branch a freshly built camera takes on its first frame.
-    // The descent measurement with it: a respawn moves the target by tens of units in one frame, and
-    // reading that as a speed would engage the descent term on a cut. See `teleportSettleFrames` for
-    // why suppressing it takes two frames rather than one.
-    snap: () => { smoothY = null; lastTargetY = null; teleportSettleFrames = 2; },
+    // `null` rather than a value, so the re-seed reads the target itself — the same branch a freshly
+    // built camera takes on its first frame — and then `place` puts the camera there before this
+    // frame is drawn. The descent history goes with it: a respawn moves the target by tens of units
+    // in one frame, and reading that as a speed would engage the descent term on a cut. Nothing here
+    // waits for a later frame, so nothing here depends on which observer runs first.
+    snap: () => {
+      // Forced, and the fix does not work without it: Babylon caches a node's world matrix per
+      // RENDER ID, and `getAbsolutePosition` returns that cache. The observer above has already read
+      // the target this frame, so the write `Player.teleport` makes in a later observer is invisible
+      // to an unforced read until the next frame — which is the stale height this whole re-seed
+      // exists to stop reading. Measured on three observers in a row: the first reads 60, the second
+      // writes 59, the third writes 100 and reads back **60**, the value the frame opened with.
+      target.computeWorldMatrix(true);
+      smoothY = null;
+      lastTargetY = null;
+      place(0);
+    },
     setEnabled: (value: boolean) => {
       enabled = value;
       // Releasing on the way down is deliberate: an AVG overlay needs the cursor back, and a level

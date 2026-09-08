@@ -103,15 +103,22 @@ export interface Player {
    *    frame, because the observer below rewrites it from `motion.velocity` before every `integrate`.
    * 3. `motion.velocity`, therefore. Without it a fall's speed is restored on the very next frame and
    *    the character drops off the checkpoint again at the speed it arrived with.
-   * 4. `visualY`, the smoothed *rendered* height. It is closure state with no other way in, so a
-   *    teleport up 53 units left the knight rendered at the old height, gliding up over ~0.33 s.
+   * 4. `visualY`, the smoothed *rendered* height, **and `root` itself**. `visualY` is closure state
+   *    with no other way in, so a teleport up 53 units left the knight rendered at the old height,
+   *    gliding up over ~0.33 s. `root` is written from `visualY` in the observer below, which for a
+   *    respawn decided in a LATER observer means it would keep the old position for the rest of the
+   *    frame — the frame that respawn is drawn on. Writing it here is not cosmetic: the camera reads
+   *    the character only through `root`, so a stale one is a stale re-seed: measured on a real
+   *    tower respawn, the camera passed the checkpoint frame 3.6 u below where it belonged and took
+   *    0.40 s to climb back, which is a glide where `FollowCamera.snap()` promises a cut.
    *
    * A fifth holds the old INTENT, and it is not a matter of how the arrival looks: a homing dash in
    * flight. `respawn.ts` owns that rule and says why the dash would otherwise resume from the
    * checkpoint on the very next frame.
    *
    * The camera holds a sixth — `smoothY` — which is not this function's to reset. Call
-   * `FollowCamera.snap()` alongside this one.
+   * `FollowCamera.snap()` alongside this one, and after it: `snap` re-seeds from `root`, which is
+   * only the destination once this function has run.
    *
    * Teleport into open air above the destination surface, never onto it: the ground collider is
    * one-sided, and a capsule placed below a surface falls out of the world rather than landing on it.
@@ -174,6 +181,12 @@ export function createPlayer(
       // Re-seed the render smoothing at the destination, so the knight is drawn there on the very
       // next frame instead of easing up to it from wherever it was standing.
       visualY = to.y;
+      // And the transform the smoothing feeds, in the same breath. The observer below writes `root`
+      // once a frame from the solved capsule, so a respawn decided after it leaves `root` a frame
+      // behind — and `root` is the only thing that can be read for where the character *is* being
+      // drawn. `FollowCamera.snap()` re-seeds from exactly this, and seeded a frame late it re-seeded
+      // at the height of the fall (see this method's doc, point 4).
+      root.position.copyFrom(to);
     },
   };
 

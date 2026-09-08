@@ -154,6 +154,12 @@ export async function createHubScene(
     groundHeight: terrainHeight,
     spawn,
     crystals,
+    // No: nothing the hub is *designed* around comes near the threshold — walking, running and
+    // jumping were measured at 15.8 u/s against 17 — but a homing dash aimed at a crystal below the
+    // player runs at `homingSpeed` 24 and would engage the term fully, on a camera tuned for this
+    // level and for a move that has its own feel. The crystals above are a playground; the camera
+    // they would re-tune is not. `followCamera`'s DESCENT_ENGAGE_SPEED has the arithmetic.
+    descentFollow: false,
   });
   const { follow, shadows, player, knight, readMotion } = rig;
   // Babylon 9 keys shadow generators by camera, so the console's usual

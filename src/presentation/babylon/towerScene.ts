@@ -180,6 +180,11 @@ export async function createTowerScene(
     groundHeight: flatGround(TOWER_FLOOR_Y),
     spawn: TOWER_SPAWN,
     crystals,
+    // Yes, and this is the level the term exists for: a missed platform is a 24-28 u fall the player
+    // is meant to watch (spec §2, §4), and without it the knight leaves the bottom of the frame 8 u
+    // in. The tower's own crystals can start a downward dash too, and here that is wanted — a dash
+    // down the outside of the column is the same fall, aimed.
+    descentFollow: true,
   });
   const { shadows, player, follow } = rig;
 
@@ -203,7 +208,8 @@ export async function createTowerScene(
       // Both halves, or the respawn is a swoop rather than a cut: `teleport` resets the four things
       // that hold the old position on the character's side and `snap()` drops the camera's smoothed
       // Y, which is a fifth and is not the character's to reset. Spec §13.1 measured what each of
-      // them costs when it is missed.
+      // them costs when it is missed. In this order and not the other: `snap()` re-seeds the camera
+      // from the character's transform, and `teleport` is what moves it there.
       player.teleport(new Vector3(to.x, to.y, to.z));
       follow.snap();
       // Nothing else this frame: the portal test below would be reading `here`, which is now a
@@ -262,8 +268,10 @@ function buildTower(scene: Scene, shadows: Shadows): void {
   // Picks up the hemispheric ambient, so a face turned away from the sun is shaded rather than black.
   mat.ambientColor = new Color3(1, 1, 1);
 
-  const finish = (mesh: AbstractMesh, shape: PhysicsShapeType) => {
-    mesh.material = mat;
+  // `material` defaults to the shared white; the column passes its own. A parameter rather than an
+  // overwrite afterwards, so no mesh is ever briefly assigned a material it does not keep.
+  const finish = (mesh: AbstractMesh, shape: PhysicsShapeType, material: StandardMaterial = mat) => {
+    mesh.material = material;
     mesh.isPickable = false;
     new PhysicsAggregate(mesh, shape, { mass: 0 }, scene);
     shadows.cast(mesh);
@@ -287,7 +295,6 @@ function buildTower(scene: Scene, shadows: Shadows): void {
     scene,
   );
   column.position.set(0, TOWER_FLOOR_Y + TOWER_COLUMN_HEIGHT / 2, 0);
-  finish(column, PhysicsShapeType.CYLINDER);
   // The column gets its own copy of the white so it can drop back-face culling, and the rest of the
   // tower does not — a floor and platforms drawn from below cost draw calls for faces nobody sees.
   //
@@ -303,7 +310,7 @@ function buildTower(scene: Scene, shadows: Shadows): void {
   // here (spec §13.3 carries it as budgeted work).
   const columnMat = mat.clone('towerColumnWhite');
   columnMat.backFaceCulling = false;
-  column.material = columnMat;
+  finish(column, PhysicsShapeType.CYLINDER, columnMat);
 
   TOWER_PLATFORMS.forEach((platform: TowerPlatform, i: number) => {
     const slab = CreateBox(
