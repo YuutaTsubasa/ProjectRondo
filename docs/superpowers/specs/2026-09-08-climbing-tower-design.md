@@ -99,12 +99,14 @@ knight on screen by touchdown, so a fall could not "register as a loss" because 
 Task 11's descent-aware vertical follow keeps the knight in frame for the whole fall, so the paragraph
 above is again saying something the camera can deliver.
 
-**Now played — see §14.3 and §14.4.** Six real falls on the built tower run 0.45 s to 1.25 s from
-the frame the fall is detected to the frame the respawn fires, and the knight's root never leaves
-the frame on any of them. Two things that only a playthrough could say: the camera can deliver it
-*unless the camera is inside the column*, which it is for the whole of any fall taken facing outward
-(§14.4); and whether 1.25 s *feels* like a loss rather than a punishment queue is still nobody's
-measurement to make — it is the owner's, and it is listed as such in §14.8.
+**Now played — see §14.3 and §14.4.** Seven real falls were taken on the built tower — six
+of them run 0.45 s to 1.25 s from the frame the fall is detected to the frame the respawn fires;
+the seventh, a section-1 ledge fall, is caught by the floor before any respawn and has no such
+duration. The knight's root never leaves the frame on any of the seven. Two things that only
+a playthrough could say: the camera can deliver it *unless the camera is inside the column*,
+which it is for the whole of any fall taken facing outward (§14.4); and whether 1.25 s *feels*
+like a loss rather than a punishment queue is still nobody's measurement to make — it is the
+owner's, and it is listed as such in §14.8.
 
 The respawn rule: when the player's height falls below the active checkpoint's height by a margin,
 return them to the active checkpoint. Checkpoints activate on the way **up** only — passing a
@@ -613,17 +615,20 @@ above. It is here for comparison against §4's law and is never the recorded tim
 
 Three things this settles:
 
-- **§4's arithmetic holds, and the check that says so is not circular.** Back the entry speed out of
-  each row's own two independently recorded figures: `v0 = Peak − gravity·Duration` gives **4.0 /
-  10.0 / 10.0 / 4.6 / 4.6 / 3.9 u/s** — the four walk-offs land on the ~4.8 u/s `FALL_GRACE_SECONDS`
-  accounts for, and the two chain rows on `homingBounceSpeed` 9. Feed those back through
-  `h = (v0 + Peak)/2 · t`, an identity that holds only under *constant* acceleration, and it
-  reproduces each row's `Drop` to within **1.5 %**, and exactly on both checkpoint rows. `Drop` is
-  corroborated independently against `towerLevel.ts`'s checkpoint heights, so no column here is
-  another column restated: three separately sourced numbers agree only if `gravity` is a constant 24
-  the whole way down. **That** is what says there is no drag and no terminal speed anywhere — not
-  the durations, which measure a different interval. The 36.0 u/s deepest case is the ~36.7 u/s
-  `DESCENT_SMOOTHING`'s own doc predicted for it.
+- **§4's arithmetic holds, and the check that says so is not circular.** Back the entry speed
+  out of each row's own two independently recorded figures: `v0 = Peak − gravity·Duration` gives
+  **4.0 / 10.0 / 10.0 / 4.6 / 4.6 / 3.9 u/s** — the four walk-offs cluster a little below the
+  ~4.8 u/s that 0.2 s of `FALL_GRACE_SECONDS` free fall would give, the right order of magnitude
+  and the right sign for a clock that starts at detection rather than at rest, but the shortfall
+  (0.2 to 0.9 u/s across the four, worst on the smallest drop) is not accounted for by anything
+  measured here and is left unexplained; the two chain rows land on `homingBounceSpeed` 9. Feed
+  those back through `h = (v0 + Peak)/2 · t`, an identity that holds only under *constant*
+  acceleration, and it reproduces each row's `Drop` to within **1.5 %**, and exactly on both
+  checkpoint rows. `Drop` is corroborated independently against `towerLevel.ts`'s checkpoint
+  heights, so no column here is another column restated: three separately sourced numbers agree
+  only if `gravity` is a constant 24 the whole way down. **That** is what says there is no drag
+  and no terminal speed anywhere — not the durations, which measure a different interval. The
+  36.0 u/s deepest case is the ~36.7 u/s `DESCENT_SMOOTHING`'s own doc predicted for it.
 - **The floor is what catches a section-1 fall**, exactly as §4 says: the respawn rule needs the
   capsule `TOWER_FALL_MARGIN` below y 0 and the floor is at y 0, so a fall inside section 1 is a
   landing, not a respawn. Walking off the *edge* of the floor is what reaches checkpoint 0, and it
@@ -635,11 +640,11 @@ Three things this settles:
   afterwards. §13.1's claim for `teleport` plus `snap()` is reproduced on the built tower.
 
 **`TOWER_FALL_MARGIN` 4 now has one edge watched and one still unfelt.** Stepping off a checkpoint
-pad costs **0.450 s** between fall detection and the respawn firing — the "hang before it resolves"
-end of the constant's own argument, now a number. Whether 0.45 s of hanging reads as a hang is
-§14.8's. The other edge —
-"deep enough that stepping off a ledge just below a checkpoint does not snap you" — was not
-exercised, because the layout has no ledge inside 4 u below a checkpoint to step off.
+pad costs **0.450 s** between fall detection and the respawn firing — the "hang before it
+resolves" end of the constant's own argument, now a number. Whether 0.45 s of hanging reads
+as a hang is §14.8's. The other edge — "deep enough that stepping off a ledge just below a
+checkpoint does not snap you" — was not exercised, because the layout has no ledge inside 4
+u below a checkpoint to step off.
 
 ### 14.4 Framing on the fall — and the thing the framing numbers do not say
 
