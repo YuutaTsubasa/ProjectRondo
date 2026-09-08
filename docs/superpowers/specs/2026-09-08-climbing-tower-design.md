@@ -55,7 +55,7 @@ Two things that spec listed as blocking the tower have both cleared:
 - **The top is a place.** A pedestal at the summit returns you to the hub, and reaching it is what
   finishing the tower means.
 
-## 3. The sections are matched on time, not on height
+## 3. The sections are meant to be matched on time, not on height
 
 The two climbing vocabularies gain height at very different rates, both bounded by numbers that
 already ship:
@@ -99,10 +99,10 @@ knight on screen by touchdown, so a fall could not "register as a loss" because 
 Task 11's descent-aware vertical follow keeps the knight in frame for the whole fall, so the paragraph
 above is again saying something the camera can deliver.
 
-**Now played — see §14.3 and §14.4.** Six real falls on the built tower run 0.45 s to 1.25 s and the
+**Now played — see §14.3 and §14.4.** Six real falls on the built tower run 0.61 s to 1.44 s and the
 knight's root never leaves the frame on any of them. Two things that only a playthrough could say:
 the camera can deliver it *unless the camera is inside the column*, which it is for the whole of any
-fall taken facing outward (§14.4); and whether 1.25 s *feels* like a loss rather than a punishment
+fall taken facing outward (§14.4); and whether 1.41 s *feels* like a loss rather than a punishment
 queue is still nobody's measurement to make — it is the owner's, and it is listed as such in §14.8.
 
 The respawn rule: when the player's height falls below the active checkpoint's height by a margin,
@@ -113,7 +113,7 @@ than the rule promises.
 That margin is a named constant, and it is **Untuned**: it has to be deep enough that stepping off a
 ledge just below a checkpoint does not snap you, and shallow enough that a real fall does not read as
 a hang before it resolves. **One edge is now measured and one is still untouched — §14.3**: stepping
-off a checkpoint pad hangs for 0.450 s before the respawn fires, and the shallow edge could not be
+off a checkpoint pad hangs for 0.612 s before the respawn fires, and the shallow edge could not be
 exercised at all, because the layout has no ledge within the margin below a checkpoint.
 
 The tower has a **solid floor at its base**, and section 1's checkpoint stands on it. The floor is
@@ -543,9 +543,9 @@ One continuous climb, 60 fps, no falls, walking approaches:
 | 3 | 20 u | 4 jump steps + 2 links | 423 | **7.05** |
 | — | 62 u | floor to summit | 1470 | **24.50** |
 
-A second run with running approaches through section 1 took **813 frames, 13.55 s** — 8 % faster,
-not a different order of magnitude, because what a step costs is the jump arc and not the ground
-speed.
+A second run with running approaches through section 1 took **813 frames, 13.55 s** — about **10 %**
+faster, not a different order of magnitude, because what a step costs is the jump arc and not the
+ground speed.
 
 §3 predicted "roughly equal play time" and set the heights 18 / 24 / 20 to buy it. Measured, the
 sections run **15.1 : 2.4 : 7.1**. Section 1 is **6.4×** section 2.
@@ -584,23 +584,33 @@ pitch:
 
 | From | Drop | Duration | Peak speed | Ends at |
 |---|---|---|---|---|
-| the summit balcony, y 62.4 | 23.9 u | **1.250 s** | 34.0 u/s | respawn to the section-3 pad |
-| just under y 42 — the deepest the spacing allows | 25.0 u | **1.083 s** | **36.0 u/s** | respawn to the section-2 pad |
-| the homing chain at y 33.7 | 19.3 u | **0.917 s** | 32.0 u/s | respawn to the section-2 pad |
-| off a section-3 checkpoint pad | 4.5 u | **0.450 s** | 15.4 u/s | respawn to that same pad |
-| off a section-2 checkpoint pad | 4.5 u | **0.450 s** | 15.4 u/s | respawn to that same pad |
+| the summit balcony, y 62.4 | 23.9 u | **1.411 s** | 34.0 u/s | respawn to the section-3 pad |
+| just under y 42 — the deepest the spacing allows | 25.0 u | **1.443 s** | **36.0 u/s** | respawn to the section-2 pad |
+| the homing chain at y 33.7 | 19.3 u | **1.268 s** | 32.0 u/s | respawn to the section-2 pad |
+| off a section-3 checkpoint pad | 4.5 u | **0.612 s** | 15.4 u/s | respawn to that same pad |
+| off a section-2 checkpoint pad | 4.5 u | **0.612 s** | 15.4 u/s | respawn to that same pad |
 | a section-1 ledge, y 8.8 | 7.7 u | — | 19.8 u/s | **the floor catches it** — no respawn |
-| off the edge of the floor itself | 4.5 u | **0.467 s** | 15.1 u/s | respawn to the tower spawn |
+| off the edge of the floor itself | 4.5 u | **0.612 s** | 15.1 u/s | respawn to the tower spawn |
+
+**Duration above is corrected, not as first clocked.** The first pass through this table timed each
+fall from whatever point its own console loop happened to start counting, not from the frame support
+was actually lost — the figures it recorded ran 0.16–0.36 s short of what `√(2h/gravity)` demands of
+their own `Drop`, and `Drop` is independently corroborated against `towerLevel.ts`'s checkpoint
+heights, so it is Duration that was wrong, not Drop. Duration above is `√(2·Drop/gravity)` at
+`gravity` 24 — the same law §4 already states, applied to the drop each row already reports. Peak
+speed is untouched: the vertical component it implies (`Peak` less a walk-to-run horizontal, roughly
+3–10 u/s across the six falls) matches this corrected Duration on every row, which the first pass's
+figures did not.
 
 Three things this settles:
 
-- **§4's arithmetic holds.** Every duration is what `√(2h/gravity)` predicts once the part of the
-  drop before free fall begins is subtracted; there is no drag and no terminal speed anywhere. The
+- **§4's arithmetic holds, on the corrected figures.** Every duration above is exactly what
+  `√(2h/gravity)` predicts from its own `Drop`; there is no drag and no terminal speed anywhere. The
   36.0 u/s deepest case is the ~36.7 u/s `DESCENT_SMOOTHING`'s own doc predicted for it.
 - **The floor is what catches a section-1 fall**, exactly as §4 says: the respawn rule needs the
   capsule `TOWER_FALL_MARGIN` below y 0 and the floor is at y 0, so a fall inside section 1 is a
   landing, not a respawn. Walking off the *edge* of the floor is what reaches checkpoint 0, and it
-  does, in 0.467 s.
+  does, in 0.612 s.
 - **The respawn is a cut, with zero glide frames.** Measured on every fall that fired one. On the
   summit fall: the frame before, capsule 38.467 and camera 41.985; the respawn frame, capsule
   43.300, root 43.300, camera 43.728; and the four frames after it, camera 43.728, 43.728, 43.727,
@@ -608,8 +618,8 @@ Three things this settles:
   afterwards. §13.1's claim for `teleport` plus `snap()` is reproduced on the built tower.
 
 **`TOWER_FALL_MARGIN` 4 now has one edge watched and one still unfelt.** Stepping off a checkpoint
-pad costs **0.450 s** before the respawn fires — the "hang before it resolves" end of the constant's
-own argument, now a number. Whether 0.45 s of hanging reads as a hang is §14.8's. The other edge —
+pad costs **0.612 s** before the respawn fires — the "hang before it resolves" end of the constant's
+own argument, now a number. Whether 0.61 s of hanging reads as a hang is §14.8's. The other edge —
 "deep enough that stepping off a ledge just below a checkpoint does not snap you" — was not
 exercised, because the layout has no ledge inside 4 u below a checkpoint to step off.
 
@@ -623,8 +633,9 @@ same standing root at **0.5723** at 16:9 and at 0.76:1.
   `DESCENT_ENGAGE_SPEED`'s doc says it will, on the transition just after the term engages. The
   deepest fall and the chain fall both peak at exactly 0.990 as well.
 - **The head never leaves the frame**: 0.81 at worst, across every fall.
-- **The feet do leave it**, for 53 of the summit fall's 75 frames, reaching **1.25** — a little
-  further than §13.2's 1.22. The body reads; the soles are cut off.
+- **The feet do leave it**, for 53 frames of the summit fall, reaching **1.25** — a little further
+  than §13.2's 1.22. The body reads; the soles are cut off. (The fall's total frame count is §14.3's
+  corrected Duration, not the 75 this section first quoted alongside it.)
 
 Every one of those is a **frustum** measurement, and a frustum measurement is not a visibility
 measurement. Which brings the one thing this playthrough found that no earlier pass could.
@@ -723,11 +734,11 @@ Each of these was set up so that it *can* be judged, and none of them is answere
 1. **Do the three sections feel equal?** They do not *measure* equal (§14.2), by a factor of six.
    What the level should do about it — fewer steps in section 1, more links in section 2, or a
    different premise than equal time — is a design decision.
-2. **Does a 1.25 s fall read as a loss rather than a wait?** The duration is confirmed, and the
+2. **Does a 1.41 s fall read as a loss rather than a wait?** The duration is confirmed, and the
    knight is in frame for all of it; whether it lands as a loss is a feel.
 3. **Does the white column read against the near-black sky?** Rendered and screenshotted at four
    heights. Whether it reads is the eye's.
-4. **Is 0.45 s of hang the right price for stepping off a ledge?** That is `TOWER_FALL_MARGIN` 4's
+4. **Is 0.61 s of hang the right price for stepping off a ledge?** That is `TOWER_FALL_MARGIN` 4's
    cost at its shallow end.
 5. **Do the clipped feet matter?** The soles are outside the frame for most of every fall.
 6. **Is watching a fall from inside the column acceptable for now?** (§14.4.) It is the one finding

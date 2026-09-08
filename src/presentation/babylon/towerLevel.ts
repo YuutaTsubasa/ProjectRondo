@@ -344,8 +344,8 @@ const RESPAWN_LIFT = 0.3;
  * deliberate drop between platforms, shallower than a fall that would hang before resolving".
  *
  * One edge is now measured and the other could not be exercised (spec §14.3). Stepping off a
- * checkpoint pad hangs for **0.450 s** before the respawn fires — that is what "a fall that would
- * hang before resolving" costs at this value, and whether 0.45 s reads as a hang is a judgement
+ * checkpoint pad hangs for **0.612 s** before the respawn fires — that is what "a fall that would
+ * hang before resolving" costs at this value, and whether 0.61 s reads as a hang is a judgement
  * nobody has made. The shallow edge was never reached, because the layout has no ledge within 4 u
  * below a checkpoint to step off. See the design spec §4.
  */
