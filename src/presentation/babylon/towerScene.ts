@@ -5,7 +5,6 @@ import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { Color3, Color4 } from '@babylonjs/core/Maths/math.color';
 import { HemisphericLight } from '@babylonjs/core/Lights/hemisphericLight';
 import { DirectionalLight } from '@babylonjs/core/Lights/directionalLight';
-import { CascadedShadowGenerator } from '@babylonjs/core/Lights/Shadows/cascadedShadowGenerator';
 import { CreateBox } from '@babylonjs/core/Meshes/Builders/boxBuilder';
 import { CreateCylinder } from '@babylonjs/core/Meshes/Builders/cylinderBuilder';
 import type { AbstractMesh } from '@babylonjs/core/Meshes/abstractMesh';
@@ -252,15 +251,11 @@ export async function createTowerScene(
   return tower;
 }
 
-/** The hub's measured shadow generator with the tower's cascade shape — see {@link SHADOW_MAX_Z}. */
+/** The hub's measured shadow generator with the tower's cascade shape — see {@link SHADOW_MAX_Z}.
+ *  Handed to `createShadows` rather than set on what it returns, so which branch has these properties
+ *  stays that file's business; see `ShadowShape` for what that does and does not save. */
 function towerShadows(sun: DirectionalLight, camera: Camera): Shadows {
-  const shadows = createShadows(sun, camera);
-  // Only the cascaded branch has these; the WebGL1 fallback is a single map with no splits to shape.
-  if (shadows.generator instanceof CascadedShadowGenerator) {
-    shadows.generator.shadowMaxZ = SHADOW_MAX_Z;
-    shadows.generator.numCascades = SHADOW_CASCADES;
-  }
-  return shadows;
+  return createShadows(sun, camera, { maxZ: SHADOW_MAX_Z, cascades: SHADOW_CASCADES });
 }
 
 /** The column, the floor, the platforms and the summit pedestal — all one white material, all static

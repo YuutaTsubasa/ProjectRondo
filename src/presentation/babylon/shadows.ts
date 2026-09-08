@@ -67,6 +67,27 @@ const DARKNESS = 0.15;
  */
 const FALLBACK_MAP_SIZE = 2048;
 
+/**
+ * The two numbers whose meaning is "what shape is this level", for a caller whose level is not the
+ * hub. Both apply only on the cascaded branch: the WebGL1 fallback is a single map with no splits to
+ * shape and no `shadowMaxZ` to set, and it silently ignores both.
+ *
+ * Passing them in rather than setting them on the returned generator is not an optimisation, and it
+ * would be wrong to write one down here: `CascadedShadowGenerator`'s constructor builds its map array
+ * before any caller can speak (`_initializeGenerator` defaults `_numCascades` to
+ * `DEFAULT_CASCADES_COUNT` 4, and it runs from inside `super()`), so the four {@link MAP_SIZE} maps
+ * are allocated and then thrown away by the first `numCascades` write either way. What this does buy
+ * is that the `instanceof` narrowing and the knowledge of which properties only exist on the cascaded
+ * branch stay in this file, where that branch already is.
+ */
+export interface ShadowShape {
+  /** How far from the camera shadows stop. Defaults to {@link SHADOW_MAX_Z}, shaped for the hub. */
+  readonly maxZ?: number;
+  /** How many cascades cover it. Defaults to {@link CASCADES}. Every cascade is a full re-render of
+   *  every caster, so this is a frame-time knob as much as a quality one. */
+  readonly cascades?: number;
+}
+
 export interface Shadows {
   /** The live generator — CascadedShadowGenerator, or a plain ShadowGenerator on WebGL1. */
   readonly generator: ShadowGenerator;
@@ -107,13 +128,13 @@ export interface Shadows {
  * camera later (a cutscene or AVG camera) without updating the generator and, on the cascaded branch,
  * every shadow stops rendering silently, no error, no console warning — see `docs/HANDOFF.md` §7.
  */
-export function createShadows(sun: DirectionalLight, camera: Camera): Shadows {
+export function createShadows(sun: DirectionalLight, camera: Camera, shape: ShadowShape = {}): Shadows {
   let generator: ShadowGenerator;
   if (CascadedShadowGenerator.IsSupported) {
     const csm = new CascadedShadowGenerator(MAP_SIZE, sun, false, camera);
-    csm.numCascades = CASCADES;
+    csm.numCascades = shape.cascades ?? CASCADES;
     csm.lambda = LAMBDA;
-    csm.shadowMaxZ = SHADOW_MAX_Z;
+    csm.shadowMaxZ = shape.maxZ ?? SHADOW_MAX_Z;
     // The camera never stops moving in a third-person game; without stabilization the cascade
     // edges shimmer against the grass every frame, which reads worse than the resolution it costs.
     csm.stabilizeCascades = true;

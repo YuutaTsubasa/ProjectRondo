@@ -9,7 +9,6 @@ import {
 import { step, isHomingFrame } from '../../domain/hub/character/characterMovement';
 import { DEFAULT_CONFIG, type MovementConfig } from '../../domain/hub/character/movementConfig';
 import { IDLE, type CharacterMotion } from '../../domain/hub/character/characterMotion';
-import { ZERO3 } from '../../domain/math/vec3';
 import type { MovementInput } from '../../domain/hub/character/movementInput';
 import { planarDirectionFromInput } from './cameraRelativeDirection';
 import { toBabylon, toVec3 } from './vectorConversions';
@@ -20,6 +19,7 @@ import type { Crystals } from './crystals';
 import { createHomingReticle } from './homingReticle';
 import { stepGroundContact, spendBufferedJump, INITIAL_GROUND_CONTACT } from './groundContact';
 import { stepHomingLock, NO_HOMING_LOCK } from './homingLock';
+import { respawned } from './respawn';
 import { solverVelocity } from './slopeMotion';
 
 /**
@@ -95,7 +95,7 @@ export interface Player {
   /**
    * Puts the character at `to` as a cut, not as a move — for a checkpoint respawn.
    *
-   * Four things hold the old position, and a teleport that misses any one of them reads as a swoop
+   * Four things hold the old POSITION, and a teleport that misses any one of them reads as a swoop
    * rather than a respawn; all four were measured (design spec §13.1), not reasoned about:
    *
    * 1. The controller's position. `setPosition` moves the capsule exactly and immediately.
@@ -106,7 +106,11 @@ export interface Player {
    * 4. `visualY`, the smoothed *rendered* height. It is closure state with no other way in, so a
    *    teleport up 53 units left the knight rendered at the old height, gliding up over ~0.33 s.
    *
-   * The camera holds a fifth — `smoothY` — which is not this function's to reset. Call
+   * A fifth holds the old INTENT, and it is not a matter of how the arrival looks: a homing dash in
+   * flight. `respawn.ts` owns that rule and says why the dash would otherwise resume from the
+   * checkpoint on the very next frame.
+   *
+   * The camera holds a sixth — `smoothY` — which is not this function's to reset. Call
    * `FollowCamera.snap()` alongside this one.
    *
    * Teleport into open air above the destination surface, never onto it: the ground collider is
@@ -143,6 +147,13 @@ export function createPlayer(
   // The Havok controller itself, for probing its solver settings live in dev.
   if (import.meta.env.DEV) (window as unknown as { charController: unknown }).charController = controller;
 
+  // Coyote time, jump buffering and the takeoff guard all live in this pure state — see groundContact.
+  let contact = INITIAL_GROUND_CONTACT;
+  // Which crystal a dash is committed to, its entry estimate, and the reticle's separate selection —
+  // all decided by one tested machine rather than inline here. See homingLock. Declared above the
+  // player rather than beside `contact` because `teleport` clears it.
+  let homingLock = NO_HOMING_LOCK;
+
   const player: Player = {
     root, motion: IDLE, airborne: false, config, homingEntrySeconds: null, homingBounced: false,
     capsulePosition: () => controller.getPosition().clone(),
@@ -152,19 +163,19 @@ export function createPlayer(
       // the observer below copies it onto the controller before the next `integrate`. The controller's
       // is zeroed anyway so that nothing reads a stale fall speed off it in between.
       controller.setVelocity(Vector3.Zero());
-      // A new motion value rather than a mutation: `CharacterMotion` is a domain value, and `ZERO3`
-      // is the same shared zero `IDLE` uses.
-      player.motion = { ...player.motion, velocity: ZERO3 };
+      // The domain velocity and the dash together, from one tested rule — see `respawn.ts` for why a
+      // dash left in flight across a teleport resumes from the checkpoint on the next frame.
+      const cut = respawned(player.motion);
+      player.motion = cut.motion;
+      homingLock = cut.lock;
+      // Follows the lock: the observer below recomputes it from `homingLock` every frame, and this
+      // keeps the two from disagreeing on the frames between the cut and the next one.
+      player.homingEntrySeconds = null;
       // Re-seed the render smoothing at the destination, so the knight is drawn there on the very
       // next frame instead of easing up to it from wherever it was standing.
       visualY = to.y;
     },
   };
-  // Coyote time, jump buffering and the takeoff guard all live in this pure state — see groundContact.
-  let contact = INITIAL_GROUND_CONTACT;
-  // Which crystal a dash is committed to, its entry estimate, and the reticle's separate selection —
-  // all decided by one tested machine rather than inline here. See homingLock.
-  let homingLock = NO_HOMING_LOCK;
 
   // The red target ring the owner asked for, fed `preview` rather than the committed lock — see
   // `HomingLockResult.preview`.
