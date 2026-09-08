@@ -39,4 +39,21 @@ describe('createGameMode', () => {
     m.exitTower();
     expect(m.mode).toBe('hub');
   });
+
+  it('re-enters the tower after returning to the hub', () => {
+    const m = createGameMode();
+    m.toHub();
+    m.toTower();
+    m.exitTower();
+    m.toTower();
+    expect(m.mode).toBe('tower');
+  });
+
+  it('refuses to return to the hub when already in the tower', () => {
+    const m = createGameMode();
+    m.toHub();
+    m.toTower();
+    m.toHub();
+    expect(m.mode).toBe('tower');
+  });
 });
