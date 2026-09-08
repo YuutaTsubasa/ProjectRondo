@@ -73,14 +73,16 @@ export function createHubAudio(
   scene: Scene,
   motion: () => KnightMotionSample,
   knight: Knight,
+  options?: { readonly music?: boolean },
 ): HubAudio {
-  return createDeferredAudio(() => buildHubAudio(scene, motion, knight));
+  return createDeferredAudio(() => buildHubAudio(scene, motion, knight, options?.music ?? true));
 }
 
 async function buildHubAudio(
   scene: Scene,
   motion: () => KnightMotionSample,
   knight: Knight,
+  music: boolean,
 ): Promise<HubAudio> {
   const audio = await createGameAudio();
 
@@ -108,7 +110,7 @@ async function buildHubAudio(
     // honoured and is never retried. `musicCrossfade` holds the request until `unlock()` says it can
     // be honoured; everything about *how* one track hands over to the next lives in there, where a
     // test can reach it without a scene.
-    const crossfade = createMusicCrossfade(soundBank);
+    const crossfade = music ? createMusicCrossfade(soundBank) : undefined;
 
     // The manifest gives some cues several files — `ui.type` has four — and `soundBank.play` picks
     // by an index its caller supplies, so something has to count. It counts on this side rather than
@@ -188,7 +190,7 @@ async function buildHubAudio(
     const tryUnlock = async () => {
       await audio.engine.unlockAsync();
       stopWatchingForGestures();
-      crossfade.unlock();
+      crossfade?.unlock();
     };
     const onGesture = () => {
       void tryUnlock().catch((error: unknown) =>
@@ -205,7 +207,9 @@ async function buildHubAudio(
 
     return {
       setMusicScene(next) {
-        crossfade.setScene(next);
+        // `crossfade` is `undefined` when this level opted out of music (`options.music: false`); a
+        // level with no music is a normal state, not a caller mistake, so this stays a silent no-op.
+        crossfade?.setScene(next);
       },
       play(cue) {
         soundBank.play(cue, { variant: variants.next(cue) });
@@ -215,7 +219,7 @@ async function buildHubAudio(
         if (observer) scene.onBeforeRenderObservable.remove(observer);
         // Before the bank: the crossfade's outgoing handles and their timers have to be released
         // while the sounds they name are still alive.
-        crossfade.dispose();
+        crossfade?.dispose();
         soundBank.dispose();
         audio.dispose();
       },
