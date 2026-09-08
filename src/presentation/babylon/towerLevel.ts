@@ -259,9 +259,18 @@ export const TOWER_SUMMIT_RADIUS = 1;
 /** Its height above the balcony. The hub pedestal's own 0.55: low enough to step onto, high enough
  *  that standing on it is deliberate — spec §5's reason for there being no confirm key. Arriving on
  *  top of it is not an approach the last bounce can make and no version of these numbers makes it
- *  one: feet that have to clear `pad + 0.55` leave 0.21 s of window and 0.30 u of drift, against the
- *  1.6 u it would take to reach the disc. The bounce lands beside it and walks — see
- *  {@link SUMMIT_PEDESTAL_OFFSET}. */
+ *  one. The climb {@link BOUNCE_AIRTIME} solves for `pad`, solved instead for `pad + 0.55`, has two
+ *  roots: 0.268 s and 0.482 s after launch — a 0.214 s window in which the feet are above pedestal
+ *  height, and the source of the "0.21 s" an earlier draft already had right. What that draft got
+ *  wrong was the drift inside it: it took `½ · acceleration · 0.214²` = 0.30 u, acceleration from a
+ *  standstill at the window's open — the same rest-from-zero mistake {@link BOUNCE_REACH} corrects
+ *  for the reach bound, made a second time here. The player has been drifting under air control since
+ *  launch, not from rest at 0.268 s: `airDrift` gives 1.3128 u by the window's close, of which only
+ *  0.846 u falls inside the window — against the 1.6 u = `BOUNCE_REACH − (TOWER_SUMMIT_RADIUS −
+ *  CAPSULE_RADIUS)` it takes to reach the disc's edge. The conclusion survived the error; the number
+ *  didn't. The shipped case is safer still: {@link SUMMIT_PEDESTAL_OFFSET}'s offset puts the disc
+ *  `√(BOUNCE_REACH² + SUMMIT_PEDESTAL_OFFSET²)` = 2.9 u away, needing 2.4 u. The bounce lands beside
+ *  it and walks — see {@link SUMMIT_PEDESTAL_OFFSET}. */
 export const TOWER_SUMMIT_PEDESTAL_HEIGHT = 0.55;
 
 /**
