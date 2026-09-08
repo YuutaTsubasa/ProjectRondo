@@ -26,9 +26,10 @@ import { CAPSULE_HALF, CAPSULE_HEIGHT, CAPSULE_RADIUS } from './capsule';
  *   crystal may sit directly overhead. Both kinds of link here land inside that band: 6.0 u in
  *   section 2, 7.2 u in section 3.
  *
- * The sections are matched on play TIME, not on height (spec §3), which is why they are 18, 24 and
- * 20 units tall for roughly one stretch of play each: ~13 jump steps buys the minute that ~4
- * crystals do.
+ * The sections were *meant* to be matched on play TIME, not on height (spec §3), which is why they
+ * are 18, 24 and 20 units tall. §14.2 timed them and the premise did not hold — ~13 jump steps
+ * costs 15.1 s where ~4 crystals cost 2.4 s — so these heights are the record of what was believed
+ * before anyone climbed it, not a matched-time claim.
  *
  * **Three more rules are not in the spec, and each was found the hard way** — the first two by
  * generating a layout and measuring it, the third by a reviewer re-deriving the summit and finding it
@@ -344,10 +345,11 @@ const RESPAWN_LIFT = 0.3;
  * deliberate drop between platforms, shallower than a fall that would hang before resolving".
  *
  * One edge is now measured and the other could not be exercised (spec §14.3). Stepping off a
- * checkpoint pad hangs for **0.612 s** before the respawn fires — that is what "a fall that would
- * hang before resolving" costs at this value, and whether 0.61 s reads as a hang is a judgement
- * nobody has made. The shallow edge was never reached, because the layout has no ledge within 4 u
- * below a checkpoint to step off. See the design spec §4.
+ * checkpoint pad leaves **0.450 s** — 27 frames at 60 fps — between the frame the fall is detected
+ * and the frame the respawn fires; that is what "a fall that would hang before resolving" costs at
+ * this value, and whether 0.45 s reads as a hang is a judgement nobody has made. The shallow edge
+ * was never reached, because the layout has no ledge within 4 u below a checkpoint to step off. See
+ * the design spec §4.
  */
 export const TOWER_FALL_MARGIN = 4;
 
