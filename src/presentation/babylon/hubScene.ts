@@ -1,7 +1,6 @@
 import { Engine } from '@babylonjs/core/Engines/engine';
 import { Scene } from '@babylonjs/core/scene';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
-import { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 // Side-effect: registers the StandardMaterial shader. Required with tree-shaken deep
 // imports, otherwise meshes without an explicit material silently render nothing.
 import '@babylonjs/core/Materials/standardMaterial';
@@ -12,10 +11,10 @@ import { HavokPlugin } from '@babylonjs/core/Physics/v2/Plugins/havokPlugin';
 import '@babylonjs/core/Physics/joinedPhysicsEngineComponent';
 import HavokPhysics from '@babylonjs/havok';
 
-import { createFollowCamera, type FollowCamera } from './followCamera';
-import { createInput } from './input';
-import { createPlayer, type Player } from './playerController';
-import { loadKnight, driveKnightAnimation, type Knight, type KnightMotionSample } from './knight';
+import { createCharacterRig } from './characterRig';
+import type { FollowCamera } from './followCamera';
+import type { Player } from './playerController';
+import type { Knight } from './knight';
 import { createEnvironment } from './environment';
 import { createShadows } from './shadows';
 import { createAtmosphere } from './postProcessing';
@@ -76,19 +75,21 @@ export async function createHubScene(canvas: HTMLCanvasElement): Promise<HubScen
   const havok = await HavokPhysics();
   scene.enablePhysics(Vector3.Zero(), new HavokPlugin(true, havok));
 
-  // The camera is hoisted above the world build because createShadows needs it: cascade splits come
-  // from the `camera` argument passed below, and the resulting generator stays registered under that
-  // same camera for the life of the scene (see the createShadows doc comment in shadows.ts — Babylon
-  // resolves the generator via scene.activeCamera every frame, with a no-arg fallback that never
-  // matches). Setting scene.activeCamera to follow.camera immediately before createShadows is what
-  // keeps the two in sync; it depends only on playerRoot and the canvas — not on physics, the terrain
-  // or the player controller — so moving it earlier is safe.
-  const playerRoot = new TransformNode('player', scene);
+  const crystals = createCrystals(scene, TEST_CRYSTALS);
+  // Spawn the capsule's base ON the terrain surface (+ a small lift so it settles down onto it rather
+  // than starting embedded — an embedded capsule pops through the one-sided MESH collider and falls).
+  const spawn = new Vector3(0, terrainHeight(0, 0) + CAPSULE_HEIGHT / 2 + 0.3, 0);
   // The hub's answer to "how high is the ground here" — its analytic height field. The character rig
   // takes it as an argument rather than importing it, so the same rig works in a scene that has none.
-  const follow = createFollowCamera(scene, playerRoot, canvas, terrainHeight);
-  scene.activeCamera = follow.camera;
-  const shadows = createShadows(sun, follow.camera);
+  const rig = await createCharacterRig(scene, {
+    canvas,
+    sun,
+    makeShadows: (camera) => createShadows(sun, camera),
+    groundHeight: terrainHeight,
+    spawn,
+    crystals,
+  });
+  const { follow, shadows, player, knight, readMotion } = rig;
   // Babylon 9 keys shadow generators by camera, so the console's usual
   // `scene.lights.find(...).getShadowGenerator()` (no-arg) returns null. Expose a stable handle
   // instead, the same way playerController exposes moveConfig/charController.
@@ -98,35 +99,12 @@ export async function createHubScene(canvas: HTMLCanvasElement): Promise<HubScen
   shadows.receive(terrain);
   createWind(scene);
   createGroundScatter(scene, shadows);
-  const crystals = createCrystals(scene, TEST_CRYSTALS);
   createWater(scene);
   createClouds(scene);
   createLandmark(scene, shadows);
 
   createAtmosphere(scene, follow.camera);
 
-  const input = createInput();
-  // Spawn the capsule's base ON the terrain surface (+ a small lift so it settles down onto it rather
-  // than starting embedded — an embedded capsule pops through the one-sided MESH collider and falls).
-  const spawn = new Vector3(0, terrainHeight(0, 0) + CAPSULE_HEIGHT / 2 + 0.3, 0);
-  const player = createPlayer(scene, playerRoot, follow, input, crystals, spawn);
-  const readMotion = (): KnightMotionSample => {
-    const v = player.motion.velocity;
-    return {
-      planarSpeed: Math.hypot(v.x, v.z),
-      airborne: player.airborne,
-      homing: player.motion.homing !== null,
-      homingEntrySeconds: player.homingEntrySeconds,
-      bounced: player.homingBounced,
-    };
-  };
-  const knight = await loadKnight(scene, playerRoot, shadows, terrainHeight);
-  driveKnightAnimation(scene, knight, readMotion, () => ({
-    walk: player.config.maxSpeed,
-    run: player.config.runSpeed,
-    // Up and back down under the domain's own gravity — the flat-ground airtime the jump clip fills.
-    airtime: (2 * player.config.jumpSpeed) / player.config.gravity,
-  }));
   await loadTrees(scene, shadows);
   // Not awaited, and `createHubAudio` is not async: audio must never be able to hold up first render.
   // See its doc comment — a streaming music cue whose media element never fires `canplaythrough`
@@ -144,17 +122,13 @@ export async function createHubScene(canvas: HTMLCanvasElement): Promise<HubScen
 
   const dispose = () => {
     window.removeEventListener('resize', onResize);
-    input.dispose();
-    follow.dispose();
+    rig.dispose();
     audio.dispose();
     // engine.dispose() tears down the scene, physics, meshes, observers and the render loop.
     engine.dispose();
   };
 
-  const suspendInput = (on: boolean) => {
-    input.setEnabled(!on);
-    follow.setEnabled(!on);
-  };
+  const suspendInput = (on: boolean) => rig.suspendInput(on);
 
   return { engine, scene, follow, player, knight, audio, suspendInput, dispose };
 }
