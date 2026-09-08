@@ -43,9 +43,12 @@ Two things that spec listed as blocking the tower have both cleared:
     later means re-authoring the level's shape around them.
 - **There is no death.** You fall, you watch yourself fall past the column, and below a threshold you
   are returned to your checkpoint.
-  - **Now measured — see §13.2, which supersedes the "watch yourself fall" claim:** the knight's root
-    crosses the bottom of the frame at 43 % of the fall, and screenshots show no knight at all by
-    touchdown. The bullet above is kept as the record of what was believed before the probe ran.
+  - **Measured, broken, and now fixed — see §13.2.** The probe found the knight's root crossing the
+    bottom of the frame at 43 % of the fall with no knight on screen by touchdown, so "watch yourself
+    fall" was not true of the camera as it stood. Task 11 added a descent-aware term to
+    `followCamera`'s vertical follow and re-measured the same fall: the root now stays between 0.73
+    and 0.99 of the frame the whole way down at 60 fps. The claim above holds again, with the
+    residuals §13.2 records.
 - **The top is a place.** A pedestal at the summit returns you to the hub, and reaching it is what
   finishing the tower means.
 
@@ -78,12 +81,13 @@ should treat them as data, not as structure.
 A fall from the top of a section to its floor is `√(2h/gravity)` — for a 20 u section, **1.29 s**.
 That is long enough to register as a loss without being a punishment queue.
 
-**Now measured — see §13.2, which supersedes this claim.** The duration itself is confirmed (§13's own
-faithfulness check measured 1.290 s against this section's analytic 1.291 s), but §13.2 found the
-knight's root crosses the bottom of the frame at 43 % of that time and the screen shows no knight at
-all by touchdown — so whether the fall stays legible enough to "register as a loss without being a
-punishment queue" is not established by that measurement. The paragraph above is kept as the record of
-what was believed before the probe ran.
+**Measured, and the framing it depends on has been fixed — see §13.2.** The duration is confirmed
+(§13's own faithfulness check measured 1.290 s against this section's analytic 1.291 s). The legibility
+was not: §13.2 found the knight's root leaving the bottom of the frame 43 % of the way down and no
+knight on screen by touchdown, so a fall could not "register as a loss" because it could not be seen.
+Task 11's descent-aware vertical follow keeps the knight in frame for the whole fall, so the paragraph
+above is again saying something the camera can deliver. Whether 1.29 s *feels* like a loss rather than
+a punishment queue is still unplayed and unmeasured.
 
 The respawn rule: when the player's height falls below the active checkpoint's height by a margin,
 return them to the active checkpoint. Checkpoints activate on the way **up** only — passing a
@@ -351,6 +355,36 @@ and `verticalSmoothing` 9 leaves the camera's aim a further `v/9 = 3.44 u` above
 The same 1.80 u also means the knight is seen **landing about a body height above the floor** and then
 sinking into place over ~0.3 s. Invisible in the hub; on every tower fall it will not be.
 
+**Task 11 fixed the framing, on a real tower fall, and this is what it now measures.** The finding
+above was reproduced first against the built tower (Task 10) rather than the probe's rig: a 24 u fall
+down section 3, driven frame by frame at a pinned 60 fps, put the root over the bottom edge **8.16 u
+in, at t = 0.80 s and 19.6 u/s**, and by the respawn the root was at 1.40 of a frame-height and the
+knight's head at 1.19 — nothing on screen, as the probe's screenshots showed. With `followCamera`'s
+descent-aware term the same fall keeps the root between **0.73 and 0.99** of the frame throughout, and
+its head between 0.36 and 0.78.
+
+Three residuals, all measured:
+
+- **The transition costs the worst frame.** The term cannot engage until 17 u/s (see below), and by
+  then the camera is already 2.07 u behind, so the root peaks at **0.99** just after engaging before
+  recovering. At 30 fps that peak is **1.02** — the root is off-frame for two frames, the head still at
+  0.81 — because the unaided lag at the threshold grows with frame time. Closing it means engaging
+  earlier than the hub allows.
+- **The feet stay clipped.** Measured against the root, the knight's soles sit at 0.97–1.22 of the
+  frame for most of the fall. The body reads; the feet do not.
+- **`VISUAL_Y_SMOOTHING` 14 was not touched**, so the knight is still rendered ~2 u above the capsule
+  at speed and still lands a body height high. That is a `playerController` change and a separate
+  concern from framing.
+
+**The threshold is boxed in on both sides, and the box is narrow.** Above: unaided, the root reaches
+the bottom edge at 19.6 u/s, so anything at or above that engages too late. Below: the hub has to stay
+under it, and the hub was measured rather than assumed — scripted walk/run/jump runs across the height
+field peak at **15.8 u/s** (rendered root 14.28), and an exhaustive ballistic sweep of every walkable
+launch point bounds a running jump at **16.6 u/s**. 17 was chosen. What the hub *can* reach is
+**19.8 u/s**, by falling off the top of the homing chain — not walking, running or jumping, and on
+those frames the hub's camera does now track tighter. Everything else in the hub is untouched, verified
+by a 1200-frame camera trace identical to ten decimal places with and without the term.
+
 **The camera has no obstruction handling at all.** `followCamera` consults exactly one piece of world
 geometry — the analytic `terrainHeight`. No ray cast, no occlusion test, no pull-in. Demonstrated
 against the hub's existing `plazaPillar_0` (radius 0.45): parking the camera on its axis, it was not
@@ -360,6 +394,12 @@ observed — no tower column exists to test against yet:** a column of comparabl
 the player climbs would put the camera inside it whenever the player is close to it, which would make
 this the everyday case rather than the corner case, with the same failure mode of the level popping out
 of existence instead of a black screen.
+
+**Task 11 mitigated the symptom and left the cause standing.** The tower column now has its own
+material with `backFaceCulling = false`, so a camera inside it sees the column's inside surface rather
+than the world through it. The camera still enters the column, still is not deflected, and still has no
+ray cast — that remains §13.3's budgeted work, and "the camera no longer clips the column" would be
+false.
 
 **Pitch limits — reasoned, not watched.** Pointer lock cannot be acquired from automation and
 `yaw`/`pitch` are closure-private, so this was derived from `followCamera.ts`'s own formula with the
@@ -378,4 +418,6 @@ Nothing in §1–§9 is invalidated. Three tasks gain work:
   the tower can be placed anywhere but the hub's origin.
 - **The camera needs budgeted work the plan does not currently carry**: a vertical follow fast enough
   to keep the player framed through a 1.3 s drop, and an answer for a camera that passes through the
-  column and erases it. Both are work items, neither is a design change.
+  column and erases it. Both are work items, neither is a design change. *Task 11 did the first and
+  half of the second — the follow now keeps the player in frame, and the column no longer vanishes
+  from inside, but the camera still enters it. Real obstruction handling is still unbudgeted.*

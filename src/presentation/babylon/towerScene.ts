@@ -288,6 +288,22 @@ function buildTower(scene: Scene, shadows: Shadows): void {
   );
   column.position.set(0, TOWER_FLOOR_Y + TOWER_COLUMN_HEIGHT / 2, 0);
   finish(column, PhysicsShapeType.CYLINDER);
+  // The column gets its own copy of the white so it can drop back-face culling, and the rest of the
+  // tower does not — a floor and platforms drawn from below cost draw calls for faces nobody sees.
+  //
+  // **This is a mitigation, not a fix, and it must not be read as one.** The camera still enters the
+  // column: `followCamera` consults exactly one piece of world geometry, the ground query, and has no
+  // ray cast, no occlusion test and no pull-in (spec §13.2 parked it inside `plazaPillar_0` and it
+  // was not deflected by a millimetre). At `PLATFORM_ORBIT` 4.2 against `TOWER_COLUMN_RADIUS` 3.2 and
+  // the camera's `distance` 5, that happens whenever the player faces outward — the everyday case,
+  // not a corner one. What this changes is only what the player sees when it does: with culling on,
+  // the column renders NOTHING from inside and the level is seen through it; with it off, they see
+  // the column's inside surface. A wall in the way instead of the world popping out of existence.
+  // The real answer is camera obstruction handling, which is a project of its own and out of scope
+  // here (spec §13.3 carries it as budgeted work).
+  const columnMat = mat.clone('towerColumnWhite');
+  columnMat.backFaceCulling = false;
+  column.material = columnMat;
 
   TOWER_PLATFORMS.forEach((platform: TowerPlatform, i: number) => {
     const slab = CreateBox(
