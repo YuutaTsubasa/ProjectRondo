@@ -77,6 +77,22 @@ export interface Player {
    */
   homingBounced: boolean;
   /**
+   * The physics capsule's CENTRE this frame — the character's real position, and the one any rule
+   * that decides something must read.
+   *
+   * `root.position` is not it. Its x and z are the capsule's, copied straight across, but its y is
+   * `visualY`: the exponentially smoothed *rendered* height (see {@link VISUAL_Y_SMOOTHING}), which
+   * trails the capsule by `v / 14` — 2.2 u at the end of a 20 u fall, measured 1.80 at touchdown
+   * (design spec §13.2). A checkpoint decided from that activates late on the way up and, on the way
+   * down, lets the player fall 2 u further than `fallMargin` says before the respawn fires. The same
+   * confusion cost PR #39 a homing dash aimed 1.5 u behind the truth; see the `from:` argument below.
+   *
+   * A fresh `Vector3` per call, deliberately: `PhysicsCharacterController.getPosition()` returns the
+   * controller's LIVE internal vector, not a copy (design spec §13.1), so handing it out would let a
+   * caller move the character by writing to what looks like a reading.
+   */
+  capsulePosition(): Vector3;
+  /**
    * Puts the character at `to` as a cut, not as a move — for a checkpoint respawn.
    *
    * Four things hold the old position, and a teleport that misses any one of them reads as a swoop
@@ -129,6 +145,7 @@ export function createPlayer(
 
   const player: Player = {
     root, motion: IDLE, airborne: false, config, homingEntrySeconds: null, homingBounced: false,
+    capsulePosition: () => controller.getPosition().clone(),
     teleport(to: Vector3): void {
       controller.setPosition(to);
       // Both velocities, in that order of importance: the domain's is the one that survives, since
