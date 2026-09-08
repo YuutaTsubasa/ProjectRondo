@@ -80,10 +80,18 @@
      * alternative here is disposing the only level on screen and showing nothing for the second or so
      * it takes to reload the knight's GLB into the new scene, with no way back if that reload fails.
      *
-     * The outgoing level has its input suspended for that window. It is still simulating -- it is
-     * still the scene being rendered -- and without this the player would keep walking (and the hub's
-     * portal observable would keep testing the pedestal) during a load they cannot see the end of.
-     * The rejection branch hands control straight back.
+     * BOTH levels have their input suspended for that window, at both ends. The outgoing one is
+     * suspended here: it is still simulating -- it is still the scene being rendered -- and without
+     * this the player would keep walking (and the hub's portal observable would keep testing the
+     * pedestal) during a load they cannot see the end of. The incoming one arrives suspended from
+     * `createCharacterRig` (see its doc) and is resumed below, on the far side of the dispose,
+     * because its listeners are bound to the same window and canvas as the outgoing level's and
+     * would otherwise be steering an invisible camera and banking held keys throughout the load.
+     *
+     * What neither branch restores is pointer lock. `suspendInput(true)` releases it and only a user
+     * gesture can take it back (`followCamera.setEnabled`), so a swap costs the player mouse look
+     * until their next click on the canvas -- on the way in, on the way out, and on the failure path
+     * where nothing else about the level changed. Keyboard and camera control come back at once.
      */
     function swapLevel<L extends Level>(build: () => Promise<L>, commit: (built: L) => void): void {
       if (swapping) return;
@@ -105,6 +113,10 @@
           canvas.tabIndex = -1;
           // Only now: until this line the outgoing level was the one being rendered.
           leaving?.dispose();
+          // After the dispose, so no two rigs are ever live on the same window at once, and BEFORE
+          // `commit`, so a commit that wants the level suspended anyway -- the first hub build, whose
+          // intro overlay owns the keyboard -- has the last word rather than being undone here.
+          built.suspendInput(false);
           commit(built);
         },
         (err) => {
@@ -114,8 +126,10 @@
           // failure itself (Havok, the knight GLB, or a tree asset failing to load) is still worth
           // knowing about rather than swallowing silently.
           console.error('level build failed; staying in the current level:', err);
-          // Hand control back to the level the player never left. Not on unmount: `disposed` means
-          // the cleanup below has already disposed it.
+          // Hand control back to the level the player never left -- keyboard and camera, but not
+          // pointer lock, which the suspend released and only a click can retake (see this
+          // function's doc). Not on unmount: `disposed` means the cleanup below has already disposed
+          // it. The half-built level's rig, if it got as far as one, is left suspended and inert.
           if (!disposed) leaving?.suspendInput(false);
         },
       );
@@ -208,7 +222,9 @@
 
   function finishIntro() {
     gameMode.toHub();
-    hub?.suspendInput(false);                     // hand control back to gameplay
+    // Keyboard and camera back to gameplay. Mouse look needs the player's next click on the canvas:
+    // the overlay's suspend released pointer lock and only a gesture can retake it (followCamera).
+    hub?.suspendInput(false);
     hub?.audio.setMusicScene('playing');
   }
 </script>

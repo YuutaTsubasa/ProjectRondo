@@ -195,20 +195,21 @@ export function createPortalRing(scene: Scene): void {
   const mat = new StandardMaterial('portalRingMat', scene);
   mat.diffuseTexture = ringGradientTexture(scene);
   mat.useAlphaFromDiffuseTexture = true;
+  // `disableLighting` is what makes the emissive colour the whole of the tint, and it does it by
+  // removing the lights rather than by darkening anything: `PrepareDefinesForLights` is passed the
+  // flag and emits no `LIGHT{X}` define, so `default.fragment`'s `diffuseBase` and `specularBase`
+  // are never added to and the shader reduces to `clamp(emissive) * diffuseTexture.rgb`. Both
+  // `diffuseColor` and `specularColor` are multiplied by zero there, which is why neither is set
+  // here: at their defaults they are already inert, and assigning black to them would read as a
+  // load-bearing choice while changing nothing. What survives from the texture is its *alpha* — the
+  // rgb it multiplies by is white — which is all the gradient was drawn to carry.
   mat.disableLighting = true;
-  // Black diffuse so the tint is the emissive colour alone. With `disableLighting` the shader still
-  // sums `diffuseColor * diffuseTexture + emissive`, and the texture above is painted white — left at
-  // the default white diffuse, that white would wash the tint out to near-grey and the ring would
-  // read as chalk rather than as light. What survives from the texture is its *alpha*, which is all
-  // it was drawn to carry.
-  mat.diffuseColor = new Color3(0, 0, 0);
   // A `.clone()`, never the module-level instance: a `Color3` is more often mutated in place than
   // reassigned — `crystals.ts` does exactly that to its own material's colour for the hit flash — so
   // handing the material this instance would leave the ring's colour reachable and writable through
   // `scene.materials`, which is the drift PR #39 found and `homingReticle.ts` guards against the same
   // way.
   mat.emissiveColor = RING_EMISSIVE.clone();
-  mat.specularColor = new Color3(0, 0, 0);
   mat.alpha = RING_ALPHA;
   // Additive, so the band *adds* light to the grass under it instead of replacing it — the difference
   // between a lamp and a sticker, and the reading spec §5 asks for ("it is lit at all times").

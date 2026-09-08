@@ -29,6 +29,14 @@ export interface CharacterRig {
   readonly knight: Knight;
   readonly input: InputState;
   readonly readMotion: () => KnightMotionSample;
+  /**
+   * Suspends (on=true) or resumes (on=false) gameplay input and camera look.
+   *
+   * A rig is born SUSPENDED — see {@link createCharacterRig} — so whoever owns the level has to
+   * resume it once that level is the one on screen. Resuming restores the keyboard and the camera's
+   * look, but not pointer lock, which cannot be re-taken from code; `followCamera.setEnabled` has
+   * the reason and what the player does instead.
+   */
   suspendInput(on: boolean): void;
   dispose(): void;
 }
@@ -46,6 +54,16 @@ export interface CharacterRig {
  * `crystals` is the one piece of level content that has to exist first, because `createPlayer` takes
  * it. That is affordable only because `crystals.ts` registers no shadow casters — see its own doc —
  * so the level can place crystals before any shadows exist.
+ *
+ * **The rig comes back suspended, and the level's owner resumes it.** `App.svelte` builds the
+ * incoming level while the outgoing one is still the scene being rendered, so for the length of a
+ * load two rigs exist at once, and both bind their listeners to the same window and the same canvas.
+ * The new level's *scene* cannot act in that window — nothing renders it, so none of its observers
+ * run — but its DOM listeners can, and enabled from birth they would: a click on the canvas would
+ * hand pointer lock to a camera nobody can see, mouse movement would steer it, and a key held when
+ * the swap commits would already be down in a level the player has not been shown yet. Starting
+ * suspended closes that window, and it closes it for a build that never finishes too, whose
+ * listeners outlive the failure.
  */
 export async function createCharacterRig(scene: Scene, options: CharacterRigOptions): Promise<CharacterRig> {
   const root = new TransformNode('player', scene);
@@ -54,6 +72,13 @@ export async function createCharacterRig(scene: Scene, options: CharacterRigOpti
   const shadows = options.makeShadows(follow.camera);
 
   const input = createInput();
+  // Suspended from here, not from the `return` below: everything after this line can await — the
+  // knight's GLB alone is most of a second — and the listeners are already bound by now. See this
+  // function's doc for what would be live during that wait. The camera half is not here to release
+  // pointer lock -- on a swap the outgoing level released it before `build()` was even called, and
+  // on the first build there is none -- it is here to stop the mouse-move steering and the click.
+  input.setEnabled(false);
+  follow.setEnabled(false);
   const player = createPlayer(scene, root, follow, input, options.crystals, options.spawn);
   const readMotion = (): KnightMotionSample => {
     const v = player.motion.velocity;

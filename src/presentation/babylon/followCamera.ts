@@ -51,7 +51,13 @@ export interface FollowCamera {
   readonly camera: TargetCamera;
   /** Flattened, normalized camera right/forward on the X/Z plane, for camera-relative input. */
   planarBasis(): { right: { x: number; z: number }; forward: { x: number; z: number } };
-  /** Enables/disables pointer-look and pointer-lock capture (e.g. while an AVG overlay owns focus). */
+  /**
+   * Enables/disables pointer-look and pointer-lock capture (e.g. while an AVG overlay owns focus,
+   * or while a level is being swapped out).
+   *
+   * Not symmetric, because pointer lock is not: disabling releases the lock, enabling cannot take it
+   * back. See the implementation for why, and for what the player does instead.
+   */
   setEnabled(value: boolean): void;
   /**
    * Drops the vertical follow's smoothed state, so the next frame re-seeds it at wherever the target
@@ -140,7 +146,14 @@ export function createFollowCamera(
     snap: () => { smoothY = null; },
     setEnabled: (value: boolean) => {
       enabled = value;
-      // Suspending mid-drag shouldn't leave the pointer captured under an AVG overlay.
+      // Releasing on the way down is deliberate: an AVG overlay needs the cursor back, and a level
+      // being swapped out must not keep the pointer captured for a camera about to be disposed.
+      //
+      // Nothing matching it on the way up, and that is not an oversight — `requestPointerLock`
+      // needs transient user activation, so calling it from here (a resume, not a gesture) would be
+      // rejected by the browser. `onClick` above is the only way back in, which means a resumed
+      // level has keyboard and camera control at once and mouse look on the player's next click on
+      // the canvas. Anything claiming otherwise would be a claim this code cannot keep.
       if (!value && document.pointerLockElement === canvas) document.exitPointerLock();
     },
     dispose: () => {

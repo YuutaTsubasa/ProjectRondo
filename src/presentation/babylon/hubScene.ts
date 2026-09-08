@@ -9,8 +9,8 @@ import { HavokPlugin } from '@babylonjs/core/Physics/v2/Plugins/havokPlugin';
 // RegisterJoinedPhysicsEngineComponent). Without this, enablePhysics is a no-op and
 // PhysicsAggregate throws "No Physics Engine available".
 import '@babylonjs/core/Physics/joinedPhysicsEngineComponent';
-import HavokPhysics from '@babylonjs/havok';
 
+import { loadHavok } from './havokModule';
 import { createCharacterRig } from './characterRig';
 import type { FollowCamera } from './followCamera';
 import type { Player } from './playerController';
@@ -28,7 +28,7 @@ import { createWater } from './water';
 import { createClouds } from './clouds';
 import { createLandmark, pedestalTopY, PEDESTAL_RADIUS, PLAZA_X, PLAZA_Z } from './landmark';
 import { createPortalRing } from './portalRing';
-import { PORTAL_START, stepPortalTrigger, type PortalTrigger } from './portalTrigger';
+import { PORTAL_HEIGHT_BAND, PORTAL_START, stepPortalTrigger, type PortalTrigger } from './portalTrigger';
 import { createCrystals } from './crystals';
 import { createHubAudio, type HubAudio } from '../audio/hubAudio';
 
@@ -48,24 +48,16 @@ const TEST_CRYSTALS = [
 ] as const;
 
 /**
- * Half-height of the band around the pedestal's standing height that counts as being on it.
- *
- * **Untuned**: 1.2 u — wide enough to survive the capsule's rest gap and a frame caught mid-step,
- * narrow enough that walking past at the foot of the pedestal or landing a jump over it does not
- * fire. It is the same number, arrived at the same way, as `towerScene.ts`'s `PORTAL_HEIGHT_BAND`,
- * and it is deliberately a second constant rather than a shared one: these are two different
- * pedestals in two different levels, the hub's stands on a height field while the tower's stands on
- * a flat floor, and either could need its own band without the other moving. `portalTrigger.ts` owns
- * the edge rule and nothing else, which is why the number does not live there.
- */
-const PORTAL_HEIGHT_BAND = 1.2;
-
-/**
  * How far from the pedestal's centre the return from the tower puts the player, in world units.
  *
  * Derived: twice {@link PEDESTAL_RADIUS}, so the player lands a whole pedestal-radius clear of its
  * edge on open ground. Spec §5 makes this the *first* line of defence against a re-entry loop —
  * `PORTAL_START` being disarmed is the second, and the two are both required, not either.
+ *
+ * **Untuned** all the same. The derivation fixes the safety margin, which is the part that has to be
+ * right; what it cannot answer is how arriving that far out *reads* — whether the ring of light
+ * ahead says "you came from there" or the pedestal is simply far enough away to look like somewhere
+ * else. Nobody has stood here. Retune by eye, in the plaza, and keep it clear of the edge.
  */
 const RETURN_DISTANCE = PEDESTAL_RADIUS * 2;
 
@@ -73,6 +65,10 @@ const RETURN_DISTANCE = PEDESTAL_RADIUS * 2;
  * How far the capsule's base starts above the ground it is spawned over. Small and positive on
  * purpose: a capsule that starts embedded pops through the one-sided MESH collider and falls out of
  * the world, so it is placed just clear and allowed to settle down onto the surface.
+ *
+ * **Untuned**: 0.3 u. The reasoning above fixes the sign and the order of magnitude — it must clear
+ * the collider and it must not be a visible drop — but nothing measured the gap the capsule actually
+ * needs, and nobody has watched a spawn settle. It is a guess inside a constraint.
  */
 const SPAWN_CLEARANCE = 0.3;
 
@@ -108,7 +104,9 @@ export interface HubScene {
   readonly knight: Knight;
   /** Music and character sound. `App.svelte` drives the music scene through this. */
   readonly audio: HubAudio;
-  /** Suspends (on=true) or resumes (on=false) gameplay input and camera look, e.g. during an AVG overlay. */
+  /** Suspends (on=true) or resumes (on=false) gameplay input and camera look, e.g. during an AVG
+   *  overlay. The level arrives suspended and `App.svelte` resumes it once it is on screen; resuming
+   *  does not restore pointer lock — see `CharacterRig.suspendInput`. */
   suspendInput(on: boolean): void;
   /** Tears this level down: removes its DOM listeners, disposes its scene. The engine outlives this
    *  and is disposed only by whoever owns it (`App.svelte`), not here. */
@@ -141,8 +139,9 @@ export async function createHubScene(
 
   // Physics: Havok. The domain owns all gravity and the character controller is passed zero
   // gravity, so the world gravity stays zero too — no second, contradictory source of gravity.
-  // (Set a real value here if/when dynamic rigid bodies are introduced.)
-  const havok = await HavokPhysics();
+  // (Set a real value here if/when dynamic rigid bodies are introduced.) The module comes from the
+  // page-lifetime cache, not a fresh compile per level — spec §6, and `havokModule.ts` for why.
+  const havok = await loadHavok();
   scene.enablePhysics(Vector3.Zero(), new HavokPlugin(true, havok));
 
   const crystals = createCrystals(scene, TEST_CRYSTALS);
@@ -196,8 +195,9 @@ export async function createHubScene(
     const here = player.capsulePosition();
     const dx = here.x - PLAZA_X;
     const dz = here.z - PLAZA_Z;
-    // The pedestal is a cylinder, so "inside" is a planar distance and a height band. That geometry
-    // is this file's to answer; `stepPortalTrigger` owns only the edge rule — and it starts disarmed,
+    // The pedestal is a cylinder, so "inside" is a planar distance and a height band. Where the
+    // pedestal is and how wide it is are this file's to answer; the edge rule and the band's
+    // half-height are `portalTrigger.ts`'s, shared with the tower. The trigger starts disarmed,
     // which is what makes a return from the tower that lands on the pedestal safe (spec §5's second
     // line of defence; the first is that `portalReturnSpawn` does not land there in the first place).
     const inside = dx * dx + dz * dz <= PEDESTAL_RADIUS * PEDESTAL_RADIUS

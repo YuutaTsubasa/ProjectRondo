@@ -20,14 +20,14 @@ import { PhysicsShapeType } from '@babylonjs/core/Physics/v2/IPhysicsEnginePlugi
 // RegisterJoinedPhysicsEngineComponent). Without this, enablePhysics is a no-op and
 // PhysicsAggregate throws "No Physics Engine available".
 import '@babylonjs/core/Physics/joinedPhysicsEngineComponent';
-import HavokPhysics from '@babylonjs/havok';
 
 import { stepTowerProgress, TOWER_START, type TowerProgress } from '../../domain/hub/tower/towerProgress';
 import { createCharacterRig, type CharacterRig } from './characterRig';
 import { createCrystals } from './crystals';
 import { flatGround } from './groundHeight';
+import { loadHavok } from './havokModule';
 import { createShadows, type Shadows } from './shadows';
-import { stepPortalTrigger, PORTAL_START, type PortalTrigger } from './portalTrigger';
+import { PORTAL_HEIGHT_BAND, stepPortalTrigger, PORTAL_START, type PortalTrigger } from './portalTrigger';
 import { CAPSULE_HALF } from './capsule';
 import { createHubAudio } from '../audio/hubAudio';
 import {
@@ -93,11 +93,6 @@ const AMBIENT_INTENSITY = 0.3;
 const SHADOW_MAX_Z = 30;
 const SHADOW_CASCADES = 2;
 
-/** Half-height of the band around the pedestal's standing height that counts as being on it.
- *  **Untuned**: 1.2 u, wide enough to survive the capsule's rest gap and a frame mid-step, narrow
- *  enough that passing overhead does not fire it. */
-const PORTAL_HEIGHT_BAND = 1.2;
-
 /**
  * The panorama that lights the knight's metal. Same file, same intensity as `createEnvironment` —
  * see that function for why a metallic PBR material with no environment renders near-black, and for
@@ -109,19 +104,12 @@ const IBL_URL = '/env/studio.hdr';
 const IBL_FACE_SIZE = 128;
 const IBL_INTENSITY = 1.4;
 
-/**
- * The Havok WASM module, kept across scene builds. Spec §6: the module is a genuine singleton, and
- * re-instantiating it on every tower entry would pay for a second WASM compile to get an identical
- * result. This cache is module-local, so the hub still loads its own — a cache the two scenes share
- * belongs with the routing that swaps them, not here.
- */
-let havokModule: ReturnType<typeof HavokPhysics> | undefined;
-const loadHavok = () => (havokModule ??= HavokPhysics());
-
 export interface TowerScene {
   readonly scene: Scene;
   readonly rig: CharacterRig;
-  /** Suspends (on=true) or resumes (on=false) gameplay input and camera look. */
+  /** Suspends (on=true) or resumes (on=false) gameplay input and camera look. The level arrives
+   *  suspended and `App.svelte` resumes it once it is on screen; resuming does not restore pointer
+   *  lock — see `CharacterRig.suspendInput`. */
   suspendInput(on: boolean): void;
   /** Tears this level down: its scene, its rig's DOM listeners, its audio. The engine outlives it
    *  and is disposed only by whoever owns it (`App.svelte`), not here. */
@@ -172,7 +160,8 @@ export async function createTowerScene(
   scene.environmentIntensity = IBL_INTENSITY;
 
   // Physics: Havok, world gravity zero. The reasoning is `hubScene.ts`'s and is not restated — the
-  // domain owns all gravity, and a second source would contradict it.
+  // domain owns all gravity, and a second source would contradict it. The module is the hub's too:
+  // one compile for the page, shared across every swap (spec §6, and `havokModule.ts` for why).
   const havok = await loadHavok();
   scene.enablePhysics(Vector3.Zero(), new HavokPlugin(true, havok));
 
@@ -224,9 +213,10 @@ export async function createTowerScene(
 
     const dx = here.x - TOWER_SUMMIT.x;
     const dz = here.z - TOWER_SUMMIT.z;
-    // The pedestal is a cylinder, so "inside" is a planar distance and a height band — the geometry
-    // stays here and `stepPortalTrigger` owns only the edge (it starts disarmed, so arriving on top
-    // of the trigger cannot fire it).
+    // The pedestal is a cylinder, so "inside" is a planar distance and a height band — where the
+    // summit is and how wide it is stay here, while the edge rule and the band's half-height are
+    // `portalTrigger.ts`'s, shared with the hub. The trigger starts disarmed, so arriving on top of
+    // it cannot fire it.
     const inside = dx * dx + dz * dz <= TOWER_SUMMIT_RADIUS * TOWER_SUMMIT_RADIUS
       && Math.abs(here.y - (TOWER_SUMMIT.y + CAPSULE_HALF)) <= PORTAL_HEIGHT_BAND;
     const fired = stepPortalTrigger(portal, inside);
@@ -262,8 +252,13 @@ function towerShadows(sun: DirectionalLight, camera: Camera): Shadows {
  *  colliders, all casting and receiving. */
 function buildTower(scene: Scene, shadows: Shadows): void {
   const mat = new StandardMaterial('towerWhite', scene);
-  mat.diffuseColor = WHITE_DIFFUSE;
-  mat.specularColor = WHITE_SPECULAR;
+  // `.clone()`, never the module-level instances: a `Color3` is more often mutated in place than
+  // reassigned — `crystals.ts` does exactly that to its own material's colour for the hit flash — so
+  // handing the material these would leave the tower's white reachable and writable through
+  // `scene.materials`, and a level rebuilt after a swap would inherit whatever wrote to it. That is
+  // PR #39's finding; `portalRing.ts` guards its emissive the same way.
+  mat.diffuseColor = WHITE_DIFFUSE.clone();
+  mat.specularColor = WHITE_SPECULAR.clone();
   // Picks up the hemispheric ambient, so a face turned away from the sun is shaded rather than black.
   mat.ambientColor = new Color3(1, 1, 1);
 
