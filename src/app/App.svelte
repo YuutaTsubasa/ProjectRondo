@@ -1,5 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { Engine } from '@babylonjs/core/Engines/engine';
+  import type { Scene } from '@babylonjs/core/scene';
   import { createHubScene, type HubScene } from '../presentation/babylon/hubScene';
   import { parse } from '../domain/dialogue/script/parser';
   import { createDialogueSession } from '../presentation/dialogue/dialogueSession.svelte';
@@ -17,6 +19,17 @@
 
   onMount(() => {
     let disposed = false;
+    // preserveDrawingBuffer (dev only) lets tooling screenshot the WebGL canvas.
+    const engine = new Engine(canvas, true, { preserveDrawingBuffer: import.meta.env.DEV, stencil: true });
+    // The one render loop for the app's lifetime: it renders whichever level is current rather than
+    // closing over a particular scene, so swapping levels (a later task) never has to touch the loop.
+    let current: { scene: Scene; dispose(): void } | undefined;
+    engine.runRenderLoop(() => current?.scene.render());
+    // Size the drawing buffer to the canvas now; the resize event only fires on later changes.
+    engine.resize();
+    const onResize = () => engine.resize();
+    window.addEventListener('resize', onResize);
+
     // babylon sets tabIndex on the canvas so it can take keyboard events: Scene's constructor calls
     // attachControl, which assigns engine.canvasTabIndex (default 1). This app binds all game input
     // on window (presentation/babylon/input.ts), so the canvas never needs to be a tab stop -- and
@@ -25,16 +38,17 @@
     // opaque backlog, and behind the choices visible through their 0.42 wash but not clickable.
     // A *positive* tabindex is worse still: it sorts ahead of every tabindex=0 element on the page.
     //
-    // Reset twice, and both are needed. The Scene constructor runs synchronously before
-    // createHubScene's first await, so the promise has not settled yet and the canvas is already
-    // tabbable -- the overlay mounts synchronously, so the intro dialogue and its LOG button are
-    // live for the whole scene load. The second reset covers anything babylon assigns later during
-    // the async setup.
-    const loading = createHubScene(canvas);
+    // Reset twice, and both are needed. The Engine constructor above runs synchronously, and Scene's
+    // constructor runs synchronously inside createHubScene, before createHubScene's first await --
+    // so the promise has not settled yet and the canvas is already tabbable -- the overlay mounts
+    // synchronously, so the intro dialogue and its LOG button are live for the whole scene load. The
+    // second reset covers anything babylon assigns later during the async setup.
+    const loading = createHubScene(engine, canvas);
     canvas.tabIndex = -1;
     loading.then((h) => {
       if (disposed) { h.dispose(); return; } // unmounted before the async load finished
       hub = h;
+      current = h;
       canvas.tabIndex = -1;
       // Gate rather than unconditionally suspending: SKIP (or a parse failure leaving no session)
       // can finish the intro before this async scene load resolves, in which case gameMode is
@@ -51,6 +65,8 @@
     return () => {
       disposed = true;
       hub?.dispose();
+      window.removeEventListener('resize', onResize);
+      engine.dispose();
     };
   });
 

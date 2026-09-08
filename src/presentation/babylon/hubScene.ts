@@ -46,7 +46,6 @@ const TEST_CRYSTALS = [
 ] as const;
 
 export interface HubScene {
-  readonly engine: Engine;
   readonly scene: Scene;
   readonly follow: FollowCamera;
   readonly player: Player;
@@ -55,13 +54,12 @@ export interface HubScene {
   readonly audio: HubAudio;
   /** Suspends (on=true) or resumes (on=false) gameplay input and camera look, e.g. during an AVG overlay. */
   suspendInput(on: boolean): void;
-  /** Tears the scene down: stops the render loop, removes DOM listeners, disposes the engine. */
+  /** Tears this level down: removes its DOM listeners, disposes its scene. The engine outlives this
+   *  and is disposed only by whoever owns it (`App.svelte`), not here. */
   dispose(): void;
 }
 
-export async function createHubScene(canvas: HTMLCanvasElement): Promise<HubScene> {
-  // preserveDrawingBuffer (dev only) lets tooling screenshot the WebGL canvas.
-  const engine = new Engine(canvas, true, { preserveDrawingBuffer: import.meta.env.DEV, stencil: true });
+export async function createHubScene(engine: Engine, canvas: HTMLCanvasElement): Promise<HubScene> {
   const scene = new Scene(engine);
   // Right-handed so glTF (a right-handed format) imports natively — no handedness reflection on
   // skinned characters, which otherwise collapses them to the floor when the parent yaws.
@@ -108,27 +106,23 @@ export async function createHubScene(canvas: HTMLCanvasElement): Promise<HubScen
   await loadTrees(scene, shadows);
   // Not awaited, and `createHubAudio` is not async: audio must never be able to hold up first render.
   // See its doc comment — a streaming music cue whose media element never fires `canplaythrough`
-  // would otherwise leave this line pending for good, and with it the render loop below.
+  // would otherwise leave this line pending for good, and with it this promise — and the render
+  // loop in App.svelte, which only starts once this promise resolves.
   // `readMotion` again, not a second function built beside it: the footsteps and the locomotion blend
   // they have to land on answer "how fast, and airborne?" from one source. Each layer's observer calls
   // it for itself, so the sample is built twice a frame — one *source*, not one sample.
   const audio = createHubAudio(scene, readMotion, knight);
 
-  engine.runRenderLoop(() => scene.render());
-  // Size the drawing buffer to the canvas now; the resize event only fires on later changes.
-  engine.resize();
-  const onResize = () => engine.resize();
-  window.addEventListener('resize', onResize);
-
   const dispose = () => {
-    window.removeEventListener('resize', onResize);
     rig.dispose();
     audio.dispose();
-    // engine.dispose() tears down the scene, physics, meshes, observers and the render loop.
-    engine.dispose();
+    // The scene, not the engine: the engine outlives every level (see App.svelte) and disposing it
+    // here would take the WebGL context with it. `scene.dispose()` tears down this level's meshes,
+    // physics, materials and observers.
+    scene.dispose();
   };
 
   const suspendInput = (on: boolean) => rig.suspendInput(on);
 
-  return { engine, scene, follow, player, knight, audio, suspendInput, dispose };
+  return { scene, follow, player, knight, audio, suspendInput, dispose };
 }
