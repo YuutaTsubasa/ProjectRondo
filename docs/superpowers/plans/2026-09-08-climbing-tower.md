@@ -508,6 +508,27 @@ Spec §7. Three modules import `terrainHeight` directly. This task makes the gro
   - `createFollowCamera(scene, target, canvas, groundHeight: GroundHeight)`
   - `createPlayer(scene, root, follow, input, crystals, spawn: Vector3)`
   - `loadKnight(scene, parent, shadows, groundHeight: GroundHeight)`
+  - `Player.teleport(to: Vector3): void`
+  - `FollowCamera.snap(): void`
+
+**Added after Task 1's probe (controller Ruling 3 — see the ledger).** The probe established that
+`setPosition` works, and that a respawn is not `setPosition`:
+
+- `controller.setVelocity(0)` survives less than a frame, because `playerController`'s observable
+  rewrites the controller's velocity from `player.motion.velocity` before every `integrate`. A
+  teleport that does not also zero the DOMAIN's velocity keeps the fall's speed and drops the player
+  straight off the checkpoint again.
+- `visualY` (in `playerController`) and `smoothY` (in `followCamera`) are closure-private with no
+  reset. A raw teleport to y = 60 left the knight rendered at 6.6 and the camera at 5.1, gliding up
+  over ~0.33 s and ~0.5 s — a checkpoint respawn would read as a swoop across the whole tower rather
+  than a cut.
+
+So this task also produces `Player.teleport(to)`, which sets the controller's position, zeroes the
+controller's velocity AND `player.motion.velocity`, and re-seeds `visualY` to the destination; and
+`FollowCamera.snap()`, which clears `smoothY` so the next frame re-seeds it instead of easing from
+where the camera used to be. Four resets, because the probe found four things holding the old
+position. Both are unused until Task 9 — they are here because this is the task that owns these
+two modules' internals.
 
 - [ ] **Step 1: Write `groundHeight.ts`**
 
@@ -860,7 +881,78 @@ git commit -m "feat(portal): the ring, the pedestal and the round trip"
 
 ---
 
-## Task 11: Play it, and write down what is true
+## Task 11: Make the fall read
+
+**Added after Task 1's probe (controller Ruling 4 — see the ledger).** Spec §2 says the player
+"watch[es] yourself fall past the column" and §4 says the fall "register[s] as a loss". The probe
+measured that neither is true with the camera as it stands, and §2/§4 now point at §13 saying so.
+A tower whose central verb is falling, where the fall cannot be seen, fails its own premise — so
+this is a task, not a deferred minor.
+
+It comes after Task 10 because it can only be tuned against a real fall down a real tower.
+
+**Files:**
+- Modify: `src/presentation/babylon/followCamera.ts`
+- Modify: `src/presentation/babylon/towerScene.ts` (the column's material)
+
+**Interfaces:**
+- Consumes: `FollowCamera` (Task 5), the tower (Tasks 9, 10)
+- Produces: nothing new — this task changes behaviour, not signatures
+
+- [ ] **Step 1: Reproduce the framing failure and measure it**
+
+Climb, fall, and measure where the knight's root sits in normalised screen space each frame of the
+drop. The probe's numbers to reproduce or refute: the root crosses the bottom of the frame at 43 % of
+a 20 u fall, and is off-screen at touchdown. Record what you measure — if it does not reproduce, say
+so and stop; the rest of this task is then unnecessary.
+
+- [ ] **Step 2: Keep the player in frame during a fast descent**
+
+The two smoothers in series (`VISUAL_Y_SMOOTHING` 14 in `playerController`, `verticalSmoothing` 9 in
+`followCamera`) were both tuned against a hub whose fastest vertical motion is about 9 u/s. The probe
+measured them lagging 2.21 u and 3.44 u at the 30.98 u/s that ends a 20 u fall — together most of a
+knight-height, downward, every frame of the fall.
+
+Fix the framing, not the smoothers' hub behaviour: whatever you change must leave the hub's walking
+and jumping camera identical, because that camera is tuned and this task has no mandate to retune it.
+The cheapest shape that does this is a descent-aware term that only engages above a fall speed the
+hub cannot reach — but choose your own; the constraint is the outcome plus "the hub is unchanged".
+
+Any constant you introduce ships **Untuned** with the speed it engages at and why that speed.
+
+- [ ] **Step 3: Stop the column vanishing when the camera is inside it**
+
+`followCamera` does no raycast and has no obstruction handling; the probe parked it inside
+`plazaPillar_0` and was not deflected at all, and with `backFaceCulling: true` the pillar rendered
+nothing — the camera sees straight through the world.
+
+Real camera collision is a project and is NOT in scope. Do the cheap half: give the tower column a
+material with `backFaceCulling = false`, so a camera inside the column sees the column's inside
+rather than the world beyond it. Document that this is a mitigation and not a fix, and that the real
+answer is camera obstruction handling — a claim like "the camera no longer clips the column" would be
+false and is exactly what this project's review flags.
+
+- [ ] **Step 4: Re-measure and record**
+
+Repeat Step 1's measurement. State the before and after in the commit message, and mark anything you
+watched but did not measure as watched-not-measured.
+
+- [ ] **Step 5: Run everything**
+
+Run: `npx tsc --noEmit && pnpm vitest run`
+Expected: PASS. If a camera test exists and now fails, that is a real regression — the hub's camera
+was supposed to be unchanged.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add src/presentation/babylon/followCamera.ts src/presentation/babylon/towerScene.ts
+git commit -m "fix(camera): keep the player in frame through a fall"
+```
+
+---
+
+## Task 12: Play it, and write down what is true
 
 **Files:**
 - Modify: `docs/superpowers/specs/2026-09-08-climbing-tower-design.md` (a verification section)
@@ -888,7 +980,7 @@ git commit -m "docs(tower): record what the first playthrough established"
 
 ## Self-Review
 
-**Spec coverage:** §1 needs no task. §2 → Tasks 9, 10. §3 → Task 9 Step 1. §4 → Tasks 2, 9. §5 → Tasks 4, 10. §6 → Task 7. §7 → Tasks 5, 6. §8 → Tasks 2, 3, 4, and the Global Constraint on domain movement. §9 → Task 8. §10 → Task 1. §11 → Task 11 and each task's test steps. §12 is out of scope by construction. No gaps.
+**Spec coverage:** §1 needs no task. §2 → Tasks 9, 10, 11. §3 → Task 9 Step 1. §4 → Tasks 2, 9, 11. §5 → Tasks 4, 10. §6 → Task 7. §7 → Tasks 5, 6. §8 → Tasks 2, 3, 4, and the Global Constraint on domain movement. §9 → Task 8. §10 → Task 1, whose findings then added `Player.teleport`/`FollowCamera.snap` to Task 5 and created Task 11. §11 → Task 12 and each task's test steps. §12 is out of scope by construction. No gaps.
 
 **Placeholder scan:** Task 9's level data is the one place this plan gives a rule rather than the literal numbers — the coordinates of thirteen platforms cannot be authored honestly from a text file, and inventing them here would ship measurements nobody took. The rule, the bounds and the section boundaries are all stated. Every other step has its content.
 
