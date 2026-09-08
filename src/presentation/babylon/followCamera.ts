@@ -16,9 +16,20 @@ const CAMERA_GROUND_CLEARANCE = 0.6;
 
 /**
  * Where the descent-aware vertical follow starts and finishes engaging, in world units per second of
- * downward target motion, and the smoothing rate it reaches. **All three Untuned** — nobody has
- * played a tower fall. What they are is the output of two measurements: what the frustum needs, and
- * what ordinary movement can and cannot reach.
+ * downward target motion, and the smoothing rate it reaches. **All three Untuned**, and they stayed
+ * that way through the first playthrough: tower falls have now been driven end to end (design spec
+ * §14.3-14.4), they behaved as the arithmetic below predicts, and none of the three was moved. What
+ * they are is the output of two measurements: what the frustum needs, and what ordinary movement can
+ * and cannot reach.
+ *
+ * **What the playthrough added, and what it did not.** Six real falls on the built tower — 4.5 u to
+ * 25.0 u, peaking at 36.0 u/s on the deepest the checkpoint spacing allows — kept the rendered root
+ * between 0.619 and **0.990** of the frame with **zero** frames off it, and the knight's head never
+ * past 0.81. The 0.990 is the transition peak the last paragraph here predicts, reproduced to three
+ * decimal places on three separate falls. It also found the limit of what any of this can promise:
+ * a fall taken facing outward puts the camera *inside* the tower's column for the whole descent
+ * (spec §14.4), where a perfectly framed root is drawn behind a wall. Framing is not visibility, and
+ * this term only buys the first.
  *
  * **Why the follow needs a second rate at all.** An exponential smoother trails a target descending at
  * `v` by `v / rate`. At {@link FollowCameraConfig.verticalSmoothing} 9 that is 3.44 u at the 30.98 u/s
@@ -89,8 +100,10 @@ const CAMERA_GROUND_CLEARANCE = 0.6;
 export const DESCENT_ENGAGE_SPEED = 17;
 /**
  * Where the ramp reaches the full rate. **Untuned like the other two, and its 1 u/s width is a
- * guess** — nothing has measured how long a blend between two follow rates should take, because
- * nobody has watched one. What the width buys is arithmetic and only that: at `gravity` 24 a fall
+ * guess.** The blend has now been driven through on real tower falls (design spec §14.4) — it is
+ * where the root's 0.990 peak happens, and the peak is where the paragraph above already said it
+ * would be — but nothing has measured how long such a blend *should* take, so the width is still a
+ * guess and it was not moved. What the width buys is arithmetic and only that: at `gravity` 24 a fall
  * crosses 1 u/s in 1/24 s, so the change is spread over **2.5 frames at 60 fps** (1.25 at 30) rather
  * than landing inside one. Both directions cost something — at zero width the rate steps, and a
  * wider ramp holds the camera below its full rate to a speed at which the lag it has to undo is

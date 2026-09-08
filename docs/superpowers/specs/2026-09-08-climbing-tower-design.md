@@ -48,7 +48,10 @@ Two things that spec listed as blocking the tower have both cleared:
     fall" was not true of the camera as it stood. Task 11 added a descent-aware term to
     `followCamera`'s vertical follow and re-measured the same fall: the root now stays between 0.73
     and 0.99 of the frame the whole way down at 60 fps. The claim above holds again, with the
-    residuals §13.2 records.
+    residuals §13.2 records — **and with one more that only the built tower could show: §14.4 found
+    the camera inside the column for the whole of any fall taken facing outward, so the knight is
+    perfectly framed and drawn behind a wall. "Watch yourself fall" holds for a fall taken
+    tangentially and does not hold for one taken outward.**
 - **The top is a place.** A pedestal at the summit returns you to the hub, and reaching it is what
   finishing the tower means.
 
@@ -72,9 +75,17 @@ the jumping section three times longer to play than the chain. They are therefor
 | 2 | Homing chain | 24 | ~4 crystals |
 | 3 | Mixed | 20 | both |
 
-**Untuned.** These three heights are derived from the rates above, not measured against play. Nobody
-has climbed this. They are the first thing to move after the first real playthrough, and the plan
-should treat them as data, not as structure.
+**Untuned.** These three heights are derived from the rates above, not measured against play. They
+are the first thing to move after the first real playthrough, and the plan should treat them as data,
+not as structure.
+
+**The playthrough has now run, and this section's premise is falsified — see §14.2.** The three
+sections were timed at **15.1 : 2.4 : 7.1 seconds**, not at anything like parity, and the cause is in
+the paragraph above: a homing link and a jump step cost about the same *per link* (1.18 s against
+1.13 s), so converting between them by height — which is what the "~14 platform steps or ~3 crystals"
+arithmetic does — gets the ratio exactly backwards. Matching on time means moving the **counts**, not
+the heights. Nothing was retuned; the table stands as the record of what was believed before anyone
+climbed it.
 
 ## 4. Falling
 
@@ -86,8 +97,13 @@ That is long enough to register as a loss without being a punishment queue.
 was not: §13.2 found the knight's root leaving the bottom of the frame 43 % of the way down and no
 knight on screen by touchdown, so a fall could not "register as a loss" because it could not be seen.
 Task 11's descent-aware vertical follow keeps the knight in frame for the whole fall, so the paragraph
-above is again saying something the camera can deliver. Whether 1.29 s *feels* like a loss rather than
-a punishment queue is still unplayed and unmeasured.
+above is again saying something the camera can deliver.
+
+**Now played — see §14.3 and §14.4.** Six real falls on the built tower run 0.45 s to 1.25 s and the
+knight's root never leaves the frame on any of them. Two things that only a playthrough could say:
+the camera can deliver it *unless the camera is inside the column*, which it is for the whole of any
+fall taken facing outward (§14.4); and whether 1.25 s *feels* like a loss rather than a punishment
+queue is still nobody's measurement to make — it is the owner's, and it is listed as such in §14.8.
 
 The respawn rule: when the player's height falls below the active checkpoint's height by a margin,
 return them to the active checkpoint. Checkpoints activate on the way **up** only — passing a
@@ -96,7 +112,9 @@ than the rule promises.
 
 That margin is a named constant, and it is **Untuned**: it has to be deep enough that stepping off a
 ledge just below a checkpoint does not snap you, and shallow enough that a real fall does not read as
-a hang before it resolves. Nobody has felt either edge.
+a hang before it resolves. **One edge is now measured and one is still untouched — §14.3**: stepping
+off a checkpoint pad hangs for 0.450 s before the respawn fires, and the shallow edge could not be
+exercised at all, because the layout has no ledge within the margin below a checkpoint.
 
 The tower has a **solid floor at its base**, and section 1's checkpoint stands on it. The floor is
 not the safety net — the respawn rule is — but it is what a fall visibly ends against, and it is what
@@ -126,8 +144,10 @@ Arriving on top of your own trigger is the shape of bug that only appears once t
 **Exit is the summit pedestal only.** Because the respawn rule returns you to your checkpoint, a
 player past section 1 cannot descend; the summit is the only way out. This is accepted for v1 on the
 grounds that the tower is only three sections, and that a give-up route belongs with the pause UI
-that does not exist yet (§12). How long a climb actually takes is not known — nobody has played it —
-so if it turns out to be long enough that wanting out mid-climb is a real feeling, this is the
+that does not exist yet (§12). **How long a climb takes is now measured — §14.2: 24.5 s from the
+floor to the summit**, on a scripted route that never misses a jump and never hesitates over a
+crystal, which makes it a floor rather than an estimate. At that length, wanting out mid-climb is
+unlikely to be a real feeling; if a retune per §14.2 lengthens the climb a great deal, this is the
 decision to re-open first.
 
 ## 6. Architecture: who owns the engine
@@ -409,7 +429,8 @@ geometry — the analytic `terrainHeight`. No ray cast, no occlusion test, no pu
 against the hub's existing `plazaPillar_0` (radius 0.45): parking the camera on its axis, it was not
 deflected by a millimetre, and because the material is `backFaceCulling: true`, from inside the pillar
 renders **nothing** — the column silently disappears and the world is seen through it. **Inferred, not
-observed — no tower column exists to test against yet:** a column of comparable radius standing where
+observed at the time — no tower column existed to test against; §14.4 has since observed it on the
+built tower and the inference was right:** a column of comparable radius standing where
 the player climbs would put the camera inside it whenever the player is close to it, which would make
 this the everyday case rather than the corner case, with the same failure mode of the level popping out
 of existence instead of a black screen.
@@ -439,4 +460,276 @@ Nothing in §1–§9 is invalidated. Three tasks gain work:
   to keep the player framed through a 1.3 s drop, and an answer for a camera that passes through the
   column and erases it. Both are work items, neither is a design change. *Task 11 did the first and
   half of the second — the follow now keeps the player in frame, and the column no longer vanishes
-  from inside, but the camera still enters it. Real obstruction handling is still unbudgeted.*
+  from inside, but the camera still enters it. Real obstruction handling is still unbudgeted, and
+  §14.4 measured what leaving it unbudgeted costs: on a fall taken facing outward the camera is
+  inside the column on every frame, so the fall §2 promises the player will watch is a blank wall.*
+
+## 14. First playthrough
+
+The tower was climbed on 2026-09-09: floor to summit in one unbroken run, three times in and out
+through the colonnade, and a fall taken deliberately from each section. This section records what
+that run established and — more carefully — what it did not. §13's split between what was
+**measured** and what was only **reasoned** is kept, and a third word is used where it belongs:
+**watched**, meaning seen on screen and not reduced to a number. Anything watched but not measured
+keeps its **Untuned** marking, and the judgements that are the project owner's are collected in
+§14.8 rather than answered here.
+
+**Frames were driven by hand.** The Browser pane's `requestAnimationFrame` is dead in this
+environment — **0 ticks measured over 500 ms** — so every frame below came from
+`engine.beginFrame(); scene.render(); engine.endFrame()` called in a loop from the console with
+`getDeltaTime` pinned, at 60 fps unless a figure says otherwise. That is §13's technique and it
+drives the whole per-frame path: `playerController`, `followCamera`, `towerScene`'s progress and
+portal observers and Havok's `integrate` all hang off `onBeforeRenderObservable`, and every one of
+them ran on every frame counted here. What it establishes nothing at all about is **frame
+delivery** — how the tower performs, whether it holds 60 fps on any machine, or how long a level
+swap takes. A swap is a promise, and a promise cannot settle while frames are being driven
+synchronously inside one console evaluation, so the load pause §6 accepts is still unmeasured.
+Nothing in this section is a performance number.
+
+Two more things about the instrumentation, because they bound what the rest is worth:
+
+- **Pointer lock is refused here.** The real `canvas.requestPointerLock()` in `followCamera`'s click
+  handler rejects with `WrongDocumentError` on a genuine user click. Mouse look was therefore
+  delivered by dispatching `mousemove` events carrying the `movementX`/`movementY` a locked pointer
+  would have carried, with `document.pointerLockElement` stubbed to the canvas. `followCamera`'s
+  handler, its `sensitivity` and its pitch clamps all ran unmodified; what was faked is the
+  browser's delivery, not the game's response. Without it nothing above the first platform is
+  reachable at all, because the homing cone is measured off the camera and every crystal in the
+  tower sits outside that cone at the default yaw.
+- **The route was scripted, not played.** Keys are real `keydown`/`keyup` events on `window`; the
+  aim is set to point at whatever the route is going for next. A scripted climber never misjudges a
+  gap and never hesitates over which crystal to take. **Every duration below is a floor on what the
+  same route costs a person**, and the parts a person would slow down most are exactly the ones that
+  measure fastest.
+
+### 14.1 The summit is reachable — the last bounce lands
+
+This was the single thing most worth running, because the geometry alone could not decide it:
+`stepHoming` bounces from wherever the capsule is when `travelled >= remaining`, up to
+`homingSpeed * MAX_DT` = 0.8 u short of the crystal, and `towerLevel.ts` says outright that
+`auditLayout` does not model that.
+
+**It lands.** Nineteen runs of the real final link — jump off `towerPlatform_18`, lock `crystal_5`,
+dash, bounce, steer in under air control — put the capsule on the summit balcony **nineteen times**:
+two taken as part of a full climb, five at 60 fps pressing 4 to 20 frames after the jump, four more
+at 60 fps pressing late (24 to 36 frames, past the apex and on the way down), and eight at 30 fps,
+which is `dt` exactly at `MAX_DT` and therefore the worst frame the clamp allows. A twentieth run
+pressed on the take-off frame itself, inside the coyote window, where the press is correctly spent as
+an ordinary jump rather than a dash.
+
+Measured across those runs:
+
+- **The launch is short of the crystal by 0.063–0.467 u**, not by the 0.8 u worst case — because
+  `stepHoming` corrects course every frame, the last frame's `remaining` is usually well under
+  `homingSpeed * delta`. The 30 fps runs are the deep end of that range, as expected.
+- **Every landing sits 0.13–0.97 u from the balcony's centre**, which resolved into the pad's own
+  axes is 0.10–0.50 u along the face and up to 0.97 u outward. All of them fall on the side of the
+  centre line **away** from the pedestal — the sign `SUMMIT_PEDESTAL_OFFSET` chose, and the reason
+  it chose it.
+- **Nothing landed on the pedestal**, which is what `TOWER_SUMMIT_PEDESTAL_HEIGHT` argues cannot
+  happen. Confirmed rather than merely re-derived.
+
+The section-3 link onto `towerPlatform_16` and the section-2 chain's last bounce onto
+`towerPlatform_13` land the same way — 0.20 u and 0.34 u from their pads' centres.
+
+### 14.2 The sections are NOT matched on play time — §3's premise is falsified
+
+One continuous climb, 60 fps, no falls, walking approaches:
+
+| Section | Height | Content | Frames | Seconds |
+|---|---|---|---|---|
+| 1 | 18 u | 13 jump steps | 905 | **15.08** |
+| 2 | 24 u | a 4-crystal homing chain | 142 | **2.37** |
+| 3 | 20 u | 4 jump steps + 2 links | 423 | **7.05** |
+| — | 62 u | floor to summit | 1470 | **24.50** |
+
+A second run with running approaches through section 1 took **813 frames, 13.55 s** — 8 % faster,
+not a different order of magnitude, because what a step costs is the jump arc and not the ground
+speed.
+
+§3 predicted "roughly equal play time" and set the heights 18 / 24 / 20 to buy it. Measured, the
+sections run **15.1 : 2.4 : 7.1**. Section 1 is **6.4×** section 2.
+
+**The reason is precise, and it is not that the chain is fast.** Per unit of content:
+
+- **a jump step costs 62–79 frames, ~1.05–1.13 s**, and the spread between walking it and running it
+  is a tenth of a second;
+- **a chained homing link costs 22–23 frames, 0.37 s** — you bounce out of one crystal straight into
+  the press for the next, and the chain pays for the descent only once, at its end;
+- **an isolated homing link — dash, bounce, then ride the bounce down onto a pad — costs 71 frames,
+  1.18 s**, which is a jump step.
+
+So a link and a step cost the same, and only *chaining* is cheap. §3's arithmetic ("a 20-unit
+stretch is ~14 platform steps or ~3 crystals") converted **height** correctly and then assumed the
+two vocabularies cost the same per unit of height. They cost the same **per link**, which is the
+opposite conclusion: 13 steps against 4 links is a 3.2× difference in count, and the times follow
+the count.
+
+**What this means for the numbers.** If the sections are to be matched on time, the height table is
+the wrong lever: section 1 has to lose most of its steps and section 2 has to gain links, so
+`SECTION_1_STEPS` and `SECTION_2_LINKS` are what move. That is a design decision and is left to the
+owner (§14.8); nothing in the level was changed for it. The **Untuned** marking on §3's table and on
+`towerLevel.ts`'s counts stands, and now has a measurement under it instead of a derivation.
+
+The scripting caveat, stated plainly: a person pays for aiming and for missed jumps, and both fall
+more heavily on the chain than on the steps. But nobody beats the arc — thirteen arcs is thirteen
+arcs — so the *floor* on section 1 is ~13.5 s and the *floor* on section 2 is ~2.4 s, and no amount
+of human slowness on the chain closes an eleven-second gap without making the chain something other
+than a chain.
+
+### 14.3 Falls, and the respawn
+
+Six falls, each taken by walking off a real ledge, each with the camera at the level's own opening
+pitch:
+
+| From | Drop | Duration | Peak speed | Ends at |
+|---|---|---|---|---|
+| the summit balcony, y 62.4 | 23.9 u | **1.250 s** | 34.0 u/s | respawn to the section-3 pad |
+| just under y 42 — the deepest the spacing allows | 25.0 u | **1.083 s** | **36.0 u/s** | respawn to the section-2 pad |
+| the homing chain at y 33.7 | 19.3 u | **0.917 s** | 32.0 u/s | respawn to the section-2 pad |
+| off a section-3 checkpoint pad | 4.5 u | **0.450 s** | 15.4 u/s | respawn to that same pad |
+| off a section-2 checkpoint pad | 4.5 u | **0.450 s** | 15.4 u/s | respawn to that same pad |
+| a section-1 ledge, y 8.8 | 7.7 u | — | 19.8 u/s | **the floor catches it** — no respawn |
+| off the edge of the floor itself | 4.5 u | **0.467 s** | 15.1 u/s | respawn to the tower spawn |
+
+Three things this settles:
+
+- **§4's arithmetic holds.** Every duration is what `√(2h/gravity)` predicts once the part of the
+  drop before free fall begins is subtracted; there is no drag and no terminal speed anywhere. The
+  36.0 u/s deepest case is the ~36.7 u/s `DESCENT_SMOOTHING`'s own doc predicted for it.
+- **The floor is what catches a section-1 fall**, exactly as §4 says: the respawn rule needs the
+  capsule `TOWER_FALL_MARGIN` below y 0 and the floor is at y 0, so a fall inside section 1 is a
+  landing, not a respawn. Walking off the *edge* of the floor is what reaches checkpoint 0, and it
+  does, in 0.467 s.
+- **The respawn is a cut, with zero glide frames.** Measured on every fall that fired one. On the
+  summit fall: the frame before, capsule 38.467 and camera 41.985; the respawn frame, capsule
+  43.300, root 43.300, camera 43.728; and the four frames after it, camera 43.728, 43.728, 43.727,
+  43.726. The camera arrives at the checkpoint on the frame the respawn is decided and does not move
+  afterwards. §13.1's claim for `teleport` plus `snap()` is reproduced on the built tower.
+
+**`TOWER_FALL_MARGIN` 4 now has one edge watched and one still unfelt.** Stepping off a checkpoint
+pad costs **0.450 s** before the respawn fires — the "hang before it resolves" end of the constant's
+own argument, now a number. Whether 0.45 s of hanging reads as a hang is §14.8's. The other edge —
+"deep enough that stepping off a ledge just below a checkpoint does not snap you" — was not
+exercised, because the layout has no ledge inside 4 u below a checkpoint to step off.
+
+### 14.4 Framing on the fall — and the thing the framing numbers do not say
+
+The root's position in frame, as a fraction from the top, with 1.0 the bottom edge. All figures at
+60 fps, and aspect-independent: the camera is `FOVMODE_VERTICAL_FIXED`, verified by measuring the
+same standing root at **0.5723** at 16:9 and at 0.76:1.
+
+- **The summit fall: root 0.619 → 0.990, off the frame for 0 frames.** The 0.990 peak lands where
+  `DESCENT_ENGAGE_SPEED`'s doc says it will, on the transition just after the term engages. The
+  deepest fall and the chain fall both peak at exactly 0.990 as well.
+- **The head never leaves the frame**: 0.81 at worst, across every fall.
+- **The feet do leave it**, for 53 of the summit fall's 75 frames, reaching **1.25** — a little
+  further than §13.2's 1.22. The body reads; the soles are cut off.
+
+Every one of those is a **frustum** measurement, and a frustum measurement is not a visibility
+measurement. Which brings the one thing this playthrough found that no earlier pass could.
+
+**On a fall taken facing outward, the camera is inside the column for the whole descent and the
+player sees nothing.** Measured: step off the outer edge of a platform at `PLATFORM_ORBIT` 4.2 with
+the camera behind you, and the camera sits **1.20–1.77 u from the axis** against
+`TOWER_COLUMN_RADIUS` 3.2 — inside, on **50 of 50 falling frames**. The root's screen fraction over
+that same fall reads 0.611–0.994, a textbook well-framed fall; the rendered frame is a single flat
+colour, 34/34/35, edge to edge. That is Task 11's mitigation working exactly as written — with
+`backFaceCulling` off you see the column's inside surface rather than the world through it — and it
+means the wall is what you watch instead of yourself. §13.2 carried this as "**Inferred, not
+observed — no tower column exists to test against yet**". It is now observed, on the built tower,
+and it is worse than it was inferred to be: this is not a camera clipping through scenery, it is the
+fall §2 promises the player will watch, played out behind a blank wall.
+
+**The climb itself never does this.** The camera's distance from the axis was computed for every aim
+the route requires, from `followCamera`'s own placement formula: **7.93 u** for each of the nineteen
+platform-to-platform steps, **6.42 u** for each of the three aims up at a launch crystal, **9.09 u**
+for each chain aim. Not one of the twenty-five is inside 3.2. And a fall taken *tangentially* — the
+missed-jump case, where the camera is still pointing along the spiral — keeps the camera at
+**5.98 u** and the knight visible and framed; that was watched on screen as well as measured.
+
+So the honest statement is narrower than either "the camera clips the column" or "the camera is
+fine": **the route never puts the camera inside the column; turning to face the column does, and so
+does every fall taken while facing outward.** §13.3's budgeted obstruction work is still the answer,
+and it is now worth more than it looked.
+
+### 14.5 The round trip
+
+Run three times, in both directions, in one session.
+
+- **Hub → tower.** Walking onto the colonnade pedestal fires `onEnterTower`, and the tower arrives
+  with the capsule at `TOWER_SPAWN` (3.5, 1.3, 6.062) — the coordinate the level computes, to ten
+  decimal places.
+- **Summit → hub.** Walking onto the summit pedestal fires `onExit`, and the hub arrives with the
+  capsule at **(−5.408, 1.978, 28.849)** — `portalReturnSpawn()`'s point, measured at **3.207 u**
+  from the pedestal's centre against `PEDESTAL_RADIUS` 1.6. Outside the trigger by a whole pedestal
+  radius, as §5 asks.
+- **The return does not re-enter.** 200 frames driven standing still on the return spawn, twice:
+  the hub stays the hub.
+- **Stepping off and back on fires again.** Walking back onto that pedestal re-entered the tower,
+  with progress reset to checkpoint 0 and the capsule at `TOWER_SPAWN` — and then a third time,
+  after a second full exit.
+- **Not established: the disarmed-start half of the rule.** `portalReturnSpawn` puts the player
+  outside the radius, so the trigger arms on the very first frame and there is no way, from outside,
+  to observe the frame where a player would have been standing on their own trigger. That path stays
+  covered by `portalTrigger.test.ts` and by nothing else.
+- **Not established: how long a swap takes.** See the note at the head of this section.
+
+### 14.6 The window resize
+
+Task 7 moved `engine.resize()` and its listener into `App.svelte` and never watched one. Watched
+now, across two aspect ratios:
+
+- **On load**, the drawing buffer comes up at the canvas's CSS size (1280 × 720 for a 1280 × 720
+  viewport) — the constructor-time `engine.resize()` doing its job.
+- **On a resize event**, the buffer follows exactly: at a 980 × 1289 CSS box the buffer is
+  980 × 1289, the GL viewport is `0, 0, 980, 1289`, and the engine's aspect ratio is 0.7603 against
+  the box's own 0.7601. **No stretch and no clip**, confirmed on screen at portrait as well as in
+  the numbers.
+- One honest caveat about the delivery: this pane does not reliably fire a native `resize` when the
+  emulated viewport changes, and while it has not, the buffer stays stale and the canvas *is*
+  stretched. Dispatching the event by hand fixes it at once. So what is verified is the listener,
+  `engine.resize()` and everything downstream; the browser's delivery of the event is the one
+  link in the chain this environment could not be trusted on.
+- **`hardwareScalingLevel` is 1** — the `Engine` is constructed without `adaptToDeviceRatio`, so the
+  drawing buffer is CSS pixels and on a HiDPI display the image is upscaled. That is a sharpness
+  choice rather than a resize defect, and nobody has decided it deliberately.
+
+### 14.7 What else was watched
+
+- **The tower renders.** White column, white floor, white slabs, near-black-blue sky, the knight's
+  own shadow on the slab under it and the column's shadow on the floor. Screenshots taken at the
+  spawn, at y 53 mid-climb, mid-fall and on the summit.
+- **The opening frame is right.** From `TOWER_SPAWN` at `SPAWN_ORBIT` 7 the column, the floor
+  and the first platform are all on screen at the camera's default yaw — which is what that
+  constant's doc argues for and could not previously claim.
+- **No layout audit warning fired**, across three builds of the tower. `auditLayout` had nothing to
+  say about the level that was actually generated.
+- **The summit pedestal is backlit from its own landing.** The bounce lands on the balcony's centre
+  line and the pedestal stands 2 u along the face toward the sun, so from where the player lands it
+  reads as a dark disc on a white slab rather than as white on white. Watched, not measured, and not
+  called a defect here — `SUN_DIRECTION` had simply never been looked at before.
+- **One console error, and it is the sandbox's**: `followCamera`'s `canvas.requestPointerLock()`
+  returns a promise and nothing catches it, so a browser that refuses the lock leaves an uncaught
+  rejection in the console. The refusal is this pane's doing; the unhandled rejection is the code's.
+  Recorded, not fixed — it is not something this playthrough falsified.
+- **Not looked at at all: the hub's ring of light** (`portalRing.ts`). Its constants say nobody
+  has seen it, and that is still true.
+
+### 14.8 The owner's calls, not this document's
+
+Each of these was set up so that it *can* be judged, and none of them is answered here.
+
+1. **Do the three sections feel equal?** They do not *measure* equal (§14.2), by a factor of six.
+   What the level should do about it — fewer steps in section 1, more links in section 2, or a
+   different premise than equal time — is a design decision.
+2. **Does a 1.25 s fall read as a loss rather than a wait?** The duration is confirmed, and the
+   knight is in frame for all of it; whether it lands as a loss is a feel.
+3. **Does the white column read against the near-black sky?** Rendered and screenshotted at four
+   heights. Whether it reads is the eye's.
+4. **Is 0.45 s of hang the right price for stepping off a ledge?** That is `TOWER_FALL_MARGIN` 4's
+   cost at its shallow end.
+5. **Do the clipped feet matter?** The soles are outside the frame for most of every fall.
+6. **Is watching a fall from inside the column acceptable for now?** (§14.4.) It is the one finding
+   here that may be worth a code change before anything else moves.
+7. **Does the backlit summit pedestal read as the way out?**

@@ -8,11 +8,15 @@ import { CAPSULE_HALF, CAPSULE_HEIGHT, CAPSULE_RADIUS } from './capsule';
 /**
  * The climbing tower, as data.
  *
- * **Every number in this file is Untuned.** Nobody has climbed this tower — not one platform of it —
- * so nothing here is a measurement. What each number *is* is the output of a rule, and the rules are
- * the part worth arguing with; each is stated on the group it shaped, together with the shipped
- * constant that bounds it. Retune a rule and let the numbers fall out, rather than nudging a
- * coordinate and leaving the rule that produced it saying something else.
+ * **Every number in this file is Untuned**, and that survived the first playthrough. The tower has
+ * now been climbed floor to summit and back to the hub (design spec §14), but nothing here was
+ * retuned against it, so every number is still the output of a rule rather than a measurement. What
+ * the climb changed is that the rules can now be argued with against evidence: §14.2 timed the three
+ * sections at **15.1 : 2.4 : 7.1 seconds** against spec §3's premise of roughly equal play time,
+ * which puts {@link SECTION_1_STEPS} and {@link SECTION_2_LINKS} first in line to move. Each rule is
+ * stated on the group it shaped, together with the shipped constant that bounds it. Retune a rule and
+ * let the numbers fall out, rather than nudging a coordinate and leaving the rule that produced it
+ * saying something else.
  *
  * The two rules everything hangs off, both from the design spec §3:
  *
@@ -73,6 +77,12 @@ const SUMMIT_Y = 62;
  * `distance` 5 with no obstruction handling at all (spec §13.2), so a player standing at
  * {@link PLATFORM_ORBIT} 4.2 puts the camera inside any column whenever they face outward. Spec
  * §13.3 carries that as budgeted camera work; this radius only decides how often it bites.
+ *
+ * **How often it bites is now measured — spec §14.4.** Never on the climb's own aims: the camera
+ * sits 6.42–9.09 u from the axis for every one of the twenty-five platform-to-platform steps, launch
+ * aims and chain aims the route requires. Always on a fall taken facing outward: 1.20–1.77 u from
+ * the axis for the whole descent, on 50 of 50 falling frames, which is the fall spec §2 promises the
+ * player will watch, played out behind a blank wall.
  */
 export const TOWER_COLUMN_RADIUS = 3.2;
 /** How far above the floor the column rises. **Untuned**: {@link SUMMIT_Y} plus 4 u, so there is
@@ -156,7 +166,9 @@ const TURN_DEGREES = 60;
  *
  * Negative is the direction with room in it, not positive: dropping the pad below its crystal buys
  * both back, at the cost of the height the link gains. That is the knob to reach for if a chain's
- * last bounce plays as a scramble, and it has not been touched because nobody has played one.
+ * last bounce plays as a scramble. A chain has now been played (spec §14.1): the section-2 chain's
+ * last bounce landed 0.34 u from its pad's centre, and every last bounce in the tower landed, so
+ * nothing has forced this off zero. Whether any of them plays as a scramble is unjudged.
  */
 const BOUNCE_RISE = 0;
 
@@ -309,12 +321,15 @@ const SUMMIT_PEDESTAL_OFFSET = TOWER_SUMMIT_RADIUS + 2 * CAPSULE_RADIUS;
  * radial depth stays {@link PLATFORM_SIZE}, because the summit is reached by a bounce and
  * {@link BOUNCE_REACH} caps how deep a landing pad may be.
  *
- * 6.0 is wide enough that what it looks like is worth writing down, since nobody has looked: the
- * slab's inner face is a straight chord at radius 3.0 while the column curves away behind it, so at
- * the balcony's ends the two are 1.89 u apart radially and the inner corners stand 1.04 u proud of
- * the column's surface — against 0.031 u for an ordinary slab (see {@link PLATFORM_ORBIT}). That is
- * not a hole; it opens sideways past the column rather than through the floor. It is an inside edge
- * you can walk off, and it is the first thing to look at when this summit is finally seen.
+ * 6.0 is wide enough that what it looks like is worth writing down: the slab's inner face is a
+ * straight chord at radius 3.0 while the column curves away behind it, so at the balcony's ends the
+ * two are 1.89 u apart radially and the inner corners stand 1.04 u proud of the column's surface —
+ * against 0.031 u for an ordinary slab (see {@link PLATFORM_ORBIT}). That is not a hole; it opens
+ * sideways past the column rather than through the floor. It is an inside edge you can walk off.
+ *
+ * The summit has now been stood on and screenshotted (spec §14.7) and the last bounce has landed on
+ * this balcony nineteen times out of nineteen (§14.1) — but **this edge was not looked at
+ * specifically**, so it is still the first thing to look at the next time somebody is up there.
  */
 const SUMMIT_PAD_WIDTH = 2 * (SUMMIT_PEDESTAL_OFFSET + TOWER_SUMMIT_RADIUS);
 
@@ -327,7 +342,12 @@ const RESPAWN_LIFT = 0.3;
 /**
  * Where a fall stops counting as a step down. **Untuned**: 4 u is a guess at "deeper than any
  * deliberate drop between platforms, shallower than a fall that would hang before resolving".
- * Nobody has felt either edge — see the design spec §4.
+ *
+ * One edge is now measured and the other could not be exercised (spec §14.3). Stepping off a
+ * checkpoint pad hangs for **0.450 s** before the respawn fires — that is what "a fall that would
+ * hang before resolving" costs at this value, and whether 0.45 s reads as a hang is a judgement
+ * nobody has made. The shallow edge was never reached, because the layout has no ledge within 4 u
+ * below a checkpoint to step off. See the design spec §4.
  */
 export const TOWER_FALL_MARGIN = 4;
 
@@ -406,12 +426,21 @@ const onPad = (p: TowerPlatform, along: number, outward: number): Vec3 => {
   return vec3(p.x + along * face.x + outward * out.x, p.y, p.z + along * face.z + outward * out.z);
 };
 
-/** Jump steps in section 1. **Untuned**: 13, because 18 u at {@link JUMP_RISE} needs at least 12.9 of
- *  them, and 13 puts the per-step rise at 18/13 = **1.3846 u** — just inside the rule rather than
- *  exactly on it. Spec §3's own estimate for this section is "~13 steps". */
+/**
+ * Jump steps in section 1. **Untuned**: 13, because 18 u at {@link JUMP_RISE} needs at least 12.9 of
+ * them, and 13 puts the per-step rise at 18/13 = **1.3846 u** — just inside the rule rather than
+ * exactly on it. Spec §3's own estimate for this section is "~13 steps".
+ *
+ * **This count and {@link SECTION_2_LINKS} are what spec §14.2 says should move first.** Timed on a
+ * scripted climb that never misses, a jump step costs **1.05–1.13 s** and a chained homing link
+ * **0.37 s**, so 13 steps against 4 links runs 15.1 s against 2.4 s. §3 matched the sections on
+ * height-per-vocabulary and assumed the times would follow; they follow the *count* instead. Neither
+ * number was changed for that — retuning the shape of the climb is the owner's call, not a fix.
+ */
 const SECTION_1_STEPS = 13;
 /** Homing links in section 2. **Untuned**: 4, spec §3's "~4 crystals", which over 18 → 42 puts the
- *  rise per link at exactly **6.0 u** — the bottom of the spec's 6–8 band. */
+ *  rise per link at exactly **6.0 u** — the bottom of the spec's 6–8 band. See
+ *  {@link SECTION_1_STEPS} for what spec §14.2 measured this section against. */
 const SECTION_2_LINKS = 4;
 /** Section 3's alternation: two jump steps, a link, two jump steps, a link onto the summit.
  *  **Untuned**: the counts are what fit two links inside 20 u while leaving both in the 6–8 band —
