@@ -9,11 +9,11 @@ import {
 import { step, isHomingFrame } from '../../domain/hub/character/characterMovement';
 import { DEFAULT_CONFIG, type MovementConfig } from '../../domain/hub/character/movementConfig';
 import { IDLE, type CharacterMotion } from '../../domain/hub/character/characterMotion';
+import { ZERO3 } from '../../domain/math/vec3';
 import type { MovementInput } from '../../domain/hub/character/movementInput';
 import { planarDirectionFromInput } from './cameraRelativeDirection';
 import { toBabylon, toVec3 } from './vectorConversions';
 import { CAPSULE_RADIUS, CAPSULE_HEIGHT } from './capsule';
-import { terrainHeight } from './terrainHeight';
 import type { FollowCamera } from './followCamera';
 import type { InputState } from './input';
 import type { Crystals } from './crystals';
@@ -76,6 +76,27 @@ export interface Player {
    * crystal cannot cancel the rise this flash promises — see `GroundContactInput.bounced`.
    */
   homingBounced: boolean;
+  /**
+   * Puts the character at `to` as a cut, not as a move — for a checkpoint respawn.
+   *
+   * Four things hold the old position, and a teleport that misses any one of them reads as a swoop
+   * rather than a respawn; all four were measured (design spec §13.1), not reasoned about:
+   *
+   * 1. The controller's position. `setPosition` moves the capsule exactly and immediately.
+   * 2. The controller's velocity — necessary but nowhere near sufficient. It survives less than one
+   *    frame, because the observer below rewrites it from `motion.velocity` before every `integrate`.
+   * 3. `motion.velocity`, therefore. Without it a fall's speed is restored on the very next frame and
+   *    the character drops off the checkpoint again at the speed it arrived with.
+   * 4. `visualY`, the smoothed *rendered* height. It is closure state with no other way in, so a
+   *    teleport up 53 units left the knight rendered at the old height, gliding up over ~0.33 s.
+   *
+   * The camera holds a fifth — `smoothY` — which is not this function's to reset. Call
+   * `FollowCamera.snap()` alongside this one.
+   *
+   * Teleport into open air above the destination surface, never onto it: the ground collider is
+   * one-sided, and a capsule placed below a surface falls out of the world rather than landing on it.
+   */
+  teleport(to: Vector3): void;
 }
 
 /**
@@ -89,13 +110,13 @@ export function createPlayer(
   follow: FollowCamera,
   input: InputState,
   crystals: Crystals,
+  spawn: Vector3,
 ): Player {
-  // Spawn the capsule's base ON the terrain surface (+ a small lift so it settles down onto it rather
-  // than starting embedded — an embedded capsule pops through the one-sided MESH collider and falls).
-  const start = new Vector3(0, terrainHeight(0, 0) + CAPSULE_HEIGHT / 2 + 0.3, 0);
-  let visualY = start.y; // smoothed visual Y (see VISUAL_Y_SMOOTHING)
+  // Where the capsule's CENTRE starts. The caller owns it, because only the caller knows what the
+  // ground under it is — see the hub's call site for how it places the capsule's base on the terrain.
+  let visualY = spawn.y; // smoothed visual Y (see VISUAL_Y_SMOOTHING)
   const controller = new PhysicsCharacterController(
-    start,
+    spawn,
     { capsuleRadius: CAPSULE_RADIUS, capsuleHeight: CAPSULE_HEIGHT },
     scene,
   );
@@ -108,6 +129,19 @@ export function createPlayer(
 
   const player: Player = {
     root, motion: IDLE, airborne: false, config, homingEntrySeconds: null, homingBounced: false,
+    teleport(to: Vector3): void {
+      controller.setPosition(to);
+      // Both velocities, in that order of importance: the domain's is the one that survives, since
+      // the observer below copies it onto the controller before the next `integrate`. The controller's
+      // is zeroed anyway so that nothing reads a stale fall speed off it in between.
+      controller.setVelocity(Vector3.Zero());
+      // A new motion value rather than a mutation: `CharacterMotion` is a domain value, and `ZERO3`
+      // is the same shared zero `IDLE` uses.
+      player.motion = { ...player.motion, velocity: ZERO3 };
+      // Re-seed the render smoothing at the destination, so the knight is drawn there on the very
+      // next frame instead of easing up to it from wherever it was standing.
+      visualY = to.y;
+    },
   };
   // Coyote time, jump buffering and the takeoff guard all live in this pure state — see groundContact.
   let contact = INITIAL_GROUND_CONTACT;

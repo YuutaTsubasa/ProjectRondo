@@ -18,7 +18,7 @@ import type { PhysicsEngine as PhysicsEngineV2 } from '@babylonjs/core/Physics/v
 import '@babylonjs/loaders/glTF';
 import { CAPSULE_HALF } from './capsule';
 import { HEAD_MESHES, knightReceivesShadow } from './shadowPolicy';
-import { terrainHeight } from './terrainHeight';
+import type { GroundHeight } from './groundHeight';
 import { moveToward } from '../../domain/math/scalar';
 import { stepJumpPose, INITIAL_JUMP_POSE } from './jumpPose';
 import { emissiveFactorOf, type GltfPbrMaterial } from './gltfMaterial';
@@ -824,12 +824,13 @@ async function swapHeadMaterial(meshes: readonly AbstractMesh[]): Promise<void> 
 /**
  * Builds "how high is the surface actually under the soles?", used by the foot-planting below.
  *
- * This exists because {@link terrainHeight} is the height *field*, not the height of whatever the
- * player is standing on. Anything with its own collider — the plaza pedestal, a pillar, a rock, and
- * whatever P4 adds — sits above the field, and planting against the field drops the knight straight
- * through it. Measured on the pedestal before this probe existed: the capsule bottom was correctly at
- * 1.843 on a 1.717 top, while the knight's lowest rendered vertex was at 1.167 — exactly
- * `terrainHeight(-6, 32)`, i.e. the model rendered through the pedestal and stood on the ground.
+ * This exists because {@link GroundHeight} answers for the world's ground *surface*, not for the
+ * height of whatever the player is standing on. Anything with its own collider — the hub's plaza
+ * pedestal, a pillar, a rock, the tower's platforms — sits above that surface, and planting against
+ * it drops the knight straight through. Measured in the HUB, on the plaza pedestal, before this probe
+ * existed: the capsule bottom was correctly at 1.843 on a 1.717 top, while the knight's lowest
+ * rendered vertex was at 1.167 — exactly the hub's height field at (-6, 32), i.e. the model rendered
+ * through the pedestal and stood on the terrain. The numbers are that scene's; the failure is not.
  *
  * A physics raycast is used rather than the character controller's support probe because
  * `CharacterSurfaceInfo` in this Babylon version carries only normals and velocities — there is no
@@ -840,10 +841,13 @@ async function swapHeadMaterial(meshes: readonly AbstractMesh[]): Promise<void> 
  * `collider` is undefined), and a ray started inside the capsule still reports the pedestal at
  * 1.717. If that ever changes, the fix is an `ignoreBody` in the query.
  *
- * On a miss it returns the height field, so the worst case is exactly today's behaviour rather than
- * snapping the knight somewhere worse.
+ * On a miss it returns the world's ground query, so the worst case is exactly the behaviour that
+ * preceded this probe rather than snapping the knight somewhere worse.
  */
-function createGroundProbe(scene: Scene): (x: number, footY: number, z: number) => number {
+function createGroundProbe(
+  scene: Scene,
+  groundHeight: GroundHeight,
+): (x: number, footY: number, z: number) => number {
   // `raycastToRef` writes into these instead of allocating a result and two vectors every frame.
   // It lives on the v2 engine; `IPhysicsEngine` only declares the allocating `raycast`.
   const result = new PhysicsRaycastResult();
@@ -851,11 +855,11 @@ function createGroundProbe(scene: Scene): (x: number, footY: number, z: number) 
   const to = new Vector3();
   return (x, footY, z) => {
     const engine = scene.getPhysicsEngine() as PhysicsEngineV2 | null;
-    if (!engine) return terrainHeight(x, z);
+    if (!engine) return groundHeight(x, z);
     from.set(x, footY + GROUND_PROBE_ABOVE, z);
     to.set(x, footY - GROUND_PROBE_BELOW, z);
     engine.raycastToRef(from, to, result);
-    return result.hasHit ? result.hitPointWorld.y : terrainHeight(x, z);
+    return result.hasHit ? result.hitPointWorld.y : groundHeight(x, z);
   };
 }
 
@@ -905,6 +909,7 @@ export async function loadKnight(
   scene: Scene,
   parent: TransformNode,
   shadows: Shadows,
+  groundHeight: GroundHeight,
 ): Promise<Knight> {
   // ?v bust: the browser aggressively caches the GLB, so a plain reload keeps serving an old copy.
   // Bump this whenever knight_web.glb is rebuilt so clients refetch it.
@@ -1002,15 +1007,15 @@ export async function loadKnight(
       // frame, drop the visual by however far the capsule bottom sits above the surface under the
       // player, so the feet stay planted.
       //
-      // That surface is whatever the player is actually standing on, not the height field — see
-      // {@link createGroundProbe}, which is what lets the knight stand ON the plaza pedestal instead
-      // of rendering through it.
+      // That surface is whatever the player is actually standing on, not the world's ground query —
+      // see {@link createGroundProbe}, which is what lets the knight stand ON the hub's plaza
+      // pedestal instead of rendering through it.
       //
       // Airborne that correction is exactly wrong — the gap to the ground IS the jump height, so
       // applying it would pin the knight to the ground while the capsule flies. `knight.planted`
       // fades it out, which also keeps takeoff and landing from popping. The probe is skipped
       // entirely once the correction is fading to nothing, so a jump costs no raycast.
-      const groundUnder = createGroundProbe(scene);
+      const groundUnder = createGroundProbe(scene, groundHeight);
       scene.onBeforeRenderObservable.add(() => {
         if (knight.planted <= 0) {
           root.position.y = seatedLocalY;

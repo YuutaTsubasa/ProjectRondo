@@ -20,6 +20,8 @@ import { createEnvironment } from './environment';
 import { createShadows } from './shadows';
 import { createAtmosphere } from './postProcessing';
 import { createTerrain } from './terrain';
+import { terrainHeight } from './terrainHeight';
+import { CAPSULE_HEIGHT } from './capsule';
 import { loadTrees } from './trees';
 import { createGroundScatter } from './scatter';
 import { createWind } from './wind';
@@ -82,7 +84,9 @@ export async function createHubScene(canvas: HTMLCanvasElement): Promise<HubScen
   // keeps the two in sync; it depends only on playerRoot and the canvas — not on physics, the terrain
   // or the player controller — so moving it earlier is safe.
   const playerRoot = new TransformNode('player', scene);
-  const follow = createFollowCamera(scene, playerRoot, canvas);
+  // The hub's answer to "how high is the ground here" — its analytic height field. The character rig
+  // takes it as an argument rather than importing it, so the same rig works in a scene that has none.
+  const follow = createFollowCamera(scene, playerRoot, canvas, terrainHeight);
   scene.activeCamera = follow.camera;
   const shadows = createShadows(sun, follow.camera);
   // Babylon 9 keys shadow generators by camera, so the console's usual
@@ -102,7 +106,10 @@ export async function createHubScene(canvas: HTMLCanvasElement): Promise<HubScen
   createAtmosphere(scene, follow.camera);
 
   const input = createInput();
-  const player = createPlayer(scene, playerRoot, follow, input, crystals);
+  // Spawn the capsule's base ON the terrain surface (+ a small lift so it settles down onto it rather
+  // than starting embedded — an embedded capsule pops through the one-sided MESH collider and falls).
+  const spawn = new Vector3(0, terrainHeight(0, 0) + CAPSULE_HEIGHT / 2 + 0.3, 0);
+  const player = createPlayer(scene, playerRoot, follow, input, crystals, spawn);
   const readMotion = (): KnightMotionSample => {
     const v = player.motion.velocity;
     return {
@@ -113,7 +120,7 @@ export async function createHubScene(canvas: HTMLCanvasElement): Promise<HubScen
       bounced: player.homingBounced,
     };
   };
-  const knight = await loadKnight(scene, playerRoot, shadows);
+  const knight = await loadKnight(scene, playerRoot, shadows, terrainHeight);
   driveKnightAnimation(scene, knight, readMotion, () => ({
     walk: player.config.maxSpeed,
     run: player.config.runSpeed,
