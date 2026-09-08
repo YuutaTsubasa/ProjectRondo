@@ -20,13 +20,15 @@ import { createShadows } from './shadows';
 import { createAtmosphere } from './postProcessing';
 import { createTerrain } from './terrain';
 import { terrainHeight } from './terrainHeight';
-import { CAPSULE_HEIGHT } from './capsule';
+import { CAPSULE_HALF } from './capsule';
 import { loadTrees } from './trees';
 import { createGroundScatter } from './scatter';
 import { createWind } from './wind';
 import { createWater } from './water';
 import { createClouds } from './clouds';
-import { createLandmark } from './landmark';
+import { createLandmark, pedestalTopY, PEDESTAL_RADIUS, PLAZA_X, PLAZA_Z } from './landmark';
+import { createPortalRing } from './portalRing';
+import { PORTAL_START, stepPortalTrigger, type PortalTrigger } from './portalTrigger';
 import { createCrystals } from './crystals';
 import { createHubAudio, type HubAudio } from '../audio/hubAudio';
 
@@ -45,6 +47,60 @@ const TEST_CRYSTALS = [
   { x: -3, y: 4, z: -10 },
 ] as const;
 
+/**
+ * Half-height of the band around the pedestal's standing height that counts as being on it.
+ *
+ * **Untuned**: 1.2 u — wide enough to survive the capsule's rest gap and a frame caught mid-step,
+ * narrow enough that walking past at the foot of the pedestal or landing a jump over it does not
+ * fire. It is the same number, arrived at the same way, as `towerScene.ts`'s `PORTAL_HEIGHT_BAND`,
+ * and it is deliberately a second constant rather than a shared one: these are two different
+ * pedestals in two different levels, the hub's stands on a height field while the tower's stands on
+ * a flat floor, and either could need its own band without the other moving. `portalTrigger.ts` owns
+ * the edge rule and nothing else, which is why the number does not live there.
+ */
+const PORTAL_HEIGHT_BAND = 1.2;
+
+/**
+ * How far from the pedestal's centre the return from the tower puts the player, in world units.
+ *
+ * Derived: twice {@link PEDESTAL_RADIUS}, so the player lands a whole pedestal-radius clear of its
+ * edge on open ground. Spec §5 makes this the *first* line of defence against a re-entry loop —
+ * `PORTAL_START` being disarmed is the second, and the two are both required, not either.
+ */
+const RETURN_DISTANCE = PEDESTAL_RADIUS * 2;
+
+/**
+ * How far the capsule's base starts above the ground it is spawned over. Small and positive on
+ * purpose: a capsule that starts embedded pops through the one-sided MESH collider and falls out of
+ * the world, so it is placed just clear and allowed to settle down onto the surface.
+ */
+const SPAWN_CLEARANCE = 0.3;
+
+/** Where a spawn goes for the capsule's base to sit `SPAWN_CLEARANCE` over the terrain at (x, z). */
+function spawnOverTerrain(x: number, z: number): Vector3 {
+  return new Vector3(x, terrainHeight(x, z) + CAPSULE_HALF + SPAWN_CLEARANCE, z);
+}
+
+/**
+ * Where the player lands on returning from the tower: on the ground beside the pedestal, never on it
+ * (spec §5, "Re-entry must not loop").
+ *
+ * Placed on the side of the pedestal that faces the hub's origin — the direction the player walked in
+ * from — so they arrive looking back out through the colonnade at the way they came rather than at a
+ * pillar, and so the ring of light is between them and the exit.
+ *
+ * A function returning a fresh `Vector3` rather than an exported constant, because `createPlayer`
+ * hands its spawn straight to `PhysicsCharacterController`, whose `getPosition()` is documented as
+ * returning its LIVE internal vector — a shared instance is exactly the kind of thing that ends up
+ * being written through.
+ */
+export function portalReturnSpawn(): Vector3 {
+  const toOrigin = Math.hypot(PLAZA_X, PLAZA_Z);
+  const x = PLAZA_X + (-PLAZA_X / toOrigin) * RETURN_DISTANCE;
+  const z = PLAZA_Z + (-PLAZA_Z / toOrigin) * RETURN_DISTANCE;
+  return spawnOverTerrain(x, z);
+}
+
 export interface HubScene {
   readonly scene: Scene;
   readonly follow: FollowCamera;
@@ -59,7 +115,23 @@ export interface HubScene {
   dispose(): void;
 }
 
-export async function createHubScene(engine: Engine, canvas: HTMLCanvasElement): Promise<HubScene> {
+/**
+ * The hub level.
+ *
+ * `onEnterTower` fires the frame the player steps onto the colonnade's central pedestal. There is no
+ * confirm key by design (spec §5): climbing onto the pedestal is already a deliberate act, and the
+ * pedestal has no other purpose to conflict with.
+ *
+ * `spawn` defaults to the origin spawn this scene has always used, so the game's first entry is
+ * unchanged; the only caller that passes one is the return from the tower, which passes
+ * {@link portalReturnSpawn} to land the player *beside* the pedestal rather than on it.
+ */
+export async function createHubScene(
+  engine: Engine,
+  canvas: HTMLCanvasElement,
+  onEnterTower: () => void,
+  spawn: Vector3 = spawnOverTerrain(0, 0),
+): Promise<HubScene> {
   const scene = new Scene(engine);
   // Right-handed so glTF (a right-handed format) imports natively — no handedness reflection on
   // skinned characters, which otherwise collapses them to the floor when the parent yaws.
@@ -74,9 +146,6 @@ export async function createHubScene(engine: Engine, canvas: HTMLCanvasElement):
   scene.enablePhysics(Vector3.Zero(), new HavokPlugin(true, havok));
 
   const crystals = createCrystals(scene, TEST_CRYSTALS);
-  // Spawn the capsule's base ON the terrain surface (+ a small lift so it settles down onto it rather
-  // than starting embedded — an embedded capsule pops through the one-sided MESH collider and falls).
-  const spawn = new Vector3(0, terrainHeight(0, 0) + CAPSULE_HEIGHT / 2 + 0.3, 0);
   // The hub's answer to "how high is the ground here" — its analytic height field. The character rig
   // takes it as an argument rather than importing it, so the same rig works in a scene that has none.
   const rig = await createCharacterRig(scene, {
@@ -100,6 +169,8 @@ export async function createHubScene(engine: Engine, canvas: HTMLCanvasElement):
   createWater(scene);
   createClouds(scene);
   createLandmark(scene, shadows);
+  // After the landmark, so the ring is drawn over ground the pedestal it encircles already stands on.
+  createPortalRing(scene);
 
   createAtmosphere(scene, follow.camera);
 
@@ -114,6 +185,27 @@ export async function createHubScene(engine: Engine, canvas: HTMLCanvasElement):
   // they have to land on answer "how fast, and airborne?" from one source. Each layer's observer calls
   // it for itself, so the sample is built twice a frame — one *source*, not one sample.
   const audio = createHubAudio(scene, readMotion, knight);
+
+  // The portal: standing on the colonnade's central pedestal enters the tower (spec §5).
+  const portalY = pedestalTopY() + CAPSULE_HALF; // the capsule's CENTRE when its feet are on the top face
+  let portal: PortalTrigger = PORTAL_START;
+  scene.onBeforeRenderObservable.add(() => {
+    // The capsule, never `rig.root`: `root.position.y` is the smoothed VISUAL height, so the height
+    // half of the test below would be decided from a place the character is not. See
+    // `Player.capsulePosition` — and `towerScene.ts`, which reads its summit pedestal the same way.
+    const here = player.capsulePosition();
+    const dx = here.x - PLAZA_X;
+    const dz = here.z - PLAZA_Z;
+    // The pedestal is a cylinder, so "inside" is a planar distance and a height band. That geometry
+    // is this file's to answer; `stepPortalTrigger` owns only the edge rule — and it starts disarmed,
+    // which is what makes a return from the tower that lands on the pedestal safe (spec §5's second
+    // line of defence; the first is that `portalReturnSpawn` does not land there in the first place).
+    const inside = dx * dx + dz * dz <= PEDESTAL_RADIUS * PEDESTAL_RADIUS
+      && Math.abs(here.y - portalY) <= PORTAL_HEIGHT_BAND;
+    const stepped = stepPortalTrigger(portal, inside);
+    portal = stepped.trigger;
+    if (stepped.fired) onEnterTower();
+  });
 
   const dispose = () => {
     rig.dispose();
