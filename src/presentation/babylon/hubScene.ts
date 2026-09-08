@@ -106,8 +106,10 @@ export async function createHubScene(engine: Engine, canvas: HTMLCanvasElement):
   await loadTrees(scene, shadows);
   // Not awaited, and `createHubAudio` is not async: audio must never be able to hold up first render.
   // See its doc comment — a streaming music cue whose media element never fires `canplaythrough`
-  // would otherwise leave this line pending for good, and with it this promise — and the render
-  // loop in App.svelte, which only starts once this promise resolves.
+  // would otherwise leave this line pending for good, and with it this promise — and App.svelte's
+  // `hub` assignment, which only happens once this promise resolves. The render loop in App.svelte
+  // already runs by then (it starts before `createHubScene` is even called), so a hang here would
+  // not stop rendering — it would just mean nothing is ever assigned to render, i.e. a blank canvas.
   // `readMotion` again, not a second function built beside it: the footsteps and the locomotion blend
   // they have to land on answer "how fast, and airborne?" from one source. Each layer's observer calls
   // it for itself, so the sample is built twice a frame — one *source*, not one sample.

@@ -43,30 +43,60 @@
     // so the promise has not settled yet and the canvas is already tabbable -- the overlay mounts
     // synchronously, so the intro dialogue and its LOG button are live for the whole scene load. The
     // second reset covers anything babylon assigns later during the async setup.
-    const loading = createHubScene(engine, canvas);
+    const loadingHubScene = createHubScene(engine, canvas);
     canvas.tabIndex = -1;
-    loading.then((h) => {
-      if (disposed) { h.dispose(); return; } // unmounted before the async load finished
-      hub = h;
-      current = h;
-      canvas.tabIndex = -1;
-      // Gate rather than unconditionally suspending: SKIP (or a parse failure leaving no session)
-      // can finish the intro before this async scene load resolves, in which case gameMode is
-      // already 'playing' with no overlay left to ever call suspendInput(false) again — an
-      // unconditional suspend here would soft-lock input forever. The same predicate decides the
-      // music: `session === undefined` (a dialogue parse failure) means no overlay ever renders and
-      // `finishIntro` never runs, so if the music scene were keyed on `gameMode.isPlaying` alone the
-      // AVG theme would play over gameplay forever.
-      const introRunning = session !== undefined && !gameMode.isPlaying;
-      hub.suspendInput(introRunning);
-      hub.audio.setMusicScene(introRunning ? 'intro' : 'playing');
-      if (import.meta.env.DEV) (window as unknown as { hub: unknown }).hub = h;
-    });
+    // `settled` flips in both branches below, unconditionally, before either even looks at `disposed`
+    // -- it means "createHubScene is done touching the engine", not "it succeeded". The cleanup below
+    // reads it to decide whether the engine is safe to dispose yet; see there for why that matters.
+    let settled = false;
+    // A single `.then(onFulfilled, onRejected)` call, not two separate `.then`s: attaching the
+    // rejection handler here, on the promise `loadingHubScene` itself, is what keeps a rejection from
+    // ever reaching an unhandled state. A second `loadingHubScene.then(...)` for the reject side would
+    // still leave *this* call's derived promise (the one from the fulfilled-only handler) to reject
+    // with no handler of its own.
+    const loading = loadingHubScene.then(
+      (h) => {
+        settled = true;
+        if (disposed) { h.dispose(); return; } // unmounted before the async load finished
+        hub = h;
+        current = h;
+        canvas.tabIndex = -1;
+        // Gate rather than unconditionally suspending: SKIP (or a parse failure leaving no session)
+        // can finish the intro before this async scene load resolves, in which case gameMode is
+        // already 'playing' with no overlay left to ever call suspendInput(false) again — an
+        // unconditional suspend here would soft-lock input forever. The same predicate decides the
+        // music: `session === undefined` (a dialogue parse failure) means no overlay ever renders and
+        // `finishIntro` never runs, so if the music scene were keyed on `gameMode.isPlaying` alone the
+        // AVG theme would play over gameplay forever.
+        const introRunning = session !== undefined && !gameMode.isPlaying;
+        hub.suspendInput(introRunning);
+        hub.audio.setMusicScene(introRunning ? 'intro' : 'playing');
+        if (import.meta.env.DEV) (window as unknown as { hub: unknown }).hub = h;
+      },
+      (err) => {
+        settled = true;
+        // Nothing to dispose here -- the build never got as far as handing back a scene -- but the
+        // failure itself (Havok, the knight GLB, or a tree asset failing to load) is still worth
+        // knowing about rather than swallowing silently.
+        console.error('createHubScene failed:', err);
+      },
+    );
     return () => {
       disposed = true;
       hub?.dispose();
       window.removeEventListener('resize', onResize);
-      engine.dispose();
+      if (settled) {
+        engine.dispose();
+      } else {
+        // createHubScene is still building its scene against this engine -- awaiting Havok, the
+        // knight GLB, or the trees. Disposing the engine now would tear down the WebGL context that
+        // in-flight build is still constructing against, out from under it. Defer: `loading` always
+        // settles (its rejection branch above logs rather than rethrows), and by the time it does,
+        // either the `disposed` guard above has already disposed the scene it was handed, or the
+        // build failed and there was never a scene to dispose -- either way, the engine is the only
+        // thing left to tear down.
+        loading.then(() => engine.dispose());
+      }
     };
   });
 
