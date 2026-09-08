@@ -43,6 +43,9 @@ Two things that spec listed as blocking the tower have both cleared:
     later means re-authoring the level's shape around them.
 - **There is no death.** You fall, you watch yourself fall past the column, and below a threshold you
   are returned to your checkpoint.
+  - **Now measured — see §13.2, which supersedes the "watch yourself fall" claim:** the knight's root
+    crosses the bottom of the frame at 43 % of the fall, and screenshots show no knight at all by
+    touchdown. The bullet above is kept as the record of what was believed before the probe ran.
 - **The top is a place.** A pedestal at the summit returns you to the hub, and reaching it is what
   finishing the tower means.
 
@@ -74,6 +77,13 @@ should treat them as data, not as structure.
 
 A fall from the top of a section to its floor is `√(2h/gravity)` — for a 20 u section, **1.29 s**.
 That is long enough to register as a loss without being a punishment queue.
+
+**Now measured — see §13.2, which supersedes this claim.** The duration itself is confirmed (§13's own
+faithfulness check measured 1.290 s against this section's analytic 1.291 s), but §13.2 found the
+knight's root crosses the bottom of the frame at 43 % of that time and the screen shows no knight at
+all by touchdown — so whether the fall stays legible enough to "register as a loss without being a
+punishment queue" is not established by that measurement. The paragraph above is kept as the record of
+what was believed before the probe ran.
 
 The respawn rule: when the player's height falls below the active checkpoint's height by a margin,
 return them to the active checkpoint. Checkpoints activate on the way **up** only — passing a
@@ -307,10 +317,12 @@ platform, never points on it.
 
 **The ground clamp at height is a confirmed no-op, and §7's "benign by luck" is too generous.**
 Across an entire 20 u fall the grounded branch (`followCamera.ts:92`) was false on every frame — the
-anchor is the raw `t.y` — and the clamp (`:105`) evaluated to 0.61 against a camera between 21.75 and
-6.84, never active. Losing the terrain *anchor* costs the tower nothing: the anchor hides the capsule
-micro-stepping across terrain triangles, and flat-topped box platforms give it nothing to micro-step
-across. The *smoothing* is not lost — that lerp is unconditional and still runs.
+anchor is the raw `t.y` — and the clamp (`:105`) evaluated to **0.61** against a camera between 21.75
+and 6.84, never active. The camera's `(x, z)` at the moment of that sample was not recorded, so 0.61
+cannot be checked against the grid values below. Losing the terrain *anchor* costs the tower nothing:
+the anchor hides the capsule micro-stepping across terrain triangles, and flat-topped box platforms
+give it nothing to micro-step across. The *smoothing* is not lost — that lerp is unconditional and
+still runs.
 
 What is not benign is the clamp's dependence on `terrainHeight` having no domain guard. §7 records the
 field's range as unmeasured; measured now on a 0.5 u grid it is **−1.547 to 16.939** over the 100×100
@@ -335,11 +347,14 @@ The same 1.80 u also means the knight is seen **landing about a body height abov
 sinking into place over ~0.3 s. Invisible in the hub; on every tower fall it will not be.
 
 **The camera has no obstruction handling at all.** `followCamera` consults exactly one piece of world
-geometry — the analytic `terrainHeight`. No ray cast, no occlusion test, no pull-in. Demonstrated by
-parking the camera on the axis of `plazaPillar_0` (radius 0.45): it was not deflected by a millimetre,
-and because the material is `backFaceCulling: true`, from inside the pillar renders **nothing** — the
-column silently disappears and the world is seen through it. Against a tower column this is the
-everyday case, and the failure mode is the level popping out of existence rather than a black screen.
+geometry — the analytic `terrainHeight`. No ray cast, no occlusion test, no pull-in. Demonstrated
+against the hub's existing `plazaPillar_0` (radius 0.45): parking the camera on its axis, it was not
+deflected by a millimetre, and because the material is `backFaceCulling: true`, from inside the pillar
+renders **nothing** — the column silently disappears and the world is seen through it. **Inferred, not
+observed — no tower column exists to test against yet:** a column of comparable radius standing where
+the player climbs would put the camera inside it whenever the player is close to it, which would make
+this the everyday case rather than the corner case, with the same failure mode of the level popping out
+of existence instead of a black screen.
 
 **Pitch limits — reasoned, not watched.** Pointer lock cannot be acquired from automation and
 `yaw`/`pitch` are closure-private, so this was derived from `followCamera.ts`'s own formula with the
