@@ -81,8 +81,8 @@ not as structure.
 
 **The playthrough has now run, and this section's premise is falsified — see §14.2.** The three
 sections were timed at **15.1 : 2.4 : 7.1 seconds**, not at anything like parity, and the cause is in
-the paragraph above: a homing link and a jump step cost about the same *per link* (1.18 s against
-1.13 s), so converting between them by height — which is what the "~14 platform steps or ~3 crystals"
+the paragraph above: a homing link and a jump step cost about the same *per link* (1.18 s against a
+mean 1.16 s), so converting between them by height — which is what the "~14 platform steps or ~3 crystals"
 arithmetic does — gets the ratio exactly backwards. Matching on time means moving the **counts**, not
 the heights. Nothing was retuned; the table stands as the record of what was believed before anyone
 climbed it.
@@ -175,6 +175,41 @@ the same engine; leaving reverses it.
 - The Havok WASM module (`await HavokPhysics()`) is a genuine singleton and is cached across the
   swap. The knight's GLB is not: Babylon meshes belong to a scene, so it reloads. A load pause in
   each direction is accepted.
+
+**Amended: what shipped builds first and disposes second, so two scenes are resident for the length
+of every load.** `App.svelte`'s `swapLevel` builds the incoming level, and only once that level is
+standing does it swap the render loop onto it, dispose the outgoing one and commit the mode. For
+that window — the knight's GLB alone is most of a second — there are two scene graphs and two Havok
+worlds alive, which is precisely the cost this section priced the *Rejected* alternative at. The
+steady state is still one scene; the peak is two, once per swap.
+
+**Why the deviation was taken.** The order this section assumed disposes the only level on screen
+before there is anything to replace it with. That shows the player a black canvas for the whole load,
+and if the load then fails — Havok, the knight's GLB, a tree asset — it leaves them with no level at
+all and no way back to the one they were in. Building first is what makes a failed entry a no-op the
+player can retry from where they are standing, and both of those were requirements nobody wrote down
+here.
+
+**What it costs.** Two of the three costs are the rejected alternative's own, paid for a load rather
+than for a session:
+
+- **Two scene graphs and two Havok worlds**, resident together from the first line of the build to
+  the dispose that follows it.
+- **Two character rigs bound to the same window and canvas.** This is the rejected bullet's "every
+  hub observer having to be genuinely stopped rather than merely not drawn", and it is not avoided by
+  not rendering: the *scene* is inert because nothing renders it, but the rig's DOM listeners are
+  not. Both rigs are suspended for the window — the incoming one arrives suspended from
+  `createCharacterRig`, the outgoing one is suspended by `swapLevel` — and that is a deliberate act
+  at both ends rather than a consequence of which scene is being drawn.
+- **A failed build has to tear itself down**, because the caller never receives a handle to it. That
+  is `levelTeardown.ts` and the `try`/`catch` in each builder.
+
+The one cost this does *not* carry is the one the rejected bullet called hardest to find — a second
+world resident for the session with nobody watching it — because the overlap ends at a fixed point
+in one function instead of lasting as long as the game does.
+
+**How long that window is has never been measured**, and this environment cannot measure it; see the
+note on frame delivery at the head of §14.
 
 ## 7. The character rig, and the terrain coupling that blocks it
 
@@ -470,8 +505,10 @@ Nothing in §1–§9 is invalidated. Three tasks gain work:
 
 ## 14. First playthrough
 
-The tower was climbed on 2026-09-09: floor to summit in one unbroken run, three times in and out
-through the colonnade, and a fall taken deliberately from each section. This section records what
+The tower was climbed on 2026-09-09: floor to summit in two unbroken runs — one walking the
+approaches through section 1 and one running them, which is the pair §14.2 times — three times in and
+out through the colonnade, and a fall taken deliberately from each section. Two is also what §14.1
+counts: two of its nineteen runs of the final link were taken as part of a full climb. This section records what
 that run established and — more carefully — what it did not. §13's split between what was
 **measured** and what was only **reasoned** is kept, and a third word is used where it belongs:
 **watched**, meaning seen on screen and not reduced to a number. Anything watched but not measured
@@ -530,6 +567,17 @@ Measured across those runs:
   axes is 0.10–0.50 u along the face and up to 0.97 u outward. All of them fall on the side of the
   centre line **away** from the pedestal — the sign `SUMMIT_PEDESTAL_OFFSET` chose, and the reason
   it chose it.
+- **Those landings are outside the band `auditLayout` models, and neither document said so.** The
+  audit's landing rule allows an outward offset up to `pad.depth / 2 − CAPSULE_RADIUS` = **0.70 u**
+  (a capsule entirely on the slab) and treats the along-face offset as zero throughout, because the
+  bounce rises on the pad's own bearing. The measured landings run to **0.97 u outward** and 0.50 u
+  along. Read as a drift, 0.97 u outward is `BOUNCE_REACH` 2.1 less 0.97 = **1.13 u**, short of the
+  1.40–1.84 u band `BOUNCE_REACH`'s doc calls the safe drifts. Nothing failed: the capsule's axis is
+  still over a pad half 1.2 u deep, and all nineteen landings held. But the model the audit enforces
+  is narrower than what the level actually does, so passing the audit is not evidence about landings
+  like these, and a future pad sized against the audit alone would be sized against the wrong band.
+  Recorded, not fixed — widening the model is a change to what `auditLayout` warns about, and the
+  measurement that would justify it is the one nobody has taken.
 - **Nothing landed on the pedestal**, which is what `TOWER_SUMMIT_PEDESTAL_HEIGHT` argues cannot
   happen. Confirmed rather than merely re-derived.
 
@@ -554,14 +602,32 @@ ground speed.
 §3 predicted "roughly equal play time" and set the heights 18 / 24 / 20 to buy it. Measured, the
 sections run **15.1 : 2.4 : 7.1**. Section 1 is **6.4×** section 2.
 
-**The reason is precise, and it is not that the chain is fast.** Per unit of content:
+**The reason is precise, and it is not that the chain is fast.** Per unit of content, at 60 fps:
 
-- **a jump step costs 62–79 frames, ~1.05–1.13 s**, and the spread between walking it and running it
-  is a tenth of a second;
+- **a jump step costs 62–79 frames, 1.03–1.32 s.** That range is the spread across individual steps,
+  not between the two runs: the *mean* step is 905 ÷ 13 = **69.6 frames, 1.160 s** walking and
+  813 ÷ 13 = **62.5 frames, 1.042 s** running, so what walking costs over running is 0.12 s a step —
+  the tenth of a second, and a different quantity from the 62–79 above it;
 - **a chained homing link costs 22–23 frames, 0.37 s** — you bounce out of one crystal straight into
   the press for the next, and the chain pays for the descent only once, at its end;
 - **an isolated homing link — dash, bounce, then ride the bounce down onto a pad — costs 71 frames,
   1.18 s**, which is a jump step.
+
+**Those three rebuild the table, and the residuals are worth stating rather than closing.** Section 1
+is 13 × 69.6 = 905 frames, which is exact by construction — the mean is the total over the count, so
+it checks nothing; what it does check is that a mean of 69.6 sits inside the 62–79 measured per step.
+The other two sections are genuine reconstructions:
+
+- **Section 3** is 4 steps and 2 isolated links: 4 × 69.6 + 2 × 71 = **420.5** against **423**
+  measured. Residual **2.5 frames**, 0.04 s.
+- **Section 2** is *not* four chained links, and reading it as four is what made these figures look
+  irreconcilable. Only three of its four links bounce into the next press; the fourth ends on a
+  platform, so it pays an isolated link's descent. 3 × 22.5 + 71 = **138.5** against **142**
+  measured. Residual **3.5 frames**, 0.06 s — the approach and the first press, before the chain
+  begins.
+
+Both residuals are positive and small, which is what an unattributed approach frame or two looks
+like; neither was distributed into the per-unit figures to make the arithmetic close.
 
 So a link and a step cost the same, and only *chaining* is cheap. §3's arithmetic ("a 20-unit
 stretch is ~14 platform steps or ~3 crystals") converted **height** correctly and then assumed the
@@ -676,11 +742,22 @@ and it is worse than it was inferred to be: this is not a camera clipping throug
 fall §2 promises the player will watch, played out behind a blank wall.
 
 **The climb itself never does this.** The camera's distance from the axis was computed for every aim
-the route requires, from `followCamera`'s own placement formula: **7.93 u** for each of the nineteen
+the route requires, from `followCamera`'s own placement formula: **7.93 u** for each of the sixteen
 platform-to-platform steps, **6.42 u** for each of the three aims up at a launch crystal, **9.09 u**
-for each chain aim. Not one of the twenty-five is inside 3.2. And a fall taken *tangentially* — the
-missed-jump case, where the camera is still pointing along the spiral — keeps the camera at
-**5.98 u** and the knight visible and framed; that was watched on screen as well as measured.
+for each chain aim. Not one of the twenty-two is inside 3.2.
+
+*(Recounted from the generated layout, which has 20 platforms: section 1's 13 jump steps are the
+floor onto `towerPlatform_0` plus 12 platform-to-platform, and section 3 adds 4 more — 16
+platform-to-platform, 17 jump steps in all, which is §14.2's own 13 + 4. An earlier count of
+"nineteen" and "twenty-five" was wrong on both. The seventeenth step, off the floor, is not one of
+the aims above: it is taken from `TOWER_SPAWN` at `SPAWN_ORBIT` 7 rather than from a platform at
+`PLATFORM_ORBIT` 4.2, so 7.93 is not its figure and nothing computed one. §14.7 watched that opening
+frame instead — the column, the floor and the first platform are all on screen from it, which a
+camera inside the column could not show. The conclusion is unaffected either way.)*
+
+And a fall taken *tangentially* — the missed-jump case, where the camera is still pointing along the
+spiral — keeps the camera at **5.98 u** and the knight visible and framed; that was watched on screen
+as well as measured.
 
 So the honest statement is narrower than either "the camera clips the column" or "the camera is
 fine": **the route never puts the camera inside the column; turning to face the column does, and so
@@ -695,9 +772,23 @@ Run three times, in both directions, in one session.
   with the capsule at `TOWER_SPAWN` (3.5, 1.3, 6.062) — the coordinate the level computes, to ten
   decimal places.
 - **Summit → hub.** Walking onto the summit pedestal fires `onExit`, and the hub arrives with the
-  capsule at **(−5.408, 1.978, 28.849)** — `portalReturnSpawn()`'s point, measured at **3.207 u**
-  from the pedestal's centre against `PEDESTAL_RADIUS` 1.6. Outside the trigger by a whole pedestal
-  radius, as §5 asks.
+  capsule at **(−5.408, 1.978, 28.849)**, measured at **3.207 u** from the pedestal's centre against
+  `PEDESTAL_RADIUS` 1.6. Outside the trigger by a whole pedestal radius, as §5 asks.
+
+  **That triple is a settled sample, not `portalReturnSpawn()`'s point**, and calling it the
+  function's point was wrong. The function returns **(−5.410277, 2.165865, 28.854809)**; the sample
+  sits 0.188 u lower and a few millimetres off in x and z, which is the capsule falling the
+  `SPAWN_CLEARANCE` 0.3 u it is deliberately spawned above the ground and coming to rest on the
+  terrain collider — a mesh approximation of `terrainHeight`, not the analytic field itself. The same
+  bullet above says 200 frames were driven standing on that spawn, so a sample read there has had
+  every chance to settle.
+
+  **The margin itself is not a measurement and should not be read as one.** `portalReturnSpawn` is
+  `RETURN_DISTANCE` = `PEDESTAL_RADIUS` × 2 along the line to the origin, so the constructed distance
+  is **3.200 u exactly** — that is the number §5's "clear of the edge" rests on, and it is exact by
+  construction rather than by luck. The 3.207 above is what the settled capsule measured, and it is
+  worth having only because it says the settle moved the player *outward* of the constructed point
+  rather than in toward the trigger.
 - **The return does not re-enter.** 200 frames driven standing still on the return spawn, twice:
   the hub stays the hub.
 - **Stepping off and back on fires again.** Walking back onto that pedestal re-entered the tower,

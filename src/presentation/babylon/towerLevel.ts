@@ -434,10 +434,13 @@ const onPad = (p: TowerPlatform, along: number, outward: number): Vec3 => {
  * exactly on it. Spec §3's own estimate for this section is "~13 steps".
  *
  * **This count and {@link SECTION_2_LINKS} are what spec §14.2 says should move first.** Timed on a
- * scripted climb that never misses, a jump step costs **1.05–1.13 s** and a chained homing link
- * **0.37 s**, so 13 steps against 4 links runs 15.1 s against 2.4 s. §3 matched the sections on
- * height-per-vocabulary and assumed the times would follow; they follow the *count* instead. Neither
- * number was changed for that — retuning the shape of the climb is the owner's call, not a fix.
+ * scripted climb that never misses, a jump step costs **62–79 frames** at 60 fps — a mean of 69.6,
+ * **1.160 s** — and a chained homing link **0.37 s**, so 13 steps against 4 links runs 15.1 s
+ * against 2.4 s. Only three of section 2's four links are chained; the fourth ends on a platform and
+ * costs an isolated link's 1.18 s, which is what makes 4 × 0.37 the wrong way to rebuild that 2.4.
+ * §3 matched the sections on height-per-vocabulary and assumed the times would follow; they follow
+ * the *count* instead. Neither number was changed for that — retuning the shape of the climb is the
+ * owner's call, not a fix.
  */
 const SECTION_1_STEPS = 13;
 /** Homing links in section 2. **Untuned**: 4, spec §3's "~4 crystals", which over 18 → 42 puts the
