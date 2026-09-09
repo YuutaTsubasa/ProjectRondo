@@ -4,6 +4,7 @@ import { TargetCamera } from '@babylonjs/core/Cameras/targetCamera';
 import type { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 import type { GroundHeight } from './groundHeight';
 import { CAPSULE_HALF } from './capsule';
+import { exposeDevHandle } from './devHandles';
 
 /** While |playerY − groundLevel| is under this, treat the player as grounded and anchor the camera to
  *  the smooth terrain (not the jittery capsule); a jump clears it at once. Covers float + slope rest.
@@ -211,10 +212,8 @@ export function createFollowCamera(
   descentFollow: boolean,
 ): FollowCamera {
   const config: FollowCameraConfig = { ...DEFAULT_CONFIG, descentFollow };
-  if (import.meta.env.DEV) {
-    // Tune live from the console, e.g. `cameraConfig.aimHeight = 0.1`. Changes apply next frame.
-    (window as unknown as { cameraConfig: FollowCameraConfig }).cameraConfig = config;
-  }
+  // Tune live from the console, e.g. `cameraConfig.aimHeight = 0.1`. Changes apply next frame.
+  exposeDevHandle(scene, 'cameraConfig', config);
 
   const camera = new TargetCamera('follow', new Vector3(0, config.height, config.distance), scene);
   camera.minZ = config.nearPlane;
