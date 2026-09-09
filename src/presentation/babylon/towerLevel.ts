@@ -147,8 +147,10 @@ const JUMP_RISE = 1.4;
  * exists to stop. The conclusion survived the error; the number did not.)
  *
  * A gap is not only headroom, it is also the jump: 0.80 u is crossed comfortably inside the 1.24 u a
- * walking player (`maxSpeed` 4) covers during the 0.31 s they spend above +1.4 u, and trivially
- * inside a runner's 2.48 u. Widening this further starts to cost that margin.
+ * player holding Shift to walk (`maxSpeed` 4) covers during the 0.31 s they spend above +1.4 u, and
+ * trivially inside the 2.48 u a player gets by default, running. Widening this further starts to
+ * cost the walking margin — the tighter of the two, and the one that matters because a player can
+ * choose to hold Shift through any jump in the tower.
  */
 const TURN_DEGREES = 60;
 
@@ -204,8 +206,9 @@ const airDrift = (seconds: number, topSpeed: number): number => {
   return 0.5 * topSpeed * rampSeconds + topSpeed * (seconds - rampSeconds);
 };
 
-/** How far a WALKING player can steer a bounce sideways before it lands: 1.84 u. The bound to size a
- *  landing against, because holding the run key is a choice and clearing a gap must not be. */
+/** How far a player holding Shift to walk can steer a bounce sideways before it lands: 1.84 u. The
+ *  bound to size a landing against: running is the default now, but holding Shift to walk through a
+ *  bounce is still a choice available to the player, and clearing the gap must work for it too. */
 const BOUNCE_DRIFT = airDrift(BOUNCE_AIRTIME, DEFAULT_CONFIG.maxSpeed);
 
 /**
@@ -233,9 +236,10 @@ const BOUNCE_DRIFT = airDrift(BOUNCE_AIRTIME, DEFAULT_CONFIG.maxSpeed);
  *
  * What 2.1 actually leaves: a player who holds inward the whole way comes down 0.26 u outboard of the
  * pad's centre, orbit 4.46 against a pad spanning 3.0–5.4, and the drifts that land safely run from
- * 1.40 u (capsule just inside the outer edge) to 1.84 u — a 0.44 u band. Running is less of an escape
- * than it looks: `acceleration` 13 over 0.614 s never reaches `runSpeed` 8, so a runner gets 2.45 u
- * rather than 3.54.
+ * 1.40 u (capsule just inside the outer edge) to 1.84 u — a 0.44 u band, if the player holds Shift and
+ * walks the bounce. Running — the default, nothing held — buys less extra reach than it looks like it
+ * would: `acceleration` 13 over 0.614 s never reaches `runSpeed` 8, so the default gets 2.45 u rather
+ * than a naive 3.54.
  *
  * **One thing none of this models, and {@link auditLayout} does not either.** `stepHoming` bounces on
  * the frame `homingSpeed · delta >= remaining`, so the launch is not the crystal: it is up to

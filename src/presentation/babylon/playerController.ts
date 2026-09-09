@@ -303,7 +303,9 @@ export function createPlayer(
     const movementInput: MovementInput = {
       direction: planarDirectionFromInput(input.axis(), right, forward),
       jumpRequested,
-      runRequested: input.isRunHeld(),
+      // The character runs by default; holding Shift asks it to walk instead (`isWalkHeld`), so
+      // `runRequested` — the domain's "run this frame" flag — is the negation of that.
+      runRequested: !input.isWalkHeld(),
       homingTarget: lockResult.target,
     };
     // Asked of the domain before the step, not read back off the result: a dash whose crystal is
