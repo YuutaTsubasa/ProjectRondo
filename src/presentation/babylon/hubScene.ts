@@ -12,6 +12,7 @@ import '@babylonjs/core/Physics/joinedPhysicsEngineComponent';
 
 import { loadHavok } from './havokModule';
 import { createCharacterRig } from './characterRig';
+import { disposeLevel, type LevelParts } from './levelTeardown';
 import type { FollowCamera } from './followCamera';
 import type { Player } from './playerController';
 import type { Knight } from './knight';
@@ -30,6 +31,7 @@ import { createLandmark, pedestalTopY, PEDESTAL_RADIUS, PLAZA_X, PLAZA_Z } from 
 import { createPortalRing } from './portalRing';
 import { PORTAL_HEIGHT_BAND, PORTAL_START, stepPortalTrigger, type PortalTrigger } from './portalTrigger';
 import { createCrystals } from './crystals';
+import { exposeDevHandle } from './devHandles';
 import { createHubAudio, type HubAudio } from '../audio/hubAudio';
 
 /**
@@ -108,8 +110,9 @@ export interface HubScene {
    *  overlay. The level arrives suspended and `App.svelte` resumes it once it is on screen; resuming
    *  does not restore pointer lock — see `CharacterRig.suspendInput`. */
   suspendInput(on: boolean): void;
-  /** Tears this level down: removes its DOM listeners, disposes its scene. The engine outlives this
-   *  and is disposed only by whoever owns it (`App.svelte`), not here. */
+  /** Tears this level down: its rig (DOM listeners and Havok character controller), its audio, then
+   *  its scene — see `levelTeardown.ts` for why in that order. The engine outlives this and is
+   *  disposed only by whoever owns it (`App.svelte`), not here. */
   dispose(): void;
 }
 
@@ -123,6 +126,13 @@ export interface HubScene {
  * `spawn` defaults to the origin spawn this scene has always used, so the game's first entry is
  * unchanged; the only caller that passes one is the return from the tower, which passes
  * {@link portalReturnSpawn} to land the player *beside* the pedestal rather than on it.
+ *
+ * **A build that rejects tears down what it had built.** The scene exists from the first line, and
+ * three awaits after it can fail — Havok, the knight's GLB, the trees — so a rejection reached the
+ * caller with a whole scene, its Havok world, its rig and its DOM listeners already alive and
+ * nothing left pointing at them. The caller cannot clean that up (it never received anything), and
+ * a failed entry is retryable, so it was one orphan per attempt. Owned here instead, where the
+ * half-built pieces are; `levelTeardown.ts` has the order and why it matters.
  */
 export async function createHubScene(
   engine: Engine,
@@ -131,6 +141,25 @@ export async function createHubScene(
   spawn: Vector3 = spawnOverTerrain(0, 0),
 ): Promise<HubScene> {
   const scene = new Scene(engine);
+  const parts: LevelParts = {};
+  try {
+    return await buildHubScene(scene, parts, canvas, onEnterTower, spawn);
+  } catch (err) {
+    disposeLevel(scene, parts);
+    throw err;
+  }
+}
+
+/** The hub's actual construction, split off only so {@link createHubScene} can wrap it in the
+ *  teardown above without indenting the whole level inside a `try`. `parts` is filled in as the
+ *  build goes, so the failure path can tear down exactly what exists. */
+async function buildHubScene(
+  scene: Scene,
+  parts: LevelParts,
+  canvas: HTMLCanvasElement,
+  onEnterTower: () => void,
+  spawn: Vector3,
+): Promise<HubScene> {
   // Right-handed so glTF (a right-handed format) imports natively — no handedness reflection on
   // skinned characters, which otherwise collapses them to the floor when the parent yaws.
   scene.useRightHandedSystem = true;
@@ -161,11 +190,12 @@ export async function createHubScene(
     // they would re-tune is not. `followCamera`'s DESCENT_ENGAGE_SPEED has the arithmetic.
     descentFollow: false,
   });
+  parts.rig = rig;
   const { follow, shadows, player, knight, readMotion } = rig;
   // Babylon 9 keys shadow generators by camera, so the console's usual
   // `scene.lights.find(...).getShadowGenerator()` (no-arg) returns null. Expose a stable handle
   // instead, the same way playerController exposes moveConfig/charController.
-  if (import.meta.env.DEV) (window as unknown as { shadows: unknown }).shadows = shadows;
+  exposeDevHandle(scene, 'shadows', shadows);
 
   const terrain = createTerrain(scene);
   shadows.receive(terrain);
@@ -190,6 +220,7 @@ export async function createHubScene(
   // they have to land on answer "how fast, and airborne?" from one source. Each layer's observer calls
   // it for itself, so the sample is built twice a frame — one *source*, not one sample.
   const audio = createHubAudio(scene, readMotion, knight);
+  parts.audio = audio;
 
   // The portal: standing on the colonnade's central pedestal enters the tower (spec §5).
   const portalY = pedestalTopY() + CAPSULE_HALF; // the capsule's CENTRE when its feet are on the top face
@@ -213,14 +244,10 @@ export async function createHubScene(
     if (stepped.fired) onEnterTower();
   });
 
-  const dispose = () => {
-    rig.dispose();
-    audio.dispose();
-    // The scene, not the engine: the engine outlives every level (see App.svelte) and disposing it
-    // here would take the WebGL context with it. `scene.dispose()` tears down this level's meshes,
-    // physics, materials and observers.
-    scene.dispose();
-  };
+  // The same call the failure path above makes, over the same `parts` — so a finished level and a
+  // half-built one cannot be torn down in two different orders. `levelTeardown.ts` says what that
+  // order buys and why the scene is disposed last and the engine never.
+  const dispose = () => disposeLevel(scene, parts);
 
   const suspendInput = (on: boolean) => rig.suspendInput(on);
 

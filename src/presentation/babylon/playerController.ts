@@ -11,6 +11,7 @@ import { DEFAULT_CONFIG, type MovementConfig } from '../../domain/hub/character/
 import { IDLE, type CharacterMotion } from '../../domain/hub/character/characterMotion';
 import type { MovementInput } from '../../domain/hub/character/movementInput';
 import { planarDirectionFromInput } from './cameraRelativeDirection';
+import { exposeDevHandle } from './devHandles';
 import { toBabylon, toVec3 } from './vectorConversions';
 import { CAPSULE_RADIUS, CAPSULE_HEIGHT } from './capsule';
 import type { FollowCamera } from './followCamera';
@@ -124,6 +125,23 @@ export interface Player {
    * one-sided, and a capsule placed below a surface falls out of the world rather than landing on it.
    */
   teleport(to: Vector3): void;
+  /**
+   * Releases what the character holds outside the scene, and stops its per-frame observer.
+   *
+   * `scene.dispose()` is not enough and never was. It reaches the controller's `CCTransformNode` and
+   * its `PhysicsBody` through the physics-body dispose observer, but it has no way to reach the
+   * `PhysicsCharacterController` itself — nothing in the scene graph points at it — so its
+   * `PhysicsShapeCapsule` and its two `HP_QueryCollector_Create(16)` handles stay in the Havok WASM
+   * heap. That was harmless while one scene lived for the whole page; with a hub ⇄ tower swap it is
+   * the one thing in the level that grows without bound, because `havokModule.ts` caches the module
+   * — and with it the heap — for the life of the page by design (spec §6).
+   *
+   * **Call this while the scene's physics engine is still alive.** The controller's own `dispose()`
+   * looks up `scene.getPhysicsEngine().getPhysicsPlugin()` to release those collectors, so after
+   * `scene.dispose()` there is no plugin left to release them through — see `levelTeardown.ts`,
+   * which is what fixes that order for both levels.
+   */
+  dispose(): void;
 }
 
 /**
@@ -150,9 +168,9 @@ export function createPlayer(
   // A mutable copy of the movement config, exposed on `window.moveConfig` in dev so speed/accel can be
   // tuned live (e.g. `moveConfig.maxSpeed = 3.5`) to match the walk animation without a rebuild.
   const config = { ...DEFAULT_CONFIG };
-  if (import.meta.env.DEV) (window as unknown as { moveConfig: typeof config }).moveConfig = config;
+  exposeDevHandle(scene, 'moveConfig', config);
   // The Havok controller itself, for probing its solver settings live in dev.
-  if (import.meta.env.DEV) (window as unknown as { charController: unknown }).charController = controller;
+  exposeDevHandle(scene, 'charController', controller);
 
   // Coyote time, jump buffering and the takeoff guard all live in this pure state — see groundContact.
   let contact = INITIAL_GROUND_CONTACT;
@@ -188,13 +206,22 @@ export function createPlayer(
       // at the height of the fall (see this method's doc, point 4).
       root.position.copyFrom(to);
     },
+    dispose(): void {
+      // The observer first: `onFrame` calls `checkSupport` and `integrate` on the controller, and a
+      // released controller integrated on a later frame is a use-after-free in the WASM heap. Today
+      // nothing renders a level being torn down (`App.svelte` swaps the render loop off it first),
+      // but that is the caller's ordering and not this file's to assume.
+      scene.onBeforeRenderObservable.removeCallback(onFrame);
+      controller.dispose();
+    },
   };
 
   // The red target ring the owner asked for, fed `preview` rather than the committed lock — see
   // `HomingLockResult.preview`.
   const reticle = createHomingReticle(scene);
 
-  scene.onBeforeRenderObservable.add(() => {
+  // Named rather than inline, so `player.dispose` above can take it off the observable again.
+  const onFrame = () => {
     const dt = Math.min(scene.getEngine().getDeltaTime() / 1000, MAX_DT);
     if (dt <= 0) return;
 
@@ -324,7 +351,8 @@ export function createPlayer(
     player.motion = { ...next, velocity: toVec3(controller.getVelocity()) };
 
     faceRoot(root, next.facing.x, next.facing.y);
-  });
+  };
+  scene.onBeforeRenderObservable.add(onFrame);
 
   return player;
 }

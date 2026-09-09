@@ -4,6 +4,7 @@
   import type { Scene } from '@babylonjs/core/scene';
   import { createHubScene, portalReturnSpawn, type HubScene } from '../presentation/babylon/hubScene';
   import { createTowerScene } from '../presentation/babylon/towerScene';
+  import { exposeDevHandle } from '../presentation/babylon/devHandles';
   import { parse } from '../domain/dialogue/script/parser';
   import { createDialogueSession } from '../presentation/dialogue/dialogueSession.svelte';
   import DialogueOverlay from '../presentation/dialogue/DialogueOverlay.svelte';
@@ -122,14 +123,19 @@
         (err) => {
           settled = true;
           swapping = false;
-          // Nothing to dispose here -- the build never got as far as handing back a scene -- but the
-          // failure itself (Havok, the knight GLB, or a tree asset failing to load) is still worth
-          // knowing about rather than swallowing silently.
+          // Nothing for THIS function to dispose, and that is a fact about who owns the wreckage
+          // rather than about there being none. Both builders open with `new Scene(engine)` and
+          // reject only after it, so a failure always orphans at least a scene -- and, depending on
+          // how far it got, a Havok world, a knight and a rig whose listeners are on this window.
+          // Nothing here ever received a handle to any of it, so the builders tear down their own
+          // partial build before rejecting (see `createTowerScene`/`createHubScene` and
+          // `levelTeardown.ts`). What reaches this branch is the failure alone -- Havok, the knight
+          // GLB or a tree asset -- and it is still worth logging rather than swallowing.
           console.error('level build failed; staying in the current level:', err);
           // Hand control back to the level the player never left -- keyboard and camera, but not
           // pointer lock, which the suspend released and only a click can retake (see this
           // function's doc). Not on unmount: `disposed` means the cleanup below has already disposed
-          // it. The half-built level's rig, if it got as far as one, is left suspended and inert.
+          // it.
           if (!disposed) leaving?.suspendInput(false);
         },
       );
@@ -143,11 +149,9 @@
         () => createTowerScene(engine, canvas, exitTower),
         () => {
           // The hub is gone; `playCue` and `finishIntro` both read this at call time and must find
-          // nothing rather than a disposed scene.
+          // nothing rather than a disposed scene. The dev console's `window.hub` clears itself on the
+          // hub scene's own dispose, along with every other handle -- see `devHandles.ts`.
           hub = undefined;
-          // And the dev console's handle with it: left pointing at a disposed scene it is a trap for
-          // whoever next types `hub.` at a prompt while standing in the tower.
-          if (import.meta.env.DEV) (window as unknown as { hub: unknown }).hub = undefined;
           gameMode.toTower();
         },
       );
@@ -166,7 +170,7 @@
           // A fresh scene means a fresh audio graph, so the music scene has to be set again. Never
           // 'intro': the intro is long over by the time anything can reach the tower.
           built.audio.setMusicScene('playing');
-          if (import.meta.env.DEV) (window as unknown as { hub: unknown }).hub = built;
+          exposeDevHandle(built.scene, 'hub', built);
         },
       );
     }
@@ -185,7 +189,7 @@
         const introRunning = session !== undefined && !gameMode.isPlaying;
         built.suspendInput(introRunning);
         built.audio.setMusicScene(introRunning ? 'intro' : 'playing');
-        if (import.meta.env.DEV) (window as unknown as { hub: unknown }).hub = built;
+        exposeDevHandle(built.scene, 'hub', built);
       },
     );
     // The first of the two resets described above, and it has to be here: `swapLevel` calls `build()`
@@ -207,8 +211,9 @@
         // build is still constructing against, out from under it. Defer: `loading` always settles
         // (its rejection branch above logs rather than rethrows), and by the time it does, either the
         // `disposed` guard above has already disposed the scene it was handed, or the build failed
-        // and there was never a scene to dispose -- either way, the engine is the only thing left to
-        // tear down. The level that was on screen when the swap started is disposed by this cleanup.
+        // and disposed its own partial scene before rejecting -- either way, the engine is the only
+        // thing left to tear down. The level that was on screen when the swap started is disposed by
+        // this cleanup.
         loading.then(() => engine.dispose());
       }
     };

@@ -6,7 +6,7 @@ import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 
 import { createFollowCamera, type FollowCamera } from './followCamera';
 import type { GroundHeight } from './groundHeight';
-import { createInput, type InputState } from './input';
+import { createInput } from './input';
 import { createPlayer, type Player } from './playerController';
 import { loadKnight, driveKnightAnimation, type Knight, type KnightMotionSample } from './knight';
 import type { Shadows } from './shadows';
@@ -29,12 +29,10 @@ export interface CharacterRigOptions {
 }
 
 export interface CharacterRig {
-  readonly root: TransformNode;
   readonly follow: FollowCamera;
   readonly shadows: Shadows;
   readonly player: Player;
   readonly knight: Knight;
-  readonly input: InputState;
   readonly readMotion: () => KnightMotionSample;
   /**
    * Suspends (on=true) or resumes (on=false) gameplay input and camera look.
@@ -45,6 +43,14 @@ export interface CharacterRig {
    * the reason and what the player does instead.
    */
   suspendInput(on: boolean): void;
+  /**
+   * Releases everything the rig holds that is not the scene's: the input listeners, the camera's,
+   * and the Havok character controller (see {@link Player.dispose}, which is the one of the three
+   * `scene.dispose()` cannot reach at all).
+   *
+   * **The scene's physics engine has to still be alive when this runs** — the controller releases
+   * its Havok handles through it. `levelTeardown.ts` is what holds both levels to that order.
+   */
   dispose(): void;
 }
 
@@ -107,8 +113,8 @@ export async function createCharacterRig(scene: Scene, options: CharacterRigOpti
   }));
 
   return {
-    root, follow, shadows, player, knight, input, readMotion,
+    follow, shadows, player, knight, readMotion,
     suspendInput: (on: boolean) => { input.setEnabled(!on); follow.setEnabled(!on); },
-    dispose: () => { input.dispose(); follow.dispose(); },
+    dispose: () => { input.dispose(); follow.dispose(); player.dispose(); },
   };
 }

@@ -22,10 +22,12 @@ import { PhysicsShapeType } from '@babylonjs/core/Physics/v2/IPhysicsEnginePlugi
 import '@babylonjs/core/Physics/joinedPhysicsEngineComponent';
 
 import { stepTowerProgress, TOWER_START, type TowerProgress } from '../../domain/hub/tower/towerProgress';
-import { createCharacterRig, type CharacterRig } from './characterRig';
+import { createCharacterRig } from './characterRig';
 import { createCrystals } from './crystals';
+import { exposeDevHandle } from './devHandles';
 import { flatGround } from './groundHeight';
 import { loadHavok } from './havokModule';
+import { disposeLevel, type LevelParts } from './levelTeardown';
 import { createShadows, type Shadows } from './shadows';
 import { PORTAL_HEIGHT_BAND, stepPortalTrigger, PORTAL_START, type PortalTrigger } from './portalTrigger';
 import { CAPSULE_HALF } from './capsule';
@@ -69,14 +71,30 @@ const WHITE_DIFFUSE = new Color3(0.9, 0.9, 0.92);
 const WHITE_SPECULAR = new Color3(0.08, 0.08, 0.08);
 
 /**
- * **Untuned**: the sun's angle only has to make the column's near face brighter than its far one, so
- * the round shape reads.
+ * The tower's sun: which way it points, where it stands, and how bright. **All three Untuned**, and
+ * they are Untuned in three different ways, so each is marked for itself.
  *
- * Where the shadows fall has now been looked at (spec §14.7) and this was not moved for it: the
- * knight's own shadow lands on the slab under it and the column's on the floor, and the summit
- * pedestal is **backlit** from the direction the last bounce arrives from, so it reads as a dark disc
- * on a white balcony rather than as white on white. Watched, not measured, and not called a defect
- * here — whether the exit still reads as the exit is the owner's call.
+ * {@link SUN_DIRECTION} has a reason, and it is the only one that does: the angle only has to make
+ * the column's near face brighter than its far one, so the round shape reads. Where the shadows fall
+ * has now been looked at (spec §14.7) and this was not moved for it: the knight's own shadow lands on
+ * the slab under it and the column's on the floor, and the summit pedestal is **backlit** from the
+ * direction the last bounce arrives from, so it reads as a dark disc on a white balcony rather than
+ * as white on white. Watched, not measured, and not called a defect here — whether the exit still
+ * reads as the exit is the owner's call.
+ *
+ * {@link SUN_POSITION} is a **guess, and mostly inert**. A directional light lights by its direction
+ * alone; its position only places a shadow frustum, and only on `shadows.ts`'s plain-generator
+ * fallback branch — the cascaded branch this level runs on derives its own frustum from the camera.
+ * So all this had to be was high enough and far enough out to sit clear of a 62 u column. Nothing
+ * about it was measured and nothing on the shipped path reads it.
+ *
+ * {@link SUN_INTENSITY} is a **guess with no derivation at all**, and the honest statement is that
+ * 1.2 against the hub's 1.1 (`environment.ts`) is a difference nobody decided. It is not derivable
+ * from the hub's either: this scene has no skydome, no fog and two thirds of the hub's ambient
+ * ({@link AMBIENT_INTENSITY} 0.3 against 0.45), and it is lighting white rather than grass, so what
+ * the hub's number would look like here is not something the hub's number answers. Retune it by eye
+ * against the column, together with {@link WHITE_DIFFUSE} and {@link SKY_RGB}, which are the other
+ * two halves of the same judgement.
  */
 const SUN_DIRECTION = new Vector3(-0.4, -1, -0.6);
 const SUN_POSITION = new Vector3(20, 90, 30);
@@ -117,13 +135,13 @@ const IBL_INTENSITY = 1.4;
 
 export interface TowerScene {
   readonly scene: Scene;
-  readonly rig: CharacterRig;
   /** Suspends (on=true) or resumes (on=false) gameplay input and camera look. The level arrives
    *  suspended and `App.svelte` resumes it once it is on screen; resuming does not restore pointer
    *  lock — see `CharacterRig.suspendInput`. */
   suspendInput(on: boolean): void;
-  /** Tears this level down: its scene, its rig's DOM listeners, its audio. The engine outlives it
-   *  and is disposed only by whoever owns it (`App.svelte`), not here. */
+  /** Tears this level down: its rig (DOM listeners and Havok character controller), its audio, then
+   *  its scene — see `levelTeardown.ts` for why in that order. The engine outlives it and is
+   *  disposed only by whoever owns it (`App.svelte`), not here. */
   dispose(): void;
 }
 
@@ -138,6 +156,13 @@ export interface TowerScene {
  *
  * `onExit` fires when the player stands on the summit pedestal. It is the only way out of the tower
  * (spec §5) — the respawn rule means a player past section 1 cannot descend.
+ *
+ * **A build that rejects tears down what it had built.** The scene exists from the first line and
+ * both awaits after it can fail — Havok, the knight's GLB — so a rejection used to reach the caller
+ * with a whole scene, its Havok world, its rig and its DOM listeners alive and nothing left pointing
+ * at them. The caller cannot clean that up (it never received anything), and a failed entry is
+ * retryable — step off the pedestal, step back on — so it was one orphan per attempt. Owned here,
+ * where the half-built pieces are; `levelTeardown.ts` has the order and why it matters.
  */
 export async function createTowerScene(
   engine: Engine,
@@ -145,6 +170,24 @@ export async function createTowerScene(
   onExit: () => void,
 ): Promise<TowerScene> {
   const scene = new Scene(engine);
+  const parts: LevelParts = {};
+  try {
+    return await buildTowerScene(scene, parts, canvas, onExit);
+  } catch (err) {
+    disposeLevel(scene, parts);
+    throw err;
+  }
+}
+
+/** The tower's actual construction, split off only so {@link createTowerScene} can wrap it in the
+ *  teardown above without indenting the whole level inside a `try`. `parts` is filled in as the
+ *  build goes, so the failure path can tear down exactly what exists. */
+async function buildTowerScene(
+  scene: Scene,
+  parts: LevelParts,
+  canvas: HTMLCanvasElement,
+  onExit: () => void,
+): Promise<TowerScene> {
   // Right-handed for the same reason the hub is: glTF is a right-handed format, and importing a
   // skinned character into a left-handed scene reflects it — the knight collapses when its parent yaws.
   scene.useRightHandedSystem = true;
@@ -152,8 +195,17 @@ export async function createTowerScene(
 
   const ambient = new HemisphericLight('towerAmbient', new Vector3(0, 1, 0), scene);
   ambient.intensity = AMBIENT_INTENSITY;
-  const sun = new DirectionalLight('towerSun', SUN_DIRECTION, scene);
-  sun.position = SUN_POSITION;
+  // `.clone()`, for the reason `buildTower`'s material gives and with one fact behind it that was
+  // missing when this was last argued about: `ShadowLight` STORES what it is handed rather than
+  // copying it (`_setDirection` / `_setPosition` are bare assignments, and `DirectionalLight`'s
+  // constructor assigns `direction` straight through), and `ShadowLight.getRotation()` then
+  // normalizes `direction` IN PLACE. So these module-level vectors would be the light's own, and one
+  // call to `getRotation` would rescale a constant every later tower build starts from. Nothing on
+  // the render path calls it today — this is latent, not live, and it is cloned because the
+  // ownership is wrong rather than because a symptom was seen. The hub never had this: its
+  // equivalents are constructed at the call site (`environment.ts`).
+  const sun = new DirectionalLight('towerSun', SUN_DIRECTION.clone(), scene);
+  sun.position = SUN_POSITION.clone();
   sun.intensity = SUN_INTENSITY;
 
   let iblFailed = false;
@@ -197,6 +249,7 @@ export async function createTowerScene(
     // down the outside of the column is the same fall, aimed.
     descentFollow: true,
   });
+  parts.rig = rig;
   const { shadows, player, follow } = rig;
 
   buildTower(scene, shadows);
@@ -204,6 +257,7 @@ export async function createTowerScene(
   // Character sound, no music (spec §9). Not awaited and not async, for `hubScene`'s reason: audio
   // must never be able to hold up first render.
   const audio = createHubAudio(scene, rig.readMotion, rig.knight, { music: false });
+  parts.audio = audio;
 
   let progress: TowerProgress = TOWER_START;
   let portal: PortalTrigger = PORTAL_START;
@@ -243,18 +297,17 @@ export async function createTowerScene(
 
   const tower: TowerScene = {
     scene,
-    rig,
     suspendInput: (on: boolean) => rig.suspendInput(on),
-    dispose: () => {
-      rig.dispose();
-      audio.dispose();
-      // The scene, not the engine — the engine outlives every level (see App.svelte).
-      scene.dispose();
-    },
+    // The same call the failure path above makes, over the same `parts` — so a finished level and a
+    // half-built one cannot be torn down in two different orders. `levelTeardown.ts` says what that
+    // order buys and why the scene is disposed last and the engine never.
+    dispose: () => disposeLevel(scene, parts),
   };
-  // A stable handle for the console, the same way `hubScene` exposes its shadow generator: Babylon 9
-  // keys shadow generators by camera, so the usual no-arg lookups return null here too.
-  if (import.meta.env.DEV) (window as unknown as { tower: unknown }).tower = tower;
+  // Console handles. Babylon 9 keys shadow generators by camera, so the usual no-arg
+  // `scene.lights.find(...).getShadowGenerator()` returns null here as it does in the hub — the
+  // generator has to be handed out or it cannot be reached at all.
+  exposeDevHandle(scene, 'tower', tower);
+  exposeDevHandle(scene, 'shadows', shadows);
   return tower;
 }
 

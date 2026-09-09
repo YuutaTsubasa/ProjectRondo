@@ -467,7 +467,6 @@ interface TowerLayout {
   readonly crystals: readonly Vec3[];
   /** The pads the checkpoints stand on, in section order (section 2's, then section 3's). */
   readonly checkpointPads: readonly TowerPlatform[];
-  readonly summit: TowerPlatform;
   /** `[crystal, the pad its bounce lands on]` for every link that ends on a platform — the pairs
    *  {@link auditLayout} checks {@link BOUNCE_REACH} against. */
   readonly bounceLandings: readonly (readonly [Vec3, TowerPlatform])[];
@@ -542,7 +541,7 @@ function buildLayout(): TowerLayout {
   };
 
   return {
-    platforms, crystals, checkpointPads: [section2Pad, section3Pad], summit, bounceLandings,
+    platforms, crystals, checkpointPads: [section2Pad, section3Pad], bounceLandings,
     props: [pedestal],
   };
 }
