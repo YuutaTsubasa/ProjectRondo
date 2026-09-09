@@ -163,6 +163,14 @@ export interface TowerScene {
  * at them. The caller cannot clean that up (it never received anything), and a failed entry is
  * retryable — step off the pedestal, step back on — so it was one orphan per attempt. Owned here,
  * where the half-built pieces are; `levelTeardown.ts` has the order and why it matters.
+ *
+ * **For the tower that rejection is the knight's GLB, and the `catch` below is not what covers it.**
+ * `loadHavok` compiles once for the page and is cached (spec §6), so by the time anyone can stand on
+ * the pedestal it has already resolved from the hub's build; the GLB fetch is the only thing left
+ * here that can fail. It fails *inside* `createCharacterRig`, before `parts.rig` is assigned, so
+ * `disposeLevel` disposes the scene alone and it is the rig's own release that takes the six DOM
+ * listeners and the Havok character controller — see `characterRig.ts` for why that has to be the
+ * rig's job rather than this file's.
  */
 export async function createTowerScene(
   engine: Engine,

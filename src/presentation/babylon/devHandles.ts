@@ -22,6 +22,13 @@ import type { Scene } from '@babylonjs/core/scene';
  * Before this, only `window.hub` was ever cleared, by hand, in the one of its two call sites that
  * needed it; the other five were left naming a disposed scene for as long as the page lived.
  *
+ * Recorded rather than fixed: clearing has no memory of what a name held before, so a build that
+ * FAILS after writing one leaves that name *deleted* rather than back on the level still being
+ * played — a failed tower entry drops `window.cameraConfig`, `moveConfig` and `charController` (the
+ * three written from inside the rig, which is where the tower's only rejection is) and leaves the hub
+ * on screen without them, which is the better of the two wrong answers but is not a decision anyone
+ * made.
+ *
  * So: a handle may name a level that is still loading, and never one that is gone.
  */
 export function exposeDevHandle(scene: Scene, name: string, value: unknown): void {

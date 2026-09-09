@@ -14,8 +14,17 @@ interface Disposable {
  * level happened to exist at the moment it threw, which is anything from a bare scene upward.
  */
 export interface LevelParts {
-  /** The character rig. Its DOM listeners are bound to `window` and the canvas, and its Havok
-   *  character controller holds handles in the WASM heap; neither belongs to the scene. */
+  /**
+   * The character rig. Its DOM listeners are bound to `window` and the canvas, and its Havok
+   * character controller holds handles in the WASM heap; neither belongs to the scene.
+   *
+   * **Empty here does not mean "leaked".** A builder assigns this from what `createCharacterRig`
+   * *returns*, so a rig that rejects mid-construction — which is where the knight's GLB above
+   * actually fails — never arrives, and releases its own pieces before rethrowing. That is
+   * `characterRig.ts`'s job and has to be: by the time `disposeLevel` ran, the scene the controller
+   * releases its Havok handles through would be about to go. So an absent `rig` means either "not
+   * built yet" or "built, then released by itself", and both are already handled.
+   */
   rig?: Disposable;
   /** The level's audio graph. */
   audio?: Disposable;

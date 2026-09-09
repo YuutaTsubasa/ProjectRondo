@@ -133,6 +133,12 @@ export interface HubScene {
  * nothing left pointing at them. The caller cannot clean that up (it never received anything), and
  * a failed entry is retryable, so it was one orphan per attempt. Owned here instead, where the
  * half-built pieces are; `levelTeardown.ts` has the order and why it matters.
+ *
+ * The three do not all land in the same place, and the middle one is not this `catch`'s to cover:
+ * Havok leaves a bare scene, the trees leave a rig this bag is holding, but the knight's GLB rejects
+ * *inside* `createCharacterRig`, before `parts.rig` is assigned — so the rig releases its own pieces
+ * and `disposeLevel` disposes the scene alone. `characterRig.ts` says why that has to be the rig's
+ * job; `towerScene.ts` is where it is the only case that remains.
  */
 export async function createHubScene(
   engine: Engine,

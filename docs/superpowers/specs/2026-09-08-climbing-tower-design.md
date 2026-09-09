@@ -82,10 +82,10 @@ not as structure.
 **The playthrough has now run, and this section's premise is falsified — see §14.2.** The three
 sections were timed at **15.1 : 2.4 : 7.1 seconds**, not at anything like parity, and the cause is in
 the paragraph above: a homing link and a jump step cost about the same *per link* (1.18 s against a
-mean 1.16 s), so converting between them by height — which is what the "~14 platform steps or ~3 crystals"
-arithmetic does — gets the ratio exactly backwards. Matching on time means moving the **counts**, not
-the heights. Nothing was retuned; the table stands as the record of what was believed before anyone
-climbed it.
+mean 1.16 s), so converting between them by height — which is what the "~14 platform steps or ~3
+crystals" arithmetic does — gets the ratio exactly backwards. Matching on time means moving the
+**counts**, not the heights. Nothing was retuned; the table stands as the record of what was
+believed before anyone climbed it.
 
 ## 4. Falling
 
@@ -508,8 +508,8 @@ Nothing in §1–§9 is invalidated. Three tasks gain work:
 The tower was climbed on 2026-09-09: floor to summit in two unbroken runs — one walking the
 approaches through section 1 and one running them, which is the pair §14.2 times — three times in and
 out through the colonnade, and a fall taken deliberately from each section. Two is also what §14.1
-counts: two of its nineteen runs of the final link were taken as part of a full climb. This section records what
-that run established and — more carefully — what it did not. §13's split between what was
+counts: two of its nineteen runs of the final link were taken as part of a full climb. This section
+records what that run established and — more carefully — what it did not. §13's split between what was
 **measured** and what was only **reasoned** is kept, and a third word is used where it belongs:
 **watched**, meaning seen on screen and not reduced to a number. Anything watched but not measured
 keeps its **Untuned** marking, and the judgements that are the project owner's are collected in
