@@ -4,7 +4,14 @@ import { type Vec3 } from '../../math/vec3';
 export interface MovementInput {
   readonly direction: NormalizedPlanarDirection;
   readonly jumpRequested: boolean;
-  /** Sprint modifier held. A state, not an edge — unlike `jumpRequested`. */
+  /**
+   * Run this frame rather than walk. A state, not an edge — unlike `jumpRequested`.
+   *
+   * It is not "a modifier key is held": presentation decides what produces it, and today it is the
+   * NEGATION of a held key — the character runs by default and holding Shift asks it to walk (see
+   * `input.ts`'s `isWalkHeld`). The domain only ever meant "run this frame", which is why flipping
+   * that mapping needed no change here; this comment says so because it used to say the opposite.
+   */
   readonly runRequested: boolean;
   /**
    * The OFFSET from the player to the crystal a homing dash should fly to, or null. Not a world

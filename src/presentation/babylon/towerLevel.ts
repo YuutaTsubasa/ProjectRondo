@@ -139,8 +139,11 @@ export const TOWER_SLAB_THICKNESS = 0.4;
  * jumps, which is what the owner felt as the angle between one platform and the next being blocked.
  * The two rules are only compatible because the platform got deeper at the same time: subtracting them
  * gives `PLATFORM_DEPTH/2 ≥ TOWER_COLUMN_RADIUS · (1/cos 30° − 1) + (CAPSULE_RADIUS +
- * JUMP_PATH_MARGIN)/cos 30° + 0.2` = 1.5726, so no platform 2.4 u deep can ever satisfy both at this
- * column radius, whatever the orbit. The depth then walks into {@link BOUNCE_REACH}, which caps it —
+ * JUMP_PATH_MARGIN)/cos 30° + 0.2` = 0.4950 + 0.8660 + 0.2 = **1.5611**, i.e. a depth of 3.1221, so
+ * no platform 2.4 u deep can ever satisfy both at this column radius, whatever the orbit. (The three
+ * terms are the same subtraction rearranged: the column rule alone puts the orbit at
+ * `(3.2 + 0.25 + 0.5)/cos 30°` = 4.5611 at the least, and the embedding rule then wants the inner
+ * face at 3.0 or less.) The depth then walks into {@link BOUNCE_REACH}, which caps it —
  * that is the whole of the simultaneous system, and 4.6 / 3.2 / 2.3 is a solution to it with margin on
  * every side.
  *
@@ -169,10 +172,10 @@ const PLATFORM_WIDTH = 2.4;
 /**
  * How deep an ordinary platform is AWAY from the column. **Untuned**, and derived rather than chosen:
  * it is what {@link PLATFORM_ORBIT}'s two rules leave once the orbit has been pushed out far enough
- * for a jump to clear the column — not less than 3.145 u — rounded up to 3.2. The other end is
- * {@link BOUNCE_REACH}, which caps a landing pad at `2 · (2.3 − CAPSULE_RADIUS)` = 3.6 u. Both bounds
- * are live: 0.055 u of slack under the first, and under the second the rising bounce clears the pad's
- * outer edge by 0.7 u against the 0.5 u it needs.
+ * for a jump to clear the column — `2 · 1.5611` = not less than **3.1221 u** — rounded up to 3.2.
+ * The other end is {@link BOUNCE_REACH}, which caps a landing pad at `2 · (2.3 − CAPSULE_RADIUS)` =
+ * 3.6 u. Both bounds are live: **0.0779 u** of slack under the first, and under the second the rising
+ * bounce clears the pad's outer edge by 0.7 u against the 0.5 u it needs.
  *
  * A deeper platform costs nothing the audit checks — the slab gap is set by the inner face and
  * {@link PLATFORM_WIDTH}, and the inner face has not moved — and it is the one direction a slab can
@@ -294,10 +297,26 @@ const airDrift = (seconds: number, topSpeed: number): number => {
   return 0.5 * topSpeed * rampSeconds + topSpeed * (seconds - rampSeconds);
 };
 
-/** How far a player holding Shift to walk can steer a bounce sideways before it lands: 1.84 u. The
- *  bound to size a landing against: running is the default now, but holding Shift to walk through a
- *  bounce is still a choice available to the player, and clearing the gap must work for it too. */
-const BOUNCE_DRIFT = airDrift(BOUNCE_AIRTIME, DEFAULT_CONFIG.maxSpeed);
+/**
+ * How far a bounce can be steered sideways before it lands. **Two numbers, because the player picks
+ * the mode**, and the two rules the layout is checked against want opposite ends of that choice:
+ *
+ * - **Walking, 1.8421 u.** The narrower band, and the one a landing has to be REACHABLE inside: a
+ *   player may hold Shift through any bounce in the tower, and a pad only a runner can reach is a pad
+ *   the level lets you fail to reach by moving more carefully.
+ * - **Running, 2.4533 u.** The wider band, and the one anything STANDING on a pad has to be clear of:
+ *   running is what the character does with nothing held, so this is where a bounce comes down for a
+ *   player who never touches the modifier. `acceleration` 13 over {@link BOUNCE_AIRTIME} 0.6144 s
+ *   reaches 7.99 u/s and so never gets to `runSpeed` 8 at all — the ramp alone is the whole of it,
+ *   which is why the wider band is 0.61 u wider rather than twice as wide.
+ *
+ * Keeping only the first is the bug this pair replaces. The tower shipped with walking as the
+ * unmarked default, both rules were written against 1.84, and the modifier was then inverted without
+ * either being revisited — leaving {@link auditLayout}'s prop rule policing a band 0.61 u short of
+ * the one a player gets by default, which is precisely the mode it exists to protect.
+ */
+const BOUNCE_DRIFT_WALKING = airDrift(BOUNCE_AIRTIME, DEFAULT_CONFIG.maxSpeed);
+const BOUNCE_DRIFT_RUNNING = airDrift(BOUNCE_AIRTIME, DEFAULT_CONFIG.runSpeed);
 
 /**
  * How far outboard of its landing pad a bounce's crystal sits. **Untuned, and derived rather than
@@ -310,10 +329,19 @@ const BOUNCE_DRIFT = airDrift(BOUNCE_AIRTIME, DEFAULT_CONFIG.maxSpeed);
  *   instead of clearing it. This bound is why a landing pad may not be deeper than
  *   `2 · (BOUNCE_REACH − CAPSULE_RADIUS)` = 3.6 u, the summit balcony included, and it is what the
  *   first draft of this layout got wrong — a 2.0 u reach against a 3.6 u pad put every chain's last
- *   bounce under the slab it was aimed at.
- * - **Not more than 2.94** = `BOUNCE_DRIFT + (PLATFORM_DEPTH/2 − CAPSULE_RADIUS)`, or the drift runs
- *   out before the capsule is over the pad: the player has to cross the reach less the pad's own near
- *   half, and 1.84 + 1.1 is all there is.
+ *   bounce under the slab it was aimed at. **It is a bound on the CAPSULE and nothing else**, here
+ *   and in {@link auditLayout}, which measures crystal centre to pad edge: the crystal's own mesh is
+ *   `CRYSTAL_EXTENT` 1.2728 u across (`crystals.ts`), so its inner tip reaches 0.6364 u inboard of
+ *   its centre against the 0.7 u of radial gap `BOUNCE_REACH − PLATFORM_DEPTH/2` leaves — 0.064 u
+ *   outside the pad's outer face, at the pad's own height, where the previous layout had 0.264 u.
+ *   At this bullet's own floor of 2.1 the tip would be 0.136 u INSIDE the slab. Nothing checks that,
+ *   and nothing about the bounce breaks if it happens — the crystal is not a collider — it would
+ *   simply look wrong. If this number is ever taken toward its floor, look at the crystal before
+ *   trusting the bound.
+ * - **Not more than 2.94** = `BOUNCE_DRIFT_WALKING + (PLATFORM_DEPTH/2 − CAPSULE_RADIUS)`, or the
+ *   drift runs out before the capsule is over the pad: the player has to cross the reach less the
+ *   pad's own near half, and 1.84 + 1.1 is all there is. The walking drift, because a player who
+ *   holds Shift through the bounce must still land — see {@link BOUNCE_DRIFT_WALKING}.
  *
  * **It moved with the platforms.** 2.1 was legal against a pad 2.4 u deep by 0.4 u and against a pad
  * 3.2 u deep by nothing at all — exactly on the first bound, which is a rule satisfied by rounding
@@ -335,7 +363,9 @@ const BOUNCE_DRIFT = airDrift(BOUNCE_AIRTIME, DEFAULT_CONFIG.maxSpeed);
  * walks the bounce. Running — the default, nothing held — buys less extra reach than it looks like it
  * would: `acceleration` 13 over 0.614 s never reaches `runSpeed` 8, so the default gets 2.45 u rather
  * than a naive 3.54, which on this deeper pad now overshoots inward to 0.15 u past the centre and
- * still lands.
+ * still lands. That 0.15 u past the centre is not a curiosity: it is the reason {@link auditLayout}
+ * checks props against {@link BOUNCE_DRIFT_RUNNING} and not against the walking band, which stops
+ * 0.46 u short of the centre and would have declared the middle of every pad unlandable-on.
  *
  * **One thing none of this models, and {@link auditLayout} does not either.** `stepHoming` bounces on
  * the frame `homingSpeed · delta >= remaining`, so the launch is not the crystal: it is up to
@@ -343,11 +373,10 @@ const BOUNCE_DRIFT = airDrift(BOUNCE_AIRTIME, DEFAULT_CONFIG.maxSpeed);
  * airtime. It is left unchecked because the launch point depends on where the player pressed, which
  * is not a level coordinate. It was worked through by hand for the tightest case in the tower, the
  * summit link pressed at the apex of the jump off the platform below, and redone on the re-solved
- * layout: the launch lands 0.48 u low and
- * 0.47 u inboard, leaving 0.508 s and 1.42 u of drift against the 0.73 u it then needs — **0.69 u of
- * margin**, against the nominal launch's 0.64 u. Both are wider than they were before the platforms
- * moved (0.45 and 0.44), because the pad the bounce aims at got 0.8 u deeper. If a future link is
- * steeper than these, redo it.
+ * layout: the launch lands 0.48 u low and 0.47 u inboard, leaving 0.508 s and 1.42 u of drift against
+ * the 0.73 u it then needs — **0.69 u of margin**, against the nominal launch's 0.64 u. Both are
+ * wider than they were before the platforms moved (0.45 and 0.44), because the pad the bounce aims at
+ * got 0.8 u deeper. If a future link is steeper than these, redo it.
  */
 const BOUNCE_REACH = 2.3;
 /** Distance from the axis to a crystal — {@link BOUNCE_REACH} outboard of the platform orbit, by
@@ -386,9 +415,11 @@ export const TOWER_SUMMIT_RADIUS = 1;
  *  for the reach bound, made a second time here. The player has been drifting under air control since
  *  launch, not from rest at 0.268 s: `airDrift` gives 1.3128 u by the window's close, of which only
  *  0.846 u falls inside the window — against the 1.8 u = `BOUNCE_REACH − (TOWER_SUMMIT_RADIUS −
- *  CAPSULE_RADIUS)` it takes to reach the disc's edge. The conclusion survived the error; the number
- *  didn't, and it moved again with {@link BOUNCE_REACH} — the window itself does not, because it
- *  depends on the bounce and not on the layout. The shipped case is safer still:
+ *  CAPSULE_RADIUS)` it takes to reach the disc's edge. Those are the WALKING figures; "no version of
+ *  these numbers makes it one" needs the widest drift the player can have, and running gives 1.5101 u
+ *  by the close and **1.043 u** inside the window, still 0.76 u short. The conclusion survived the
+ *  error; the number didn't, and it moved again with {@link BOUNCE_REACH} — the window itself does
+ *  not, because it depends on the bounce and not on the layout. The shipped case is safer still:
  *  {@link SUMMIT_PEDESTAL_OFFSET}'s offset puts the disc
  *  `√(BOUNCE_REACH² + SUMMIT_PEDESTAL_OFFSET²)` = 3.05 u away, needing 2.55 u. The bounce lands beside
  *  it and walks — see {@link SUMMIT_PEDESTAL_OFFSET}. */
@@ -538,9 +569,22 @@ const reachAlong = (p: TowerPlatform, axis: { x: number; z: number }): number =>
  * How close the straight line between two platforms' centres comes to the column's AXIS, in the
  * ground plane.
  *
- * The SEGMENT, not the infinite line through the two points: platforms further than a half turn apart
- * are joined by a chord whose nearest approach to the axis lies outside the span between them, and the
- * infinite line would report a clearance from a piece of geometry the player never crosses.
+ * The SEGMENT, not the infinite line through the two points — but that is a **guard against a future
+ * layout, and it is unreachable on today's inputs.** Every platform in {@link TowerLayout.jumpSteps}
+ * sits at {@link PLATFORM_ORBIT}, and for two points on the same circle the nearest approach to the
+ * centre is the midpoint: `along` works out to exactly 0.5 **whatever the turn between them**, so the
+ * clamp below never bites. Every pair it is actually handed is one turn apart; even the 240° pair
+ * section 2's chain leaves between consecutive platforms — which is never handed to it, and is the
+ * reason {@link TowerLayout.jumpSteps} exists — would still come out at 0.5, at 2.3 u from the axis
+ * and squarely inside the column. (An earlier version of this comment claimed the opposite: that a
+ * chord more than a half turn apart has its nearest approach outside the span between its ends. It
+ * does not, and no pair in this tower has ever exercised the clamp.)
+ *
+ * What it protects is the case where the two ends are at DIFFERENT radii, which nothing generates
+ * today but a pad on its own orbit would: `along` then leaves [0, 1] whenever the axis is "behind"
+ * one of the ends, and the infinite line would report a clearance measured at a point the player
+ * never crosses — a jump waved through on geometry that is not on the path. Cheaper to clamp than to
+ * assert every caller keeps both ends on one orbit.
  */
 const axisClearance = (from: TowerPlatform, to: TowerPlatform): number => {
   const span = { x: to.x - from.x, z: to.z - from.z };
@@ -756,13 +800,21 @@ function auditLayout({ platforms, bounceLandings, jumpSteps, props }: TowerLayou
     }
 
     // Where the bounce can put the capsule down, as an offset outward from the pad's centre: the
-    // outermost the capsule can stand, inward to wherever a walking player's drift runs out. It rises
-    // on the pad's own bearing and steers straight in, so the whole band sits on the pad's centre
-    // line and `along` is zero throughout.
+    // outermost the capsule can stand, inward to wherever the drift runs out. It rises on the pad's
+    // own bearing and steers straight in, so the whole band sits on the pad's centre line and `along`
+    // is zero throughout.
+    //
+    // TWO bands, because the player chooses the mode and the two rules below want opposite ends of
+    // that choice (see BOUNCE_DRIFT_WALKING). Reaching the pad at all has to work on the NARROWER
+    // one — a player may hold Shift through any bounce, and a landing only a runner can make is a
+    // landing the level lets you fail by moving carefully. Standing clear of a prop has to hold on
+    // the WIDER one, the keyless default, because that is where a bounce comes down for a player who
+    // never touches the modifier.
     const outermost = pad.depth / 2 - CAPSULE_RADIUS;
-    const innermost = Math.max(reach - BOUNCE_DRIFT, -outermost);
-    if (innermost > outermost) {
-      console.warn(`[towerLevel] the bounce at y=${crystal.y} cannot reach its landing pad — ${BOUNCE_DRIFT.toFixed(2)} u of drift against the ${(reach - outermost).toFixed(2)} u it needs. See BOUNCE_REACH.`);
+    const innermostWalking = Math.max(reach - BOUNCE_DRIFT_WALKING, -outermost);
+    const innermostRunning = Math.max(reach - BOUNCE_DRIFT_RUNNING, -outermost);
+    if (innermostWalking > outermost) {
+      console.warn(`[towerLevel] the bounce at y=${crystal.y} cannot reach its landing pad while walking — ${BOUNCE_DRIFT_WALKING.toFixed(2)} u of drift against the ${(reach - outermost).toFixed(2)} u it needs. See BOUNCE_REACH.`);
       continue;
     }
 
@@ -770,7 +822,7 @@ function auditLayout({ platforms, bounceLandings, jumpSteps, props }: TowerLayou
       if (prop.pad !== pad) continue;
       // Distance from the prop's axis to the landing capsule's, over the whole band. It is convex in
       // the offset, so its minimum is at the band's own end nearest the prop.
-      const nearest = Math.min(Math.max(prop.outward, innermost), outermost);
+      const nearest = Math.min(Math.max(prop.outward, innermostRunning), outermost);
       const room = Math.hypot(prop.along, nearest - prop.outward) - prop.radius;
       if (room < CAPSULE_RADIUS) {
         console.warn(`[towerLevel] ${prop.name} stands where the bounce at y=${crystal.y} has to land — ${room.toFixed(2)} u of room for a ${CAPSULE_RADIUS} u capsule, anywhere the bounce can come down. See SUMMIT_PEDESTAL_OFFSET.`);
@@ -809,10 +861,14 @@ export const TOWER_CRYSTALS: readonly Vec3[] = layout.crystals;
  *  spiral — column, first step and the crystal above it — is in front of the player rather than
  *  overhead. The re-solve pushed {@link CRYSTAL_ORBIT} from 6.3 to 6.9 and left this alone, so the
  *  rule still holds but by 0.1 u where it used to hold by 0.7: **this is now the number the next push
- *  outward breaks first**, and it is also still outside the platforms' own outer corners at 6.32, which
- *  is what keeps the floor under the spawn clear of section 1's first slab. What saves the framing in
- *  the meantime is a bearing rather than a radius — the first crystal is a turn round the column,
- *  6.95 u away across the floor and 24 u up, not overhead. */
+ *  outward breaks first**, and it is also still outside the platforms' own outer corners at 6.32,
+ *  which is what keeps the floor under the spawn clear of section 1's first slab. That last margin is
+ *  thinner than 7 − 6.32 makes it look: the spawn is on the first slab's own bearing, so what stands
+ *  in front of the capsule is that slab's outer FACE at `PLATFORM_ORBIT + PLATFORM_DEPTH/2` = 6.2, and
+ *  the capsule's surface reaches 6.5 — **0.300 u of floor**, not 0.68, and the corners at 6.32 are off
+ *  to either side of it. What saves the framing in the meantime is a bearing rather than a radius —
+ *  the first crystal is a turn round the column, 6.95 u away across the floor and 24 u up, not
+ *  overhead. */
 const SPAWN_ORBIT = 7;
 
 /**

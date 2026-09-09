@@ -36,8 +36,9 @@ export function createInput(): InputState {
   };
   const onKeyUp = (e: KeyboardEvent) => { if (!enabled) return; down.delete(e.key.toLowerCase()); };
   // A key released while the window is unfocused never delivers keyup here, leaving it "stuck" down
-  // (hold W, tab away, release, tab back → the character keeps walking). Drop all held state
-  // whenever we lose focus or the tab is hidden.
+  // (hold W, tab away, release, tab back → the character keeps running, which is what it does with
+  // nothing held). A stuck Shift is the same failure in the other direction: the character walks
+  // until something clears it. Drop all held state whenever we lose focus or the tab is hidden.
   const clear = () => { down.clear(); jumpQueued = false; };
   window.addEventListener('keydown', onKeyDown);
   window.addEventListener('keyup', onKeyUp);

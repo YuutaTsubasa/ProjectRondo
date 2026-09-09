@@ -542,12 +542,17 @@ keeps its **Untuned** marking, and the judgements that are the project owner's a
 > the single most important line in this box.
 >
 > **Not void, but not re-measured either — §14.2's times.** The step and link counts, the section
-> heights, `JUMP_RISE` and the 0.80 u gap between two slabs' footprints are all unchanged, so the
-> jump arc a step pays for is the same arc; what changed is that a platform is 0.8 u deeper, so the
-> approach run across it is longer than the one timed here. Read 15.1 : 2.4 : 7.1 as a floor that is
-> now slightly low, and read the mechanism it established — a link and a step cost the same, only
-> *chaining* is cheap, so the times follow the count — as untouched, because none of it turns on a
-> distance.
+> heights and `JUMP_RISE` are all unchanged, and so is the 0.798 u gap between two slabs' footprints,
+> which depends on the inner face's radius and the slab WIDTH and saw neither move. So **the airborne
+> part of a step is identical** — same arc over the same gap. What is longer is the ground run: two
+> platforms one turn apart are `2 · PLATFORM_ORBIT · sin(30°)` = `PLATFORM_ORBIT` apart centre to
+> centre, so the chord grew **4.2 → 4.6 u** while the gap it crosses did not, and the whole of that
+> extra **0.4 u** is walked or run across slab. (The extra depth is what *permitted* the orbit to move
+> — see `PLATFORM_ORBIT` — but it is not itself the cost: the approach is tangential, not radial.)
+> At the 4 u/s the timed run walked its approaches, 0.4 u is on the order of a tenth of a second a
+> step. Read 15.1 : 2.4 : 7.1 as a floor that is now slightly low, and read the mechanism it
+> established — a link and a step cost the same, only *chaining* is cheap, so the times follow the
+> count — as untouched, because none of it turns on a distance.
 >
 > **Still holds — the findings that are about the code rather than the geometry.** §14.3's respawn is
 > a cut with zero glide frames, and its whole fall table with it: the drops are vertical, the section
@@ -781,7 +786,14 @@ Every one of those is a **frustum** measurement, and a frustum measurement is no
 measurement. Which brings the one thing this playthrough found that no earlier pass could.
 
 **On a fall taken facing outward, the camera is inside the column for the whole descent and the
-player sees nothing.** Measured: step off the outer edge of a platform at `PLATFORM_ORBIT` 4.2 with
+player sees nothing.** *(Measured at `PLATFORM_ORBIT` 4.2 as well, and the head box voids these
+distances just as it voids the climb's: the outer edge stepped off has moved from
+`4.2 + 2.4/2` = 5.4 u to `4.6 + 3.2/2` = **6.2 u**, so every figure in this paragraph shifts about
+0.8 u outward — 1.20–1.77 becomes roughly 2.0–2.6. Re-derived, not re-measured. The finding is
+unaffected and that is why the number is worth stating: 2.6 is still 0.6 u inside a
+`TOWER_COLUMN_RADIUS` of 3.2, so an outward-facing fall is still watched from inside the column. The
+re-solve narrowed the problem; it did not remove it.)* Measured:
+step off the outer edge of a platform at `PLATFORM_ORBIT` 4.2 with
 the camera behind you, and the camera sits **1.20–1.77 u from the axis** against
 `TOWER_COLUMN_RADIUS` 3.2 — inside, on **50 of 50 falling frames**. The root's screen fraction over
 that same fall reads 0.611–0.994, a textbook well-framed fall; the rendered frame is a single flat
@@ -875,12 +887,24 @@ now, across two aspect ratios:
 
 ### 14.7 What else was watched
 
+*Where these sit in the head box's split: the audit bullet is **void** and says so at length in its
+own text. Of the rest, one is geometry and is argued in place below; the other four are about the
+code or about what was on screen for reasons no distance enters into — the render, the backlit
+pedestal (a bounce landing on the balcony's centre line against a pedestal 2 u along the face, both
+unchanged by the re-solve), the pointer-lock rejection, and the ring of light nobody has looked at —
+and all four **still hold**.*
+
 - **The tower renders.** White column, white floor, white slabs, near-black-blue sky, the knight's
   own shadow on the slab under it and the column's shadow on the floor. Screenshots taken at the
   spawn, at y 53 mid-climb, mid-fall and on the summit.
 - **The opening frame is right.** From `TOWER_SPAWN` at `SPAWN_ORBIT` 7 the column, the floor
   and the first platform are all on screen at the camera's default yaw — which is what that
-  constant's doc argues for and could not previously claim.
+  constant's doc argues for and could not previously claim. **This one is geometry and it survives,
+  by argument rather than by re-watching:** the spawn did not move (`SPAWN_ORBIT` 7 and the bearing
+  are both unchanged, §14.5), and the first platform moved *toward* it — centre 4.2 → 4.6, outer face
+  5.4 → 6.2 — so the thing that had to be in frame is now nearer and larger in it, on the same
+  bearing. The column is unmoved. Nothing here can have left the frame; what it looks like at 0.300 u
+  of floor between the capsule and that slab (see `SPAWN_ORBIT`) has not been seen.
 - **No layout audit warning fired**, across three builds of the tower. `auditLayout` had nothing to
   say about the level that was actually generated. **This line no longer holds.** The audit has since
   gained a fourth rule — the straight line between two platforms has to clear the column by the

@@ -81,7 +81,9 @@ pnpm tauri dev          # native desktop app (needs Rust)
     terrain barrier** (edge ramps past the controller's walkable slope); grassy barrier slope; camera
     clamped above the terrain (no see-through on down-pitch/slopes).
   - **Run + jump** (PR #23): Mixamo Run/Jump retargeted onto the knight through the existing Godot
-    pipeline; **Shift to sprint** (`runSpeed` 8, derived from the clips' measured stride); jump wired
+    pipeline; a **run/walk modifier** on Shift (`runSpeed` 8, derived from the clips' measured
+    stride) — shipped as "hold Shift to sprint" and **inverted since**: the character runs by default
+    and holding Shift walks, which is the way round the climbing tower's jumps wanted it; jump wired
     end to end; feet planted to **2.5 mm** on flat ground (was ~10 cm of float). Movement gained a
     single pure owner for ground contact (`groundContact.ts` — coyote time, jump buffering, takeoff
     guard) and slope-following (`slopeMotion.ts`), plus heading-based steering. Four gameplay bugs

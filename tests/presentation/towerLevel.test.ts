@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { CAPSULE_HALF, CAPSULE_RADIUS } from '../../src/presentation/babylon/capsule';
+import { DEFAULT_CONFIG } from '../../src/domain/hub/character/movementConfig';
 
 /**
  * `towerLevel.ts` runs `auditLayout` over the layout it generates at import time and warns on
@@ -35,11 +36,15 @@ describe('the tower layout', () => {
     const platforms = level.TOWER_PLATFORMS;
     // Which transitions are jumps is reconstructed here from the heights rather than taken from the
     // layout, so this asserts the rule against the tower that shipped rather than against the same
-    // list `auditLayout` was handed. A jump gains at most the capsule's jump apex; the pad that
-    // catches section 2's chain stands 24 u above the platform before it and is not one.
+    // list `auditLayout` was handed. The threshold is the jump apex itself — `jumpSpeed²/(2·gravity)`
+    // = 1.6875 u, the most a jump can gain from the domain's own constants — rather than a round
+    // number near it, so a link whose rise was retuned down could not be reclassified as a jump
+    // without it genuinely becoming jumpable. The pad that catches section 2's chain stands 24 u
+    // above the platform before it, and section 3's links 7.2 u; neither is one.
+    const apex = (DEFAULT_CONFIG.jumpSpeed * DEFAULT_CONFIG.jumpSpeed) / (2 * DEFAULT_CONFIG.gravity);
     const jumps = platforms
       .map((to, i) => [platforms[i - 1], to] as const)
-      .filter(([from, to]) => from !== undefined && to.y - from.y <= 2);
+      .filter(([from, to]) => from !== undefined && to.y - from.y <= apex);
     expect(jumps.length).toBeGreaterThan(0);
     for (const [from, to] of jumps) {
       // Both ends sit at the same orbit one turn apart, so the chord's nearest approach to the
