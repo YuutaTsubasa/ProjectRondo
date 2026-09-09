@@ -30,6 +30,25 @@ describe('the tower layout', () => {
     expect(warnings).toEqual([]);
   });
 
+  it('leaves every platform-to-platform jump clear of the column', async () => {
+    const { level } = await importTowerLevel();
+    const platforms = level.TOWER_PLATFORMS;
+    // Which transitions are jumps is reconstructed here from the heights rather than taken from the
+    // layout, so this asserts the rule against the tower that shipped rather than against the same
+    // list `auditLayout` was handed. A jump gains at most the capsule's jump apex; the pad that
+    // catches section 2's chain stands 24 u above the platform before it and is not one.
+    const jumps = platforms
+      .map((to, i) => [platforms[i - 1], to] as const)
+      .filter(([from, to]) => from !== undefined && to.y - from.y <= 2);
+    expect(jumps.length).toBeGreaterThan(0);
+    for (const [from, to] of jumps) {
+      // Both ends sit at the same orbit one turn apart, so the chord's nearest approach to the
+      // column's axis is its own midpoint. The capsule's edge reaches CAPSULE_RADIUS further in.
+      const mid = { x: (from.x + to.x) / 2, z: (from.z + to.z) / 2 };
+      expect(Math.hypot(mid.x, mid.z) - CAPSULE_RADIUS).toBeGreaterThan(level.TOWER_COLUMN_RADIUS);
+    }
+  });
+
   it('leaves the summit pedestal clear of the last bounce landing', async () => {
     const { level } = await importTowerLevel();
     const balcony = level.TOWER_PLATFORMS[level.TOWER_PLATFORMS.length - 1];

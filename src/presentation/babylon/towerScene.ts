@@ -373,12 +373,15 @@ function buildTower(scene: Scene, shadows: Shadows): void {
   // **This is a mitigation, not a fix, and it must not be read as one.** The camera still enters the
   // column: `followCamera` consults exactly one piece of world geometry, the ground query, and has no
   // ray cast, no occlusion test and no pull-in (spec §13.2 parked it inside `plazaPillar_0` and it
-  // was not deflected by a millimetre). At `PLATFORM_ORBIT` 4.2 against `TOWER_COLUMN_RADIUS` 3.2 and
+  // was not deflected by a millimetre). At `PLATFORM_ORBIT` 4.6 against `TOWER_COLUMN_RADIUS` 3.2 and
   // the camera's `distance` 5, that happens whenever the player faces outward. Spec §14.4 measured
-  // how often that is on the built tower: never on the climb's own aims (the camera is 6.42-9.09 u
-  // from the axis for every step, launch and chain aim the route needs), and on every frame of a
-  // fall taken facing outward (1.20-1.77 u, 50 frames out of 50) — which is the one place it costs
-  // the player something, because that fall is the one spec §2 says they watch.
+  // how often that is — on the layout BEFORE the platforms were moved out to clear the jump path:
+  // never on the climb's own aims (the camera was 6.42-9.09 u from the axis for every step, launch
+  // and chain aim the route needs), and on every frame of a fall taken facing outward (1.20-1.77 u,
+  // 50 frames out of 50) — which is the one place it costs the player something, because that fall
+  // is the one spec §2 says they watch. Those distances are void as numbers at the new orbit; what
+  // holds is that the climb's aims look inward from further out than they did and the fall still
+  // happens at the axis.
   //
   // What this changes is only what the player sees when it does: with culling on, the column
   // renders NOTHING from inside and the level is seen through it; with it off, they see

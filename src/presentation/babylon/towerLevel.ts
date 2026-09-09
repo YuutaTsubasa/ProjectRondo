@@ -8,15 +8,24 @@ import { CAPSULE_HALF, CAPSULE_HEIGHT, CAPSULE_RADIUS } from './capsule';
 /**
  * The climbing tower, as data.
  *
- * **Every number in this file is Untuned**, and that survived the first playthrough. The tower has
- * now been climbed floor to summit and back to the hub (design spec §14), but nothing here was
- * retuned against it, so every number is still the output of a rule rather than a measurement. What
- * the climb changed is that the rules can now be argued with against evidence: §14.2 timed the three
- * sections at **15.1 : 2.4 : 7.1 seconds** against spec §3's premise of roughly equal play time,
- * which puts {@link SECTION_1_STEPS} and {@link SECTION_2_LINKS} first in line to move. Each rule is
- * stated on the group it shaped, together with the shipped constant that bounds it. Retune a rule and
- * let the numbers fall out, rather than nudging a coordinate and leaving the rule that produced it
- * saying something else.
+ * **Every number in this file is Untuned**, and that survived the first playthrough. The tower was
+ * climbed floor to summit and back to the hub (design spec §14), and nothing here was retuned against
+ * it, so every number is still the output of a rule rather than a measurement. What the climb changed
+ * is that the rules can now be argued with against evidence: §14.2 timed the three sections at
+ * **15.1 : 2.4 : 7.1 seconds** against spec §3's premise of roughly equal play time, which puts
+ * {@link SECTION_1_STEPS} and {@link SECTION_2_LINKS} first in line to move. Each rule is stated on
+ * the group it shaped, together with the shipped constant that bounds it. Retune a rule and let the
+ * numbers fall out, rather than nudging a coordinate and leaving the rule that produced it saying
+ * something else.
+ *
+ * **The layout §14 was measured on is not this one.** The owner played the shipped tower and found the
+ * jumps blocked by the column; the fourth rule below is the result, and {@link PLATFORM_ORBIT},
+ * {@link PLATFORM_DEPTH} and {@link BOUNCE_REACH} were re-solved together to satisfy it. Section
+ * heights, step and link counts and the summit's own dimensions did not move, so §14.2's times and
+ * §14.1's landing counts are still about the shape of the climb — but every distance §14 records is a
+ * distance to a platform that has since moved 0.4 u further out. Spec §14 is marked with what that
+ * voids and what it does not, and nothing in this file cites one of those measurements without saying
+ * which layout it came from.
  *
  * The two rules everything hangs off, both from the design spec §3:
  *
@@ -31,10 +40,11 @@ import { CAPSULE_HALF, CAPSULE_HEIGHT, CAPSULE_RADIUS } from './capsule';
  * costs 15.1 s where ~4 crystals cost 2.4 s — so these heights are the record of what was believed
  * before anyone climbed it, not a matched-time claim.
  *
- * **Three more rules are not in the spec, and each was found the hard way** — the first two by
+ * **Four more rules are not in the spec, and each was found the hard way** — the first two by
  * generating a layout and measuring it, the third by a reviewer re-deriving the summit and finding it
- * could not be landed on. They are the reason {@link auditLayout} exists: a coordinate that satisfies
- * them by luck stops satisfying them the moment somebody moves it.
+ * could not be landed on, and the fourth by the project owner playing the shipped tower and reporting
+ * that the jumps scraped the column. They are the reason {@link auditLayout} exists: a coordinate that
+ * satisfies them by luck stops satisfying them the moment somebody moves it.
  *
  * - **A slab must not overhang a slab you can stand on.** A jump step is 1.4 u and a slab is 0.4 u
  *   thick, so the headroom over a ledge is 1.0 u against a capsule {@link CAPSULE_HEIGHT} 2 u tall.
@@ -48,6 +58,13 @@ import { CAPSULE_HALF, CAPSULE_HEIGHT, CAPSULE_RADIUS } from './capsule';
  *   put a 1.0 u pedestal in the middle of the only pad the last bounce of the climb can reach, which
  *   made the summit — the tower's one exit — unreachable by the approach the level itself gives the
  *   player. See {@link SUMMIT_PEDESTAL_OFFSET}.
+ * - **A jump has to get PAST the column, not just onto the next ledge.** Two platforms one turn apart
+ *   are joined by a chord that passes `PLATFORM_ORBIT · cos(TURN_DEGREES/2)` from the axis, and the
+ *   capsule's edge reaches {@link CAPSULE_RADIUS} further in than that. The shipped layout put that
+ *   edge **0.063 u inside the column** on all sixteen of its jumps — the owner played it and said the
+ *   angle between one platform and the next was blocked — and every rule above was satisfied the whole
+ *   time, because not one of them looks at what is BETWEEN two ledges. See {@link JUMP_PATH_MARGIN}
+ *   and {@link PLATFORM_ORBIT}, which is the number that moved.
  */
 
 const DEG = Math.PI / 180;
@@ -76,14 +93,18 @@ const SUMMIT_Y = 62;
  * are climbing rather than a pole, narrow enough that the camera is not permanently inside it". The
  * second half of that is not satisfied and cannot be by this number alone — `followCamera` orbits at
  * `distance` 5 with no obstruction handling at all (spec §13.2), so a player standing at
- * {@link PLATFORM_ORBIT} 4.2 puts the camera inside any column whenever they face outward. Spec
+ * {@link PLATFORM_ORBIT} 4.6 puts the camera inside any column whenever they face outward. Spec
  * §13.3 carries that as budgeted camera work; this radius only decides how often it bites.
  *
- * **How often it bites is now measured — spec §14.4.** Never on the climb's own aims: the camera
- * sits 6.42–9.09 u from the axis for every one of the twenty-five platform-to-platform steps, launch
- * aims and chain aims the route requires. Always on a fall taken facing outward: 1.20–1.77 u from
- * the axis for the whole descent, on 50 of 50 falling frames, which is the fall spec §2 promises the
- * player will watch, played out behind a blank wall.
+ * **How often it bites was measured — spec §14.4 — on the layout before this one.** Never on the
+ * climb's own aims: the camera sat 6.42–9.09 u from the axis for every one of the twenty-five
+ * platform-to-platform steps, launch aims and chain aims the route required. Always on a fall taken
+ * facing outward: 1.20–1.77 u from the axis for the whole descent, on 50 of 50 falling frames, which
+ * is the fall spec §2 promises the player will watch, played out behind a blank wall. **Those
+ * distances are void as numbers**: the aims were taken at {@link PLATFORM_ORBIT} 4.2 and the platforms
+ * now stand 0.4 u further out, which moves every one of them. What survives is the direction of both
+ * findings — the climb's aims look inward across a wider orbit than before, and a fall still happens
+ * at the axis where the column is — and the radius is unchanged either way.
  */
 export const TOWER_COLUMN_RADIUS = 3.2;
 /** How far above the floor the column rises. **Untuned**: {@link SUMMIT_Y} plus 4 u, so there is
@@ -100,25 +121,64 @@ export const TOWER_FLOOR_RADIUS = 14;
 export const TOWER_SLAB_THICKNESS = 0.4;
 
 /**
- * Distance from the column's axis to a platform's CENTRE. **Untuned**, but not free: it is chosen so
- * that a platform meets the column instead of floating beside it. Every slab is turned to face the
- * column (see {@link TowerPlatform}), so its inner face is a straight edge at `4.2 − 1.2` = 3.0 u
- * from the axis — 0.2 u inside {@link TOWER_COLUMN_RADIUS}, so the ledge is embedded rather than
- * bridged to.
+ * Distance from the column's axis to a platform's CENTRE. **Untuned**, and the number two rules pull
+ * in opposite directions on:
+ *
+ * - **A platform has to MEET the column** instead of floating beside it: `PLATFORM_ORBIT −
+ *   PLATFORM_DEPTH/2 ≤ TOWER_COLUMN_RADIUS`. Every slab is turned to face the column (see
+ *   {@link TowerPlatform}), so its inner face is a straight edge at `4.6 − 1.6` = 3.0 u from the axis
+ *   — **0.2 u inside** {@link TOWER_COLUMN_RADIUS}, so the ledge is embedded rather than bridged to.
+ *   This one wants the orbit IN, or the platform deeper.
+ * - **A jump between two platforms has to get past the column**, this file's fourth unspecced rule:
+ *   `PLATFORM_ORBIT · cos(TURN_DEGREES/2) − CAPSULE_RADIUS ≥ TOWER_COLUMN_RADIUS +
+ *   JUMP_PATH_MARGIN`. At 4.6 the chord passes `4.6 · cos(30°)` = 3.9837 u from the axis and the
+ *   capsule's edge reaches 3.4837, which clears a 3.2 column by **0.284 u** against
+ *   {@link JUMP_PATH_MARGIN}'s 0.25. This one wants the orbit OUT.
+ *
+ * **4.2 satisfied the first and failed the second by 0.063 u**, on every one of the tower's sixteen
+ * jumps, which is what the owner felt as the angle between one platform and the next being blocked.
+ * The two rules are only compatible because the platform got deeper at the same time: subtracting them
+ * gives `PLATFORM_DEPTH/2 ≥ TOWER_COLUMN_RADIUS · (1/cos 30° − 1) + (CAPSULE_RADIUS +
+ * JUMP_PATH_MARGIN)/cos 30° + 0.2` = 1.5726, so no platform 2.4 u deep can ever satisfy both at this
+ * column radius, whatever the orbit. The depth then walks into {@link BOUNCE_REACH}, which caps it —
+ * that is the whole of the simultaneous system, and 4.6 / 3.2 / 2.3 is a solution to it with margin on
+ * every side.
  *
  * A straight edge against a round column only meets it in the middle, and how far the ends part
- * company is a function of the slab's width: an ordinary 2.4 u slab's inner corners sit
- * `√(3.0² + 1.2²)` = 3.2311 u from the axis, so they stand **0.031 u** proud of the curve, and a
- * capsule 1 u wide cannot fall through a 0.031 u crescent. (An earlier draft said 0.15 u here; the
- * figure was simply wrong, not measured against a different number. The summit balcony is much wider
- * and its ends part company by a lot more — see {@link SUMMIT_PAD_WIDTH}.)
+ * company is a function of the slab's WIDTH and of the inner face's radius, neither of which moved:
+ * an ordinary 2.4 u-wide slab's inner corners sit `√(3.0² + 1.2²)` = 3.2311 u from the axis, so they
+ * stand **0.031 u** proud of the curve, and a capsule 1 u wide cannot fall through a 0.031 u crescent.
+ * (An earlier draft said 0.15 u here; the figure was simply wrong, not measured against a different
+ * number. The summit balcony is much wider and its ends part company by a lot more — see
+ * {@link SUMMIT_PAD_WIDTH}.)
  */
-const PLATFORM_ORBIT = 4.2;
-/** Every ordinary platform is a square this far across. **Untuned**: 2.4 is a guess at "forgives a
- *  missed landing" against a capsule 1 u wide, and it is also as wide as the headroom rule allows at
- *  {@link TURN_DEGREES} — the two checkpoint pads are this size too, for that reason and not by
- *  preference. */
-const PLATFORM_SIZE = 2.4;
+const PLATFORM_ORBIT = 4.6;
+/**
+ * How wide an ordinary platform is ALONG the column's face. **Untuned**: 2.4 is a guess at "forgives
+ * a missed landing" against a capsule 1 u wide, and it is also as wide as the headroom rule allows at
+ * {@link TURN_DEGREES} — the two checkpoint pads are this size too, for that reason and not by
+ * preference.
+ *
+ * It is the half of the old square that did NOT move, and it could not have: the gap between two
+ * neighbouring slabs is `(PLATFORM_ORBIT − PLATFORM_DEPTH/2) · sin(TURN) − (PLATFORM_WIDTH/2) ·
+ * (1 + cos TURN)`, which depends on the INNER FACE's radius and on this width alone. Widening this to
+ * follow the depth to 3.2 would have collapsed that gap from 0.80 u to 0.20 u, under the capsule's own
+ * 0.5 — the platforms are oblong now, and that is the reason.
+ */
+const PLATFORM_WIDTH = 2.4;
+/**
+ * How deep an ordinary platform is AWAY from the column. **Untuned**, and derived rather than chosen:
+ * it is what {@link PLATFORM_ORBIT}'s two rules leave once the orbit has been pushed out far enough
+ * for a jump to clear the column — not less than 3.145 u — rounded up to 3.2. The other end is
+ * {@link BOUNCE_REACH}, which caps a landing pad at `2 · (2.3 − CAPSULE_RADIUS)` = 3.6 u. Both bounds
+ * are live: 0.055 u of slack under the first, and under the second the rising bounce clears the pad's
+ * outer edge by 0.7 u against the 0.5 u it needs.
+ *
+ * A deeper platform costs nothing the audit checks — the slab gap is set by the inner face and
+ * {@link PLATFORM_WIDTH}, and the inner face has not moved — and it is the one direction a slab can
+ * grow in without becoming a lid over its neighbour.
+ */
+const PLATFORM_DEPTH = 3.2;
 
 // ---------------------------------------------------------------------------------------------
 // The movement rules the layout is generated from
@@ -133,10 +193,16 @@ const JUMP_RISE = 1.4;
  * 2.2 turns of it.
  *
  * It is the headroom rule in this file's header that fixes it this wide, together with
- * {@link PLATFORM_SIZE}. Two slabs one turn apart are `2·4.2·sin(30°)` = 4.20 u between centres, and
+ * {@link PLATFORM_WIDTH}. Two slabs one turn apart are `2·4.6·sin(30°)` = 4.60 u between centres, and
  * the widest separating axis (the lower slab's tangential one) leaves **0.80 u** between their
  * footprints — comfortably more than the capsule's own {@link CAPSULE_RADIUS} 0.5, so no ledge has an
  * unstandable strip along its edge.
+ *
+ * **That 0.80 did not change when the platforms moved**, and it is worth knowing why: the gap works
+ * out to `(PLATFORM_ORBIT − PLATFORM_DEPTH/2) · sin(TURN) − (PLATFORM_WIDTH/2) · (1 + cos TURN)`,
+ * which sees the orbit and the depth only through the inner face's radius. Pushing the orbit out by
+ * 0.4 and the depth out by 0.8 left that face exactly where it was, so this rule was never in play in
+ * the re-solve — but it would have been the moment {@link PLATFORM_WIDTH} followed the depth.
  *
  * At 45° the same two slabs are **0.073 u** apart on that same axis — {@link reachAlong} run at 45°,
  * not an estimate — which is a seventh of the capsule's radius, so every ledge in section 1 loses its
@@ -151,6 +217,14 @@ const JUMP_RISE = 1.4;
  * trivially inside the 2.48 u a player gets by default, running. Widening this further starts to
  * cost the walking margin — the tighter of the two, and the one that matters because a player can
  * choose to hold Shift through any jump in the tower.
+ *
+ * **This number is now squeezed from both sides, and 60 is what is left.** The rules above bound it
+ * from below: 45° collapses the slab gap to 0.073 u. The column rule bounds it from ABOVE, through
+ * `PLATFORM_ORBIT · cos(TURN_DEGREES/2)` — a wider turn swings the chord between two platforms nearer
+ * the axis, so every degree added here has to be paid for by pushing {@link PLATFORM_ORBIT} out, and
+ * every degree taken away has to be paid for by narrowing {@link PLATFORM_WIDTH}. Neither payment was
+ * needed, which is the one reason this stayed at 60 through the re-solve rather than becoming another
+ * unknown in it.
  */
 const TURN_DEGREES = 60;
 
@@ -174,6 +248,20 @@ const TURN_DEGREES = 60;
  * nothing has forced this off zero. Whether any of them plays as a scramble is unjudged.
  */
 const BOUNCE_RISE = 0;
+
+/**
+ * How much room the straight line between two platforms has to leave between the CAPSULE'S EDGE and
+ * the column's surface, over and above touching it. **Untuned**: 0.25 u, half {@link CAPSULE_RADIUS},
+ * is a guess at "a player who does not fly the ideal line still gets past" — nothing measures how far
+ * off that line a jump actually strays, and the audit checks the ideal line rather than a played one.
+ *
+ * The rule it is the margin for is the fourth in this file's header, and the first found by playing
+ * rather than by arithmetic: `PLATFORM_ORBIT · cos(TURN_DEGREES/2) − CAPSULE_RADIUS ≥
+ * TOWER_COLUMN_RADIUS + JUMP_PATH_MARGIN`. The half-turn is where the chord between two platforms one
+ * turn apart runs closest to the axis; everything else about the jump — its rise, its airtime, the
+ * gap between the two footprints — was already checked and none of it looks at the thing in between.
+ */
+const JUMP_PATH_MARGIN = CAPSULE_RADIUS / 2;
 
 /**
  * Seconds a bounce gives the player to steer with: from leaving the crystal to the capsule's feet
@@ -216,44 +304,55 @@ const BOUNCE_DRIFT = airDrift(BOUNCE_AIRTIME, DEFAULT_CONFIG.maxSpeed);
  * chosen**, because the bounce is *purely vertical*: the player leaves the crystal going straight up
  * and has to steer onto the pad under air control alone.
  *
- * Two bounds, and 2.1 sits between them:
+ * Two bounds, and 2.3 sits between them:
  *
- * - **Not less than 1.7** = `PLATFORM_SIZE/2 + CAPSULE_RADIUS`, or the rising capsule hits the pad
+ * - **Not less than 2.1** = `PLATFORM_DEPTH/2 + CAPSULE_RADIUS`, or the rising capsule hits the pad
  *   instead of clearing it. This bound is why a landing pad may not be deeper than
- *   {@link PLATFORM_SIZE}, the summit balcony included, and it is what the first draft of this layout
- *   got wrong — a 2.0 u reach against a 3.6 u pad put every chain's last bounce under the slab it was
- *   aimed at.
- * - **Not more than 2.54** = `BOUNCE_DRIFT + (PLATFORM_SIZE/2 − CAPSULE_RADIUS)`, or the drift runs
+ *   `2 · (BOUNCE_REACH − CAPSULE_RADIUS)` = 3.6 u, the summit balcony included, and it is what the
+ *   first draft of this layout got wrong — a 2.0 u reach against a 3.6 u pad put every chain's last
+ *   bounce under the slab it was aimed at.
+ * - **Not more than 2.94** = `BOUNCE_DRIFT + (PLATFORM_DEPTH/2 − CAPSULE_RADIUS)`, or the drift runs
  *   out before the capsule is over the pad: the player has to cross the reach less the pad's own near
- *   half, and 1.84 + 0.7 is all there is.
+ *   half, and 1.84 + 1.1 is all there is.
+ *
+ * **It moved with the platforms.** 2.1 was legal against a pad 2.4 u deep by 0.4 u and against a pad
+ * 3.2 u deep by nothing at all — exactly on the first bound, which is a rule satisfied by rounding
+ * rather than by argument, and which {@link auditLayout} would have flipped on the first bit of
+ * floating-point noise in the reach it measures. 2.3 keeps 0.2 u under the first bound and 0.64 u
+ * under the second, which is the more comfortable half of a window 0.84 u wide.
  *
  * **The second bound replaces a wrong argument as well as a wrong number.** It used to read "~2.4",
  * from "the bounce's whole 0.75 s of airtime above pad height" giving 2.38 u of drift. Two errors:
  * the window is {@link BOUNCE_AIRTIME} 0.614 s and the drift 1.84 u, not 0.75 s and 2.38; and the
  * quantity to bound is the drift needed to reach the pad's near HALF, not the drift needed to reach
- * its centre. Only the second correction is what keeps 2.1 legal — against the drift alone, which is
- * the distance to the pad's centre, 2.1 is 0.26 u too far.
+ * its centre. Both corrections still stand, and the second is doing less work than it was: against
+ * the drift alone, which is the distance to the pad's centre, 2.3 is 0.46 u too far, and it is the
+ * pad's near half that pays for it.
  *
- * What 2.1 actually leaves: a player who holds inward the whole way comes down 0.26 u outboard of the
- * pad's centre, orbit 4.46 against a pad spanning 3.0–5.4, and the drifts that land safely run from
- * 1.40 u (capsule just inside the outer edge) to 1.84 u — a 0.44 u band, if the player holds Shift and
+ * What 2.3 actually leaves: a player who holds inward the whole way comes down 0.46 u outboard of the
+ * pad's centre, orbit 5.06 against a pad spanning 3.0–6.2, and the drifts that land safely run from
+ * 1.20 u (capsule just inside the outer edge) to 1.84 u — a 0.64 u band, if the player holds Shift and
  * walks the bounce. Running — the default, nothing held — buys less extra reach than it looks like it
  * would: `acceleration` 13 over 0.614 s never reaches `runSpeed` 8, so the default gets 2.45 u rather
- * than a naive 3.54.
+ * than a naive 3.54, which on this deeper pad now overshoots inward to 0.15 u past the centre and
+ * still lands.
  *
  * **One thing none of this models, and {@link auditLayout} does not either.** `stepHoming` bounces on
  * the frame `homingSpeed · delta >= remaining`, so the launch is not the crystal: it is up to
  * `homingSpeed · MAX_DT` = 0.8 u short of it, back along the dash, which is lower and so has less
  * airtime. It is left unchecked because the launch point depends on where the player pressed, which
  * is not a level coordinate. It was worked through by hand for the tightest case in the tower, the
- * summit link pressed at the apex of the jump off the platform below: the launch lands 0.50 u low and
- * 0.47 u inboard, leaving 0.499 s and 1.38 u of drift against the 0.93 u it then needs — 0.45 u of
- * margin, against the nominal launch's 0.44 u. If a future link is steeper than these, redo it.
+ * summit link pressed at the apex of the jump off the platform below, and redone on the re-solved
+ * layout: the launch lands 0.48 u low and
+ * 0.47 u inboard, leaving 0.508 s and 1.42 u of drift against the 0.73 u it then needs — **0.69 u of
+ * margin**, against the nominal launch's 0.64 u. Both are wider than they were before the platforms
+ * moved (0.45 and 0.44), because the pad the bounce aims at got 0.8 u deeper. If a future link is
+ * steeper than these, redo it.
  */
-const BOUNCE_REACH = 2.1;
+const BOUNCE_REACH = 2.3;
 /** Distance from the axis to a crystal — {@link BOUNCE_REACH} outboard of the platform orbit, by
  *  construction rather than by choice. Putting the chain crystals on that same orbit keeps them on
- *  one spiral with the landing ones, and leaves every crystal 2.5 u clear of the column's surface. */
+ *  one spiral with the landing ones, and leaves every crystal 3.7 u clear of the column's surface. */
 const CRYSTAL_ORBIT = PLATFORM_ORBIT + BOUNCE_REACH;
 
 // ---------------------------------------------------------------------------------------------
@@ -267,10 +366,13 @@ const CRYSTAL_ORBIT = PLATFORM_ORBIT + BOUNCE_REACH;
  *
  * The reason that used to be given for it was false, and it is the bug this summit shipped with: "1.0
  * is what fits on the balcony with standing room left around the rim" does not survive the
- * subtraction. A 1.0 pedestal centred on a pad {@link PLATFORM_SIZE} 2.4 u deep leaves 0.2 u of pad
- * at each radial edge against a 0.5 u capsule — there is no rim, and there is no version of this
- * number that makes one, because the depth is capped by {@link BOUNCE_REACH} and not by choice. The
- * pedestal does not fit *around*; it fits *beside*. See {@link SUMMIT_PEDESTAL_OFFSET}.
+ * subtraction. A 1.0 pedestal centred on a pad {@link PLATFORM_DEPTH} 3.2 u deep leaves 0.6 u of pad
+ * at each radial edge, and a capsule standing clear of the disc needs its centre `1.0 +
+ * CAPSULE_RADIUS` = 1.5 u from the disc's axis where the pad lets it reach 1.1 — there is no rim, and
+ * there is no version of this number that makes one, because the depth is capped by
+ * {@link BOUNCE_REACH} and not by choice. **The re-solve deepened the pad by 0.8 u and did not change
+ * that**: the rim gained 0.4 u and needed 0.5. The pedestal does not fit *around*; it fits *beside*.
+ * See {@link SUMMIT_PEDESTAL_OFFSET}.
  */
 export const TOWER_SUMMIT_RADIUS = 1;
 /** Its height above the balcony. The hub pedestal's own 0.55: low enough to step onto, high enough
@@ -283,10 +385,12 @@ export const TOWER_SUMMIT_RADIUS = 1;
  *  standstill at the window's open — the same rest-from-zero mistake {@link BOUNCE_REACH} corrects
  *  for the reach bound, made a second time here. The player has been drifting under air control since
  *  launch, not from rest at 0.268 s: `airDrift` gives 1.3128 u by the window's close, of which only
- *  0.846 u falls inside the window — against the 1.6 u = `BOUNCE_REACH − (TOWER_SUMMIT_RADIUS −
+ *  0.846 u falls inside the window — against the 1.8 u = `BOUNCE_REACH − (TOWER_SUMMIT_RADIUS −
  *  CAPSULE_RADIUS)` it takes to reach the disc's edge. The conclusion survived the error; the number
- *  didn't. The shipped case is safer still: {@link SUMMIT_PEDESTAL_OFFSET}'s offset puts the disc
- *  `√(BOUNCE_REACH² + SUMMIT_PEDESTAL_OFFSET²)` = 2.9 u away, needing 2.4 u. The bounce lands beside
+ *  didn't, and it moved again with {@link BOUNCE_REACH} — the window itself does not, because it
+ *  depends on the bounce and not on the layout. The shipped case is safer still:
+ *  {@link SUMMIT_PEDESTAL_OFFSET}'s offset puts the disc
+ *  `√(BOUNCE_REACH² + SUMMIT_PEDESTAL_OFFSET²)` = 3.05 u away, needing 2.55 u. The bounce lands beside
  *  it and walks — see {@link SUMMIT_PEDESTAL_OFFSET}. */
 export const TOWER_SUMMIT_PEDESTAL_HEIGHT = 0.55;
 
@@ -311,7 +415,7 @@ export const TOWER_SUMMIT_PEDESTAL_HEIGHT = 0.55;
  * assertion, not the audit's.
  *
  * The SIGN is not free either, though nothing enforces it: the dash arrives from the platform one
- * turn back, which lies `PLATFORM_ORBIT · sin(TURN_DEGREES)` = 3.64 u along the face in the positive
+ * turn back, which lies `PLATFORM_ORBIT · sin(TURN_DEGREES)` = 3.98 u along the face in the positive
  * direction, so the pedestal goes to the other end. That does not change the clearance, which is
  * symmetric — it buys margin in the one case the audit does not model, a bounce that launches short
  * (see {@link BOUNCE_REACH}) and therefore starts and lands on the approach side of the line.
@@ -323,8 +427,9 @@ const SUMMIT_PEDESTAL_OFFSET = TOWER_SUMMIT_RADIUS + 2 * CAPSULE_RADIUS;
  * ledge, and nothing stands within 7 u above it for the headroom rule to catch. **Derived, not
  * chosen**: exactly wide enough to carry the pedestal at {@link SUMMIT_PEDESTAL_OFFSET},
  * `2 · (2.0 + 1.0)` = **6.0 u**, with the pedestal's outer edge flush against the balcony's end. Its
- * radial depth stays {@link PLATFORM_SIZE}, because the summit is reached by a bounce and
- * {@link BOUNCE_REACH} caps how deep a landing pad may be.
+ * radial depth stays {@link PLATFORM_DEPTH}, because the summit is reached by a bounce and
+ * {@link BOUNCE_REACH} caps how deep a landing pad may be — at 3.2 against that cap's 3.6, the
+ * balcony is 0.8 u deeper than the one the first playthrough landed on and still legal.
  *
  * 6.0 is wide enough that what it looks like is worth writing down: the slab's inner face is a
  * straight chord at radius 3.0 while the column curves away behind it, so at the balcony's ends the
@@ -332,9 +437,12 @@ const SUMMIT_PEDESTAL_OFFSET = TOWER_SUMMIT_RADIUS + 2 * CAPSULE_RADIUS;
  * against 0.031 u for an ordinary slab (see {@link PLATFORM_ORBIT}). That is not a hole; it opens
  * sideways past the column rather than through the floor. It is an inside edge you can walk off.
  *
- * The summit has now been stood on and screenshotted (spec §14.7) and the last bounce has landed on
- * this balcony nineteen times out of nineteen (§14.1) — but **this edge was not looked at
- * specifically**, so it is still the first thing to look at the next time somebody is up there.
+ * The summit has been stood on and screenshotted (spec §14.7) and the last bounce landed on this
+ * balcony nineteen times out of nineteen (§14.1) — but **that was the layout before this one**, and
+ * §14 is marked accordingly. The balcony's width, its pedestal and this inside edge are unchanged; the
+ * orbit it sits at and its depth are not. The 19/19 is re-derived here rather than re-measured, and
+ * the edge was not looked at specifically then either, so it is still the first thing to look at the
+ * next time somebody is up there.
  */
 const SUMMIT_PAD_WIDTH = 2 * (SUMMIT_PEDESTAL_OFFSET + TOWER_SUMMIT_RADIUS);
 
@@ -411,7 +519,7 @@ const at = (orbit: number, bearing: number, y: number): Vec3 =>
  *  straight out from the axis and leaves local +X running along the column's face. */
 const slab = (bearing: number, y: number, width: number): TowerPlatform => {
   const spot = at(PLATFORM_ORBIT, bearing, y);
-  return { x: spot.x, y: spot.y, z: spot.z, width, depth: PLATFORM_SIZE, rotationY: (90 - bearing) * DEG };
+  return { x: spot.x, y: spot.y, z: spot.z, width, depth: PLATFORM_DEPTH, rotationY: (90 - bearing) * DEG };
 };
 
 /** World-space local axes of a slab: `[along the column's face, away from it]`. */
@@ -425,6 +533,22 @@ const axesOf = (p: TowerPlatform) => [
  *  said they were 0.4 u apart, and what produced {@link TURN_DEGREES}' wrong 45° figure. */
 const reachAlong = (p: TowerPlatform, axis: { x: number; z: number }): number =>
   axesOf(p).reduce((sum, a) => sum + Math.abs(a.x * axis.x + a.z * axis.z) * a.half, 0);
+
+/**
+ * How close the straight line between two platforms' centres comes to the column's AXIS, in the
+ * ground plane.
+ *
+ * The SEGMENT, not the infinite line through the two points: platforms further than a half turn apart
+ * are joined by a chord whose nearest approach to the axis lies outside the span between them, and the
+ * infinite line would report a clearance from a piece of geometry the player never crosses.
+ */
+const axisClearance = (from: TowerPlatform, to: TowerPlatform): number => {
+  const span = { x: to.x - from.x, z: to.z - from.z };
+  const lengthSquared = span.x * span.x + span.z * span.z;
+  const along = lengthSquared === 0 ? 0 : -(from.x * span.x + from.z * span.z) / lengthSquared;
+  const t = Math.min(1, Math.max(0, along));
+  return Math.hypot(from.x + t * span.x, from.z + t * span.z);
+};
 
 /** A point on a slab's TOP face, given in the slab's own axes — see {@link TowerPadProp}. */
 const onPad = (p: TowerPlatform, along: number, outward: number): Vec3 => {
@@ -477,6 +601,12 @@ interface TowerLayout {
   /** `[crystal, the pad its bounce lands on]` for every link that ends on a platform — the pairs
    *  {@link auditLayout} checks {@link BOUNCE_REACH} against. */
   readonly bounceLandings: readonly (readonly [Vec3, TowerPlatform])[];
+  /** `[from, to]` for every transition the player crosses by JUMPING — the pairs
+   *  {@link auditLayout} checks the column against. Built here rather than inferred from
+   *  `platforms`, because "consecutive in climb order" is not the same as "jumped between": the pad
+   *  that catches section 2's chain is four turns on from the slab before it, and the chord between
+   *  those two passes the axis on the far side of the column. */
+  readonly jumpSteps: readonly (readonly [TowerPlatform, TowerPlatform])[];
   /** Everything standing on a pad, for the landing rule to check the bounces against. */
   readonly props: readonly TowerPadProp[];
 }
@@ -490,25 +620,38 @@ function buildLayout(): TowerLayout {
   const platforms: TowerPlatform[] = [];
   const crystals: Vec3[] = [];
   const bounceLandings: (readonly [Vec3, TowerPlatform])[] = [];
+  const jumpSteps: (readonly [TowerPlatform, TowerPlatform])[] = [];
   let bearing = SPIRAL_START_DEGREES;
 
   /** A link that ends on a platform: a crystal `rise` above the last standing height, and the pad its
-   *  bounce lands on, one {@link BOUNCE_REACH} inboard of it. Returns the new standing height. */
-  const link = (fromY: number, rise: number, padWidth: number): number => {
+   *  bounce lands on, one {@link BOUNCE_REACH} inboard of it. Returns the pad it lands on. */
+  const link = (fromY: number, rise: number, padWidth: number): TowerPlatform => {
     bearing += TURN_DEGREES;
     const crystal = at(CRYSTAL_ORBIT, bearing, fromY + rise);
     const pad = slab(bearing, crystal.y + BOUNCE_RISE, padWidth);
     crystals.push(crystal);
     platforms.push(pad);
     bounceLandings.push([crystal, pad]);
-    return pad.y;
+    return pad;
+  };
+
+  /** One jump step onto a new slab one turn on, recorded together with the platform it is jumped
+   *  FROM. `from` is undefined only for the first step of section 1, which is jumped from the floor:
+   *  that approach runs radially inward from {@link TOWER_SPAWN} at orbit 7 rather than around the
+   *  column, so there is no chord for the column rule to check and nothing is lost by omitting it. */
+  const step = (y: number, from: TowerPlatform | undefined): TowerPlatform => {
+    bearing += TURN_DEGREES;
+    const pad = slab(bearing, y, PLATFORM_WIDTH);
+    platforms.push(pad);
+    if (from) jumpSteps.push([from, pad]);
+    return pad;
   };
 
   // Section 1 — pure platform jumping, floor to 18. The rise is written as a fraction of the whole
   // section rather than as a repeated addition, so the last step lands on SECTION_2_START exactly.
+  let standing: TowerPlatform | undefined;
   for (let i = 1; i <= SECTION_1_STEPS; i++) {
-    bearing += TURN_DEGREES;
-    platforms.push(slab(bearing, TOWER_FLOOR_Y + ((SECTION_2_START - TOWER_FLOOR_Y) * i) / SECTION_1_STEPS, PLATFORM_SIZE));
+    standing = step(TOWER_FLOOR_Y + ((SECTION_2_START - TOWER_FLOOR_Y) * i) / SECTION_1_STEPS, standing);
   }
   const section2Pad = platforms[platforms.length - 1];
 
@@ -519,21 +662,21 @@ function buildLayout(): TowerLayout {
     bearing += TURN_DEGREES;
     crystals.push(at(CRYSTAL_ORBIT, bearing, SECTION_2_START + chainRise * i));
   }
-  link(SECTION_2_START + chainRise * (SECTION_2_LINKS - 1), chainRise, PLATFORM_SIZE);
-  const section3Pad = platforms[platforms.length - 1];
+  const section3Pad = link(SECTION_2_START + chainRise * (SECTION_2_LINKS - 1), chainRise, PLATFORM_WIDTH);
 
   // Section 3 — mixed, 42 to 62: two steps, a link, two steps, a link onto the summit.
   const linkRise =
     (SUMMIT_Y - SECTION_3_START - SECTION_3_LINKS * SECTION_3_STEPS_PER_RUN * JUMP_RISE) / SECTION_3_LINKS;
   let y = SECTION_3_START;
+  standing = section3Pad;
   for (let i = 0; i < SECTION_3_LINKS; i++) {
-    for (let step = 0; step < SECTION_3_STEPS_PER_RUN; step++) {
-      bearing += TURN_DEGREES;
+    for (let s = 0; s < SECTION_3_STEPS_PER_RUN; s++) {
       y += JUMP_RISE;
-      platforms.push(slab(bearing, y, PLATFORM_SIZE));
+      standing = step(y, standing);
     }
     const last = i === SECTION_3_LINKS - 1;
-    y = link(y, linkRise, last ? SUMMIT_PAD_WIDTH : PLATFORM_SIZE);
+    standing = link(y, linkRise, last ? SUMMIT_PAD_WIDTH : PLATFORM_WIDTH);
+    y = standing.y;
   }
   const summit = platforms[platforms.length - 1];
 
@@ -548,19 +691,29 @@ function buildLayout(): TowerLayout {
   };
 
   return {
-    platforms, crystals, checkpointPads: [section2Pad, section3Pad], bounceLandings,
+    platforms, crystals, checkpointPads: [section2Pad, section3Pad], bounceLandings, jumpSteps,
     props: [pedestal],
   };
 }
 
 /**
- * The three rules from this file's header, checked against the layout that was actually generated
- * rather than against the prose that produced it. All three were violated by drafts of this file, and
- * none of them shows up as anything but a level that plays wrong.
+ * The four rules from this file's header, checked against the layout that was actually generated
+ * rather than against the prose that produced it. All four were violated by drafts of this file — the
+ * fourth by the draft that SHIPPED, which is why it is here — and none of them shows up as anything
+ * but a level that plays wrong.
  *
  * The slab test is a separating-axis one over the four face normals: the largest gap it finds is a
  * lower bound on the true distance between two rectangles, so passing it is conclusive and failing it
  * is a warning worth looking at rather than proof.
+ *
+ * **What the column rule is run over.** {@link TowerLayout.jumpSteps} — the transitions the player
+ * crosses by jumping — and not every consecutive pair of platforms, because "next in climb order" is
+ * not "jumped to": section 2's chain leaves four turns between two platforms and the chord between
+ * those passes the axis on the far side of the column. The transitions it therefore does NOT check are
+ * the links, which go out to a crystal at {@link CRYSTAL_ORBIT} and come back down vertically and so
+ * are never near the column, and the first step of section 1, which is jumped from the floor on a
+ * radial approach from {@link TOWER_SPAWN} rather than around anything. It is the ideal line between
+ * two centres, not a played one; {@link JUMP_PATH_MARGIN} is what stands in for the difference.
  *
  * **What the overhang loop is run over, and what it is deliberately not.** It walks `platforms` only.
  * Three things are outside it, each on purpose rather than by omission:
@@ -570,7 +723,7 @@ function buildLayout(): TowerLayout {
  *   so including it would warn. That is accepted rather than fixed, and the alternative is worse: the
  *   first step would have to rise to 2.4 u to clear the capsule, which is above the 1.6875 u jump
  *   apex, so it would stop being reachable from the floor at all. What the lid covers is one
- *   2.4 × 2.4 patch of a disc 28 u across, at orbit 3.0–5.4 where the column already takes the middle
+ *   2.4 × 3.2 patch of a disc 28 u across, at orbit 3.0–6.2 where the column already takes the middle
  *   out, and {@link TOWER_SPAWN} is at orbit 7 with nothing under that slab to walk to. The rule is
  *   about the ledges you climb between; the floor is the one surface you never have to climb back on.
  * - **The column.** Not standable (`towerScene` says so and nothing contradicts it), so it has no
@@ -582,7 +735,18 @@ function buildLayout(): TowerLayout {
  * It warns rather than throws: a tower with one bad ledge is still worth loading and looking at, and
  * an error thrown here would take the whole scene down at import time.
  */
-function auditLayout({ platforms, bounceLandings, props }: TowerLayout): void {
+function auditLayout({ platforms, bounceLandings, jumpSteps, props }: TowerLayout): void {
+  for (const [from, to] of jumpSteps) {
+    // The column is a cylinder, so the whole of the jump is judged by the chord's nearest approach to
+    // the axis; the capsule is a capsule, so its edge reaches CAPSULE_RADIUS further in than its own
+    // path does, at every height it passes through.
+    const path = axisClearance(from, to);
+    const room = path - CAPSULE_RADIUS - TOWER_COLUMN_RADIUS;
+    if (room < JUMP_PATH_MARGIN) {
+      console.warn(`[towerLevel] the jump from y=${from.y} to y=${to.y} is blocked by the column — the line between them passes ${path.toFixed(3)} u from the axis, so a ${CAPSULE_RADIUS} u capsule's edge reaches ${(path - CAPSULE_RADIUS).toFixed(3)} u against a column of ${TOWER_COLUMN_RADIUS}: ${room.toFixed(3)} u where ${JUMP_PATH_MARGIN} is required. See PLATFORM_ORBIT.`);
+    }
+  }
+
   for (const [crystal, pad] of bounceLandings) {
     // The crystal is directly outboard of the pad's centre, so the radial edge is the nearest one.
     const reach = Math.hypot(crystal.x - pad.x, crystal.z - pad.z);
@@ -643,7 +807,12 @@ export const TOWER_CRYSTALS: readonly Vec3[] = layout.crystals;
 
 /** How far out the player starts. **Untuned**: 7 u is outside {@link CRYSTAL_ORBIT}, so the whole
  *  spiral — column, first step and the crystal above it — is in front of the player rather than
- *  overhead. */
+ *  overhead. The re-solve pushed {@link CRYSTAL_ORBIT} from 6.3 to 6.9 and left this alone, so the
+ *  rule still holds but by 0.1 u where it used to hold by 0.7: **this is now the number the next push
+ *  outward breaks first**, and it is also still outside the platforms' own outer corners at 6.32, which
+ *  is what keeps the floor under the spawn clear of section 1's first slab. What saves the framing in
+ *  the meantime is a bearing rather than a radius — the first crystal is a turn round the column,
+ *  6.95 u away across the floor and 24 u up, not overhead. */
 const SPAWN_ORBIT = 7;
 
 /**

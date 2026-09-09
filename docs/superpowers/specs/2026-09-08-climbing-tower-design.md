@@ -515,6 +515,53 @@ records what that run established and — more carefully — what it did not. §
 keeps its **Untuned** marking, and the judgements that are the project owner's are collected in
 §14.8 rather than answered here.
 
+> ### ⚠ This section was measured against a layout that has since been superseded
+>
+> The tower climbed below is not the tower that ships. The project owner played it and reported that
+> the angle between one platform and the next was blocked by the column, and the arithmetic bore it
+> out: at `PLATFORM_ORBIT` 4.2 the straight line between two neighbouring platforms passes
+> `4.2 · cos(30°)` = 3.637 u from the axis, so a `CAPSULE_RADIUS` 0.5 capsule's edge reached
+> **3.137 u — 0.063 u inside** a `TOWER_COLUMN_RADIUS` of 3.2, on every one of the tower's sixteen
+> platform-to-platform jumps. `auditLayout` never checked the path BETWEEN two ledges; it does now,
+> and **that rule fires on the whole of the layout this section climbed**. `PLATFORM_ORBIT`,
+> `PLATFORM_DEPTH` and `BOUNCE_REACH` were re-solved together to satisfy it — **4.6 / 3.2 / 2.3**
+> where this playthrough ran on 4.2 / 2.4 / 2.1.
+>
+> Nothing below is deleted, because a measurement is the record of a run and not a claim about the
+> current build. What it is worth now splits cleanly, and the split is by whether a figure is about
+> the geometry or about the code:
+>
+> **Void — every distance measured to or between platforms, crystals and pads.** §14.1's landing
+> offsets (0.13–0.97 u from the balcony's centre, and the 0.20 u and 0.34 u on the other two pads),
+> its launch shortfalls read against `BOUNCE_REACH` 2.1, and its finding that the landings fall
+> outside the band `auditLayout` models — that band is `PLATFORM_DEPTH/2 − CAPSULE_RADIUS`, which
+> was 0.70 u then and is 1.10 u now, so the finding has to be re-measured before it can be repeated.
+> §14.4's camera-to-axis distances (7.93 / 6.42 / 9.09 u on the route's aims, 1.20–1.77 u on a fall)
+> were computed from `PLATFORM_ORBIT` 4.2 and every one of them moves. §14.7's "no layout audit
+> warning fired" was true of the audit as it stood and is false of the audit as it stands, which is
+> the single most important line in this box.
+>
+> **Not void, but not re-measured either — §14.2's times.** The step and link counts, the section
+> heights, `JUMP_RISE` and the 0.80 u gap between two slabs' footprints are all unchanged, so the
+> jump arc a step pays for is the same arc; what changed is that a platform is 0.8 u deeper, so the
+> approach run across it is longer than the one timed here. Read 15.1 : 2.4 : 7.1 as a floor that is
+> now slightly low, and read the mechanism it established — a link and a step cost the same, only
+> *chaining* is cheap, so the times follow the count — as untouched, because none of it turns on a
+> distance.
+>
+> **Still holds — the findings that are about the code rather than the geometry.** §14.3's respawn is
+> a cut with zero glide frames, and its whole fall table with it: the drops are vertical, the section
+> heights did not move, and `TOWER_FALL_MARGIN`'s 0.450 s costs what it cost. §14.5's round trip,
+> including `TOWER_SPAWN` (3.5, 1.3, 6.062) — `SPAWN_ORBIT` 7 and the spawn bearing are both
+> unchanged, so that coordinate is still the one the level computes — and `portalReturnSpawn`'s
+> constructed 3.200 u. §14.6's resize, entirely. The instrumentation caveats at the head of this
+> section: dead `requestAnimationFrame`, refused pointer lock, a scripted route that is a floor on
+> what a person costs. And §14.8's questions, all seven, which the re-solve answers none of.
+>
+> **Re-verified on the new layout, by driving frames the same way:** a section-1 platform-to-platform
+> jump now crosses with the capsule clear of the column, and the final link still lands on the summit
+> balcony. Neither was re-measured at §14.1's nineteen-run depth; see the tower re-layout report.
+
 **Frames were driven by hand.** The Browser pane's `requestAnimationFrame` is dead in this
 environment — **0 ticks measured over 500 ms** — so every frame below came from
 `engine.beginFrame(); scene.render(); engine.endFrame()` called in a loop from the console with
@@ -544,6 +591,10 @@ Two more things about the instrumentation, because they bound what the rest is w
   measure fastest.
 
 ### 14.1 The summit is reachable — the last bounce lands
+
+*Measured on the superseded layout — `PLATFORM_ORBIT` 4.2, a pad 2.4 u deep, `BOUNCE_REACH` 2.1. The
+link still lands on the re-solved one, re-driven rather than re-measured at this depth; every offset
+below is a distance to a pad that has since moved. See the box at the head of §14.*
 
 This was the single thing most worth running, because the geometry alone could not decide it:
 `stepHoming` bounces from wherever the capsule is when `travelled >= remaining`, up to
@@ -741,7 +792,9 @@ observed — no tower column exists to test against yet**". It is now observed, 
 and it is worse than it was inferred to be: this is not a camera clipping through scenery, it is the
 fall §2 promises the player will watch, played out behind a blank wall.
 
-**The climb itself never does this.** The camera's distance from the axis was computed for every aim
+**The climb itself never does this.** *(Computed at `PLATFORM_ORBIT` 4.2 — the platforms now stand at
+4.6 and every figure in this paragraph moves with them, though none of them moves inside 3.2. See the
+box at the head of §14.)* The camera's distance from the axis was computed for every aim
 the route requires, from `followCamera`'s own placement formula: **7.93 u** for each of the sixteen
 platform-to-platform steps, **6.42 u** for each of the three aims up at a launch crystal, **9.09 u**
 for each chain aim. Not one of the twenty-two is inside 3.2.
@@ -829,7 +882,11 @@ now, across two aspect ratios:
   and the first platform are all on screen at the camera's default yaw — which is what that
   constant's doc argues for and could not previously claim.
 - **No layout audit warning fired**, across three builds of the tower. `auditLayout` had nothing to
-  say about the level that was actually generated.
+  say about the level that was actually generated. **This line no longer holds.** The audit has since
+  gained a fourth rule — the straight line between two platforms has to clear the column by the
+  capsule's radius and a margin — and it fires on all sixteen jumps of the layout climbed here. That
+  it was silent while the level played wrong is exactly why the rule was added; see the box at the
+  head of §14.
 - **The summit pedestal is backlit from its own landing.** The bounce lands on the balcony's centre
   line and the pedestal stands 2 u along the face toward the sun, so from where the player lands it
   reads as a dark disc on a white slab rather than as white on white. Watched, not measured, and not
