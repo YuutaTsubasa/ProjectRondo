@@ -250,11 +250,14 @@ export function createFollowCamera(
     // terrain collider's triangles (worst on descent), so copying it rigidly juddered the camera. When
     // grounded, anchor to the SMOOTH terrain height under the player instead of the capsule Y; only
     // follow the real Y when clearly airborne so jumps still read. A light lerp smooths the transition.
-    // Where the ground query answers a plane far below the player — a world of stacked platforms —
-    // the GROUNDED_BAND test fails on every frame, so the anchor is the raw `t.y` and this
-    // anti-judder path simply does not apply; the lerp below is unconditional and still runs.
-    const groundLevel = groundHeight(t.x, t.z) + CAPSULE_HALF;
-    const targetY = Math.abs(t.y - groundLevel) < GROUNDED_BAND ? groundLevel : t.y;
+    // A world that cannot say where its ground is (`GroundHeight` answering null — the tower, whose
+    // surfaces are all colliders) gets the same treatment as one whose ground is far below the
+    // player: the anchor is the raw `t.y` and this anti-judder path does not apply. Nothing is lost
+    // by that where there is nothing to damp — the tower's floor is a flat slab, and the terrain
+    // triangles this exists for are the hub's. The lerp below is unconditional and still runs.
+    const ground = groundHeight(t.x, t.z);
+    const groundLevel = ground === null ? null : ground + CAPSULE_HALF;
+    const targetY = groundLevel !== null && Math.abs(t.y - groundLevel) < GROUNDED_BAND ? groundLevel : t.y;
     // How fast the target is falling, from the RAW `t.y` and never from `targetY`: `targetY` steps
     // by up to GROUNDED_BAND when the grounded branch flips, and one frame of that reads as ~30 u/s
     // of descent that the character is not doing — which would engage the term below on an ordinary
@@ -280,8 +283,13 @@ export function createFollowCamera(
     const position = anchor.add(offset).add(new Vector3(0, config.height, 0));
     // Keep the camera above the terrain directly under it — otherwise a downward pitch or a slope
     // rising behind the player pushes it below the one-sided ground and you see straight through it.
-    const groundUnderCamera = groundHeight(position.x, position.z) + CAMERA_GROUND_CLEARANCE;
-    position.y = Math.max(position.y, config.minCameraHeight, groundUnderCamera);
+    // A world that cannot say where its ground is has no such surface to clear, and is left with
+    // `minCameraHeight`, which is the same rule with a fixed height instead of a queried one.
+    const groundUnderCamera = groundHeight(position.x, position.z);
+    position.y = Math.max(position.y, config.minCameraHeight);
+    if (groundUnderCamera !== null) {
+      position.y = Math.max(position.y, groundUnderCamera + CAMERA_GROUND_CLEARANCE);
+    }
     camera.position.copyFrom(position);
     camera.setTarget(anchor.add(new Vector3(0, config.aimHeight, 0)));
   };

@@ -105,8 +105,10 @@ export interface Knight {
 const GROUND_PROBE_ABOVE = 0.25;
 const GROUND_PROBE_BELOW = 1;
 
-/** Target on-screen height of the knight, in world units (roughly the physics capsule height; see capsule.ts). */
-const TARGET_HEIGHT = 1.9;
+/** Target on-screen height of the knight, in world units (roughly the physics capsule height; see capsule.ts).
+ *  Exported as the character's own height, which is the scale {@link plantFeet}'s test measures the
+ *  foot plant's disagreement with the capsule against. */
+export const TARGET_HEIGHT = 1.9;
 /** Fraction of the idle animation's motion to keep (0 = frozen, 1 = full sway). Kills the side rock. */
 const IDLE_SWAY_KEEP = 0.2;
 
@@ -841,13 +843,19 @@ async function swapHeadMaterial(meshes: readonly AbstractMesh[]): Promise<void> 
  * `collider` is undefined), and a ray started inside the capsule still reports the pedestal at
  * 1.717. If that ever changes, the fix is an `ignoreBody` in the query.
  *
- * On a miss it returns the world's ground query, so the worst case is exactly the behaviour that
- * preceded this probe rather than snapping the knight somewhere worse.
+ * On a miss it defers to the world's ground query — and that query may itself have no answer, in
+ * which case this has none either. A miss means "nothing under this foot within the ray's reach",
+ * which is not the same as "the ground is wherever this world's floor is": in a level of stacked
+ * platforms the two differ by the whole height of the climb, and the ray misses at every platform's
+ * *edge*, where the foot has stepped past the slab while the capsule is still supported by it.
+ * Lengthening the ray does not close that — the miss is horizontal — it only reaches the floor
+ * sooner. See {@link GroundHeight} for which worlds answer and why, and {@link plantFeet} for what
+ * "no answer" does to the plant.
  */
 function createGroundProbe(
   scene: Scene,
   groundHeight: GroundHeight,
-): (x: number, footY: number, z: number) => number {
+): (x: number, footY: number, z: number) => number | null {
   // `raycastToRef` writes into these instead of allocating a result and two vectors every frame.
   // It lives on the v2 engine; `IPhysicsEngine` only declares the allocating `raycast`.
   const result = new PhysicsRaycastResult();
@@ -861,6 +869,49 @@ function createGroundProbe(
     engine.raycastToRef(from, to, result);
     return result.hasHit ? result.hitPointWorld.y : groundHeight(x, z);
   };
+}
+
+/**
+ * Registers the per-frame foot plant: drops the visual root by however far the capsule bottom sits
+ * above the surface under it, faded out by `knight.planted`. Split out of {@link loadKnight} and
+ * exported so a test can drive it against a bare scene — the seating this runs after needs the GLB,
+ * the correction itself does not, and the rule worth pinning is about the correction.
+ *
+ * **What a frame does when the probe has no answer: nothing.** The probe answers `null` when nothing
+ * is under the foot *and* the world cannot say where its ground is (see {@link createGroundProbe} and
+ * {@link GroundHeight}), and this leaves the root exactly where the last answered frame put it. The
+ * correction is small — the capsule rests 0.109-0.142 u above what it stands on, per
+ * {@link GROUND_PROBE_ABOVE} — so the previous frame's is a good answer, and it is the only honest
+ * one available: the alternative is the one this replaced, where a world's floor stood in for "the
+ * surface under this foot" and a sole reaching past the edge of a platform drew the knight down at
+ * the floor, tens of units below the capsule it is parented to.
+ *
+ * **Holding rather than clearing to `seatedLocalY`.** At a platform's edge the character is still
+ * standing: `planted` is 1 and stays 1, so there is no fade to ride the correction out on, and
+ * dropping it outright would step the knight by that tenth of a unit every time a sole crossed an
+ * edge. Once the character does leave the ground, `planted` fades and the first branch below returns
+ * the root to `seatedLocalY` on its own.
+ */
+export function plantFeet(
+  scene: Scene,
+  root: TransformNode,
+  parent: TransformNode,
+  knight: Pick<Knight, 'planted'>,
+  seatedLocalY: number,
+  groundHeight: GroundHeight,
+): void {
+  const groundUnder = createGroundProbe(scene, groundHeight);
+  scene.onBeforeRenderObservable.add(() => {
+    if (knight.planted <= 0) {
+      root.position.y = seatedLocalY;
+      return;
+    }
+    const p = parent.getAbsolutePosition();
+    const footY = p.y - CAPSULE_HALF;
+    const surface = groundUnder(p.x, footY, p.z);
+    if (surface === null) return;
+    root.position.y = seatedLocalY - knight.planted * (footY - surface);
+  });
 }
 
 /**
@@ -1015,16 +1066,7 @@ export async function loadKnight(
       // applying it would pin the knight to the ground while the capsule flies. `knight.planted`
       // fades it out, which also keeps takeoff and landing from popping. The probe is skipped
       // entirely once the correction is fading to nothing, so a jump costs no raycast.
-      const groundUnder = createGroundProbe(scene, groundHeight);
-      scene.onBeforeRenderObservable.add(() => {
-        if (knight.planted <= 0) {
-          root.position.y = seatedLocalY;
-          return;
-        }
-        const p = parent.getAbsolutePosition();
-        const footY = p.y - CAPSULE_HALF;
-        root.position.y = seatedLocalY - knight.planted * (footY - groundUnder(p.x, footY, p.z));
-      });
+      plantFeet(scene, root, parent, knight, seatedLocalY, groundHeight);
     });
   }
 
@@ -1194,8 +1236,10 @@ const playSegment = (group: AnimationGroup, fromSeconds: number, toSeconds: numb
  * just zero-weighted.
  *
  * **Jump** rides over the top as a one-shot: the launch→fall segment, started the moment the knight
- * leaves the ground and retimed to fill the real airtime, fading the locomotion blend out and back by
- * `jumpWeight`. Touchdown just ends it — no landing clip is played (see {@link JUMP_FALL_END}).
+ * leaves the ground and retimed to fill a jump's airtime, fading the locomotion blend out and back by
+ * `jumpWeight`. **Touchdown, and only touchdown, ends it**: a descent the segment runs out under —
+ * any fall the player did not launch — keeps the frame the segment ended on instead of handing the
+ * pose back to locomotion in mid-air. No landing clip is played (see {@link JUMP_FALL_END}).
  *
  * "Leaves the ground" is {@link stepJumpPose}'s `offGround`, not `airborne` itself, and everything
  * here that used to read `airborne` reads that instead: the support probe finds floor mid-dash and
@@ -1218,7 +1262,10 @@ const playSegment = (group: AnimationGroup, fromSeconds: number, toSeconds: numb
  * hold the run clip down against `homingSpeed`. {@link KnightMotionSample.bounced} restarts the jump
  * clip from {@link BOUNCE_RESTART} — `stepJumpPose` is what holds that restart, so it rides the
  * existing `jumpWeight` blend back into locomotion; a timeout plays nothing — the domain already
- * zeroed the velocity, so the knight simply resumes falling under gravity next frame.
+ * zeroed the velocity, so the knight simply resumes falling under gravity next frame. Because
+ * `offGround` is still true through the rest of that fall, "plays nothing" now also means locomotion
+ * does not come back for it: the knight keeps the last airborne pose it was given until it lands,
+ * which for a timed-out dash is the kick's, and this has not been watched in a browser.
  */
 export function driveKnightAnimation(
   scene: Scene,
@@ -1291,12 +1338,24 @@ export function driveKnightAnimation(
     }
     wasHoming = homing;
 
-    // The segment is a one-shot, so a fall outlasting the clip stops the group mid-air. Let the weight
-    // ease down either way rather than dropping the jump's influence to zero on the frame it stops:
-    // locomotion would otherwise snap in at full weight in one frame, the very discontinuity this
-    // whole weight blend exists to avoid. A stopped group holds its last pose, so easing off it looks
-    // like settling out of the jump.
-    jumpWeight = moveToward(jumpWeight, offGround && jump.isPlaying ? 1 : 0, JUMP_BLEND_PER_SECOND * dt);
+    // **The airborne pose owns the blend for as long as the character is off the ground**, whether or
+    // not the clip is still running — which is why the target is `offGround` alone and not
+    // `offGround && jump.isPlaying`.
+    //
+    // The segment is a one-shot retimed onto `airtime`, and `airtime` is a *jump's*: up and back down
+    // under the domain's gravity, 0.75s at `jumpSpeed` 9 and `gravity` 24. A jump therefore lands as
+    // the clip ends, which is what the retime is for. An uncommanded fall has no such number — not
+    // being able to say how long it will last is exactly what distinguishes it from a jump the player
+    // asked for — and the tower's are far longer (spec §14.3 measured 1.250s off the summit). Ending
+    // the clip's influence when the clip ends handed the rest of those falls back to locomotion, so
+    // the knight ran in mid-air for half a second; with `FALL_GRACE_SECONDS`' 0.2s debounce ahead of
+    // it, the fall read as playing no animation at all.
+    //
+    // Holding the weight at 1 holds the pose: locomotion's weights below all carry a `(1 -
+    // jumpInfluence)` factor, so they stay at zero, their groups stay stopped, and the bones keep the
+    // last values the segment wrote — its final frame. Touchdown is what releases it, and the ease
+    // back down is the same one a landing has always used.
+    jumpWeight = moveToward(jumpWeight, offGround ? 1 : 0, JUMP_BLEND_PER_SECOND * dt);
     // Same fast ease as the jump: a dash pose has to read as immediate, not cross-fade in.
     kickWeight = moveToward(kickWeight, homing && kick.isPlaying ? 1 : 0, JUMP_BLEND_PER_SECOND * dt);
     if (kick.isPlaying) {
@@ -1307,10 +1366,10 @@ export function driveKnightAnimation(
     // still ramping — on the frame a dash starts. Cut kick's share out of jump's *rendered* weight
     // (not `jumpWeight` itself, which still governs the stop-on-touchdown check below) so the two
     // one-shots don't compete for the same bones. Locomotion carries its own `(1 - kickWeight)` term
-    // below, and needs it: `jumpInfluence` is `jumpWeight`, which targets `offGround && jump.isPlaying`,
-    // so a dash entered from a fall whose jump segment has already finished — or from a fall that never
-    // played one — has `jumpInfluence` at 0 while `planarSpeed` is `homingSpeed`, which would otherwise
-    // put the run clip at full weight against the kick pose.
+    // below, and keeps it: it is the only thing holding the run clip down against `homingSpeed` on a
+    // frame where the kick pose is what should be on screen, and it does not depend on `jumpInfluence`
+    // having any particular value — a dash's own entry raises `offGround`, so the two terms overlap
+    // for most of a dash rather than each covering for the other.
     if (jump.isPlaying) {
       jump.setWeightForAllAnimatables(jumpWeight * (1 - kickWeight));
       if (!offGround && jumpWeight <= WEIGHT_EPSILON) jump.stop();

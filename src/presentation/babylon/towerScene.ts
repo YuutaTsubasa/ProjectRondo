@@ -25,7 +25,7 @@ import { stepTowerProgress, TOWER_START, type TowerProgress } from '../../domain
 import { createCharacterRig } from './characterRig';
 import { createCrystals } from './crystals';
 import { exposeDevHandle } from './devHandles';
-import { flatGround } from './groundHeight';
+import { unknownGround } from './groundHeight';
 import { loadHavok } from './havokModule';
 import { disposeLevel, type LevelParts } from './levelTeardown';
 import { createShadows, type Shadows } from './shadows';
@@ -244,11 +244,14 @@ async function buildTowerScene(
     canvas,
     sun,
     makeShadows: (camera) => towerShadows(sun, camera),
-    // The tower's whole answer to "how high is the ground here": one plane. It is what keeps
-    // `followCamera`'s ground clamp — which has no domain guard and would otherwise still be
-    // answering with the hub's height field, pinning the camera at y ~ 15-18 for the whole of
-    // section 1 (spec §13.2) — reporting the floor.
-    groundHeight: flatGround(TOWER_FLOOR_Y),
+    // The tower's whole answer to "how high is the ground here": it has none. Every surface here is
+    // a collider the foot probe and the support probe find for themselves, and the floor at y 0 is
+    // the surface for a character at the base and for nobody on a slab 40 u above it — which is what
+    // answering it anyway did, drawing the knight down on the floor at every platform edge. See
+    // {@link unknownGround} for what the camera gives up along with it. What must NOT come back is
+    // the hub's height field, which has no domain guard and would pin the camera at y ~ 15-18 for
+    // the whole of section 1 (spec §13.2); that is why this is injected at all.
+    groundHeight: unknownGround,
     spawn: TOWER_SPAWN,
     crystals,
     // Yes, and this is the level the term exists for: a missed platform is a 24-28 u fall the player

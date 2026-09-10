@@ -73,9 +73,9 @@ const DEG = Math.PI / 180;
 // Section boundaries — spec §3's Untuned heights. Everything below is laid out between them.
 // ---------------------------------------------------------------------------------------------
 
-/** The tower's floor: the plane the character rig's `flatGround` answers with, and the surface
- *  section 1's checkpoint stands on. Zero, because a tower that starts at zero is a tower whose
- *  heights read as heights. */
+/** The tower's floor: the slab the base is built on, and the surface section 1's checkpoint stands
+ *  on. Zero, because a tower that starts at zero is a tower whose heights read as heights. It is a
+ *  collider and not a ground query — see `unknownGround` for why the rig is handed no height field. */
 export const TOWER_FLOOR_Y = 0;
 /** Section 2 (the homing chain) begins here — 18 u of platform jumping below it. */
 const SECTION_2_START = 18;
