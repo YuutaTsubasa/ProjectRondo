@@ -244,7 +244,7 @@ field directly, and a tower has no height field:
 |---|---|---|
 | `playerController.ts:95` | Spawn is `terrainHeight(0,0) + …` | Wrong outright — the spawn must become a parameter |
 | `followCamera.ts:92,105` | Keeps the camera above `terrainHeight` | **Now measured — see §13.2, which supersedes this cell.** Benign only *near the hub origin*: `terrainHeight` has no domain guard and keeps returning 14–18 outside the field, so a tower placed beyond `EDGE_RADIUS` pins the camera at y ≈ 15–18 whatever the player does. The injected ground query below is a blocker, not tidiness |
-| `knight.ts:854,858` | Foot-plant raycast falls back to `terrainHeight` when it misses | Only the fallback, but the fallback is the hub's ground under a tower |
+| `knight.ts:854,858` | Foot-plant raycast falls back to `terrainHeight` when it misses | **Now shipped and measured — this cell understated it.** Not "only the fallback": the ray misses *horizontally*, at every platform edge, where the sole has passed the slab and the capsule has not, so the fallback fires on an ordinary stride and drew the knight 52 u below its own capsule on `towerPlatform_16`. Resolved by widening `GroundHeight` to `number \| null` (`groundHeight.ts`); the tower answers `unknownGround` and the plant holds its last correction |
 
 The honest resolution is to make "what is the ground here" an injected query rather than an imported
 constant, and to give `createPlayer` a spawn. The alternative — leaving the imports and relying on

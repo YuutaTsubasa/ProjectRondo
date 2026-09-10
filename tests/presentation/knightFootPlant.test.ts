@@ -7,7 +7,7 @@ import { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { PhysicsRaycastResult } from '@babylonjs/core/Physics/physicsRaycastResult';
 
-import { plantFeet, TARGET_HEIGHT } from '../../src/presentation/babylon/knight';
+import { plantFeet } from '../../src/presentation/babylon/knight';
 import { unknownGround, type GroundHeight } from '../../src/presentation/babylon/groundHeight';
 import { terrainHeight } from '../../src/presentation/babylon/terrainHeight';
 import { CAPSULE_HALF } from '../../src/presentation/babylon/capsule';
@@ -16,11 +16,22 @@ import { CAPSULE_HALF } from '../../src/presentation/babylon/capsule';
  * The foot plant, run for real, against the case that had no test and shipped a visible bug: the
  * knight drawn down on the tower's floor while its capsule stood on a platform 20 or 40 u up.
  *
- * **The rule these hold** is the one the bug broke and nothing else states: *the plant target never
- * disagrees with the capsule by more than the character's own height.* The knight is parented to the
- * capsule root, so its local Y is exactly that disagreement, and {@link TARGET_HEIGHT} is exactly
- * that height. Anything the plant can legitimately do — the tenth of a unit the capsule floats above
- * what it stands on — is orders of magnitude inside it; the failure it excludes was 40.
+ * **The rule these hold** is the one the bug broke and nothing else states: *a frame the ground probe
+ * cannot answer moves the plant not at all.* The knight is parented to the capsule root, so its local
+ * Y is exactly its disagreement with the capsule, and the assertion is that such a frame leaves that
+ * number alone — exactly, not within a tolerance.
+ *
+ * It is stated that way because the obvious looser form does not carry its own weight. "Never
+ * disagrees with the capsule by more than the character's own height" sounds like the rule, and is
+ * nearly vacuous: the correction the plant legitimately makes is ~0.13 u, so a 1.9 u bound leaves
+ * room for a fourteenfold error before it says anything. Restore the old behaviour and the bound
+ * catches it at 18 u and above only because the numbers there are enormous; the exact comparison
+ * catches it at every height the two answers actually differ at.
+ *
+ * They do not differ at one of them. The `standing on 0 u` row is the tower's floor, where "hold the
+ * last correction" and "answer with the floor" are the same answer, so no assertion at that height
+ * can tell them apart. It is in the table anyway, because it is the height at which the shipped bug
+ * was invisible and the reason nothing looked wrong until the climb started.
  *
  * Why this shape and not a scripted level: `loadKnight` fetches a GLB and `createPlayer` needs a
  * compiled Havok module, neither of which a test process has, and neither says anything about the
@@ -87,17 +98,16 @@ function mount(ground: GroundHeight, capsuleY: number): Rig {
 }
 
 describe('the foot plant against a world with no ground field', () => {
-  it.each(PLATFORM_TOPS)('never disagrees with the capsule by a body height, standing on %d u', (top) => {
+  it.each(PLATFORM_TOPS)('moves the plant not at all, standing on %d u', (top) => {
     const rig = mount(unknownGround, top);
     // Off the edge of the slab: the sole has passed the platform and the ray finds nothing within
     // its reach. The capsule is still supported, so the feet are still down — `planted` stays 1.
     rig.hit = null;
     rig.frame();
 
-    expect(Math.abs(rig.drift())).toBeLessThanOrEqual(TARGET_HEIGHT);
-    // The hold, in full: the frame moved the root not at all. Answering with the tower's floor at 0
-    // instead put the knight exactly `top` units below its own capsule — which at the floor itself
-    // is nothing, and is why nothing looked wrong until the climb started.
+    // Answering with the tower's floor at 0 instead put the knight exactly `top` units below its own
+    // capsule — which at the floor itself is nothing, and is why nothing looked wrong until the
+    // climb started.
     expect(rig.drift()).toBe(0);
   });
 

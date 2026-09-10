@@ -65,18 +65,28 @@ interface RigPieces {
   input?: InputState;
   follow?: FollowCamera;
   player?: Player;
+  knight?: Knight;
+  stopAnimation?: () => void;
 }
 
 /**
- * Releases whatever of a rig has been made: the input listeners, the camera's, and the Havok
- * character controller (see {@link Player.dispose}, which is the one of the three `scene.dispose()`
- * cannot reach at all).
+ * Releases whatever of a rig has been made: the knight's two frame-loop subscriptions, the input
+ * listeners, the camera's, and the Havok character controller (see {@link Player.dispose}, which is
+ * the one of these `scene.dispose()` cannot reach at all).
+ *
+ * **The frame-loop subscriptions come off first**, because both of them read pieces released below —
+ * the animation observer calls `readMotion`, which reads `player.motion`, and the foot plant reads
+ * the player root. `disposeLevel` disposes the scene on the next line, so no frame ever runs in
+ * between and the order is not load-bearing today; it is written this way so that it is still right
+ * if one ever does.
  *
  * One function for the finished rig and the half-built one both, for the reason `levelTeardown.ts`
  * gives one level up: an order written out twice is an order that drifts. It is called from
  * {@link CharacterRig.dispose} and from {@link createCharacterRig}'s `catch`.
  */
 function releaseRig(pieces: RigPieces): void {
+  pieces.stopAnimation?.();
+  pieces.knight?.release();
   pieces.input?.dispose();
   pieces.follow?.dispose();
   pieces.player?.dispose();
@@ -167,7 +177,8 @@ async function buildCharacterRig(
     };
   };
   const knight = await loadKnight(scene, root, shadows, options.groundHeight);
-  driveKnightAnimation(scene, knight, readMotion, () => ({
+  pieces.knight = knight;
+  pieces.stopAnimation = driveKnightAnimation(scene, knight, readMotion, () => ({
     walk: player.config.maxSpeed,
     run: player.config.runSpeed,
     // Up and back down under the domain's own gravity — the flat-ground airtime the jump clip fills.

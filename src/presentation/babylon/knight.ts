@@ -91,6 +91,16 @@ export interface Knight {
   /** Blue dash trail, started when `homing` turns on and stopped at the bounce or the timeout — see
    *  {@link driveKnightAnimation}. Created once, hidden, in {@link loadKnight}. */
   readonly trail: TrailMesh;
+  /**
+   * Unsubscribes everything {@link loadKnight} put on the scene's frame loop — today the seating
+   * pass and {@link plantFeet}'s correction, whichever of them is still attached.
+   *
+   * It is not a `dispose`: the nodes, meshes and clips are the scene's, and `scene.dispose()` is what
+   * takes those. This is only the observers, which nothing else has a handle on. Calling it more than
+   * once is harmless, and calling it on a knight whose seating pass has not run yet is the ordinary
+   * case for a level torn down during a load.
+   */
+  release(): void;
 }
 
 /**
@@ -105,10 +115,8 @@ export interface Knight {
 const GROUND_PROBE_ABOVE = 0.25;
 const GROUND_PROBE_BELOW = 1;
 
-/** Target on-screen height of the knight, in world units (roughly the physics capsule height; see capsule.ts).
- *  Exported as the character's own height, which is the scale {@link plantFeet}'s test measures the
- *  foot plant's disagreement with the capsule against. */
-export const TARGET_HEIGHT = 1.9;
+/** Target on-screen height of the knight, in world units (roughly the physics capsule height; see capsule.ts). */
+const TARGET_HEIGHT = 1.9;
 /** Fraction of the idle animation's motion to keep (0 = frozen, 1 = full sway). Kills the side rock. */
 const IDLE_SWAY_KEEP = 0.2;
 
@@ -891,6 +899,11 @@ function createGroundProbe(
  * dropping it outright would step the knight by that tenth of a unit every time a sole crossed an
  * edge. Once the character does leave the ground, `planted` fades and the first branch below returns
  * the root to `seatedLocalY` on its own.
+ *
+ * Returns the unsubscribe for the observer it adds. Nothing needs it today — a level owns its whole
+ * `Scene`, and disposing that clears the observable — but a subscription whose only way out is the
+ * death of the object it hangs off is one that decides for every future caller, and the inline code
+ * this was pulled out of had no way to hand one back. {@link Knight.release} is where it goes.
  */
 export function plantFeet(
   scene: Scene,
@@ -899,9 +912,9 @@ export function plantFeet(
   knight: Pick<Knight, 'planted'>,
   seatedLocalY: number,
   groundHeight: GroundHeight,
-): void {
+): () => void {
   const groundUnder = createGroundProbe(scene, groundHeight);
-  scene.onBeforeRenderObservable.add(() => {
+  const observer = scene.onBeforeRenderObservable.add(() => {
     if (knight.planted <= 0) {
       root.position.y = seatedLocalY;
       return;
@@ -912,6 +925,7 @@ export function plantFeet(
     if (surface === null) return;
     root.position.y = seatedLocalY - knight.planted * (footY - surface);
   });
+  return () => { scene.onBeforeRenderObservable.remove(observer); };
 }
 
 /**
@@ -1036,13 +1050,22 @@ export async function loadKnight(
   trailGenerator.position.y = rawHeight / 2;
 
   const trail = createDashTrail(scene, trailGenerator);
-  const knight: Knight = { animations: { idle, walk, run, jump, kick }, planted: 1, trail };
+  // Filled as the two frame-loop subscriptions below are made, drained by `release`. A list rather
+  // than two fields because the second one only exists after the first has run, and a level torn down
+  // in between has to release whatever there is.
+  const attached: (() => void)[] = [];
+  const knight: Knight = {
+    animations: { idle, walk, run, jump, kick },
+    planted: 1,
+    trail,
+    release: () => { for (const detach of attached.splice(0)) detach(); },
+  };
 
   // Bind-pose bounds don't match the animated idle pose (the knight floated ~0.8u above the floor),
   // so re-seat once on the actual posed mesh after the first rendered frame.
   const skinnedMeshes = result.meshes.filter((m) => m.skeleton && m.getTotalVertices() > 0);
   if (skinnedMeshes.length > 0) {
-    const observer = scene.onAfterRenderObservable.add(() => {
+    const seating = scene.onAfterRenderObservable.add(() => {
       // Seat on the lowest *skinned vertex*, not the foot bones: the shoe sole extends well below the
       // bones, and the old fixed clearance that compensated for it was hand-tuned, which is what left
       // the knight slightly floating on flat ground. refreshBoundingInfo(applySkeleton) is expensive,
@@ -1051,7 +1074,8 @@ export async function loadKnight(
       const sole = Math.min(...skinnedMeshes.map((m) => m.getBoundingInfo().boundingBox.minimumWorld.y));
       root.position.y += parent.getAbsolutePosition().y - CAPSULE_HALF - sole;
       const seatedLocalY = root.position.y; // feet grounded when the capsule bottom sits on the surface
-      scene.onAfterRenderObservable.remove(observer);
+      scene.onAfterRenderObservable.remove(seating);
+      attached.length = 0; // this pass is done unsubscribing itself; only the plant is left to release
 
       // On rolling terrain the physics capsule rests ABOVE the ground (its rounded bottom rides
       // slopes/bumps, plus the controller's keepDistance), so a rigidly-parented knight floats. Each
@@ -1066,8 +1090,9 @@ export async function loadKnight(
       // applying it would pin the knight to the ground while the capsule flies. `knight.planted`
       // fades it out, which also keeps takeoff and landing from popping. The probe is skipped
       // entirely once the correction is fading to nothing, so a jump costs no raycast.
-      plantFeet(scene, root, parent, knight, seatedLocalY, groundHeight);
+      attached.push(plantFeet(scene, root, parent, knight, seatedLocalY, groundHeight));
     });
+    attached.push(() => { scene.onAfterRenderObservable.remove(seating); });
   }
 
   return knight;
@@ -1227,6 +1252,31 @@ const playSegment = (group: AnimationGroup, fromSeconds: number, toSeconds: numb
 };
 
 /**
+ * Pins a clip on one of its frames — a group that goes on playing that single pose, at whatever
+ * weight it is given, instead of one that has stopped.
+ *
+ * The distinction is not cosmetic. **A stopped `AnimationGroup` writes nothing at all**, so its
+ * targets keep whatever the last frame's *blend* left on them. That is the clip's own pose only when
+ * the clip was the whole of that blend; when a second clip is fading over it, what the bones keep is
+ * a mixture of two clips' frames in whatever proportion the fade had reached on the frame the group
+ * happened to stop — a pose neither clip contains, and one that moves with the frame rate. A pose
+ * that has to survive another clip fading out over it therefore has to come from a group that is
+ * still playing, which is what this makes.
+ *
+ * The range is a single frame and the group *loops*, which is what keeps it playing: a one-shot over
+ * an empty range ends on the frame it starts, and the caller below — which pins whenever it finds the
+ * group stopped — would then stop and restart it once per frame for the length of a descent. Nothing
+ * about the rendered pose would differ, which is why the test that separates the two counts starts
+ * rather than looking at poses. `stop()` first is belt and braces, that caller having already checked:
+ * `start()` is silently ignored on a group that is already playing, per {@link playSegment}.
+ */
+const holdFrame = (group: AnimationGroup, atSeconds: number): void => {
+  const frame = frameAtSeconds(group, atSeconds);
+  group.stop();
+  group.start(true, 1, frame, frame);
+};
+
+/**
  * Drives the knight's pose from the player's motion each frame.
  *
  * **Locomotion** is one scalar `L`: 0 = idle, 1 = walk, 2 = run. It eases toward a target derived
@@ -1238,8 +1288,9 @@ const playSegment = (group: AnimationGroup, fromSeconds: number, toSeconds: numb
  * **Jump** rides over the top as a one-shot: the launch→fall segment, started the moment the knight
  * leaves the ground and retimed to fill a jump's airtime, fading the locomotion blend out and back by
  * `jumpWeight`. **Touchdown, and only touchdown, ends it**: a descent the segment runs out under —
- * any fall the player did not launch — keeps the frame the segment ended on instead of handing the
- * pose back to locomotion in mid-air. No landing clip is played (see {@link JUMP_FALL_END}).
+ * any fall the player did not launch — re-pins the segment's final frame as a held pose (see
+ * {@link holdFrame}) instead of handing the pose back to locomotion in mid-air. No landing clip is
+ * played (see {@link JUMP_FALL_END}).
  *
  * "Leaves the ground" is {@link stepJumpPose}'s `offGround`, not `airborne` itself, and everything
  * here that used to read `airborne` reads that instead: the support probe finds floor mid-dash and
@@ -1264,15 +1315,25 @@ const playSegment = (group: AnimationGroup, fromSeconds: number, toSeconds: numb
  * existing `jumpWeight` blend back into locomotion; a timeout plays nothing — the domain already
  * zeroed the velocity, so the knight simply resumes falling under gravity next frame. Because
  * `offGround` is still true through the rest of that fall, "plays nothing" now also means locomotion
- * does not come back for it: the knight keeps the last airborne pose it was given until it lands,
- * which for a timed-out dash is the kick's, and this has not been watched in a browser.
+ * does not come back for it: the kick fades out over `JUMP_BLEND_PER_SECOND`'s 0.1 s into the held
+ * jump segment, and the knight falls the rest of the way in the fall pose. That is the same pose an
+ * ordinary fall, a ground-entered dash and a run-out bounce all end in — measured identical to the
+ * last bit in `knightFallPose.test.ts`'s four cases.
+ *
+ * Three of those four have been watched on the real tower: walking off `towerPlatform_16`, jumping
+ * off it, and dashing into `crystal_3` and riding the bounce down. All three ran the segment to its
+ * end, pinned it at frame 78 — `JUMP_FALL_END` — at weight 1 with every locomotion group stopped for
+ * the whole descent, and handed the pose back over 0.1 s at touchdown. The fourth, a dash that times
+ * *out*, was not reachable there: `homingMaxDuration` 0.6 s is the time to cross `homingRange` at
+ * `homingSpeed` plus margin, so a dash that locks a crystal arrives, and every crystal on the tower
+ * is well inside that. It is measured on a `NullEngine` and nowhere else.
  */
 export function driveKnightAnimation(
   scene: Scene,
   knight: Knight,
   motion: () => KnightMotionSample,
   tuning: () => KnightTuning,
-): void {
+): () => void {
   const { idle, walk, run, jump, kick } = knight.animations;
   const locomotion = [idle, walk, run];
   const playing = new Map<AnimationGroup, boolean>(locomotion.map((g) => [g, g.isPlaying]));
@@ -1283,7 +1344,7 @@ export function driveKnightAnimation(
   let jumpPose = INITIAL_JUMP_POSE;
   let wasHoming = false;
 
-  scene.onBeforeRenderObservable.add(() => {
+  const observer = scene.onBeforeRenderObservable.add(() => {
     const dt = scene.getEngine().getDeltaTime() / 1000;
     const { planarSpeed, airborne, homing, bounced, homingEntrySeconds } = motion();
     const { walk: walkSpeed, run: runSpeed, airtime } = tuning();
@@ -1308,6 +1369,25 @@ export function driveKnightAnimation(
       const bounceRatio = 1;
       playSegment(jump, BOUNCE_RESTART, JUMP_FALL_END, bounceRatio);
     }
+    // **The segment does not end while the character is still off the ground.** It is a one-shot
+    // retimed onto a *jump's* airtime, so every descent the player did not launch outlives it, and
+    // what should be on the bones for the rest of that descent is the frame it ended on: the fall.
+    //
+    // Letting the group simply stop delivers that only when the segment is the whole of the blend —
+    // an ordinary fall, and a dash entered from the ground, whose kick is retimed onto a dash and so
+    // runs out inside the longer jump. A dash entered in *mid-air* is the case that breaks: its kick
+    // can outlive the segment, and then whichever of the two stopped last left the bones wherever
+    // its cross-fade had reached. Measured on a `NullEngine` with the five clips writing one channel
+    // (`knightFallPose.test.ts`'s rig, where the segment's last frame reads 159.99 and the kick 50):
+    // three mid-air dashes, differing only in when they started and how long they were expected to
+    // run, held 67.6, 50.8 and 92.4 for the rest of the fall — three different points between the
+    // two poses, set by which frame each group happened to stop on and by nothing else.
+    //
+    // Re-pinning the segment's final frame as a *playing* single-frame loop makes the fall pose a
+    // real contribution again, so the kick has something to fade back into and every off-ground hold
+    // — ordinary fall, dash timed out from the ground or from mid-air, bounce run out — is that one
+    // frame, 159.99 in all four. {@link holdFrame} has the mechanism.
+    if (offGround && !jump.isPlaying) holdFrame(jump, JUMP_FALL_END);
 
     // --- homing dash pose and trail ---------------------------------------------------------------
     // `offGround` stays true across the whole dash and the bounce that ends it, so the block above
@@ -1339,8 +1419,11 @@ export function driveKnightAnimation(
     wasHoming = homing;
 
     // **The airborne pose owns the blend for as long as the character is off the ground**, whether or
-    // not the clip is still running — which is why the target is `offGround` alone and not
-    // `offGround && jump.isPlaying`.
+    // not the clip is still running its retimed segment — which is why the target is `offGround`
+    // alone and not `offGround && jump.isPlaying`. Since the block above keeps the group playing for
+    // exactly as long as `offGround` holds, the second half would now be redundant rather than wrong;
+    // it is left out because this weight is a statement about the character and not about a group's
+    // bookkeeping, and because it then stays right on its own if that block ever changes.
     //
     // The segment is a one-shot retimed onto `airtime`, and `airtime` is a *jump's*: up and back down
     // under the domain's gravity, 0.75s at `jumpSpeed` 9 and `gravity` 24. A jump therefore lands as
@@ -1352,9 +1435,10 @@ export function driveKnightAnimation(
     // it, the fall read as playing no animation at all.
     //
     // Holding the weight at 1 holds the pose: locomotion's weights below all carry a `(1 -
-    // jumpInfluence)` factor, so they stay at zero, their groups stay stopped, and the bones keep the
-    // last values the segment wrote — its final frame. Touchdown is what releases it, and the ease
-    // back down is the same one a landing has always used.
+    // jumpInfluence)` factor, so they stay at zero and their groups stay stopped, leaving the held
+    // jump segment writing the bones by itself. Touchdown is what releases it, and the ease back down
+    // is the same one a landing has always used — with the segment's own final frame on one side of
+    // it, rather than whatever a stopped group had happened to leave behind.
     jumpWeight = moveToward(jumpWeight, offGround ? 1 : 0, JUMP_BLEND_PER_SECOND * dt);
     // Same fast ease as the jump: a dash pose has to read as immediate, not cross-fade in.
     kickWeight = moveToward(kickWeight, homing && kick.isPlaying ? 1 : 0, JUMP_BLEND_PER_SECOND * dt);
@@ -1402,4 +1486,9 @@ export function driveKnightAnimation(
       if (want) group.setWeightForAllAnimatables(weights[i]);
     }
   });
+
+  // Handed back for {@link plantFeet}'s reason: this observer is the only live reference to the
+  // closure above, and nothing outside the scene can reach it. `characterRig` releases it beside the
+  // input listeners and the character controller, and before the scene that owns the observable goes.
+  return () => { scene.onBeforeRenderObservable.remove(observer); };
 }

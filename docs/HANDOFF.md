@@ -151,8 +151,11 @@ pnpm tauri dev          # native desktop app (needs Rust)
     written (§7): the visual knight was planted against `terrainHeight`, the height *field*, so it
     rendered *through* anything with its own collider. On the pedestal the capsule was correctly at
     1.843 on a 1.717 top while the model's lowest vertex sat at 1.167 — exactly the terrain height,
-    0.55 low. Now planted against a downward physics raycast, falling back to `terrainHeight` on a
-    miss. This is not a P3 bug; P3 was just the first thing built that the player stands *on*.
+    0.55 low. Now planted against a downward physics raycast; on a miss it asks the world's own
+    ground query, which since the climbing tower is `GroundHeight = (x, z) => number | null` — the
+    hub answers everywhere from `terrainHeight`, the tower answers nowhere (`unknownGround`), and a
+    plant handed no answer holds the correction it last measured rather than inventing one. This is
+    not a P3 bug; P3 was just the first thing built that the player stands *on*.
   - **P4 life & motion:** a shared wind field (`wind.ts`, a `MaterialPluginBase`) bends grass, flowers
     and trees (`scatter.ts` / `trees.ts`, one `applyWind` call each) along the single direction in
     `windDirection.ts`; a second inward-facing dome (`clouds.ts`) carries a procedurally drawn,
@@ -362,12 +365,35 @@ These are hard-won; several cost a debugging session each.
   collider the model rendered straight *through* it: on the plaza pedestal the capsule was correctly
   at 1.843 on a 1.717 top while the knight's lowest rendered vertex sat at 1.167 — exactly
   `terrainHeight(-6, 32)`, 0.55 low, i.e. standing on the ground inside the plinth. It now casts a
-  downward physics ray (`PhysicsEngine.raycastToRef`, ~7 µs) and falls back to `terrainHeight` on a
-  miss. Two traps this hid behind: **no physics assertion can see it** — the capsule was always
+  downward physics ray (`PhysicsEngine.raycastToRef`, ~7 µs). Two traps this hid behind: **no physics
+  assertion can see it** — the capsule was always
   right, only the render was wrong, so the check must compare the knight's lowest rendered vertex
   against the collider; and **"stand on X" passes on the broken build if you teleport the capsule**,
   which is what an automated check naturally does. Make the character get there under its own power.
   (`CharacterSurfaceInfo` cannot help — it carries normals and velocities, no surface *position*.)
+- **And a world's ground query is not the surface under a foot either** — the same lesson one level
+  up, which the climbing tower found. The raycast above falls back to that query when it misses, and
+  that read as a safe floor only for as long as the hub was the only world: a height field *is* the
+  surface everywhere over it. A level of stacked platforms has no such function. Its floor is the
+  surface for a character at the base and for nobody standing 40 u up, and the ray misses precisely
+  at every platform's **edge** — horizontally, where the sole has passed the slab while the capsule
+  is still supported by it — so the fallback fired on an ordinary stride and drew the knight down on
+  the floor 52 u below its own capsule. Lengthening the ray does not close a horizontal miss. The fix
+  was in the type: `GroundHeight` returns `number | null`, `unknownGround` is the honest answer for a
+  world built of colliders, and each consumer decides what it does without a number (the plant holds
+  its last correction, ~0.13 u; the camera loses a 0.1 u floor and a 0.12 u aim anchor at the base).
+- **A clip retimed onto a *jump's* airtime under-covers every landing below its takeoff.** The knight's
+  jump segment is stretched to fill `airtime` = `2 · jumpSpeed / gravity` = 0.75 s, which is the
+  flat-ground number: rise `jumpSpeed / gravity` = 0.375 s, fall the same 1.6875 u back. Landing `h`
+  below takeoff makes it `0.375 + √((1.6875 + h) / 12)`, which exceeds 0.75 s for **every** `h > 0`.
+  So the "the clip ends as the capsule lands" that the retime is for is true on flat ground and
+  nowhere else, and the hold that covers the difference (`knight.ts`, the jump segment re-pinned on
+  its last frame while `offGround`) is not a tower-only path: it fires on roughly every downhill jump
+  in the hub. Its size there is bounded — over the walkable belt (`r ≤ EDGE_RADIUS` 42) the relief
+  is 7.15 u, and the largest gap between two walkable points one jump's 6 u reach apart is 3.15 u
+  (0.25 u grid scan), giving 1.010 s off the ground and **0.260 s** of held final frame. Pure falls are the
+  rare case, not the common one: a fall needs a 10.83 u drop before `FALL_GRACE_SECONDS` plus 0.75 s
+  are used up, and the hub's whole relief only buys 0.572 s of off-ground.
 - **Benchmark configs interleaved, never one block each — and shuffle the order *within* each round.**
   Interleaving alone was not enough in P3: with a fixed order inside each round, "landmark off"
   (2.805 ms) came out *faster* than "both off" (2.984 ms), which is impossible since both-off draws

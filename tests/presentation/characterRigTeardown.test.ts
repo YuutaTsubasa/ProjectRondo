@@ -68,7 +68,9 @@ vi.mock('../../src/presentation/babylon/playerController', () => ({
 
 vi.mock('../../src/presentation/babylon/knight', () => ({
   loadKnight,
-  driveKnightAnimation: vi.fn(),
+  // Both of the knight's frame-loop subscriptions hand back an unsubscribe, and the rig releases
+  // them; these record that they were called, in the order they were.
+  driveKnightAnimation: vi.fn(() => () => { calls.push('animation'); }),
 }));
 
 import { createCharacterRig } from '../../src/presentation/babylon/characterRig';
@@ -133,7 +135,7 @@ describe('createCharacterRig teardown', () => {
   });
 
   it('releases nothing on a build that finishes', async () => {
-    loadKnight.mockResolvedValueOnce({});
+    loadKnight.mockResolvedValueOnce({ release: () => { calls.push('knight'); } });
 
     const rig = await createCharacterRig(scene(), options());
 
@@ -142,6 +144,9 @@ describe('createCharacterRig teardown', () => {
     expect(calls).toEqual([]);
 
     rig.dispose();
-    expect(calls).toEqual(['input', 'follow', 'player']);
+    // The two frame-loop subscriptions first: both of them read pieces released after them (the
+    // animation observer reads `player.motion`, the foot plant reads the player root), so a frame
+    // that ran between the two halves of this list would read a disposed controller.
+    expect(calls).toEqual(['animation', 'knight', 'input', 'follow', 'player']);
   });
 });
