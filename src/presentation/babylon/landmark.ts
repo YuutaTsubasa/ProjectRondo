@@ -8,6 +8,7 @@ import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
 // Side-effect: registers the StandardMaterial shader. Required with tree-shaken deep imports.
 import '@babylonjs/core/Materials/standardMaterial';
 import { terrainHeight } from './terrainHeight';
+import { PEDESTAL_HEIGHT } from './pedestal';
 import { ROCK_DIFFUSE_RGB } from './rockColors';
 
 /**
@@ -28,9 +29,6 @@ const PILLAR_RADIUS = 0.45;
 /** Height of the pillar crowns above the plaza centre's ground level. */
 const CROWN_HEIGHT = 4.2;
 export const PEDESTAL_RADIUS = 1.6;
-/** Not exported: outside this file the pedestal's height is only ever wanted as the surface a player
- *  stands on, which is {@link pedestalTopY}. */
-const PEDESTAL_HEIGHT = 0.55;
 /** How far each pillar's base is sunk below its terrain sample, so no pillar hovers over a dip
  *  between samples. Used both to lengthen the pillar (added to its height) and to lower its position
  *  (subtracted from its centre) — the two uses must change together, or the crown drifts off

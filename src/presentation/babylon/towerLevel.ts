@@ -4,6 +4,7 @@ import { vec3, type Vec3 } from '../../domain/math/vec3';
 import type { TowerCheckpoint } from '../../domain/hub/tower/towerProgress';
 import { DEFAULT_CONFIG } from '../../domain/hub/character/movementConfig';
 import { CAPSULE_HALF, CAPSULE_HEIGHT, CAPSULE_RADIUS } from './capsule';
+import { PEDESTAL_HEIGHT } from './pedestal';
 
 /**
  * The climbing tower, as data.
@@ -404,26 +405,6 @@ const CRYSTAL_ORBIT = PLATFORM_ORBIT + BOUNCE_REACH;
  * See {@link SUMMIT_PEDESTAL_OFFSET}.
  */
 export const TOWER_SUMMIT_RADIUS = 1;
-/** Its height above the balcony. The hub pedestal's own 0.55: low enough to step onto, high enough
- *  that standing on it is deliberate — spec §5's reason for there being no confirm key. Arriving on
- *  top of it is not an approach the last bounce can make and no version of these numbers makes it
- *  one. The climb {@link BOUNCE_AIRTIME} solves for `pad`, solved instead for `pad + 0.55`, has two
- *  roots: 0.268 s and 0.482 s after launch — a 0.214 s window in which the feet are above pedestal
- *  height, and the source of the "0.21 s" an earlier draft already had right. What that draft got
- *  wrong was the drift inside it: it took `½ · acceleration · 0.214²` = 0.30 u, acceleration from a
- *  standstill at the window's open — the same rest-from-zero mistake {@link BOUNCE_REACH} corrects
- *  for the reach bound, made a second time here. The player has been drifting under air control since
- *  launch, not from rest at 0.268 s: `airDrift` gives 1.3128 u by the window's close, of which only
- *  0.846 u falls inside the window — against the 1.8 u = `BOUNCE_REACH − (TOWER_SUMMIT_RADIUS −
- *  CAPSULE_RADIUS)` it takes to reach the disc's edge. Those are the WALKING figures; "no version of
- *  these numbers makes it one" needs the widest drift the player can have, and running gives 1.5101 u
- *  by the close and **1.043 u** inside the window, still 0.76 u short. The conclusion survived the
- *  error; the number didn't, and it moved again with {@link BOUNCE_REACH} — the window itself does
- *  not, because it depends on the bounce and not on the layout. The shipped case is safer still:
- *  {@link SUMMIT_PEDESTAL_OFFSET}'s offset puts the disc
- *  `√(BOUNCE_REACH² + SUMMIT_PEDESTAL_OFFSET²)` = 3.05 u away, needing 2.55 u. The bounce lands beside
- *  it and walks — see {@link SUMMIT_PEDESTAL_OFFSET}. */
-export const TOWER_SUMMIT_PEDESTAL_HEIGHT = 0.55;
 
 /**
  * How far ALONG the balcony's face the pedestal stands from its centre line, and which way.
@@ -933,9 +914,27 @@ export const TOWER_CHECKPOINTS: readonly TowerCheckpoint[] = [
  * It is {@link SUMMIT_PEDESTAL_OFFSET} along the balcony from the balcony's own centre, not on it:
  * the bounce that ends the climb lands on the centre line, and the pedestal has to be somewhere the
  * landing is not.
+ *
+ * **Arriving on top of it is not an approach the last bounce can make**, at {@link PEDESTAL_HEIGHT}
+ * or at any other height these numbers could take. The climb {@link BOUNCE_AIRTIME} solves for `pad`,
+ * solved instead for `pad + PEDESTAL_HEIGHT`, has two roots: 0.268 s and 0.482 s after launch — a
+ * 0.214 s window in which the feet are above pedestal height, and the source of the "0.21 s" an
+ * earlier draft already had right. What that draft got wrong was the drift inside it: it took
+ * `½ · acceleration · 0.214²` = 0.30 u, acceleration from a standstill at the window's open — the
+ * same rest-from-zero mistake {@link BOUNCE_REACH} corrects for the reach bound, made a second time
+ * here. The player has been drifting under air control since launch, not from rest at 0.268 s:
+ * `airDrift` gives 1.3128 u by the window's close, of which only 0.846 u falls inside the window —
+ * against the 1.8 u = `BOUNCE_REACH − (TOWER_SUMMIT_RADIUS − CAPSULE_RADIUS)` it takes to reach the
+ * disc's edge. Those are the WALKING figures; "no version of these numbers makes it one" needs the
+ * widest drift the player can have, and running gives 1.5101 u by the close and **1.043 u** inside
+ * the window, still 0.76 u short. The conclusion survived the error; the number didn't, and it moved
+ * again with {@link BOUNCE_REACH} — the window itself does not, because it depends on the bounce and
+ * not on the layout. The shipped case is safer still: {@link SUMMIT_PEDESTAL_OFFSET}'s offset puts
+ * the disc `√(BOUNCE_REACH² + SUMMIT_PEDESTAL_OFFSET²)` = 3.05 u away, needing 2.55 u. The bounce
+ * lands beside it and walks — see {@link SUMMIT_PEDESTAL_OFFSET}.
  */
 export const TOWER_SUMMIT: Vec3 = ((): Vec3 => {
   const [pedestal] = layout.props;
   const spot = onPad(pedestal.pad, pedestal.along, pedestal.outward);
-  return vec3(spot.x, spot.y + TOWER_SUMMIT_PEDESTAL_HEIGHT, spot.z);
+  return vec3(spot.x, spot.y + PEDESTAL_HEIGHT, spot.z);
 })();

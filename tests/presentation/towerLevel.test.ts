@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { CAPSULE_HALF, CAPSULE_RADIUS } from '../../src/presentation/babylon/capsule';
+import { PEDESTAL_HEIGHT } from '../../src/presentation/babylon/pedestal';
 import { DEFAULT_CONFIG } from '../../src/domain/hub/character/movementConfig';
 
 /**
@@ -90,7 +91,7 @@ describe('the tower layout', () => {
   it('puts the summit pedestal on the balcony it is generated from', async () => {
     const { level } = await importTowerLevel();
     const balcony = level.TOWER_PLATFORMS[level.TOWER_PLATFORMS.length - 1];
-    expect(level.TOWER_SUMMIT.y).toBeCloseTo(balcony.y + level.TOWER_SUMMIT_PEDESTAL_HEIGHT, 10);
+    expect(level.TOWER_SUMMIT.y).toBeCloseTo(balcony.y + PEDESTAL_HEIGHT, 10);
   });
 
   it('starts the player on the bearing of the first step, not of the spiral', async () => {

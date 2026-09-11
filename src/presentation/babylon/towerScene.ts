@@ -32,6 +32,7 @@ import { disposeLevel, type LevelParts } from './levelTeardown';
 import { createShadows, type Shadows } from './shadows';
 import { standingOnPedestal, stepPortalTrigger, PORTAL_START, type PortalTrigger } from './portalTrigger';
 import { CAPSULE_HALF } from './capsule';
+import { PEDESTAL_HEIGHT } from './pedestal';
 import { createHubAudio } from '../audio/hubAudio';
 import {
   TOWER_CHECKPOINTS,
@@ -45,7 +46,6 @@ import {
   TOWER_SLAB_THICKNESS,
   TOWER_SPAWN,
   TOWER_SUMMIT,
-  TOWER_SUMMIT_PEDESTAL_HEIGHT,
   TOWER_SUMMIT_RADIUS,
   type TowerPlatform,
 } from './towerLevel';
@@ -408,10 +408,10 @@ function buildTower(scene: Scene, shadows: Shadows): void {
 
   const pedestal = CreateCylinder(
     'towerSummitPedestal',
-    { diameter: TOWER_SUMMIT_RADIUS * 2, height: TOWER_SUMMIT_PEDESTAL_HEIGHT, tessellation: 24 },
+    { diameter: TOWER_SUMMIT_RADIUS * 2, height: PEDESTAL_HEIGHT, tessellation: 24 },
     scene,
   );
   // TOWER_SUMMIT is the pedestal's TOP face, so its centre sits half a pedestal below.
-  pedestal.position.set(TOWER_SUMMIT.x, TOWER_SUMMIT.y - TOWER_SUMMIT_PEDESTAL_HEIGHT / 2, TOWER_SUMMIT.z);
+  pedestal.position.set(TOWER_SUMMIT.x, TOWER_SUMMIT.y - PEDESTAL_HEIGHT / 2, TOWER_SUMMIT.z);
   finish(pedestal, PhysicsShapeType.CYLINDER);
 }

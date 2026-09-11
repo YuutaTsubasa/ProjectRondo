@@ -4,7 +4,8 @@ import {
 } from '../../src/presentation/babylon/portalTrigger';
 import { CAPSULE_HALF } from '../../src/presentation/babylon/capsule';
 import { FALL_GRACE_SECONDS } from '../../src/presentation/babylon/groundContact';
-import { TOWER_SUMMIT_PEDESTAL_HEIGHT, TOWER_SUMMIT_RADIUS } from '../../src/presentation/babylon/towerLevel';
+import { TOWER_SUMMIT_RADIUS } from '../../src/presentation/babylon/towerLevel';
+import { PEDESTAL_HEIGHT } from '../../src/presentation/babylon/pedestal';
 import { MovementConstants } from '../../src/domain/hub/character/movementConstants';
 
 const { gravity, jumpSpeed } = MovementConstants;
@@ -14,11 +15,12 @@ const jumpCentreY = (t: number): number => CAPSULE_HALF + jumpSpeed * t - (gravi
 
 /** Every frame of a jump taken from the ground beside a pedestal, at 60 fps, as the height of the
  *  capsule's centre above the height that centre has when the feet are on the pedestal's top face.
- *  Both pedestals in the game are {@link TOWER_SUMMIT_PEDESTAL_HEIGHT} tall — `landmark.ts`'s hub
- *  plinth is the same 0.55 — so one arc answers for both. */
+ *  One arc answers for both pedestals because both are built from {@link PEDESTAL_HEIGHT} — the hub's
+ *  plinth in `landmark.ts` and the tower summit's disc in `towerLevel.ts` read the same constant, so
+ *  moving either moves this arc with it rather than leaving the other quietly uncovered. */
 const jumpOverPedestal = (): number[] =>
   Array.from({ length: Math.ceil((2 * jumpSpeed) / gravity / (1 / 60)) + 1 }, (_, frame) =>
-    jumpCentreY(frame / 60) - (TOWER_SUMMIT_PEDESTAL_HEIGHT + CAPSULE_HALF));
+    jumpCentreY(frame / 60) - (PEDESTAL_HEIGHT + CAPSULE_HALF));
 
 describe('standingOnPedestal', () => {
   const onTheFace = {
@@ -59,7 +61,7 @@ describe('standingOnPedestal', () => {
   });
 
   it('does not count standing on the ground at the foot of the pedestal', () => {
-    const atTheFoot = { ...onTheFace, aboveStandingHeight: -TOWER_SUMMIT_PEDESTAL_HEIGHT };
+    const atTheFoot = { ...onTheFace, aboveStandingHeight: -PEDESTAL_HEIGHT };
     expect(standingOnPedestal(atTheFoot)).toBe(false);
   });
 });

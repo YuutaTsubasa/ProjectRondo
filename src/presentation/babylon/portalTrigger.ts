@@ -27,12 +27,13 @@ export interface PortalTriggerResult {
  * standing on.
  *
  * That is the correction, not a refinement: at 1.2 u this constant was documented as the thing that
- * kept a jump from firing the portal, and it was not. The hub's pedestal is 0.55 u tall, so a capsule
- * standing on it has its centre `0.55 + CAPSULE_HALF` over the surrounding ground, while a jump from
- * that ground carries the centre from `CAPSULE_HALF` to `CAPSULE_HALF + jumpSpeed²/(2·gravity)` =
- * 2.6875 u over it — every height a jump can be over the plinth at was inside 1.2 u of the standing
- * height, so running across the hub's plaza and jumping over the plinth swapped the scene. The
- * tower's summit pedestal is the same 0.55 and fired the same way, exiting the tower on a jump.
+ * kept a jump from firing the portal, and it was not. A pedestal is `pedestal.ts`'s `PEDESTAL_HEIGHT`
+ * 0.55 u tall, so a capsule standing on one has its centre `PEDESTAL_HEIGHT + CAPSULE_HALF` over the
+ * surrounding ground, while a jump from that ground carries the centre from `CAPSULE_HALF` to
+ * `CAPSULE_HALF + jumpSpeed²/(2·gravity)` = 2.6875 u over it — every height a jump can be over the
+ * plinth at was inside 1.2 u of the standing height, so running across the hub's plaza and jumping
+ * over the plinth swapped the scene. Both pedestals are built from that one constant, so the tower's
+ * summit fired the same way, exiting the tower on a jump.
  *
  * **Untuned**: 0.4 u, with both of its bounds known and neither of them close. Above it,
  * `groundContact.ts`'s `FALL_GRACE_SECONDS`: an uncommanded loss of support still reads `!airborne`
