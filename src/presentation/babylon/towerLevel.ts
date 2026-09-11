@@ -501,12 +501,18 @@ const SUMMIT_PAD_WIDTH = 2 * (SUMMIT_PEDESTAL_OFFSET + TOWER_SUMMIT_RADIUS);
  * the respawn fires; that is what "a fall that would hang before resolving" costs at this value, and
  * whether 0.45 s reads as a hang is a judgement nobody has made.
  *
- * The shallow edge is straddled inside section 1, whose thirteen steps land at `18·i/13`. A player
- * who steps back down off the section-2 checkpoint at 18 drops to 16.615 or 15.231 — **1.385 u** and
- * **2.769 u** under its `activateY`, both inside this margin, and both an ordinary move down rather
- * than a fall. The step below those, 13.846, is **4.154 u** under and respawns them. So 4 falls
- * between two real drops a player can take from the same pad, which is what makes it a boundary
- * worth playing rather than an unreachable one — nobody has played it. See the design spec §4.
+ * The shallow edge is straddled inside section 1, whose thirteen steps land at `18·i/13` — but mind
+ * the frame. `stepTowerProgress` compares the capsule CENTRE against `activateY`, and a standing
+ * capsule rides {@link CAPSULE_HALF} 1 u above its pad, so the drop this margin sees is a metre less
+ * than the drop between two pad tops. That is the same offset {@link TOWER_CHECKPOINTS} spends on
+ * activating early, read in the other direction.
+ *
+ * A player who steps back down off the section-2 checkpoint at 18 lands on 16.615, 15.231 or 13.846,
+ * putting their centre **0.385 u**, **1.769 u** and **3.154 u** below its `activateY` — all three
+ * inside this margin, all three an ordinary move down rather than a fall. The fourth step, 12.462,
+ * puts it **4.538 u** below and respawns them. So 4 falls between two real drops a player can take
+ * from the same pad, which is what makes it a boundary worth playing rather than an unreachable one
+ * — nobody has played it. See the design spec §4.
  */
 export const TOWER_FALL_MARGIN = 4;
 

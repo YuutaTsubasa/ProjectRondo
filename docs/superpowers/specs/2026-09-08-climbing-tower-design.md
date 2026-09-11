@@ -780,8 +780,12 @@ Three things this settles:
 pad costs **0.450 s** between fall detection and the respawn firing — the "hang before it
 resolves" end of the constant's own argument, now a number. Whether 0.45 s of hanging reads
 as a hang is §14.8's. The other edge — "deep enough that stepping off a ledge just below a
-checkpoint does not snap you" — was not exercised, because the layout has no ledge inside 4
-u below a checkpoint to step off.
+checkpoint does not snap you" — is reachable and was not exercised. Section 1's thirteen steps land
+at `18·i/13`, and because `stepTowerProgress` compares the capsule CENTRE against `activateY`, a
+player stepping back down off the section-2 checkpoint at 18 sits 0.385, 1.769 and 3.154 u under it
+on the first three steps — no respawn — and 4.538 u under on the fourth, which does respawn. The
+boundary therefore falls between the third and fourth step down, and nobody has walked it; `TOWER_FALL_MARGIN`'s own doc carries the
+arithmetic.
 
 ### 14.4 Framing on the fall — and the thing the framing numbers do not say
 
