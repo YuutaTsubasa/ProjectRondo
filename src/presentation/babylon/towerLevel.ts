@@ -496,12 +496,17 @@ const SUMMIT_PAD_WIDTH = 2 * (SUMMIT_PEDESTAL_OFFSET + TOWER_SUMMIT_RADIUS);
  * Where a fall stops counting as a step down. **Untuned**: 4 u is a guess at "deeper than any
  * deliberate drop between platforms, shallower than a fall that would hang before resolving".
  *
- * One edge is now measured and the other could not be exercised (spec §14.3). Stepping off a
- * checkpoint pad leaves **0.450 s** — 27 frames at 60 fps — between the frame the fall is detected
- * and the frame the respawn fires; that is what "a fall that would hang before resolving" costs at
- * this value, and whether 0.45 s reads as a hang is a judgement nobody has made. The shallow edge
- * was never reached, because the layout has no ledge within 4 u below a checkpoint to step off. See
- * the design spec §4.
+ * One edge is measured; the other is reachable and was not (spec §14.3). Stepping off a checkpoint
+ * pad leaves **0.450 s** — 27 frames at 60 fps — between the frame the fall is detected and the frame
+ * the respawn fires; that is what "a fall that would hang before resolving" costs at this value, and
+ * whether 0.45 s reads as a hang is a judgement nobody has made.
+ *
+ * The shallow edge is straddled inside section 1, whose thirteen steps land at `18·i/13`. A player
+ * who steps back down off the section-2 checkpoint at 18 drops to 16.615 or 15.231 — **1.385 u** and
+ * **2.769 u** under its `activateY`, both inside this margin, and both an ordinary move down rather
+ * than a fall. The step below those, 13.846, is **4.154 u** under and respawns them. So 4 falls
+ * between two real drops a player can take from the same pad, which is what makes it a boundary
+ * worth playing rather than an unreachable one — nobody has played it. See the design spec §4.
  */
 export const TOWER_FALL_MARGIN = 4;
 
@@ -801,10 +806,9 @@ function buildLayout(): TowerLayout {
 /**
  * Every rule this file states as a BOUND, checked against the layout that was actually generated
  * rather than against the prose that produced it: the two the header opens with, the four found the
- * hard way,
- * and the embedding rule from {@link PLATFORM_ORBIT}. Four of them were violated by drafts of this
- * file — the column rule by the draft that SHIPPED, which is why it is here — and none of them shows
- * up as anything but a level that plays wrong.
+ * hard way, and the embedding rule from {@link PLATFORM_ORBIT}. Four of them were violated by drafts
+ * of this file — the column rule by the draft that SHIPPED, which is why it is here — and none of
+ * them shows up as anything but a level that plays wrong.
  *
  * **The header's own two rules were the last in**, and their absence was the sharpest version of the
  * problem this function exists for: the audit knew the four rules nobody had written down and not the

@@ -577,7 +577,10 @@ keeps its **Untuned** marking, and the judgements that are the project owner's a
 >
 > **Re-verified on the new layout, by driving frames the same way:** a section-1 platform-to-platform
 > jump now crosses with the capsule clear of the column, and the final link still lands on the summit
-> balcony. Neither was re-measured at §14.1's nineteen-run depth; see the tower re-layout report.
+> balcony. Neither was re-measured at §14.1's nineteen-run depth, and there is no separate report to
+> read: the first is now held continuously instead — `auditLayout`'s jump-path rule warns on any step
+> whose chord does not clear the column by `JUMP_PATH_MARGIN`, on every load — while the second was a
+> single driven observation taken at the re-solve and nothing re-checks it.
 
 **Frames were driven by hand.** The Browser pane's `requestAnimationFrame` is dead in this
 environment — **0 ticks measured over 500 ms** — so every frame below came from
