@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { stepTowerProgress, TOWER_START, type TowerCheckpoint } from '../../../../src/domain/hub/tower/towerProgress';
-import { vec3 } from '../../../../src/domain/math/vec3';
+import { stepTowerProgress, TOWER_START, type TowerCheckpoint } from '../../../src/domain/tower/towerProgress';
+import { vec3 } from '../../../src/domain/math/vec3';
 
 const CHECKPOINTS: readonly TowerCheckpoint[] = [
   { activateY: 0, respawn: vec3(0, 0, 0) },

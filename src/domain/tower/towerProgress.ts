@@ -1,4 +1,4 @@
-import { type Vec3 } from '../../math/vec3';
+import { type Vec3 } from '../math/vec3';
 
 /**
  * One rung of the climb. `activateY` is the height at or above which this checkpoint takes over;

@@ -21,7 +21,7 @@ import { PhysicsShapeType } from '@babylonjs/core/Physics/v2/IPhysicsEnginePlugi
 // PhysicsAggregate throws "No Physics Engine available".
 import '@babylonjs/core/Physics/joinedPhysicsEngineComponent';
 
-import { stepTowerProgress, TOWER_START, type TowerProgress } from '../../domain/hub/tower/towerProgress';
+import { stepTowerProgress, TOWER_START, type TowerProgress } from '../../domain/tower/towerProgress';
 import { createCharacterRig } from './characterRig';
 import { createCrystals } from './crystals';
 import { exposeDevHandle } from './devHandles';

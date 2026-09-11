@@ -1,5 +1,5 @@
 import { vec3, type Vec3 } from '../../domain/math/vec3';
-import type { TowerCheckpoint } from '../../domain/hub/tower/towerProgress';
+import type { TowerCheckpoint } from '../../domain/tower/towerProgress';
 import { DEFAULT_CONFIG } from '../../domain/hub/character/movementConfig';
 import { CAPSULE_HALF, CAPSULE_HEIGHT, CAPSULE_RADIUS, spawnCentreY } from './capsule';
 import { PEDESTAL_HEIGHT } from './pedestal';
@@ -396,11 +396,13 @@ const BOUNCE_DRIFT_RUNNING = airDrift(BOUNCE_AIRTIME, DEFAULT_CONFIG.runSpeed);
  * pad's centre, orbit 5.06 against a pad spanning 3.0–6.2, and the drifts that land safely run from
  * 1.20 u (capsule just inside the outer edge) to 1.84 u — a 0.64 u band, if the player holds Shift and
  * walks the bounce. Running — the default, nothing held — buys less extra reach than it looks like it
- * would: `acceleration` 13 over 0.614 s never reaches `runSpeed` 8, so the default gets 2.45 u rather
- * than a naive 3.54, which on this deeper pad now overshoots inward to 0.15 u past the centre and
- * still lands. That 0.15 u past the centre is not a curiosity: it is the reason {@link auditLayout}
- * checks props against {@link BOUNCE_DRIFT_RUNNING} and not against the walking band, which stops
- * 0.46 u short of the centre and would have declared the middle of every pad unlandable-on.
+ * would: `acceleration` 13 over 0.614 s ends at 7.99 u/s and so never reaches `runSpeed` 8, which
+ * leaves the cap inert and running on the bare ramp at 2.45 u — 0.61 u more than walking's 1.84
+ * rather than the 3.68 that doubling the top speed would suggest. On this deeper pad that overshoots
+ * inward to 0.15 u past the centre and still lands. That 0.15 u is not a curiosity: it is the reason
+ * {@link auditLayout} checks props against {@link BOUNCE_DRIFT_RUNNING} and not against the walking
+ * band, which stops 0.46 u short of the centre and would have declared the middle of every pad
+ * unlandable-on.
  *
  * **One thing none of this models, and {@link auditLayout} does not either.** `stepHoming` bounces on
  * the frame `homingSpeed · delta >= remaining`, so the launch is not the crystal: it is up to
@@ -584,6 +586,35 @@ const axesOf = (p: TowerPlatform) => [
  *  said they were 0.4 u apart, and what produced {@link TURN_DEGREES}' wrong 45° figure. */
 const reachAlong = (p: TowerPlatform, axis: { x: number; z: number }): number =>
   axesOf(p).reduce((sum, a) => sum + Math.abs(a.x * axis.x + a.z * axis.z) * a.half, 0);
+
+/** The widest separating gap between two slabs in the ground plane, over both slabs' face normals —
+ *  negative where they overlap. It is the strip a player standing on one has to cross to reach the
+ *  other, and equally the strip of the lower one that the upper one does not cover. */
+const slabGap = (a: TowerPlatform, b: TowerPlatform): number => {
+  const offset = { x: b.x - a.x, z: b.z - a.z };
+  return [...axesOf(a), ...axesOf(b)].reduce(
+    (widest, axis) =>
+      Math.max(widest, Math.abs(offset.x * axis.x + offset.z * axis.z) - reachAlong(a, axis) - reachAlong(b, axis)),
+    -Infinity,
+  );
+};
+
+/**
+ * How far a player can carry themselves sideways during the part of a jump that is above `rise` —
+ * the window in which they are high enough to clear the next ledge and still have to arrive over it.
+ *
+ * From a standing jump the vertical is ballistic, so the window lies between the two roots of
+ * `jumpSpeed·t − (gravity/2)·t² = rise` and is `2·√(jumpSpeed² − 2·gravity·rise)/gravity` wide; the
+ * horizontal is whatever `topSpeed` covers in it. Full speed throughout, unlike {@link airDrift}: a
+ * jump keeps the run-up's horizontal velocity where a bounce discards it. Returns 0 past
+ * {@link JUMP_APEX} — there is no window at all then, which the apex rule reports and this one does
+ * not need to repeat.
+ */
+const stepReach = (rise: number, topSpeed: number): number => {
+  const { jumpSpeed, gravity } = DEFAULT_CONFIG;
+  const discriminant = jumpSpeed * jumpSpeed - 2 * gravity * rise;
+  return discriminant < 0 ? 0 : (2 * topSpeed * Math.sqrt(discriminant)) / gravity;
+};
 
 /**
  * How close the straight line between two platforms' centres comes to the column's AXIS, in the
@@ -812,9 +843,19 @@ function buildLayout(): TowerLayout {
 /**
  * Every rule this file states as a BOUND, checked against the layout that was actually generated
  * rather than against the prose that produced it: the two the header opens with, the four found the
- * hard way, and the embedding rule from {@link PLATFORM_ORBIT}. Four of them were violated by drafts
- * of this file — the column rule by the draft that SHIPPED, which is why it is here — and none of
- * them shows up as anything but a level that plays wrong.
+ * hard way, the embedding rule from {@link PLATFORM_ORBIT} and the walking-reach rule from
+ * {@link TURN_DEGREES}. Four of them were violated by drafts of this file — the column rule by the
+ * draft that SHIPPED, which is why it is here — and none of them shows up as anything but a level
+ * that plays wrong.
+ *
+ * **The walking-reach rule is the second half of a bound the audit only knew one end of.** A slab
+ * gap has a floor — narrower than {@link CAPSULE_RADIUS} and it is a strip nobody can stand on —
+ * and a ceiling, which {@link TURN_DEGREES} names as the binding one: a player may hold Shift
+ * through any jump in the tower, so a gap wider than {@link stepReach} at `maxSpeed` closes the
+ * section to them. Only the floor was checked, and nothing else in this file bounds
+ * {@link PLATFORM_WIDTH} from below while that same doc offers narrowing it as the price of a
+ * smaller turn. Narrowing it to 1.6 opens section 1's gaps to 1.398 u against the 1.271 u a walking
+ * player crosses above a 1.3846 u step, and before this rule every warning here stayed silent.
  *
  * **The header's own two rules were the last in**, and their absence was the sharpest version of the
  * problem this function exists for: the audit knew the four rules nobody had written down and not the
@@ -959,15 +1000,21 @@ function auditLayout(
     for (const above of platforms) {
       if (above === below || above.y <= below.y) continue;
       if (above.y - TOWER_SLAB_THICKNESS >= below.y + CAPSULE_HEIGHT) continue; // clears the capsule
-      const offset = { x: above.x - below.x, z: above.z - below.z };
-      const gap = [...axesOf(below), ...axesOf(above)].reduce(
-        (widest, axis) =>
-          Math.max(widest, Math.abs(offset.x * axis.x + offset.z * axis.z) - reachAlong(below, axis) - reachAlong(above, axis)),
-        -Infinity,
-      );
+      const gap = slabGap(below, above);
       if (gap < CAPSULE_RADIUS) {
         console.warn(`[towerLevel] the slab at y=${above.y} overhangs the one at y=${below.y} (gap ${gap.toFixed(2)} u), which has only ${(above.y - TOWER_SLAB_THICKNESS - below.y).toFixed(2)} u of headroom for a ${CAPSULE_HEIGHT} u capsule. See TURN_DEGREES.`);
       }
+    }
+  }
+
+  for (const [from, to] of jumpSteps) {
+    // The other end of TURN_DEGREES' gap rule, and the one it names as binding: a gap has to be
+    // crossable by a player holding Shift, because they may hold it through any jump in the tower.
+    // Measured against the step's own rise rather than JUMP_RISE, for the reason the apex rule is.
+    const gap = slabGap(from, to);
+    const reach = stepReach(to.y - from.y, DEFAULT_CONFIG.maxSpeed);
+    if (gap > reach) {
+      console.warn(`[towerLevel] the step from y=${from.y} to y=${to.y} cannot be walked — its slabs are ${gap.toFixed(3)} u apart against the ${reach.toFixed(3)} u a player holding Shift covers while above the ${(to.y - from.y).toFixed(3)} u it rises, so the section is closed to anyone who does. See TURN_DEGREES.`);
     }
   }
 }

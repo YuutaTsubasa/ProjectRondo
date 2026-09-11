@@ -63,6 +63,36 @@ describe('the tower layout', () => {
     }
   });
 
+  it('leaves every platform-to-platform jump crossable by a player holding Shift', async () => {
+    const { level } = await importTowerLevel();
+    const platforms = level.TOWER_PLATFORMS;
+    // The other end of the slab-gap rule. `auditLayout` long checked only its floor — a strip too
+    // narrow to stand on — while `TURN_DEGREES` names the ceiling as the binding one, because a
+    // player may hold Shift through any jump in the tower and a gap wider than they cross closes the
+    // section to them. Nothing else in the level bounds `PLATFORM_WIDTH` from below.
+    const { jumpSpeed, gravity, maxSpeed } = DEFAULT_CONFIG;
+    const apex = (jumpSpeed * jumpSpeed) / (2 * gravity);
+    const pairs = platforms.map((to, i) => [platforms[i - 1], to] as const).slice(1);
+    const jumps = pairs.filter(([from, to]) => to.y - from.y <= apex);
+    expect(jumps.length).toBeGreaterThan(0);
+    for (const [from, to] of jumps) {
+      // The gap is taken from `TURN_DEGREES`' own closed form rather than from the audit's support
+      // function, so this asserts the rule and not the implementation of it. That form assumes two
+      // equal slabs facing the column at one orbit, which is asserted first: a layout that stopped
+      // being uniform would fail here rather than be silently measured by the wrong formula.
+      const orbit = Math.hypot(from.x, from.z);
+      expect(Math.hypot(to.x, to.z)).toBeCloseTo(orbit, 9);
+      expect([to.width, to.depth]).toEqual([from.width, from.depth]);
+      const turn = Math.acos((from.x * to.x + from.z * to.z) / (orbit * orbit));
+      const gap = (orbit - from.depth / 2) * Math.sin(turn) - (from.width / 2) * (1 + Math.cos(turn));
+      // What a walking player covers while above the step's own rise: the vertical is ballistic from
+      // a standing jump, so the window is the span between the two roots of `jumpSpeed·t −
+      // (gravity/2)·t² = rise`, and a jump keeps the run-up's horizontal velocity throughout it.
+      const window = (2 * Math.sqrt(jumpSpeed * jumpSpeed - 2 * gravity * (to.y - from.y))) / gravity;
+      expect(gap).toBeLessThan(maxSpeed * window);
+    }
+  });
+
   it('embeds every ledge in the column rather than leaving it floating beside it', async () => {
     const { level } = await importTowerLevel();
     // The other bound on the orbit, and the one that pulls the opposite way from the column-clearance
