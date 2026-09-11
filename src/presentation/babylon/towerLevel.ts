@@ -181,12 +181,14 @@ const PLATFORM_ORBIT = 4.6;
  */
 const PLATFORM_WIDTH = 2.4;
 /**
- * How deep an ordinary platform is AWAY from the column. **Untuned**, and derived rather than chosen:
- * it is what {@link PLATFORM_ORBIT}'s two rules leave once the orbit has been pushed out far enough
- * for a jump to clear the column — `2 · 1.5611` = not less than **3.1221 u** — rounded up to 3.2.
- * The other end is {@link BOUNCE_REACH}, which caps a landing pad at `2 · (2.3 − CAPSULE_RADIUS)` =
- * 3.6 u. Both bounds are live: **0.0779 u** of slack under the first, and under the second the rising
- * bounce clears the pad's outer edge by 0.7 u against the 0.5 u it needs.
+ * How deep an ordinary platform is AWAY from the column. **Untuned**, and chosen inside a window the
+ * two rules leave rather than derived from them: {@link PLATFORM_ORBIT}'s pair force `2 ·
+ * (PLATFORM_ORBIT − TOWER_COLUMN_RADIUS)`, which is **2.8 u** at the shipped orbit of 4.6 and
+ * **2.7221 u** at 4.5611, the lowest orbit a jump can clear the column from. The other end is
+ * {@link BOUNCE_REACH}, which caps a landing pad at `2 · (2.3 − CAPSULE_RADIUS)` = 3.6 u. Both bounds
+ * are live, and 3.2 sits 0.4 u off each: the 0.4 u above the first is the 0.2 u of embedding on each
+ * side that {@link PLATFORM_ORBIT} accounts for, and under the second the rising bounce clears the
+ * pad's outer edge by 0.7 u against the 0.5 u it needs.
  *
  * A deeper platform costs nothing the audit checks — the slab gap is set by the inner face and
  * {@link PLATFORM_WIDTH}, and the inner face has not moved — and it is the one direction a slab can

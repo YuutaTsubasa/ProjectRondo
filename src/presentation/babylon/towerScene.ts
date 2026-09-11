@@ -48,7 +48,6 @@ import {
   TOWER_SPAWN,
   TOWER_SUMMIT,
   TOWER_SUMMIT_RADIUS,
-  type TowerPlatform,
 } from './towerLevel';
 
 /**
@@ -393,7 +392,7 @@ function buildTower(scene: Scene, shadows: Shadows): void {
   columnMat.backFaceCulling = false;
   finish(column, PhysicsShapeType.CYLINDER, columnMat);
 
-  TOWER_PLATFORMS.forEach((platform: TowerPlatform, i: number) => {
+  TOWER_PLATFORMS.forEach((platform, i) => {
     const slab = CreateBox(
       `towerPlatform_${i}`,
       { width: platform.width, height: TOWER_SLAB_THICKNESS, depth: platform.depth },
