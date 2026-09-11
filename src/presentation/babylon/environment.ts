@@ -11,6 +11,7 @@ import '@babylonjs/core/Materials/standardMaterial';
 import { DynamicTexture } from '@babylonjs/core/Materials/Textures/dynamicTexture';
 import { HDRCubeTexture } from '@babylonjs/core/Materials/Textures/hdrCubeTexture';
 import { HORIZON_HEX } from './atmosphereColors';
+import { IBL_FACE_SIZE, IBL_INTENSITY, IBL_URL } from './ibl';
 
 export interface Environment {
   readonly sun: DirectionalLight;
@@ -18,40 +19,6 @@ export interface Environment {
 
 /** How much of the horizon colour the ambient's ground half carries. See the comment at its use. */
 const AMBIENT_GROUND_SCALE = 0.3;
-
-/** Cube-map face size the panorama is resampled to for image-based lighting. 128 is plenty: the
- *  environment is only ever seen as a *reflection* on the armour (the skydome is a separate unlit
- *  mesh), and metal reflections are prefiltered/blurred by roughness, so a larger map buys nothing
- *  visible while costing load-time convolution and memory. */
-const IBL_FACE_SIZE = 128;
-
-/** The panorama. Named so the failure warning can quote the path it actually asked for. */
-const IBL_URL = '/env/studio.hdr';
-
-/** Scales the environment's contribution to every PBR material. 1.0 would be the panorama's own baked
- *  radiance; 1.4 is tuned live against the armour mask.
- *
- *  **This doc is the one place the shipped plate's brightness is recorded.** Measured during this
- *  branch's tuning pass on the stylized-knight armour, hide-the-body diff mask (85 687 px), scene
- *  frozen, at `BODY_METALLIC = 1` and `BODY_DIRECT_INTENSITY = 1`: the plate's mean luma is ~117/255,
- *  up from ~113 at IBL 1.0 — matching the pre-IBL brightness the old no-environment workaround reached
- *  — with blown highlights at 0% (1.6 starts clipping them) and ~2% of pixels below luma 30, down from
- *  7.7% pre-IBL.
- *
- *  It says "one place" because there were three, in two files, and they disagreed: this ~117, a second
- *  ~117 on `BODY_DIRECT_INTENSITY`, and a `BODY_METALLIC` note recording the same shipped configuration
- *  as 114.3 — which then justified this 1.4 as compensating for the ~4 luma between them, so the two
- *  numbers were arguing in a circle. None of the three could be re-measured while reconciling them (the
- *  mask measurement needs the scene running), so the pair that agreed is what survives, stated once,
- *  here. Treat it as inherited from that tuning pass rather than independently confirmed.
- *
- *  This is the lever to reach for if the plate reads too hot or too dim — and, for the panorama's own
- *  levels, the only one: `public/env/studio.hdr` is a committed binary with no committed generator (see
- *  `public/env/CREDITS.md`), so it cannot be re-baked brighter or darker. Prefer it over the
- *  per-material `BODY_METALLIC` too, which stays at the physically-correct 1 now that there is an
- *  environment to reflect (see `knight.ts`). The figures move with the model, so re-measure on a
- *  character swap. */
-const IBL_INTENSITY = 1.4;
 
 /** A vertical gradient painted on a DynamicTexture for the unlit skydome; stop 1.0 renders at the
  *  dome's zenith and stop 0.0 at its lowest, unseen point (see the comment inside for the measured

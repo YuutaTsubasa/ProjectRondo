@@ -6,9 +6,9 @@ import { fileURLToPath } from 'node:url';
  * The IBL panorama is a shipped runtime asset with no committed generator, and this PR made losing
  * it quiet.
  *
- * `environment.ts` hands `/env/studio.hdr` to `HDRCubeTexture`. Before the `onError` fix a failed
- * fetch left every PBR material permanently not-ready and the knight simply never rendered — loud,
- * and impossible to miss. Now it degrades: a `console.warn` and armour that reads as dark, unlit
+ * `ibl.ts` names `/env/studio.hdr` and both levels hand it to `HDRCubeTexture`. Before the `onError`
+ * fix a failed fetch left every PBR material permanently not-ready and the knight simply never
+ * rendered — loud, and impossible to miss. Now it degrades: a `console.warn` and armour that reads as dark, unlit
  * metal. That is the right runtime behaviour and it is also why a rename, a delete, a corrupt
  * replacement or a selectively-fetched LFS object would now ship green.
  *
@@ -17,7 +17,7 @@ import { fileURLToPath } from 'node:url';
  * It deliberately does not re-derive the radiance figures — `public/env/CREDITS.md` records those and
  * `tools/env/inspect_studio_hdr.mjs` recomputes them on demand.
  */
-const SRC = fileURLToPath(new URL('../../src/presentation/babylon/environment.ts', import.meta.url));
+const SRC = fileURLToPath(new URL('../../src/presentation/babylon/ibl.ts', import.meta.url));
 const PUBLIC = fileURLToPath(new URL('../../public/', import.meta.url));
 
 /** The URL read out of the module that owns it, so a rename fails here rather than at runtime. */
@@ -25,8 +25,8 @@ const url = () => readFileSync(SRC, 'utf8').match(/'(\/env\/[^']+)'/)?.[1];
 const file = () => PUBLIC + url()!.slice(1);
 
 describe('the studio IBL panorama', () => {
-  it('is referenced by environment.ts under a /env/ URL', () => {
-    expect(url(), 'no /env/ URL in environment.ts — was the IBL renamed or removed?').toBeDefined();
+  it('is referenced by ibl.ts under a /env/ URL', () => {
+    expect(url(), 'no /env/ URL in ibl.ts — was the IBL renamed or removed?').toBeDefined();
   });
 
   it('exists on disk at the URL the code serves', () => {

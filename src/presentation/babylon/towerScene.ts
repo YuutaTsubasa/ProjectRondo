@@ -27,9 +27,10 @@ import { createCrystals } from './crystals';
 import { exposeDevHandle } from './devHandles';
 import { unknownGround } from './groundHeight';
 import { loadHavok } from './havokModule';
+import { IBL_FACE_SIZE, IBL_INTENSITY, IBL_URL } from './ibl';
 import { disposeLevel, type LevelParts } from './levelTeardown';
 import { createShadows, type Shadows } from './shadows';
-import { PORTAL_HEIGHT_BAND, stepPortalTrigger, PORTAL_START, type PortalTrigger } from './portalTrigger';
+import { standingOnPedestal, stepPortalTrigger, PORTAL_START, type PortalTrigger } from './portalTrigger';
 import { CAPSULE_HALF } from './capsule';
 import { createHubAudio } from '../audio/hubAudio';
 import {
@@ -122,17 +123,6 @@ const AMBIENT_INTENSITY = 0.3;
 const SHADOW_MAX_Z = 30;
 const SHADOW_CASCADES = 2;
 
-/**
- * The panorama that lights the knight's metal. Same file, same intensity as `createEnvironment` —
- * see that function for why a metallic PBR material with no environment renders near-black, and for
- * why a FAILED texture has to be dropped rather than left assigned (the knight would never be drawn
- * at all). Repeated here rather than shared because `createEnvironment` also builds a skydome, an
- * ambient tinted to a horizon colour and a sun aimed at a hub, none of which belong in a tower.
- */
-const IBL_URL = '/env/studio.hdr';
-const IBL_FACE_SIZE = 128;
-const IBL_INTENSITY = 1.4;
-
 export interface TowerScene {
   readonly scene: Scene;
   /** Suspends (on=true) or resumes (on=false) gameplay input and camera look. The level arrives
@@ -216,6 +206,11 @@ async function buildTowerScene(
   sun.position = SUN_POSITION.clone();
   sun.intensity = SUN_INTENSITY;
 
+  // The plate and the two numbers describing it are `ibl.ts`'s, shared with the hub because both
+  // levels light the same knight with the same asset. The construction is this file's: see
+  // `createEnvironment` for why a metallic PBR material with no environment renders near-black, and
+  // for why a FAILED texture has to be dropped rather than left assigned — the knight would never be
+  // drawn at all, face included.
   let iblFailed = false;
   const ibl = new HDRCubeTexture(
     IBL_URL, scene, IBL_FACE_SIZE,
@@ -293,14 +288,15 @@ async function buildTowerScene(
       return;
     }
 
-    const dx = here.x - TOWER_SUMMIT.x;
-    const dz = here.z - TOWER_SUMMIT.z;
-    // The pedestal is a cylinder, so "inside" is a planar distance and a height band — where the
-    // summit is and how wide it is stay here, while the edge rule and the band's half-height are
+    // Where the summit pedestal is and how wide it is stay here; what counts as standing on one is
     // `portalTrigger.ts`'s, shared with the hub. The trigger starts disarmed, so arriving on top of
     // it cannot fire it.
-    const inside = dx * dx + dz * dz <= TOWER_SUMMIT_RADIUS * TOWER_SUMMIT_RADIUS
-      && Math.abs(here.y - (TOWER_SUMMIT.y + CAPSULE_HALF)) <= PORTAL_HEIGHT_BAND;
+    const inside = standingOnPedestal({
+      planarDistance: Math.hypot(here.x - TOWER_SUMMIT.x, here.z - TOWER_SUMMIT.z),
+      radius: TOWER_SUMMIT_RADIUS,
+      aboveStandingHeight: here.y - (TOWER_SUMMIT.y + CAPSULE_HALF),
+      airborne: player.airborne,
+    });
     const fired = stepPortalTrigger(portal, inside);
     portal = fired.trigger;
     if (fired.fired) onExit();

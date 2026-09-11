@@ -135,6 +135,18 @@ and that is its whole job.
 0.55, at (−6, 32). It has to be climbed onto, which is why there is no confirm key — the act of
 standing on it is already deliberate, and the pedestal has no other purpose to conflict with.
 
+**"Standing on it" is a test the code has to make true, not a shape the geometry gives for free.** A
+0.55 u plinth is nothing to a 1.6875 u jump apex: a player running across the plaza and jumping over
+the plinth is inside its radius at a plausible standing height for several frames, and the first
+implementation of the trigger swapped the scene for them — the deliberate act never happened, and
+the argument above for having no confirm key was false as shipped. What makes it true is that the
+trigger requires the capsule to be SUPPORTED (`Player.airborne` false, so no part of a jump counts),
+inside the pedestal's radius, and within `PORTAL_STANDING_BAND` of the height its feet have on the
+top face. The band alone cannot do it and no value of it could: a jump passes over the pedestal only
+while it is above the top face, so the heights it is seen at start at the standing height itself.
+The same three-part test is what the tower's summit pedestal exits on — otherwise a jump across the
+summit balcony would end the climb.
+
 **The colonnade is not spent on this mode.** `landmark.ts`'s own doc records why the shape is a ring
 of eight pillars: "each pillar can later carry one mode-entrance with room to spare for three modes",
 and an arch "would have been one entrance for three modes". The ring of light is the shared

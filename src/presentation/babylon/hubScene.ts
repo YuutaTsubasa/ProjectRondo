@@ -29,7 +29,7 @@ import { createWater } from './water';
 import { createClouds } from './clouds';
 import { createLandmark, pedestalTopY, PEDESTAL_RADIUS, PLAZA_X, PLAZA_Z } from './landmark';
 import { createPortalRing } from './portalRing';
-import { PORTAL_HEIGHT_BAND, PORTAL_START, stepPortalTrigger, type PortalTrigger } from './portalTrigger';
+import { PORTAL_START, standingOnPedestal, stepPortalTrigger, type PortalTrigger } from './portalTrigger';
 import { createCrystals } from './crystals';
 import { exposeDevHandle } from './devHandles';
 import { createHubAudio, type HubAudio } from '../audio/hubAudio';
@@ -236,15 +236,16 @@ async function buildHubScene(
     // half of the test below would be decided from a place the character is not. See
     // `Player.capsulePosition` — and `towerScene.ts`, which reads its summit pedestal the same way.
     const here = player.capsulePosition();
-    const dx = here.x - PLAZA_X;
-    const dz = here.z - PLAZA_Z;
-    // The pedestal is a cylinder, so "inside" is a planar distance and a height band. Where the
-    // pedestal is and how wide it is are this file's to answer; the edge rule and the band's
-    // half-height are `portalTrigger.ts`'s, shared with the tower. The trigger starts disarmed,
-    // which is what makes a return from the tower that lands on the pedestal safe (spec §5's second
-    // line of defence; the first is that `portalReturnSpawn` does not land there in the first place).
-    const inside = dx * dx + dz * dz <= PEDESTAL_RADIUS * PEDESTAL_RADIUS
-      && Math.abs(here.y - portalY) <= PORTAL_HEIGHT_BAND;
+    // Where the pedestal is and how wide it is are this file's to answer; what counts as standing on
+    // one is `portalTrigger.ts`'s, shared with the tower. The trigger starts disarmed, which is what
+    // makes a return from the tower that lands on the pedestal safe (spec §5's second line of
+    // defence; the first is that `portalReturnSpawn` does not land there in the first place).
+    const inside = standingOnPedestal({
+      planarDistance: Math.hypot(here.x - PLAZA_X, here.z - PLAZA_Z),
+      radius: PEDESTAL_RADIUS,
+      aboveStandingHeight: here.y - portalY,
+      airborne: player.airborne,
+    });
     const stepped = stepPortalTrigger(portal, inside);
     portal = stepped.trigger;
     if (stepped.fired) onEnterTower();

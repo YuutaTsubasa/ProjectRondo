@@ -54,6 +54,17 @@ describe('the tower layout', () => {
     }
   });
 
+  it('embeds every ledge in the column rather than leaving it floating beside it', async () => {
+    const { level } = await importTowerLevel();
+    // The other bound on the orbit, and the one that pulls the opposite way from the column-clearance
+    // test above: a slab faces the column, so its inner edge is a straight line at `orbit − depth/2`
+    // from the axis, and that line has to fall inside the column for the ledge to hang off anything.
+    for (const ledge of level.TOWER_PLATFORMS) {
+      expect(Math.hypot(ledge.x, ledge.z) - ledge.depth / 2)
+        .toBeLessThanOrEqual(level.TOWER_COLUMN_RADIUS);
+    }
+  });
+
   it('leaves the summit pedestal clear of the last bounce landing', async () => {
     const { level } = await importTowerLevel();
     const balcony = level.TOWER_PLATFORMS[level.TOWER_PLATFORMS.length - 1];

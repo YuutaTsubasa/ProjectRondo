@@ -9,34 +9,44 @@
   import { createDialogueSession } from '../presentation/dialogue/dialogueSession.svelte';
   import DialogueOverlay from '../presentation/dialogue/DialogueOverlay.svelte';
   import { createGameMode } from './gameMode.svelte';
+  import { createLevelSwap, type SwappableLevel } from './levelSwap';
   import type { SoundCue } from '../domain/audio/soundCue';
   import introSource from '../content/dialogue/intro.dlg?raw';
 
   /**
-   * All this component needs of a level to render it, swap it and tear it down. `HubScene` and
-   * `TowerScene` both satisfy it structurally — deliberately not a shared interface either of them
-   * implements, because spec §7 is explicit that what the two levels share is a character rig, not a
-   * level framework. This is the router's own view of them, and it lives with the router.
+   * All this component needs of a level to render it: `levelSwap.ts` owns the rest of the shape, and
+   * `HubScene`/`TowerScene` satisfy both structurally — deliberately not a shared interface either of
+   * them implements, because spec §7 is explicit that what the two levels share is a character rig,
+   * not a level framework.
    */
-  type Level = { readonly scene: Scene; suspendInput(on: boolean): void; dispose(): void };
+  type Level = SwappableLevel & { readonly scene: Scene };
 
   let canvas: HTMLCanvasElement;
   /** The hub, when it is the level on screen. `undefined` in the tower — the AVG's `playCue` and
    *  `finishIntro` both read it at call time and must find nothing rather than a disposed scene. */
   let hub: HubScene | undefined;
-  const gameMode = createGameMode();
   const { graph, errors } = parse(introSource);
   if (errors.length) console.error('intro.dlg authoring errors:', errors);
   const session = graph ? createDialogueSession(graph) : undefined;
+  // No session means the dialogue failed to parse, so no overlay ever renders and nothing ever calls
+  // `finishIntro`. The mode has to start past the intro for that case or the game is unplayable in a
+  // way nothing announces: `enterTower` and `gameMode.toTower` both refuse from 'intro', so the
+  // player would walk a hub whose portal can never fire. See `createGameMode`.
+  const gameMode = createGameMode(session !== undefined);
 
   onMount(() => {
-    let disposed = false;
     // preserveDrawingBuffer (dev only) lets tooling screenshot the WebGL canvas.
     const engine = new Engine(canvas, true, { preserveDrawingBuffer: import.meta.env.DEV, stencil: true });
+    // The swap machine, and with it the whole order in which one level replaces another: see
+    // `levelSwap.ts`, which is where that order and its failure paths are argued and tested. What
+    // stays here is what the levels ARE and what committing to one means for this app's own state.
+    const levels = createLevelSwap<Level>({
+      disposeEngine: () => engine.dispose(),
+      onShown: () => { canvas.tabIndex = -1; },
+    });
     // The one render loop for the app's lifetime: it renders whichever level is current rather than
     // closing over a particular scene, so swapping levels never has to touch the loop.
-    let current: Level | undefined;
-    engine.runRenderLoop(() => current?.scene.render());
+    engine.runRenderLoop(() => levels.current?.scene.render());
     // Size the drawing buffer to the canvas now; the resize event only fires on later changes.
     engine.resize();
     const onResize = () => engine.resize();
@@ -54,98 +64,15 @@
     // constructor runs synchronously inside a level build, before that build's first await -- so the
     // promise has not settled yet and the canvas is already tabbable -- the overlay mounts
     // synchronously, so the intro dialogue and its LOG button are live for the whole scene load. The
-    // two resets are the `canvas.tabIndex = -1` right after the first `swapLevel` call below (the
-    // synchronous half) and the one inside `swapLevel`'s fulfilled branch, which covers anything
-    // babylon assigns later during the async setup -- for every level build, not just the first.
-
-    // `settled` flips in both branches of `swapLevel` below, unconditionally, before either even
-    // looks at `disposed` -- it means "the in-flight build is done touching the engine", not "it
-    // succeeded". The cleanup below reads it to decide whether the engine is safe to dispose yet;
-    // see there for why that matters.
-    let settled = false;
-    // The build currently in flight, or the last one to have finished. Reassigned by every swap and
-    // read (not captured) by the cleanup, so the cleanup always waits on the newest build. There is
-    // never more than one: `swapping` refuses a second while one is running.
-    let loading: Promise<unknown> = Promise.resolve();
-    let swapping = false;
-
-    /**
-     * Puts a new level on screen, in the one order that cannot strand the player on a black canvas:
-     * build the next level FIRST, and only once it is standing swap the render loop onto it, tear the
-     * old one down and commit the mode. If the build rejects, nothing has been disposed and nothing
-     * has moved -- the player is still in the level they were in, control comes back, and the failure
-     * is logged (spec §9's error handling as the task brief states it).
-     *
-     * The cost of that order is that both scenes -- and both Havok worlds -- are resident for the
-     * duration of the build. Spec §6's "one scene is alive at a time" is about the steady state; the
-     * alternative here is disposing the only level on screen and showing nothing for the second or so
-     * it takes to reload the knight's GLB into the new scene, with no way back if that reload fails.
-     *
-     * BOTH levels have their input suspended for that window, at both ends. The outgoing one is
-     * suspended here: it is still simulating -- it is still the scene being rendered -- and without
-     * this the player would keep walking (and the hub's portal observable would keep testing the
-     * pedestal) during a load they cannot see the end of. The incoming one arrives suspended from
-     * `createCharacterRig` (see its doc) and is resumed below, on the far side of the dispose,
-     * because its listeners are bound to the same window and canvas as the outgoing level's and
-     * would otherwise be steering an invisible camera and banking held keys throughout the load.
-     *
-     * What neither branch restores is pointer lock. `suspendInput(true)` releases it and only a user
-     * gesture can take it back (`followCamera.setEnabled`), so a swap costs the player mouse look
-     * until their next click on the canvas -- on the way in, on the way out, and on the failure path
-     * where nothing else about the level changed. Keyboard and camera control come back at once.
-     */
-    function swapLevel<L extends Level>(build: () => Promise<L>, commit: (built: L) => void): void {
-      if (swapping) return;
-      swapping = true;
-      settled = false;
-      const leaving = current;
-      leaving?.suspendInput(true);
-      // A single `.then(onFulfilled, onRejected)` call, not two separate `.then`s: attaching the
-      // rejection handler here, on the promise `build()` returned, is what keeps a rejection from
-      // ever reaching an unhandled state. A second `.then(...)` for the reject side would still leave
-      // *this* call's derived promise (the one from the fulfilled-only handler) to reject with no
-      // handler of its own.
-      loading = build().then(
-        (built) => {
-          settled = true;
-          swapping = false;
-          if (disposed) { built.dispose(); return; } // unmounted before the async load finished
-          current = built;
-          canvas.tabIndex = -1;
-          // Only now: until this line the outgoing level was the one being rendered.
-          leaving?.dispose();
-          // After the dispose, so no two rigs are ever live on the same window at once, and BEFORE
-          // `commit`, so a commit that wants the level suspended anyway -- the first hub build, whose
-          // intro overlay owns the keyboard -- has the last word rather than being undone here.
-          built.suspendInput(false);
-          commit(built);
-        },
-        (err) => {
-          settled = true;
-          swapping = false;
-          // Nothing for THIS function to dispose, and that is a fact about who owns the wreckage
-          // rather than about there being none. Both builders open with `new Scene(engine)` and
-          // reject only after it, so a failure always orphans at least a scene -- and, depending on
-          // how far it got, a Havok world, a knight and a rig whose listeners are on this window.
-          // Nothing here ever received a handle to any of it, so the builders tear down their own
-          // partial build before rejecting (see `createTowerScene`/`createHubScene` and
-          // `levelTeardown.ts`). What reaches this branch is the failure alone -- Havok, the knight
-          // GLB or a tree asset -- and it is still worth logging rather than swallowing.
-          console.error('level build failed; staying in the current level:', err);
-          // Hand control back to the level the player never left -- keyboard and camera, but not
-          // pointer lock, which the suspend released and only a click can retake (see this
-          // function's doc). Not on unmount: `disposed` means the cleanup below has already disposed
-          // it.
-          if (!disposed) leaving?.suspendInput(false);
-        },
-      );
-    }
+    // two resets are the `canvas.tabIndex = -1` right after the first `levels.swap` call below (the
+    // synchronous half) and the `onShown` above, which covers anything babylon assigns later during
+    // the async setup -- for every level build, not just the first.
 
     function enterTower(): void {
       // Mirrors `gameMode.toTower`'s own guard rather than trusting it: `gameMode` refuses the
       // transition, but by then this would already have disposed the hub the player is standing in.
       if (gameMode.mode !== 'hub') return;
-      swapLevel(
+      levels.swap(
         () => createTowerScene(engine, canvas, exitTower),
         () => {
           // The hub is gone; `playCue` and `finishIntro` both read this at call time and must find
@@ -159,7 +86,7 @@
 
     function exitTower(): void {
       if (gameMode.mode !== 'tower') return;
-      swapLevel(
+      levels.swap(
         // `portalReturnSpawn()` rather than the default origin spawn: the return lands the player
         // beside the colonnade's pedestal, not on it (spec §5). The rebuilt hub's trigger also starts
         // disarmed, which is the second line of defence behind this one -- both, not either.
@@ -175,47 +102,33 @@
       );
     }
 
-    swapLevel(
+    levels.swap(
       () => createHubScene(engine, canvas, enterTower),
       (built) => {
         hub = built;
-        // Gate rather than unconditionally suspending: SKIP (or a parse failure leaving no session)
-        // can finish the intro before this async scene load resolves, in which case gameMode is
-        // already 'playing' with no overlay left to ever call suspendInput(false) again — an
-        // unconditional suspend here would soft-lock input forever. The same predicate decides the
-        // music: `session === undefined` (a dialogue parse failure) means no overlay ever renders and
-        // `finishIntro` never runs, so if the music scene were keyed on `gameMode.isPlaying` alone the
-        // AVG theme would play over gameplay forever.
-        const introRunning = session !== undefined && !gameMode.isPlaying;
+        // Gate rather than unconditionally suspending: SKIP can finish the intro before this async
+        // scene load resolves, in which case gameMode is already playing with no overlay left to ever
+        // call suspendInput(false) again — an unconditional suspend here would soft-lock input
+        // forever. A dialogue parse failure is the same state and reaches it earlier: `createGameMode`
+        // is told there is no intro and starts in the hub, which is also what keeps the AVG theme from
+        // playing over gameplay forever.
+        const introRunning = !gameMode.isPlaying;
         built.suspendInput(introRunning);
         built.audio.setMusicScene(introRunning ? 'intro' : 'playing');
         exposeDevHandle(built.scene, 'hub', built);
       },
     );
-    // The first of the two resets described above, and it has to be here: `swapLevel` calls `build()`
-    // synchronously, so by this line `createHubScene` has already run its `new Scene(engine)` and the
-    // canvas is already tabbable. The second lives in `swapLevel`'s fulfilled branch.
+    // The first of the two resets described above, and it has to be here: `levels.swap` calls
+    // `build()` synchronously, so by this line `createHubScene` has already run its `new
+    // Scene(engine)` and the canvas is already tabbable. The second is the `onShown` hook.
     canvas.tabIndex = -1;
 
     return () => {
-      disposed = true;
-      // `current`, not `hub`: the level on screen is the tower's when the player is in it, and the
-      // hub handle is undefined then.
-      current?.dispose();
+      // Disposes the level on screen -- the tower's when the player is in it, where the `hub` handle
+      // is undefined -- and then the engine, deferred if a build is still in flight. See
+      // `levelSwap.ts`.
+      levels.unmount();
       window.removeEventListener('resize', onResize);
-      if (settled) {
-        engine.dispose();
-      } else {
-        // A level is still building its scene against this engine -- awaiting Havok, the knight GLB,
-        // or the trees. Disposing the engine now would tear down the WebGL context that in-flight
-        // build is still constructing against, out from under it. Defer: `loading` always settles
-        // (its rejection branch above logs rather than rethrows), and by the time it does, either the
-        // `disposed` guard above has already disposed the scene it was handed, or the build failed
-        // and disposed its own partial scene before rejecting -- either way, the engine is the only
-        // thing left to tear down. The level that was on screen when the swap started is disposed by
-        // this cleanup.
-        loading.then(() => engine.dispose());
-      }
     };
   });
 

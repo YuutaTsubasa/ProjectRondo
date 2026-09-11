@@ -741,10 +741,17 @@ function buildLayout(): TowerLayout {
 }
 
 /**
- * The four rules from this file's header, checked against the layout that was actually generated
- * rather than against the prose that produced it. All four were violated by drafts of this file — the
- * fourth by the draft that SHIPPED, which is why it is here — and none of them shows up as anything
- * but a level that plays wrong.
+ * The four rules from this file's header and the embedding rule from {@link PLATFORM_ORBIT}, checked
+ * against the layout that was actually generated rather than against the prose that produced it. Four
+ * of the five were violated by drafts of this file — the column rule by the draft that SHIPPED, which
+ * is why it is here — and none of them shows up as anything but a level that plays wrong.
+ *
+ * **The embedding rule is here because it is the only one bounding {@link PLATFORM_ORBIT} from the
+ * INSIDE, and it was the one the audit could not see.** The column rule wants the orbit further out
+ * and the embedding rule wants it further in, so every re-solve that answers the first walks towards
+ * breaking the second — which is exactly what the last one did, pushing the orbit 4.2 → 4.6 and
+ * leaving 0.2 u of embedding held by arithmetic in a doc comment. The next such push detaches every
+ * ledge from the column, and until this loop existed it would have passed a clean audit.
  *
  * The slab test is a separating-axis one over the four face normals: the largest gap it finds is a
  * lower bound on the true distance between two rectangles, so passing it is conclusive and failing it
@@ -788,6 +795,17 @@ function auditLayout({ platforms, bounceLandings, jumpSteps, props }: TowerLayou
     const room = path - CAPSULE_RADIUS - TOWER_COLUMN_RADIUS;
     if (room < JUMP_PATH_MARGIN) {
       console.warn(`[towerLevel] the jump from y=${from.y} to y=${to.y} is blocked by the column — the line between them passes ${path.toFixed(3)} u from the axis, so a ${CAPSULE_RADIUS} u capsule's edge reaches ${(path - CAPSULE_RADIUS).toFixed(3)} u against a column of ${TOWER_COLUMN_RADIUS}: ${room.toFixed(3)} u where ${JUMP_PATH_MARGIN} is required. See PLATFORM_ORBIT.`);
+    }
+  }
+
+  for (const ledge of platforms) {
+    // Every slab is turned to face the column, so its inner edge is a straight line square on to the
+    // axis at `orbit − depth/2`, and the rule is that the line falls INSIDE the column. Checked from
+    // the generated slab's own orbit and depth rather than from the constants the loop above cites,
+    // because a pad on its own orbit is exactly the case this has to keep catching.
+    const innerEdge = Math.hypot(ledge.x, ledge.z) - ledge.depth / 2;
+    if (innerEdge > TOWER_COLUMN_RADIUS) {
+      console.warn(`[towerLevel] the slab at y=${ledge.y} does not reach the column — its inner edge is ${innerEdge.toFixed(3)} u from the axis against a column of ${TOWER_COLUMN_RADIUS}, so the ledge hangs off nothing and floats ${(innerEdge - TOWER_COLUMN_RADIUS).toFixed(3)} u clear of it. See PLATFORM_ORBIT.`);
     }
   }
 

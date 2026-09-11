@@ -49,6 +49,17 @@ describe('createGameMode', () => {
     expect(m.mode).toBe('tower');
   });
 
+  // A dialogue parse failure leaves `App.svelte` with no session, so no overlay renders and nothing
+  // ever calls `toHub`. Starting in the intro there is a hub the portal can never fire from — a
+  // playable-looking game with the tower unreachable and nothing saying so.
+  it('starts in the hub when there is no intro to run, and can reach the tower', () => {
+    const m = createGameMode(false);
+    expect(m.mode).toBe('hub');
+    expect(m.isPlaying).toBe(true);
+    m.toTower();
+    expect(m.mode).toBe('tower');
+  });
+
   it('refuses to return to the hub when already in the tower', () => {
     const m = createGameMode();
     m.toHub();
