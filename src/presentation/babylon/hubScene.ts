@@ -21,7 +21,7 @@ import { createShadows } from './shadows';
 import { createAtmosphere } from './postProcessing';
 import { createTerrain } from './terrain';
 import { terrainHeight } from './terrainHeight';
-import { CAPSULE_HALF } from './capsule';
+import { CAPSULE_HALF, spawnCentreY } from './capsule';
 import { loadTrees } from './trees';
 import { createGroundScatter } from './scatter';
 import { createWind } from './wind';
@@ -63,20 +63,9 @@ const TEST_CRYSTALS = [
  */
 const RETURN_DISTANCE = PEDESTAL_RADIUS * 2;
 
-/**
- * How far the capsule's base starts above the ground it is spawned over. Small and positive on
- * purpose: a capsule that starts embedded pops through the one-sided MESH collider and falls out of
- * the world, so it is placed just clear and allowed to settle down onto the surface.
- *
- * **Untuned**: 0.3 u. The reasoning above fixes the sign and the order of magnitude — it must clear
- * the collider and it must not be a visible drop — but nothing measured the gap the capsule actually
- * needs, and nobody has watched a spawn settle. It is a guess inside a constraint.
- */
-const SPAWN_CLEARANCE = 0.3;
-
 /** Where a spawn goes for the capsule's base to sit `SPAWN_CLEARANCE` over the terrain at (x, z). */
 function spawnOverTerrain(x: number, z: number): Vector3 {
-  return new Vector3(x, terrainHeight(x, z) + CAPSULE_HALF + SPAWN_CLEARANCE, z);
+  return new Vector3(x, spawnCentreY(terrainHeight(x, z)), z);
 }
 
 /**

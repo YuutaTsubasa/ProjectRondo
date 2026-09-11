@@ -177,8 +177,9 @@ function respawnRun(options: { stale: boolean; playerObserverFirst?: boolean; se
   const root = new TransformNode('player', scene);
   // The tower's own numbers: released at 62 with nothing under it, checkpoint 2 active at
   // SECTION_3_START 42, so the respawn fires TOWER_FALL_MARGIN 4 below that and lands the capsule
-  // 0.9 above the pad (CAPSULE_HALF + the 0.3 lift `towerLevel.ts` puts every checkpoint in open air
-  // by). Free fall under the domain's own `gravity` 24, integrated the way the domain integrates it.
+  // 0.9 above the pad (`capsule.ts`'s `spawnCentreY`: CAPSULE_HALF plus the 0.3 clearance every
+  // checkpoint and both spawns are placed in open air by). Free fall under the domain's own
+  // `gravity` 24, integrated the way the domain integrates it.
   const gravity = 24;
   const startY = 62;
   const respawnBelow = 38;

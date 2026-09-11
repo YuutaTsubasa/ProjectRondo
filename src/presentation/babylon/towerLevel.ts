@@ -3,7 +3,7 @@ import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { vec3, type Vec3 } from '../../domain/math/vec3';
 import type { TowerCheckpoint } from '../../domain/hub/tower/towerProgress';
 import { DEFAULT_CONFIG } from '../../domain/hub/character/movementConfig';
-import { CAPSULE_HALF, CAPSULE_HEIGHT, CAPSULE_RADIUS } from './capsule';
+import { CAPSULE_HALF, CAPSULE_HEIGHT, CAPSULE_RADIUS, spawnCentreY } from './capsule';
 import { PEDESTAL_HEIGHT } from './pedestal';
 
 /**
@@ -458,12 +458,6 @@ const SUMMIT_PEDESTAL_OFFSET = TOWER_SUMMIT_RADIUS + 2 * CAPSULE_RADIUS;
  */
 const SUMMIT_PAD_WIDTH = 2 * (SUMMIT_PEDESTAL_OFFSET + TOWER_SUMMIT_RADIUS);
 
-/** How far above a surface a respawn point sits. **Untuned**, but its direction is measured: spec
- *  §13.1 found a capsule teleported 3 u BELOW a surface is lost through the one-sided collider
- *  outright, while open air and "0.3 u above" both settle cleanly. So checkpoints are points in open
- *  air above their platform, never points on it — the same +0.3 the hub's spawn uses. */
-const RESPAWN_LIFT = 0.3;
-
 /**
  * Where a fall stops counting as a step down. **Untuned**: 4 u is a guess at "deeper than any
  * deliberate drop between platforms, shallower than a fall that would hang before resolving".
@@ -876,16 +870,15 @@ const SPAWN_ORBIT = 7;
  * the camera is pointing when the level opens is `followCamera`'s default yaw and is not decided
  * here, so nothing in this file claims the player is looking at anything.
  *
- * The `+ RESPAWN_LIFT` is the hub's reasoning at its own spawn: start just above the floor so the
- * capsule settles onto it, rather than embedded in a one-sided collider it would fall through.
+ * The height is {@link spawnCentreY}, the rule the hub spawns by as well: start just above the floor
+ * so the capsule settles onto it, rather than embedded in a one-sided collider it would fall through.
  */
 export const TOWER_SPAWN = ((): Vector3 => {
-  const spot = at(SPAWN_ORBIT, SPIRAL_FIRST_STEP_DEGREES, TOWER_FLOOR_Y + CAPSULE_HALF + RESPAWN_LIFT);
+  const spot = at(SPAWN_ORBIT, SPIRAL_FIRST_STEP_DEGREES, spawnCentreY(TOWER_FLOOR_Y));
   return new Vector3(spot.x, spot.y, spot.z);
 })();
 
-const respawnAbove = (pad: TowerPlatform): Vec3 =>
-  vec3(pad.x, pad.y + CAPSULE_HALF + RESPAWN_LIFT, pad.z);
+const respawnAbove = (pad: TowerPlatform): Vec3 => vec3(pad.x, spawnCentreY(pad.y), pad.z);
 
 /**
  * One checkpoint per section (spec §2), each standing on that section's first pad.

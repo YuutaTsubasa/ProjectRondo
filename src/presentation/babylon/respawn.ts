@@ -27,8 +27,9 @@ import { NO_HOMING_LOCK, type HomingLock } from './homingLock';
  * harmless when something else starts reading the lock.
  *
  * What is deliberately NOT reset: `GroundContactState`. A respawn lands the capsule in open air
- * `RESPAWN_LIFT` above its pad (design spec §13.1), so "airborne, falling" is the truthful answer for
- * the frame it arrives on, and the support probe answers the next one. The only thing it carries is up
+ * `capsule.ts`'s `SPAWN_CLEARANCE` above its pad (design spec §13.1), so "airborne, falling" is the
+ * truthful answer for the frame it arrives on, and the support probe answers the next one. The only
+ * thing it carries is up
  * to `JUMP_BUFFER_SECONDS` 0.15 s of a buffered press, which spends itself as one jump on landing.
  */
 export interface Respawned {
