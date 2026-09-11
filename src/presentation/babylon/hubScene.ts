@@ -73,8 +73,19 @@ function spawnOverTerrain(x: number, z: number): Vector3 {
  * (spec §5, "Re-entry must not loop").
  *
  * Placed on the side of the pedestal that faces the hub's origin — the direction the player walked in
- * from — so they arrive looking back out through the colonnade at the way they came rather than at a
- * pillar, and so the ring of light is between them and the exit.
+ * from — so the ring of light stands between them and the exit: at {@link RETURN_DISTANCE}, twice
+ * {@link PEDESTAL_RADIUS}, they are outside the ring looking across it at the thing they just stepped
+ * out of, and the first step they take is away from it rather than back onto it.
+ *
+ * **That is where they stand, not what they see.** `createFollowCamera` opens every fresh camera at
+ * `yaw = 0` and derives nothing from the spawn, so the view on a rebuilt hub points along world −Z
+ * whatever this function returns. From (−5.4103, 28.8548) that ray passes 0.5897 u from
+ * `plazaPillar_6`'s axis at (−6, 24) — 0.1397 u outside its surface and 4.8548 u ahead — so what
+ * greets the player is a pillar spanning 1.7° to 12.2° off screen centre, and it is the plaza's
+ * offset from the origin (|`PLAZA_X`| 6 against `PLAZA_Z` 32) that makes the view read as "back
+ * down the colonnade" at all. Move the plaza and both facts change with nothing to catch it. Aiming
+ * the camera on arrival is camera work nobody has done — `towerLevel.ts`'s `TOWER_SPAWN` declines to
+ * make the claim about the same camera for the same reason.
  *
  * A function returning a fresh `Vector3` rather than an exported constant, because `createPlayer`
  * hands its spawn straight to `PhysicsCharacterController`, whose `getPosition()` is documented as

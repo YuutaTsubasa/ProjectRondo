@@ -144,13 +144,19 @@ export const TOWER_SLAB_THICKNESS = 0.4;
  * jumps, which is what the owner felt as the angle between one platform and the next being blocked.
  * The two rules are only compatible because the platform got deeper at the same time: subtracting them
  * gives `PLATFORM_DEPTH/2 ≥ TOWER_COLUMN_RADIUS · (1/cos 30° − 1) + (CAPSULE_RADIUS +
- * JUMP_PATH_MARGIN)/cos 30° + 0.2` = 0.4950 + 0.8660 + 0.2 = **1.5611**, i.e. a depth of 3.1221, so
- * no platform 2.4 u deep can ever satisfy both at this column radius, whatever the orbit. (The three
- * terms are the same subtraction rearranged: the column rule alone puts the orbit at
- * `(3.2 + 0.25 + 0.5)/cos 30°` = 4.5611 at the least, and the embedding rule then wants the inner
- * face at 3.0 or less.) The depth then walks into {@link BOUNCE_REACH}, which caps it —
- * that is the whole of the simultaneous system, and 4.6 / 3.2 / 2.3 is a solution to it with margin on
- * every side.
+ * JUMP_PATH_MARGIN)/cos 30°` = 0.4950 + 0.8660 = **1.3610**, a depth of 2.7221, so no platform 2.4 u
+ * deep can ever satisfy both at this column radius, whatever the orbit. (The two terms are the same
+ * subtraction rearranged: the column rule alone puts the orbit at `(3.2 + 0.25 + 0.5)/cos 30°` =
+ * 4.5611 at the least, and the embedding rule then wants the inner face no further out than 3.2 —
+ * which is the bound {@link auditLayout} holds, an inner face AT 3.2 being legal there.)
+ *
+ * The shipped depth is 3.2, which clears that floor by 0.4779, and **neither rule asks for the
+ * difference**: it is twice the sum of the two slacks this solution chose to take — the 0.2 u of
+ * embedding above, and the 0.0389 u the orbit sits above its own floor of 4.5611. Both are choices,
+ * not consequences, and only the first is load-bearing (a slab whose inner face lay exactly on the
+ * curve would meet a round column at a single point). The depth then walks into {@link BOUNCE_REACH},
+ * which caps it — that is the whole of the simultaneous system, and 4.6 / 3.2 / 2.3 is a solution to
+ * it with margin on every side.
  *
  * A straight edge against a round column only meets it in the middle, and how far the ends part
  * company is a function of the slab's WIDTH and of the inner face's radius, neither of which moved:
