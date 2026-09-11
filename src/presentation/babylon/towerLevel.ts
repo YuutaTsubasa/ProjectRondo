@@ -1,5 +1,3 @@
-import { Vector3 } from '@babylonjs/core/Maths/math.vector';
-
 import { vec3, type Vec3 } from '../../domain/math/vec3';
 import type { TowerCheckpoint } from '../../domain/hub/tower/towerProgress';
 import { DEFAULT_CONFIG } from '../../domain/hub/character/movementConfig';
@@ -28,13 +26,19 @@ import { PEDESTAL_HEIGHT } from './pedestal';
  * voids and what it does not, and nothing in this file cites one of those measurements without saying
  * which layout it came from.
  *
- * The two rules everything hangs off, both from the design spec §3:
+ * The two rules everything hangs off, both from the design spec §3, and both checked by
+ * {@link auditLayout} — they were prose until a reviewer pointed out that the audit knew every rule
+ * in this file except the two it opens with:
  *
- * - **A jump gains at most {@link JUMP_RISE}.** The apex is `jumpSpeed²/(2·gravity)` = 9²/48 =
- *   **1.6875 u** (`movementConstants.ts`), so 1.4 leaves 0.29 u of margin for a missed landing.
- * - **A homing link gains 6–8 u comfortably.** Bounded by `homingRange` 12 and the 35° cone, and a
- *   crystal may sit directly overhead. Both kinds of link here land inside that band: 6.0 u in
- *   section 2, 7.2 u in section 3.
+ * - **A jump gains at most {@link JUMP_APEX}**, `jumpSpeed²/(2·gravity)` = 9²/48 = **1.6875 u**
+ *   (`movementConstants.ts`). Past it the step is not jumpable and the section it is in cannot be
+ *   climbed. {@link JUMP_RISE} 1.4 is what the generator actually lays out at, 0.29 u under that
+ *   ceiling, and it is now the number every step in the tower derives from — {@link SECTION_1_STEPS}
+ *   included, which used to divide the section height by a hand-written count instead.
+ * - **A homing link gains 6–8 u comfortably.** The hard bound is `homingRange` 12, which
+ *   `homingTarget.ts` refuses a lock past; the 6–8 is spec §3's comfort band inside it. The range is
+ *   audited, the band is not — see {@link auditLayout}. Both kinds of link here land inside the band:
+ *   6.0 u in section 2, 7.2 u in section 3.
  *
  * The sections were *meant* to be matched on play TIME, not on height (spec §3), which is why they
  * are 18, 24 and 20 units tall. §14.2 timed them and the premise did not hold — ~13 jump steps
@@ -188,7 +192,29 @@ const PLATFORM_DEPTH = 3.2;
 // The movement rules the layout is generated from
 // ---------------------------------------------------------------------------------------------
 
-/** Height a jump step gains. **Untuned**: 1.4 against the 1.6875 u apex, i.e. 0.29 u of margin. */
+/**
+ * The most a jump can EVER gain: `jumpSpeed²/(2·gravity)` = **1.6875 u**. Derived from the domain's
+ * own movement constants rather than written down here, so retuning `jumpSpeed` or `gravity` moves
+ * the ceiling the layout is checked against instead of leaving this file asserting the old one.
+ *
+ * It is a ceiling, not a target — a step exactly this tall is cleared with zero margin, at the one
+ * frame the arc is flat. {@link JUMP_RISE} is what the layout is built at; this is what
+ * {@link auditLayout} holds every generated step to.
+ */
+const JUMP_APEX = (DEFAULT_CONFIG.jumpSpeed * DEFAULT_CONFIG.jumpSpeed) / (2 * DEFAULT_CONFIG.gravity);
+
+/**
+ * Height a jump step gains. **Untuned**: 1.4 against the {@link JUMP_APEX} 1.6875 u ceiling, i.e.
+ * 0.29 u of margin for a missed landing.
+ *
+ * **It is now the number the whole climb's step heights come out of, which it was not.** Section 3
+ * always added it directly; section 1 divided {@link SECTION_2_START} by a hand-written
+ * {@link SECTION_1_STEPS}, so this constant documented a bound section 1 never consulted — raise the
+ * section or drop a step and all thirteen steps grew with nothing here changing and nothing checking
+ * the result against the apex. {@link SECTION_1_STEPS} is derived from this now, so the section's
+ * per-step rise is at most this by construction, and {@link auditLayout} measures the rise the
+ * generator produced rather than trusting either.
+ */
 const JUMP_RISE = 1.4;
 
 /**
@@ -576,9 +602,17 @@ const onPad = (p: TowerPlatform, along: number, outward: number): Vec3 => {
 };
 
 /**
- * Jump steps in section 1. **Untuned**: 13, because 18 u at {@link JUMP_RISE} needs at least 12.9 of
- * them, and 13 puts the per-step rise at 18/13 = **1.3846 u** — just inside the rule rather than
- * exactly on it. Spec §3's own estimate for this section is "~13 steps".
+ * Jump steps in section 1. **Derived, not chosen**: the fewest steps that get 18 u up without any of
+ * them gaining more than {@link JUMP_RISE} — `ceil(18 / 1.4)` = **13**, which puts the per-step rise
+ * at 18/13 = **1.3846 u**, just inside the rule rather than exactly on it. Spec §3's own estimate for
+ * this section is "~13 steps", so the derivation and the spec agree; it is written as a derivation
+ * because as a literal it agreed with {@link JUMP_RISE} only by coincidence, and went on agreeing
+ * with it however far either drifted.
+ *
+ * The rounding is the whole of the safety here: taking the ceiling can only make the steps SHORTER
+ * than {@link JUMP_RISE}, never taller, so section 1 cannot grow past the jump apex whatever
+ * {@link SECTION_2_START} becomes. What it can do is grow a step count nobody wanted, which is a
+ * visible consequence rather than an unclimbable tower.
  *
  * **This count and {@link SECTION_2_LINKS} are what spec §14.2 says should move first.** Timed on a
  * scripted climb that never misses, a jump step costs **62–79 frames** at 60 fps — a mean of 69.6,
@@ -588,11 +622,21 @@ const onPad = (p: TowerPlatform, along: number, outward: number): Vec3 => {
  * §3 matched the sections on height-per-vocabulary and assumed the times would follow; they follow
  * the *count* instead. Neither number was changed for that — retuning the shape of the climb is the
  * owner's call, not a fix.
+ *
+ * **The knob for that retune is {@link JUMP_RISE} or {@link SECTION_2_START}, and there is a floor on
+ * it.** Fewer steps means taller ones, and taller ones run into the apex: at 18 u this section cannot
+ * be climbed in fewer than `ceil(18 / 1.6875)` = **11** steps, and the eleventh-step layout has
+ * 1.6364 u steps with 0.05 u of margin. Cutting 15.1 s by much more than a sixth means lowering the
+ * section rather than emptying it.
  */
-const SECTION_1_STEPS = 13;
+const SECTION_1_STEPS = Math.ceil((SECTION_2_START - TOWER_FLOOR_Y) / JUMP_RISE);
 /** Homing links in section 2. **Untuned**: 4, spec §3's "~4 crystals", which over 18 → 42 puts the
- *  rise per link at exactly **6.0 u** — the bottom of the spec's 6–8 band. See
- *  {@link SECTION_1_STEPS} for what spec §14.2 measured this section against. */
+ *  rise per link at exactly **6.0 u** — the bottom of the spec's 6–8 band. The band is a comfort
+ *  preference; the hard bound is `homingRange` 12, which no lock is made past, and which the chain
+ *  meets at `hypot(2·CRYSTAL_ORBIT·sin(30°), 6.0)` = **9.14 u** crystal to crystal. Dropping this to
+ *  2 would put them 13.84 u apart and make the section uncrossable, which is why
+ *  {@link auditLayout} measures it. See {@link SECTION_1_STEPS} for what spec §14.2 measured this
+ *  section against. */
 const SECTION_2_LINKS = 4;
 /** Section 3's alternation: two jump steps, a link, two jump steps, a link onto the summit.
  *  **Untuned**: the counts are what fit two links inside 20 u while leaving both in the 6–8 band —
@@ -626,6 +670,18 @@ interface TowerLayout {
    *  that catches section 2's chain is four turns on from the slab before it, and the chord between
    *  those two passes the axis on the far side of the column. */
   readonly jumpSteps: readonly (readonly [TowerPlatform, TowerPlatform])[];
+  /** `[height jumped from, height landed on]` for every jump the climb asks for — the pairs
+   *  {@link auditLayout} checks {@link JUMP_APEX} against. A superset of {@link jumpSteps}: it also
+   *  carries section 1's first step, which is jumped from the floor and so has a rise to check but no
+   *  chord for the column rule to look at. Heights rather than platforms, because the rule is about
+   *  the climb and the floor is not a platform. */
+  readonly jumpRises: readonly (readonly [number, number])[];
+  /** `[where the dash is aimed from, the crystal it locks on to]` for every homing link — the pairs
+   *  {@link auditLayout} checks `homingRange` against. The first end is the capsule's CENTRE, because
+   *  that is what `playerController` hands `selectHomingTarget` as its `from`: {@link CAPSULE_HALF}
+   *  above a pad's top face when the link is pressed standing, and the previous crystal itself when
+   *  it is chained off a bounce (see {@link BOUNCE_RISE}). */
+  readonly homingLinks: readonly (readonly [Vec3, Vec3])[];
   /** Everything standing on a pad, for the landing rule to check the bounces against. */
   readonly props: readonly TowerPadProp[];
 }
@@ -640,34 +696,46 @@ function buildLayout(): TowerLayout {
   const crystals: Vec3[] = [];
   const bounceLandings: (readonly [Vec3, TowerPlatform])[] = [];
   const jumpSteps: (readonly [TowerPlatform, TowerPlatform])[] = [];
+  const jumpRises: (readonly [number, number])[] = [];
+  const homingLinks: (readonly [Vec3, Vec3])[] = [];
   let bearing = SPIRAL_START_DEGREES;
 
-  /** A link that ends on a platform: a crystal `rise` above the last standing height, and the pad its
-   *  bounce lands on, one {@link BOUNCE_REACH} inboard of it. Returns the pad it lands on. */
-  const link = (fromY: number, rise: number, padWidth: number): TowerPlatform => {
+  /** Where a dash pressed on `pad` is aimed FROM: the capsule's centre, which rides
+   *  {@link CAPSULE_HALF} above whatever it stands on. */
+  const standingAim = (pad: TowerPlatform): Vec3 => vec3(pad.x, pad.y + CAPSULE_HALF, pad.z);
+
+  /** A link that ends on a platform: a crystal `rise` above `fromY` — the last standing height, or
+   *  the last crystal when the link is chained off one — and the pad its bounce lands on, one
+   *  {@link BOUNCE_REACH} inboard of it. `aim` is where the dash is pressed from, which is not `fromY`
+   *  in either case: see {@link TowerLayout.homingLinks}. Returns the pad it lands on. */
+  const link = (fromY: number, aim: Vec3, rise: number, padWidth: number): TowerPlatform => {
     bearing += TURN_DEGREES;
     const crystal = at(CRYSTAL_ORBIT, bearing, fromY + rise);
     const pad = slab(bearing, crystal.y + BOUNCE_RISE, padWidth);
     crystals.push(crystal);
     platforms.push(pad);
     bounceLandings.push([crystal, pad]);
+    homingLinks.push([aim, crystal]);
     return pad;
   };
 
   /** One jump step onto a new slab one turn on, recorded together with the platform it is jumped
    *  FROM. `from` is undefined only for the first step of section 1, which is jumped from the floor:
    *  that approach runs radially inward from {@link TOWER_SPAWN} at orbit 7 rather than around the
-   *  column, so there is no chord for the column rule to check and nothing is lost by omitting it. */
+   *  column, so there is no chord for the column rule to check and nothing is lost by omitting it
+   *  THERE. Its rise is checked like every other, from {@link TOWER_FLOOR_Y}. */
   const step = (y: number, from: TowerPlatform | undefined): TowerPlatform => {
     bearing += TURN_DEGREES;
     const pad = slab(bearing, y, PLATFORM_WIDTH);
     platforms.push(pad);
+    jumpRises.push([from ? from.y : TOWER_FLOOR_Y, y]);
     if (from) jumpSteps.push([from, pad]);
     return pad;
   };
 
   // Section 1 — pure platform jumping, floor to 18. The rise is written as a fraction of the whole
-  // section rather than as a repeated addition, so the last step lands on SECTION_2_START exactly.
+  // section rather than as a repeated addition, so the last step lands on SECTION_2_START exactly —
+  // and it stays under JUMP_RISE because SECTION_1_STEPS is derived from JUMP_RISE by rounding UP.
   let standing: TowerPlatform | undefined;
   for (let i = 1; i <= SECTION_1_STEPS; i++) {
     standing = step(TOWER_FLOOR_Y + ((SECTION_2_START - TOWER_FLOOR_Y) * i) / SECTION_1_STEPS, standing);
@@ -677,11 +745,18 @@ function buildLayout(): TowerLayout {
   // Section 2 — the homing chain, 18 to 42. Only the LAST link ends on a platform; the three before
   // it end on the next crystal, which is what makes the section a chain rather than four hops.
   const chainRise = (SECTION_3_START - SECTION_2_START) / SECTION_2_LINKS;
+  // The first link is pressed standing on the pad section 1 ends on; every one after it is pressed
+  // in the air, at the crystal the previous bounce left from. That is the distance homingRange is
+  // measured over, so it is carried rather than recomputed.
+  let aim = standingAim(section2Pad);
   for (let i = 1; i < SECTION_2_LINKS; i++) {
     bearing += TURN_DEGREES;
-    crystals.push(at(CRYSTAL_ORBIT, bearing, SECTION_2_START + chainRise * i));
+    const crystal = at(CRYSTAL_ORBIT, bearing, SECTION_2_START + chainRise * i);
+    crystals.push(crystal);
+    homingLinks.push([aim, crystal]);
+    aim = crystal;
   }
-  const section3Pad = link(SECTION_2_START + chainRise * (SECTION_2_LINKS - 1), chainRise, PLATFORM_WIDTH);
+  const section3Pad = link(SECTION_2_START + chainRise * (SECTION_2_LINKS - 1), aim, chainRise, PLATFORM_WIDTH);
 
   // Section 3 — mixed, 42 to 62: two steps, a link, two steps, a link onto the summit.
   const linkRise =
@@ -694,7 +769,7 @@ function buildLayout(): TowerLayout {
       standing = step(y, standing);
     }
     const last = i === SECTION_3_LINKS - 1;
-    standing = link(y, linkRise, last ? SUMMIT_PAD_WIDTH : PLATFORM_WIDTH);
+    standing = link(y, standingAim(standing), linkRise, last ? SUMMIT_PAD_WIDTH : PLATFORM_WIDTH);
     y = standing.y;
   }
   const summit = platforms[platforms.length - 1];
@@ -711,15 +786,31 @@ function buildLayout(): TowerLayout {
 
   return {
     platforms, crystals, checkpointPads: [section2Pad, section3Pad], bounceLandings, jumpSteps,
-    props: [pedestal],
+    jumpRises, homingLinks, props: [pedestal],
   };
 }
 
 /**
- * The four rules from this file's header and the embedding rule from {@link PLATFORM_ORBIT}, checked
- * against the layout that was actually generated rather than against the prose that produced it. Four
- * of the five were violated by drafts of this file — the column rule by the draft that SHIPPED, which
- * is why it is here — and none of them shows up as anything but a level that plays wrong.
+ * Every rule this file states as a BOUND, checked against the layout that was actually generated
+ * rather than against the prose that produced it: the two the header opens with, the four found the
+ * hard way,
+ * and the embedding rule from {@link PLATFORM_ORBIT}. Four of them were violated by drafts of this
+ * file — the column rule by the draft that SHIPPED, which is why it is here — and none of them shows
+ * up as anything but a level that plays wrong.
+ *
+ * **The header's own two rules were the last in**, and their absence was the sharpest version of the
+ * problem this function exists for: the audit knew the four rules nobody had written down and not the
+ * two everything else is derived from. A jump step past {@link JUMP_APEX} is a step the player cannot
+ * make, and a crystal past `homingRange` is a crystal that never locks; either one ends the climb
+ * where it stands, and both were held by arithmetic in a doc comment. They are checked first here
+ * because they are the two that make a section impossible rather than unpleasant.
+ *
+ * **Two things about those rules are deliberately outside this.** Spec §3's 6–8 u comfort band for a
+ * link is a preference and not a bound — a 5 u link is dull, not unclimbable — and is left to the
+ * prose on {@link SECTION_2_LINKS} and {@link SECTION_3_LINKS}. The 35° selection cone is not a level
+ * coordinate at all: what it measures is the angle between the crystal and where the CAMERA is
+ * looking, which is the player's to decide and not this file's — the same reason the launch point of
+ * a chained bounce is left unchecked below.
  *
  * **The embedding rule is here because it is the only one bounding {@link PLATFORM_ORBIT} from the
  * INSIDE, and it was the one the audit could not see.** The column rule wants the orbit further out
@@ -761,7 +852,30 @@ function buildLayout(): TowerLayout {
  * It warns rather than throws: a tower with one bad ledge is still worth loading and looking at, and
  * an error thrown here would take the whole scene down at import time.
  */
-function auditLayout({ platforms, bounceLandings, jumpSteps, props }: TowerLayout): void {
+function auditLayout(
+  { platforms, bounceLandings, jumpSteps, jumpRises, homingLinks, props }: TowerLayout,
+): void {
+  for (const [from, to] of jumpRises) {
+    // The apex is the whole of it: a jump is a ballistic arc from a standstill in the vertical, so
+    // what it can gain does not depend on the run-up, the turn or the pad. Measured on the rise the
+    // generator produced rather than on JUMP_RISE, because what has to be jumpable is the step that
+    // exists — section 1 rounds its own rise down out of JUMP_RISE, and a future section need not.
+    const rise = to - from;
+    if (rise > JUMP_APEX) {
+      console.warn(`[towerLevel] the step from y=${from} to y=${to} cannot be jumped — it gains ${rise.toFixed(4)} u against a jump apex of ${JUMP_APEX} u, so the section it is in cannot be climbed. See JUMP_RISE.`);
+    }
+  }
+
+  for (const [aim, crystal] of homingLinks) {
+    // `selectHomingTarget` measures the straight 3D line from the capsule's centre and refuses
+    // anything past homingRange outright, so a link longer than this is not a hard link — it is a
+    // crystal the reticle never offers and a dash that never fires.
+    const reach = Math.hypot(crystal.x - aim.x, crystal.y - aim.y, crystal.z - aim.z);
+    if (reach > DEFAULT_CONFIG.homingRange) {
+      console.warn(`[towerLevel] the crystal at y=${crystal.y} is out of homing range from y=${aim.y} — ${reach.toFixed(3)} u against homingRange ${DEFAULT_CONFIG.homingRange}, so it can never be locked on to. See SECTION_2_LINKS.`);
+    }
+  }
+
   for (const [from, to] of jumpSteps) {
     // The column is a cylinder, so the whole of the jump is judged by the chord's nearest approach to
     // the axis; the capsule is a capsule, so its edge reaches CAPSULE_RADIUS further in than its own
@@ -872,11 +986,17 @@ const SPAWN_ORBIT = 7;
  *
  * The height is {@link spawnCentreY}, the rule the hub spawns by as well: start just above the floor
  * so the capsule settles onto it, rather than embedded in a one-sided collider it would fall through.
+ *
+ * A readonly {@link Vec3} like every other coordinate here, and NOT a `Vector3` — which is what it
+ * used to be, and the one exception in this file. `createPlayer` hands its spawn straight to
+ * `PhysicsCharacterController`, whose `getPosition()` is documented as returning its LIVE internal
+ * vector, so an exported babylon vector is a shared mutable the controller may write through. The hub
+ * reached the same conclusion for the same consumer and answered it with a function returning a fresh
+ * vector (`portalReturnSpawn`); the tower has no computation to hide behind one, so it exports the
+ * value and `towerScene` converts at the call site. Both levels now hand that consumer something it
+ * owns.
  */
-export const TOWER_SPAWN = ((): Vector3 => {
-  const spot = at(SPAWN_ORBIT, SPIRAL_FIRST_STEP_DEGREES, spawnCentreY(TOWER_FLOOR_Y));
-  return new Vector3(spot.x, spot.y, spot.z);
-})();
+export const TOWER_SPAWN: Vec3 = at(SPAWN_ORBIT, SPIRAL_FIRST_STEP_DEGREES, spawnCentreY(TOWER_FLOOR_Y));
 
 const respawnAbove = (pad: TowerPlatform): Vec3 => vec3(pad.x, spawnCentreY(pad.y), pad.z);
 
@@ -895,7 +1015,7 @@ const respawnAbove = (pad: TowerPlatform): Vec3 => vec3(pad.x, spawnCentreY(pad.
  * revisit if the summit plays as a wall.
  */
 export const TOWER_CHECKPOINTS: readonly TowerCheckpoint[] = [
-  { activateY: TOWER_FLOOR_Y, respawn: vec3(TOWER_SPAWN.x, TOWER_SPAWN.y, TOWER_SPAWN.z) },
+  { activateY: TOWER_FLOOR_Y, respawn: TOWER_SPAWN },
   { activateY: SECTION_2_START, respawn: respawnAbove(layout.checkpointPads[0]) },
   { activateY: SECTION_3_START, respawn: respawnAbove(layout.checkpointPads[1]) },
 ];

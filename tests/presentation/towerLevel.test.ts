@@ -43,10 +43,18 @@ describe('the tower layout', () => {
     // without it genuinely becoming jumpable. The pad that catches section 2's chain stands 24 u
     // above the platform before it, and section 3's links 7.2 u; neither is one.
     const apex = (DEFAULT_CONFIG.jumpSpeed * DEFAULT_CONFIG.jumpSpeed) / (2 * DEFAULT_CONFIG.gravity);
-    const jumps = platforms
-      .map((to, i) => [platforms[i - 1], to] as const)
-      .filter(([from, to]) => from !== undefined && to.y - from.y <= apex);
+    const pairs = platforms.map((to, i) => [platforms[i - 1], to] as const).slice(1);
+    const jumps = pairs.filter(([from, to]) => to.y - from.y <= apex);
     expect(jumps.length).toBeGreaterThan(0);
+    // A pair that is NOT a jump has to be a link, or classifying by rise would let a step that grew
+    // past the apex fall out of the list above and be asserted about by nothing — which is how this
+    // test passed a section 1 whose rise was never checked against the apex at all. A link ends on
+    // the pad its bounce lands on, and BOUNCE_RISE puts that pad level with its crystal, so the only
+    // pairs allowed to exceed the apex are the ones landing at a crystal's own height.
+    for (const [from, to] of pairs) {
+      if (to.y - from.y <= apex) continue;
+      expect(level.TOWER_CRYSTALS.some((c) => Math.abs(c.y - to.y) < 1e-9)).toBe(true);
+    }
     for (const [from, to] of jumps) {
       // Both ends sit at the same orbit one turn apart, so the chord's nearest approach to the
       // column's axis is its own midpoint. The capsule's edge reaches CAPSULE_RADIUS further in.

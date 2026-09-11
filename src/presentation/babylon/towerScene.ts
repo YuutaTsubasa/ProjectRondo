@@ -31,6 +31,7 @@ import { IBL_FACE_SIZE, IBL_INTENSITY, IBL_URL } from './ibl';
 import { disposeLevel, type LevelParts } from './levelTeardown';
 import { createShadows, type Shadows } from './shadows';
 import { standingOnPedestal, stepPortalTrigger, PORTAL_START, type PortalTrigger } from './portalTrigger';
+import { toBabylon } from './vectorConversions';
 import { CAPSULE_HALF } from './capsule';
 import { PEDESTAL_HEIGHT } from './pedestal';
 import { createHubAudio } from '../audio/hubAudio';
@@ -246,7 +247,9 @@ async function buildTowerScene(
     // the hub's height field, which has no domain guard and would pin the camera at y ~ 15-18 for
     // the whole of section 1 (spec §13.2); that is why this is injected at all.
     groundHeight: unknownGround,
-    spawn: TOWER_SPAWN,
+    // A fresh vector, never the level's own: it ends up inside `PhysicsCharacterController`, whose
+    // `getPosition()` hands back its live internal one. See TOWER_SPAWN.
+    spawn: toBabylon(TOWER_SPAWN),
     crystals,
     // Yes, and this is the level the term exists for: a missed platform is a 24-28 u fall the player
     // is meant to watch (spec §2, §4), and without it the knight leaves the bottom of the frame 8 u
