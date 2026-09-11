@@ -149,6 +149,17 @@ async function buildCharacterRig(
   scene: Scene, pieces: RigPieces, options: CharacterRigOptions,
 ): Promise<CharacterRig> {
   const root = new TransformNode('player', scene);
+  // Seeded before the camera binds to it, and that order is the whole point. `createFollowCamera`
+  // registers the first of the frame's observers and places itself from wherever the target is, so
+  // the seed it takes on the level's first frame is whatever `root` holds at this line — while the
+  // player's own observer, the one thing that ever writes `root` from the capsule, is registered
+  // below and does not run until after it. A root left at the origin therefore opens a level with one
+  // frame framed on the world origin at floor level and then eases to the spawn at
+  // `verticalSmoothing` — the same stale-transform glide `FollowCamera.snap()` and `Player.teleport`
+  // point 4 exist to stop at a respawn, over a spawn-sized displacement and with nothing calling
+  // `snap()` on a fresh build. `createPlayer` below seeds its own `visualY` from this same vector;
+  // this is the transform half of that seed, in the same breath, for the same reason.
+  root.position.copyFrom(options.spawn);
   const follow = createFollowCamera(
     scene, root, options.canvas, options.groundHeight, options.descentFollow);
   pieces.follow = follow;
