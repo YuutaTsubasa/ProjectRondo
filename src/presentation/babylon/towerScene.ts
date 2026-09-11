@@ -237,7 +237,6 @@ async function buildTowerScene(
 
   const rig = await createCharacterRig(scene, {
     canvas,
-    sun,
     makeShadows: (camera) => towerShadows(sun, camera),
     // The tower's whole answer to "how high is the ground here": it has none. Every surface here is
     // a collider the foot probe and the support probe find for themselves, and the floor at y 0 is

@@ -1,6 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
-import type { DirectionalLight } from '@babylonjs/core/Lights/directionalLight';
 import type { Scene } from '@babylonjs/core/scene';
 
 import type { CharacterRigOptions } from '../../src/presentation/babylon/characterRig';
@@ -88,7 +87,6 @@ describe('createCharacterRig teardown', () => {
 
   const options = (): CharacterRigOptions => ({
     canvas: {} as HTMLCanvasElement,
-    sun: {} as DirectionalLight,
     makeShadows: () => ({}) as Shadows,
     groundHeight: () => 0,
     spawn: new Vector3(0, 1, 0),

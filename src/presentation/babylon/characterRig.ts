@@ -1,5 +1,4 @@
 import type { Camera } from '@babylonjs/core/Cameras/camera';
-import type { DirectionalLight } from '@babylonjs/core/Lights/directionalLight';
 import type { Scene } from '@babylonjs/core/scene';
 import { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
@@ -14,7 +13,8 @@ import type { Crystals } from './crystals';
 
 export interface CharacterRigOptions {
   readonly canvas: HTMLCanvasElement;
-  readonly sun: DirectionalLight;
+  /** How this level makes its shadow generator, and the only way a light reaches the rig at all —
+   *  each level closes over its own sun here, so the rig never needs to be handed one. */
   readonly makeShadows: (camera: Camera) => Shadows;
   readonly groundHeight: GroundHeight;
   readonly spawn: Vector3;

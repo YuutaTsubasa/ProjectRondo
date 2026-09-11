@@ -184,7 +184,6 @@ async function buildHubScene(
   // takes it as an argument rather than importing it, so the same rig works in a scene that has none.
   const rig = await createCharacterRig(scene, {
     canvas,
-    sun,
     makeShadows: (camera) => createShadows(sun, camera),
     groundHeight: terrainHeight,
     spawn,
