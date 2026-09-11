@@ -88,17 +88,25 @@ describe('the tower layout', () => {
     for (const [from, to] of jumps) {
       // The nearest pair of CORNERS. It is never closer than the two footprints actually are, so it
       // states a HARDER crossing than the one the audit measures — and it needs no point-to-edge
-      // geometry, so this asserts the rule instead of re-running the implementation of it.
-      const gap = Math.min(
+      // geometry, so this asserts the rule instead of re-running the implementation of it. Plus a
+      // capsule radius, because the crossing ends with the centre standing on the far slab and a
+      // centre exactly on its corner is standing on nothing.
+      const air = Math.min(
         ...corners(from).flatMap((a) => corners(to).map((b) => Math.hypot(a.x - b.x, a.z - b.z))),
       );
-      // The condition itself rather than a closed form for it: a player who leaves the near edge at
-      // `maxSpeed` is over open air until the far edge, so the only moment their height matters is
-      // the one they arrive at it, and their feet have to still be above the step's rise. Measuring
-      // the time they spend above that rise instead answers a question about hovering, and comes out
-      // at 0.6 of this — which is the error this test was written with.
-      const arrival = gap / maxSpeed;
-      expect(jumpSpeed * arrival - (gravity / 2) * arrival * arrival).toBeGreaterThan(to.y - from.y);
+      const arrival = (air + CAPSULE_RADIUS) / maxSpeed;
+      const rise = to.y - from.y;
+      const feet = jumpSpeed * arrival - (gravity / 2) * arrival * arrival;
+      // The condition itself rather than a closed form for it, and one-sided the way the rule is:
+      // arriving below the rise only strands the player if they are already coming down. Arriving
+      // below it while still CLIMBING means they launched from too close to the edge, which they fix
+      // by taking off further back on a 3.2 u-deep slab — so the early root bounds nothing the level
+      // has to satisfy, and asserting through it would fail on a layout made more forgiving.
+      const climbing = arrival <= jumpSpeed / gravity;
+      expect(
+        climbing || feet > rise,
+        `y=${from.y.toFixed(3)} → ${to.y.toFixed(3)}: ${air.toFixed(3)} u of air plus a capsule radius arrives at ${arrival.toFixed(3)} s with the feet at ${feet.toFixed(3)} u against a ${rise.toFixed(3)} u rise`,
+      ).toBe(true);
     }
   });
 

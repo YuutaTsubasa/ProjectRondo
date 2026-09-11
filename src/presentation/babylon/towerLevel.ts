@@ -604,7 +604,7 @@ const slabGap = (a: TowerPlatform, b: TowerPlatform): number => {
 };
 
 /** The four corners of a slab's footprint, in perimeter order. */
-const cornersOf = (p: TowerPlatform): { x: number; z: number }[] => {
+const cornersOf = (p: TowerPlatform) => {
   const [along, out] = axesOf(p);
   return [[-1, -1], [-1, 1], [1, 1], [1, -1]].map(([s, t]) => ({
     x: p.x + s * along.x * along.half + t * out.x * out.half,
@@ -642,16 +642,13 @@ const pointToSegment = (
  * compares it against a reach, and an overlap is not a gap anything has to be jumped across.
  */
 const footprintDistance = (a: TowerPlatform, b: TowerPlatform): number => {
-  const corners = [cornersOf(a), cornersOf(b)] as const;
-  let nearest = Infinity;
-  for (const [from, to] of [[0, 1], [1, 0]] as const) {
-    for (const corner of corners[from]) {
-      for (let i = 0; i < 4; i++) {
-        nearest = Math.min(nearest, pointToSegment(corner, corners[to][i], corners[to][(i + 1) % 4]));
-      }
-    }
-  }
-  return nearest;
+  const edgesOf = (p: TowerPlatform) =>
+    cornersOf(p).map((corner, i, all) => [corner, all[(i + 1) % all.length]] as const);
+  return Math.min(
+    ...([[a, b], [b, a]] as const).flatMap(([from, to]) =>
+      cornersOf(from).flatMap((corner) => edgesOf(to).map(([head, tail]) => pointToSegment(corner, head, tail))),
+    ),
+  );
 };
 
 /**
@@ -699,13 +696,8 @@ const stepReach = (rise: number, topSpeed: number): number | null => {
  * never crosses — a jump waved through on geometry that is not on the path. Cheaper to clamp than to
  * assert every caller keeps both ends on one orbit.
  */
-const axisClearance = (from: TowerPlatform, to: TowerPlatform): number => {
-  const span = { x: to.x - from.x, z: to.z - from.z };
-  const lengthSquared = span.x * span.x + span.z * span.z;
-  const along = lengthSquared === 0 ? 0 : -(from.x * span.x + from.z * span.z) / lengthSquared;
-  const t = Math.min(1, Math.max(0, along));
-  return Math.hypot(from.x + t * span.x, from.z + t * span.z);
-};
+const axisClearance = (from: TowerPlatform, to: TowerPlatform): number =>
+  pointToSegment({ x: 0, z: 0 }, from, to);
 
 /** A point on a slab's TOP face, given in the slab's own axes — see {@link TowerPadProp}. */
 const onPad = (p: TowerPlatform, along: number, outward: number): Vec3 => {
@@ -916,9 +908,12 @@ function buildLayout(): TowerLayout {
  * through any jump in the tower, so a gap wider than {@link stepReach} at `maxSpeed` closes the
  * section to them. Only the floor was checked, and nothing else in this file bounds
  * {@link PLATFORM_WIDTH} from below while that same doc offers narrowing it as the price of a
- * smaller turn. The shipped tower is nowhere near it — the widest step is 0.922 u against 2.119 u,
- * a ratio of 0.435 — but narrowing the width to 0.8 opens the widest to 2.307 u, and a 90° turn to
- * 2.546 u, and before this rule every warning here stayed silent for both.
+ * smaller turn. The shipped tower is nowhere near it — the widest crossing is 0.922 u of air plus a
+ * landing against 2.119 u of reach — but narrowing the width to 0.8 opens that air to 2.307 u, and
+ * before this rule every warning here stayed silent on it. Widening {@link TURN_DEGREES} to 90°
+ * opens it further still, to 2.546 u, and proves nothing about this rule: the column rule already
+ * fires on all sixteen steps at that turn, the chord passing 3.253 u from the axis where the capsule
+ * needs 3.45. Narrowing the width is the perturbation only this rule catches.
  *
  * **The header's own two rules were the last in**, and their absence was the sharpest version of the
  * problem this function exists for: the audit knew the four rules nobody had written down and not the
@@ -941,9 +936,13 @@ function buildLayout(): TowerLayout {
  * leaving 0.2 u of embedding held by arithmetic in a doc comment. The next such push detaches every
  * ledge from the column, and until this loop existed it would have passed a clean audit.
  *
- * The slab test is a separating-axis one over the four face normals: the largest gap it finds is a
- * lower bound on the true distance between two rectangles, so passing it is conclusive and failing it
- * is a warning worth looking at rather than proof.
+ * **The two slab measures are not the same measure, and the difference is deliberate.** The overhang
+ * rule uses {@link slabGap}, a separating-axis maximum over the four face normals: a lower bound on
+ * the true distance between two rectangles, so passing it is conclusive and failing it is a warning
+ * worth looking at rather than proof. That bias is only safe for a rule that fires on gaps too
+ * NARROW. The walking-reach rule fires on gaps too WIDE, where under-measuring would hide exactly
+ * what it is looking for, so it uses {@link footprintDistance} instead — exact, and no cheaper than
+ * it needs to be at sixteen steps once per load.
  *
  * **What the column rule is run over.** {@link TowerLayout.jumpSteps} — the transitions the player
  * crosses by jumping — and not every consecutive pair of platforms, because "next in climb order" is
@@ -1078,9 +1077,13 @@ function auditLayout(
     // A rise past the apex has no reach to compare against, and it is not this rule's to report: the
     // step is unjumpable at any speed, which the apex rule above already says in those words.
     if (reach === null) continue;
-    const gap = footprintDistance(from, to);
-    if (gap > reach) {
-      console.warn(`[towerLevel] the step from y=${from.y} to y=${to.y} cannot be walked — its slabs are ${gap.toFixed(3)} u apart at the nearest against the ${reach.toFixed(3)} u a player holding Shift carries across a ${(to.y - from.y).toFixed(3)} u rise, so the section is closed to anyone who does. See TURN_DEGREES.`);
+    // What the CENTRE has to travel, which is the open air plus a landing. The capsule leaves with
+    // its centre over the near edge — a controller runs you off a ledge — but it has to arrive
+    // CAPSULE_RADIUS inside the far slab to be standing on it rather than balanced on its corner,
+    // which is the same allowance the column rule, the bounce band and the overhang floor all make.
+    const crossing = footprintDistance(from, to) + CAPSULE_RADIUS;
+    if (crossing > reach) {
+      console.warn(`[towerLevel] the step from y=${from.y} to y=${to.y} cannot be walked — landing on it means carrying the capsule's centre ${crossing.toFixed(3)} u against the ${reach.toFixed(3)} u a player holding Shift covers across a ${(to.y - from.y).toFixed(3)} u rise, so the section is closed to anyone who does. See TURN_DEGREES.`);
     }
   }
 }
