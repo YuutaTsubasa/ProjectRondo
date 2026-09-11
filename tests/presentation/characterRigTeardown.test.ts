@@ -34,9 +34,11 @@ const { calls, loadKnight } = vi.hoisted(() => ({
 }));
 
 // The rig's `root`. Real `TransformNode` construction registers with the scene, and this suite's
-// scene is an object literal; nothing here reads the node back.
+// scene is an object literal; nothing here reads the node back. It carries a `position` only because
+// the rig seeds the spawn into it before the camera binds — what that seed is *for* is pinned in
+// `rigSpawnFrame.test.ts`, on a real node and a real camera.
 vi.mock('@babylonjs/core/Meshes/transformNode', () => ({
-  TransformNode: class {},
+  TransformNode: class { position = { copyFrom: vi.fn() }; },
 }));
 
 vi.mock('../../src/presentation/babylon/input', () => ({
