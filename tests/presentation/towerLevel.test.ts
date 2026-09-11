@@ -86,15 +86,20 @@ describe('the tower layout', () => {
     const jumps = pairs.filter(([from, to]) => to.y - from.y <= apex);
     expect(jumps.length).toBeGreaterThan(0);
     for (const [from, to] of jumps) {
-      // The nearest pair of CORNERS. It is never closer than the two footprints actually are, so it
-      // states a HARDER crossing than the one the audit measures — and it needs no point-to-edge
-      // geometry, so this asserts the rule instead of re-running the implementation of it. Plus a
-      // capsule radius, because the crossing ends with the centre standing on the far slab and a
-      // centre exactly on its corner is standing on nothing.
-      const air = Math.min(
-        ...corners(from).flatMap((a) => corners(to).map((b) => Math.hypot(a.x - b.x, a.z - b.z))),
+      // From the near slab's nearest CORNER to the nearest corner of the far slab's standable set —
+      // the far footprint inset by a capsule radius, because a centre on the slab's own corner is
+      // standing on nothing. Corner to corner is never closer than the two shapes actually are, so
+      // this states a crossing at least as hard as the one the audit measures, and it needs no
+      // point-to-edge geometry: the rule, not a second run of its implementation.
+      const landing = corners({
+        ...to,
+        width: to.width - 2 * CAPSULE_RADIUS,
+        depth: to.depth - 2 * CAPSULE_RADIUS,
+      });
+      const travel = Math.min(
+        ...corners(from).flatMap((a) => landing.map((b) => Math.hypot(a.x - b.x, a.z - b.z))),
       );
-      const arrival = (air + CAPSULE_RADIUS) / maxSpeed;
+      const arrival = travel / maxSpeed;
       const rise = to.y - from.y;
       const feet = jumpSpeed * arrival - (gravity / 2) * arrival * arrival;
       // The condition itself rather than a closed form for it, and one-sided the way the rule is:
@@ -105,7 +110,7 @@ describe('the tower layout', () => {
       const climbing = arrival <= jumpSpeed / gravity;
       expect(
         climbing || feet > rise,
-        `y=${from.y.toFixed(3)} → ${to.y.toFixed(3)}: ${air.toFixed(3)} u of air plus a capsule radius arrives at ${arrival.toFixed(3)} s with the feet at ${feet.toFixed(3)} u against a ${rise.toFixed(3)} u rise`,
+        `y=${from.y.toFixed(3)} → ${to.y.toFixed(3)}: ${travel.toFixed(3)} u of centre travel arrives at ${arrival.toFixed(3)} s with the feet at ${feet.toFixed(3)} u against a ${rise.toFixed(3)} u rise`,
       ).toBe(true);
     }
   });

@@ -256,7 +256,9 @@ const JUMP_RISE = 1.4;
  * it, and what they cover by then is `topSpeed · (jumpSpeed + √(jumpSpeed² − 2·gravity·rise))
  * /gravity`: **2.12 u** holding Shift to walk (`maxSpeed` 4) over a +1.4 u step, and 4.24 u by
  * default, running. The 0.80 u above is the separating-axis figure; the footprints are **0.922 u**
- * apart at the nearest, which is what {@link auditLayout} compares and is comfortably inside both.
+ * apart at the nearest. What {@link auditLayout} compares against the reach is neither: it is the
+ * **1.615 u** a capsule's centre travels from the near slab to somewhere it can stand on the far
+ * one, which is comfortably inside both reaches.
  * Widening this starts to cost the walking margin — the tighter of the two, and the one that matters
  * because a player can choose to hold Shift through any jump in the tower.
  *
@@ -603,6 +605,10 @@ const slabGap = (a: TowerPlatform, b: TowerPlatform): number => {
   );
 };
 
+/** A footprint's four edges, as corner pairs in perimeter order. */
+const edgesOf = (corners: readonly { x: number; z: number }[]) =>
+  corners.map((corner, i) => [corner, corners[(i + 1) % corners.length]] as const);
+
 /** The four corners of a slab's footprint, in perimeter order. */
 const cornersOf = (p: TowerPlatform) => {
   const [along, out] = axesOf(p);
@@ -642,14 +648,37 @@ const pointToSegment = (
  * compares it against a reach, and an overlap is not a gap anything has to be jumped across.
  */
 const footprintDistance = (a: TowerPlatform, b: TowerPlatform): number => {
-  const edgesOf = (p: TowerPlatform) =>
-    cornersOf(p).map((corner, i, all) => [corner, all[(i + 1) % all.length]] as const);
+  const footprints = [cornersOf(a), cornersOf(b)] as const;
   return Math.min(
-    ...([[a, b], [b, a]] as const).flatMap(([from, to]) =>
-      cornersOf(from).flatMap((corner) => edgesOf(to).map(([head, tail]) => pointToSegment(corner, head, tail))),
-    ),
+    ...([[0, 1], [1, 0]] as const).flatMap(([from, to]) => {
+      const edges = edgesOf(footprints[to]);
+      return footprints[from].flatMap((corner) =>
+        edges.map(([head, tail]) => pointToSegment(corner, head, tail)),
+      );
+    }),
   );
 };
+
+/**
+ * The part of a slab a capsule's CENTRE can stand on: the footprint inset by {@link CAPSULE_RADIUS}
+ * on every side.
+ *
+ * **A scalar radius is not the same allowance, and it is short at exactly the geometry that matters
+ * here.** Two slabs one turn apart come nearest corner to corner, and the standable set is inset
+ * along BOTH edges meeting at that corner, so the point a centre has to reach is `R·√2` from it
+ * rather than `R`. On the shipped step that is 1.6150 u of centre travel against the 1.4215 u the
+ * air plus a flat radius gives — 0.19 u of optimism, and 0.19 u is a silent band a rule that fires
+ * on gaps too WIDE cannot afford.
+ *
+ * A slab thinner than a capsule collapses to a line or a point here rather than folding inside out.
+ * Nothing can stand on such a slab at all, which is what the overhang rule reports; this one would
+ * only say the same thing in worse words.
+ */
+const standableOn = (p: TowerPlatform): TowerPlatform => ({
+  ...p,
+  width: Math.max(0, p.width - 2 * CAPSULE_RADIUS),
+  depth: Math.max(0, p.depth - 2 * CAPSULE_RADIUS),
+});
 
 /**
  * How much open air a jump can carry the player across, when the far side stands `rise` higher than
@@ -682,8 +711,9 @@ const stepReach = (rise: number, topSpeed: number): number | null => {
  * The SEGMENT, not the infinite line through the two points — but that is a **guard against a future
  * layout, and it is unreachable on today's inputs.** Every platform in {@link TowerLayout.jumpSteps}
  * sits at {@link PLATFORM_ORBIT}, and for two points on the same circle the nearest approach to the
- * centre is the midpoint: `along` works out to exactly 0.5 **whatever the turn between them**, so the
- * clamp below never bites. Every pair it is actually handed is one turn apart; even the 240° pair
+ * centre is the midpoint: the projection {@link pointToSegment} takes works out to exactly 0.5
+ * **whatever the turn between them**, so its clamp never bites. Every pair it is actually handed is
+ * one turn apart; even the 240° pair
  * section 2's chain leaves between consecutive platforms — which is never handed to it, and is the
  * reason {@link TowerLayout.jumpSteps} exists — would still come out at 0.5, at 2.3 u from the axis
  * and squarely inside the column. (An earlier version of this comment claimed the opposite: that a
@@ -691,8 +721,8 @@ const stepReach = (rise: number, topSpeed: number): number | null => {
  * does not, and no pair in this tower has ever exercised the clamp.)
  *
  * What it protects is the case where the two ends are at DIFFERENT radii, which nothing generates
- * today but a pad on its own orbit would: `along` then leaves [0, 1] whenever the axis is "behind"
- * one of the ends, and the infinite line would report a clearance measured at a point the player
+ * today but a pad on its own orbit would: that projection then leaves [0, 1] whenever the axis is
+ * "behind" one of the ends, and the infinite line would report a clearance measured at a point the player
  * never crosses — a jump waved through on geometry that is not on the path. Cheaper to clamp than to
  * assert every caller keeps both ends on one orbit.
  */
@@ -912,8 +942,9 @@ function buildLayout(): TowerLayout {
  * landing against 2.119 u of reach — but narrowing the width to 0.8 opens that air to 2.307 u, and
  * before this rule every warning here stayed silent on it. Widening {@link TURN_DEGREES} to 90°
  * opens it further still, to 2.546 u, and proves nothing about this rule: the column rule already
- * fires on all sixteen steps at that turn, the chord passing 3.253 u from the axis where the capsule
- * needs 3.45. Narrowing the width is the perturbation only this rule catches.
+ * fires on all sixteen steps at that turn, the chord passing `4.6 · cos 45°` = 3.253 u from the axis
+ * so the capsule's edge reaches 2.753 u where it needs 3.45. Narrowing the width is the perturbation
+ * only this rule catches.
  *
  * **The header's own two rules were the last in**, and their absence was the sharpest version of the
  * problem this function exists for: the audit knew the four rules nobody had written down and not the
@@ -1077,11 +1108,12 @@ function auditLayout(
     // A rise past the apex has no reach to compare against, and it is not this rule's to report: the
     // step is unjumpable at any speed, which the apex rule above already says in those words.
     if (reach === null) continue;
-    // What the CENTRE has to travel, which is the open air plus a landing. The capsule leaves with
-    // its centre over the near edge — a controller runs you off a ledge — but it has to arrive
-    // CAPSULE_RADIUS inside the far slab to be standing on it rather than balanced on its corner,
-    // which is the same allowance the column rule, the bounce band and the overhang floor all make.
-    const crossing = footprintDistance(from, to) + CAPSULE_RADIUS;
+    // What the CENTRE has to travel. It leaves from anywhere on the near footprint — a controller
+    // runs you off a ledge, so the centre reaches that slab's own edge — and has to arrive somewhere
+    // it can stand, which is the far slab inset by a capsule radius and not the far slab itself.
+    // Measuring to the footprint and adding a radius is the same allowance the column rule and the
+    // bounce band make, and it is the wrong one here: see {@link standableOn}.
+    const crossing = footprintDistance(from, standableOn(to));
     if (crossing > reach) {
       console.warn(`[towerLevel] the step from y=${from.y} to y=${to.y} cannot be walked — landing on it means carrying the capsule's centre ${crossing.toFixed(3)} u against the ${reach.toFixed(3)} u a player holding Shift covers across a ${(to.y - from.y).toFixed(3)} u rise, so the section is closed to anyone who does. See TURN_DEGREES.`);
     }
