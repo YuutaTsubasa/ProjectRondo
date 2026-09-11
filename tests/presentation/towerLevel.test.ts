@@ -26,6 +26,16 @@ const importTowerLevel = async () => {
   }
 };
 
+/** A slab's four footprint corners, from its centre, size and facing. */
+const corners = (p: { x: number; z: number; width: number; depth: number; rotationY: number }) => {
+  const along = { x: Math.cos(p.rotationY), z: -Math.sin(p.rotationY), half: p.width / 2 };
+  const outward = { x: Math.sin(p.rotationY), z: Math.cos(p.rotationY), half: p.depth / 2 };
+  return [[-1, -1], [-1, 1], [1, 1], [1, -1]].map(([s, t]) => ({
+    x: p.x + s * along.x * along.half + t * outward.x * outward.half,
+    z: p.z + s * along.z * along.half + t * outward.z * outward.half,
+  }));
+};
+
 describe('the tower layout', () => {
   it('passes its own audit', async () => {
     const { warnings } = await importTowerLevel();
@@ -76,20 +86,19 @@ describe('the tower layout', () => {
     const jumps = pairs.filter(([from, to]) => to.y - from.y <= apex);
     expect(jumps.length).toBeGreaterThan(0);
     for (const [from, to] of jumps) {
-      // The gap is taken from `TURN_DEGREES`' own closed form rather than from the audit's support
-      // function, so this asserts the rule and not the implementation of it. That form assumes two
-      // equal slabs facing the column at one orbit, which is asserted first: a layout that stopped
-      // being uniform would fail here rather than be silently measured by the wrong formula.
-      const orbit = Math.hypot(from.x, from.z);
-      expect(Math.hypot(to.x, to.z)).toBeCloseTo(orbit, 9);
-      expect([to.width, to.depth]).toEqual([from.width, from.depth]);
-      const turn = Math.acos((from.x * to.x + from.z * to.z) / (orbit * orbit));
-      const gap = (orbit - from.depth / 2) * Math.sin(turn) - (from.width / 2) * (1 + Math.cos(turn));
-      // What a walking player covers while above the step's own rise: the vertical is ballistic from
-      // a standing jump, so the window is the span between the two roots of `jumpSpeed·t −
-      // (gravity/2)·t² = rise`, and a jump keeps the run-up's horizontal velocity throughout it.
-      const window = (2 * Math.sqrt(jumpSpeed * jumpSpeed - 2 * gravity * (to.y - from.y))) / gravity;
-      expect(gap).toBeLessThan(maxSpeed * window);
+      // The nearest pair of CORNERS. It is never closer than the two footprints actually are, so it
+      // states a HARDER crossing than the one the audit measures — and it needs no point-to-edge
+      // geometry, so this asserts the rule instead of re-running the implementation of it.
+      const gap = Math.min(
+        ...corners(from).flatMap((a) => corners(to).map((b) => Math.hypot(a.x - b.x, a.z - b.z))),
+      );
+      // The condition itself rather than a closed form for it: a player who leaves the near edge at
+      // `maxSpeed` is over open air until the far edge, so the only moment their height matters is
+      // the one they arrive at it, and their feet have to still be above the step's rise. Measuring
+      // the time they spend above that rise instead answers a question about hovering, and comes out
+      // at 0.6 of this — which is the error this test was written with.
+      const arrival = gap / maxSpeed;
+      expect(jumpSpeed * arrival - (gravity / 2) * arrival * arrival).toBeGreaterThan(to.y - from.y);
     }
   });
 

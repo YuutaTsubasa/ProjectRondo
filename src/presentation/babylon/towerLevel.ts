@@ -250,11 +250,15 @@ const JUMP_RISE = 1.4;
  * every direction at once — precisely the support-function/face-distance confusion {@link reachAlong}
  * exists to stop. The conclusion survived the error; the number did not.)
  *
- * A gap is not only headroom, it is also the jump: 0.80 u is crossed comfortably inside the 1.24 u a
- * player holding Shift to walk (`maxSpeed` 4) covers during the 0.31 s they spend above +1.4 u, and
- * trivially inside the 2.48 u a player gets by default, running. Widening this further starts to
- * cost the walking margin — the tighter of the two, and the one that matters because a player can
- * choose to hold Shift through any jump in the tower.
+ * A gap is not only headroom, it is also the jump — and the jump is measured from the LAUNCH, not
+ * across the time spent above the far ledge. A player leaves the near edge at speed with nothing
+ * under them until the far one, so the only moment their height matters is the one they arrive at
+ * it, and what they cover by then is `topSpeed · (jumpSpeed + √(jumpSpeed² − 2·gravity·rise))
+ * /gravity`: **2.12 u** holding Shift to walk (`maxSpeed` 4) over a +1.4 u step, and 4.24 u by
+ * default, running. The 0.80 u above is the separating-axis figure; the footprints are **0.922 u**
+ * apart at the nearest, which is what {@link auditLayout} compares and is comfortably inside both.
+ * Widening this starts to cost the walking margin — the tighter of the two, and the one that matters
+ * because a player can choose to hold Shift through any jump in the tower.
  *
  * **This number is now squeezed from both sides, and 60 is what is left.** The rules above bound it
  * from below: 45° collapses the slab gap to 0.073 u. The column rule bounds it from ABOVE, through
@@ -599,21 +603,79 @@ const slabGap = (a: TowerPlatform, b: TowerPlatform): number => {
   );
 };
 
+/** The four corners of a slab's footprint, in perimeter order. */
+const cornersOf = (p: TowerPlatform): { x: number; z: number }[] => {
+  const [along, out] = axesOf(p);
+  return [[-1, -1], [-1, 1], [1, 1], [1, -1]].map(([s, t]) => ({
+    x: p.x + s * along.x * along.half + t * out.x * out.half,
+    z: p.z + s * along.z * along.half + t * out.z * out.half,
+  }));
+};
+
+/** Distance from a point to a segment, clamped to the segment's ends. */
+const pointToSegment = (
+  p: { x: number; z: number },
+  a: { x: number; z: number },
+  b: { x: number; z: number },
+): number => {
+  const run = { x: b.x - a.x, z: b.z - a.z };
+  const length = run.x * run.x + run.z * run.z;
+  const along = length === 0 ? 0 : ((p.x - a.x) * run.x + (p.z - a.z) * run.z) / length;
+  const t = Math.min(1, Math.max(0, along));
+  return Math.hypot(p.x - a.x - t * run.x, p.z - a.z - t * run.z);
+};
+
 /**
- * How far a player can carry themselves sideways during the part of a jump that is above `rise` —
- * the window in which they are high enough to clear the next ledge and still have to arrive over it.
+ * The shortest open air between two slabs' footprints — the easiest place to cross from one to the
+ * other, and exact rather than bounded.
  *
- * From a standing jump the vertical is ballistic, so the window lies between the two roots of
- * `jumpSpeed·t − (gravity/2)·t² = rise` and is `2·√(jumpSpeed² − 2·gravity·rise)/gravity` wide; the
- * horizontal is whatever `topSpeed` covers in it. Full speed throughout, unlike {@link airDrift}: a
- * jump keeps the run-up's horizontal velocity where a bounce discards it. Returns 0 past
- * {@link JUMP_APEX} — there is no window at all then, which the apex rule reports and this one does
- * not need to repeat.
+ * **Not {@link slabGap}, and the difference has a direction.** A separating-axis maximum is a LOWER
+ * bound on the distance between two rectangles: on today's one-turn step it reports 0.798 u where
+ * the footprints are 0.922 u apart. Under-measuring is the safe bias for the overhang rule, which
+ * warns when a gap is too NARROW — the worst it can do there is ask for a second look. A rule that
+ * warns when a gap is too WIDE has the opposite need, and the same bias would hide the violations it
+ * exists to catch, so it gets the real distance.
+ *
+ * Exact for disjoint convex polygons: the closest pair of points on two of them always has one of
+ * the two on a vertex, so the minimum over every vertex-to-edge pair is the distance itself. Slabs
+ * that overlap are not disjoint and this does not measure them — {@link auditLayout}'s only caller
+ * compares it against a reach, and an overlap is not a gap anything has to be jumped across.
  */
-const stepReach = (rise: number, topSpeed: number): number => {
+const footprintDistance = (a: TowerPlatform, b: TowerPlatform): number => {
+  const corners = [cornersOf(a), cornersOf(b)] as const;
+  let nearest = Infinity;
+  for (const [from, to] of [[0, 1], [1, 0]] as const) {
+    for (const corner of corners[from]) {
+      for (let i = 0; i < 4; i++) {
+        nearest = Math.min(nearest, pointToSegment(corner, corners[to][i], corners[to][(i + 1) % 4]));
+      }
+    }
+  }
+  return nearest;
+};
+
+/**
+ * How much open air a jump can carry the player across, when the far side stands `rise` higher than
+ * the near one and they hold `topSpeed` throughout. `null` when the rise is past {@link JUMP_APEX}:
+ * the step is then not a long jump but an impossible one, which is the apex rule's to report.
+ *
+ * **Measured from the launch, not across a window.** The player leaves the near edge at full speed
+ * with nothing under them until the far edge, so the only moment the height matters is the one they
+ * arrive at it: they clear the step if their feet are still above `rise` then. The vertical is
+ * ballistic from a standing jump, so that lasts until the later root of `jumpSpeed·t −
+ * (gravity/2)·t² = rise` and the ground covered by then is `topSpeed · (jumpSpeed +
+ * √(jumpSpeed² − 2·gravity·rise))/gravity`. At `rise` 0 that is `movementConstants.ts`' own
+ * `topSpeed · 2·jumpSpeed/gravity`, the 6 u it quotes for a running jump.
+ *
+ * (An earlier version measured the span BETWEEN the two roots — the time spent above `rise` — which
+ * is the answer to a question about hovering, not about crossing. It came out at 1.271 u against
+ * this 2.135 u over section 1's step, and would have warned on gaps a walking player crosses with
+ * 0.7 u to spare. Full speed throughout is not the assumption doing the work; the launch is.)
+ */
+const stepReach = (rise: number, topSpeed: number): number | null => {
   const { jumpSpeed, gravity } = DEFAULT_CONFIG;
   const discriminant = jumpSpeed * jumpSpeed - 2 * gravity * rise;
-  return discriminant < 0 ? 0 : (2 * topSpeed * Math.sqrt(discriminant)) / gravity;
+  return discriminant < 0 ? null : (topSpeed * (jumpSpeed + Math.sqrt(discriminant))) / gravity;
 };
 
 /**
@@ -854,8 +916,9 @@ function buildLayout(): TowerLayout {
  * through any jump in the tower, so a gap wider than {@link stepReach} at `maxSpeed` closes the
  * section to them. Only the floor was checked, and nothing else in this file bounds
  * {@link PLATFORM_WIDTH} from below while that same doc offers narrowing it as the price of a
- * smaller turn. Narrowing it to 1.6 opens section 1's gaps to 1.398 u against the 1.271 u a walking
- * player crosses above a 1.3846 u step, and before this rule every warning here stayed silent.
+ * smaller turn. The shipped tower is nowhere near it — the widest step is 0.922 u against 2.119 u,
+ * a ratio of 0.435 — but narrowing the width to 0.8 opens the widest to 2.307 u, and a 90° turn to
+ * 2.546 u, and before this rule every warning here stayed silent for both.
  *
  * **The header's own two rules were the last in**, and their absence was the sharpest version of the
  * problem this function exists for: the audit knew the four rules nobody had written down and not the
@@ -1011,10 +1074,13 @@ function auditLayout(
     // The other end of TURN_DEGREES' gap rule, and the one it names as binding: a gap has to be
     // crossable by a player holding Shift, because they may hold it through any jump in the tower.
     // Measured against the step's own rise rather than JUMP_RISE, for the reason the apex rule is.
-    const gap = slabGap(from, to);
     const reach = stepReach(to.y - from.y, DEFAULT_CONFIG.maxSpeed);
+    // A rise past the apex has no reach to compare against, and it is not this rule's to report: the
+    // step is unjumpable at any speed, which the apex rule above already says in those words.
+    if (reach === null) continue;
+    const gap = footprintDistance(from, to);
     if (gap > reach) {
-      console.warn(`[towerLevel] the step from y=${from.y} to y=${to.y} cannot be walked — its slabs are ${gap.toFixed(3)} u apart against the ${reach.toFixed(3)} u a player holding Shift covers while above the ${(to.y - from.y).toFixed(3)} u it rises, so the section is closed to anyone who does. See TURN_DEGREES.`);
+      console.warn(`[towerLevel] the step from y=${from.y} to y=${to.y} cannot be walked — its slabs are ${gap.toFixed(3)} u apart at the nearest against the ${reach.toFixed(3)} u a player holding Shift carries across a ${(to.y - from.y).toFixed(3)} u rise, so the section is closed to anyone who does. See TURN_DEGREES.`);
     }
   }
 }

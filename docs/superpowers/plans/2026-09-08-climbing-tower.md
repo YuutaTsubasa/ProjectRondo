@@ -31,7 +31,7 @@
 
 | File | Responsibility |
 |---|---|
-| `src/domain/hub/tower/towerProgress.ts` | Which checkpoint is active, and whether to respawn. Upward-only activation. |
+| `src/domain/tower/towerProgress.ts` | Which checkpoint is active, and whether to respawn. Upward-only activation. |
 | `src/presentation/babylon/portalTrigger.ts` | The pedestal's edge trigger: fires on entry, will not fire again until it has seen you leave. |
 
 **Create — presentation:**
@@ -56,7 +56,7 @@
 | `src/presentation/babylon/knight.ts:854,858` | The probe's miss-fallback comes from an injected query. |
 | `src/presentation/audio/hubAudio.ts` | A top-level switch for "character sound without music". |
 
-**Tests:** `tests/domain/hub/tower/towerProgress.test.ts`, `tests/presentation/portalTrigger.test.ts`, `tests/app/gameMode.test.ts`.
+**Tests:** `tests/domain/tower/towerProgress.test.ts`, `tests/presentation/portalTrigger.test.ts`, `tests/app/gameMode.test.ts`.
 
 ---
 
@@ -131,8 +131,8 @@ git commit -m "docs(tower): record what the two pre-build probes found"
 ## Task 2: `towerProgress` — active checkpoint and respawn
 
 **Files:**
-- Create: `src/domain/hub/tower/towerProgress.ts`
-- Test: `tests/domain/hub/tower/towerProgress.test.ts`
+- Create: `src/domain/tower/towerProgress.ts`
+- Test: `tests/domain/tower/towerProgress.test.ts`
 
 **Interfaces:**
 - Consumes: `Vec3`, `vec3` from `src/domain/math/vec3`
@@ -147,8 +147,8 @@ git commit -m "docs(tower): record what the two pre-build probes found"
 
 ```ts
 import { describe, expect, it } from 'vitest';
-import { stepTowerProgress, TOWER_START, type TowerCheckpoint } from '../../../../src/domain/hub/tower/towerProgress';
-import { vec3 } from '../../../../src/domain/math/vec3';
+import { stepTowerProgress, TOWER_START, type TowerCheckpoint } from '../../../src/domain/tower/towerProgress';
+import { vec3 } from '../../../src/domain/math/vec3';
 
 const CHECKPOINTS: readonly TowerCheckpoint[] = [
   { activateY: 0, respawn: vec3(0, 0, 0) },
@@ -204,8 +204,8 @@ describe('stepTowerProgress', () => {
 
 - [ ] **Step 2: Run to verify it fails**
 
-Run: `npx vitest run tests/domain/hub/tower/towerProgress.test.ts`
-Expected: FAIL — cannot resolve `src/domain/hub/tower/towerProgress`.
+Run: `npx vitest run tests/domain/tower/towerProgress.test.ts`
+Expected: FAIL — cannot resolve `src/domain/tower/towerProgress`.
 
 - [ ] **Step 3: Implement**
 
@@ -262,13 +262,13 @@ export function stepTowerProgress(
 
 - [ ] **Step 4: Run to verify it passes**
 
-Run: `npx tsc --noEmit && npx vitest run tests/domain/hub/tower/towerProgress.test.ts`
+Run: `npx tsc --noEmit && npx vitest run tests/domain/tower/towerProgress.test.ts`
 Expected: PASS, 7 tests.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/domain/hub/tower/towerProgress.ts tests/domain/hub/tower/towerProgress.test.ts
+git add src/domain/tower/towerProgress.ts tests/domain/tower/towerProgress.test.ts
 git commit -m "feat(tower): the climb's checkpoint and respawn rule"
 ```
 
