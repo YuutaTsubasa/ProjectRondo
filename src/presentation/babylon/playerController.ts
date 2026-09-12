@@ -11,15 +11,16 @@ import { DEFAULT_CONFIG, type MovementConfig } from '../../domain/hub/character/
 import { IDLE, type CharacterMotion } from '../../domain/hub/character/characterMotion';
 import type { MovementInput } from '../../domain/hub/character/movementInput';
 import { planarDirectionFromInput } from './cameraRelativeDirection';
+import { exposeDevHandle } from './devHandles';
 import { toBabylon, toVec3 } from './vectorConversions';
 import { CAPSULE_RADIUS, CAPSULE_HEIGHT } from './capsule';
-import { terrainHeight } from './terrainHeight';
 import type { FollowCamera } from './followCamera';
 import type { InputState } from './input';
 import type { Crystals } from './crystals';
 import { createHomingReticle } from './homingReticle';
 import { stepGroundContact, spendBufferedJump, INITIAL_GROUND_CONTACT } from './groundContact';
 import { stepHomingLock, NO_HOMING_LOCK } from './homingLock';
+import { respawned } from './respawn';
 import { solverVelocity } from './slopeMotion';
 
 /**
@@ -76,6 +77,71 @@ export interface Player {
    * crystal cannot cancel the rise this flash promises — see `GroundContactInput.bounced`.
    */
   homingBounced: boolean;
+  /**
+   * The physics capsule's CENTRE this frame — the character's real position, and the one any rule
+   * that decides something must read.
+   *
+   * `root.position` is not it. Its x and z are the capsule's, copied straight across, but its y is
+   * `visualY`: the exponentially smoothed *rendered* height (see {@link VISUAL_Y_SMOOTHING}), which
+   * trails the capsule by `v / 14` — 2.2 u at the end of a 20 u fall, measured 1.80 at touchdown
+   * (design spec §13.2). A checkpoint decided from that activates late on the way up and, on the way
+   * down, lets the player fall 2 u further than `fallMargin` says before the respawn fires. The same
+   * confusion cost PR #39 a homing dash aimed 1.5 u behind the truth; see the `from:` argument below.
+   *
+   * A fresh `Vector3` per call, deliberately: `PhysicsCharacterController.getPosition()` returns the
+   * controller's LIVE internal vector, not a copy (design spec §13.1), so handing it out would let a
+   * caller move the character by writing to what looks like a reading.
+   */
+  capsulePosition(): Vector3;
+  /**
+   * Puts the character at `to` as a cut, not as a move — for a checkpoint respawn.
+   *
+   * Four things hold the old POSITION, and a teleport that misses any one of them reads as a swoop
+   * rather than a respawn; all four were measured (design spec §13.1), not reasoned about:
+   *
+   * 1. The controller's position. `setPosition` moves the capsule exactly and immediately.
+   * 2. The controller's velocity — necessary but nowhere near sufficient. It survives less than one
+   *    frame, because the observer below rewrites it from `motion.velocity` before every `integrate`.
+   * 3. `motion.velocity`, therefore. Without it a fall's speed is restored on the very next frame and
+   *    the character drops off the checkpoint again at the speed it arrived with.
+   * 4. `visualY`, the smoothed *rendered* height, **and `root` itself**. `visualY` is closure state
+   *    with no other way in, so a teleport up 53 units left the knight rendered at the old height,
+   *    gliding up over ~0.33 s. `root` is written from `visualY` in the observer below, which for a
+   *    respawn decided in a LATER observer means it would keep the old position for the rest of the
+   *    frame — the frame that respawn is drawn on. Writing it here is not cosmetic: the camera reads
+   *    the character only through `root`, so a stale one is a stale re-seed: measured on a real
+   *    tower respawn, the camera passed the checkpoint frame 3.6 u below where it belonged and took
+   *    0.40 s to climb back, which is a glide where `FollowCamera.snap()` promises a cut.
+   *
+   * A fifth holds the old INTENT, and it is not a matter of how the arrival looks: a homing dash in
+   * flight. `respawn.ts` owns that rule and says why the dash would otherwise resume from the
+   * checkpoint on the very next frame.
+   *
+   * The camera holds a sixth — `smoothY` — which is not this function's to reset. Call
+   * `FollowCamera.snap()` alongside this one, and after it: `snap` re-seeds from `root`, which is
+   * only the destination once this function has run.
+   *
+   * Teleport into open air above the destination surface, never onto it: the ground collider is
+   * one-sided, and a capsule placed below a surface falls out of the world rather than landing on it.
+   */
+  teleport(to: Vector3): void;
+  /**
+   * Releases what the character holds outside the scene, and stops its per-frame observer.
+   *
+   * `scene.dispose()` is not enough and never was. It reaches the controller's `CCTransformNode` and
+   * its `PhysicsBody` through the physics-body dispose observer, but it has no way to reach the
+   * `PhysicsCharacterController` itself — nothing in the scene graph points at it — so its
+   * `PhysicsShapeCapsule` and its two `HP_QueryCollector_Create(16)` handles stay in the Havok WASM
+   * heap. That was harmless while one scene lived for the whole page; with a hub ⇄ tower swap it is
+   * the one thing in the level that grows without bound, because `havokModule.ts` caches the module
+   * — and with it the heap — for the life of the page by design (spec §6).
+   *
+   * **Call this while the scene's physics engine is still alive.** The controller's own `dispose()`
+   * looks up `scene.getPhysicsEngine().getPhysicsPlugin()` to release those collectors, so after
+   * `scene.dispose()` there is no plugin left to release them through — see `levelTeardown.ts`,
+   * which is what fixes that order for both levels.
+   */
+  dispose(): void;
 }
 
 /**
@@ -89,37 +155,73 @@ export function createPlayer(
   follow: FollowCamera,
   input: InputState,
   crystals: Crystals,
+  spawn: Vector3,
 ): Player {
-  // Spawn the capsule's base ON the terrain surface (+ a small lift so it settles down onto it rather
-  // than starting embedded — an embedded capsule pops through the one-sided MESH collider and falls).
-  const start = new Vector3(0, terrainHeight(0, 0) + CAPSULE_HEIGHT / 2 + 0.3, 0);
-  let visualY = start.y; // smoothed visual Y (see VISUAL_Y_SMOOTHING)
+  // Where the capsule's CENTRE starts. The caller owns it, because only the caller knows what the
+  // ground under it is — see the hub's call site for how it places the capsule's base on the terrain.
+  let visualY = spawn.y; // smoothed visual Y (see VISUAL_Y_SMOOTHING)
   const controller = new PhysicsCharacterController(
-    start,
+    spawn,
     { capsuleRadius: CAPSULE_RADIUS, capsuleHeight: CAPSULE_HEIGHT },
     scene,
   );
   // A mutable copy of the movement config, exposed on `window.moveConfig` in dev so speed/accel can be
   // tuned live (e.g. `moveConfig.maxSpeed = 3.5`) to match the walk animation without a rebuild.
   const config = { ...DEFAULT_CONFIG };
-  if (import.meta.env.DEV) (window as unknown as { moveConfig: typeof config }).moveConfig = config;
+  exposeDevHandle(scene, 'moveConfig', config);
   // The Havok controller itself, for probing its solver settings live in dev.
-  if (import.meta.env.DEV) (window as unknown as { charController: unknown }).charController = controller;
+  exposeDevHandle(scene, 'charController', controller);
 
-  const player: Player = {
-    root, motion: IDLE, airborne: false, config, homingEntrySeconds: null, homingBounced: false,
-  };
   // Coyote time, jump buffering and the takeoff guard all live in this pure state — see groundContact.
   let contact = INITIAL_GROUND_CONTACT;
   // Which crystal a dash is committed to, its entry estimate, and the reticle's separate selection —
-  // all decided by one tested machine rather than inline here. See homingLock.
+  // all decided by one tested machine rather than inline here. See homingLock. Declared above the
+  // player rather than beside `contact` because `teleport` clears it.
   let homingLock = NO_HOMING_LOCK;
+
+  const player: Player = {
+    root, motion: IDLE, airborne: false, config, homingEntrySeconds: null, homingBounced: false,
+    capsulePosition: () => controller.getPosition().clone(),
+    teleport(to: Vector3): void {
+      controller.setPosition(to);
+      // Both velocities, in that order of importance: the domain's is the one that survives, since
+      // the observer below copies it onto the controller before the next `integrate`. The controller's
+      // is zeroed anyway so that nothing reads a stale fall speed off it in between.
+      controller.setVelocity(Vector3.Zero());
+      // The domain velocity and the dash together, from one tested rule — see `respawn.ts` for why a
+      // dash left in flight across a teleport resumes from the checkpoint on the next frame.
+      const cut = respawned(player.motion);
+      player.motion = cut.motion;
+      homingLock = cut.lock;
+      // Follows the lock: the observer below recomputes it from `homingLock` every frame, and this
+      // keeps the two from disagreeing on the frames between the cut and the next one.
+      player.homingEntrySeconds = null;
+      // Re-seed the render smoothing at the destination, so the knight is drawn there on the very
+      // next frame instead of easing up to it from wherever it was standing.
+      visualY = to.y;
+      // And the transform the smoothing feeds, in the same breath. The observer below writes `root`
+      // once a frame from the solved capsule, so a respawn decided after it leaves `root` a frame
+      // behind — and `root` is the only thing that can be read for where the character *is* being
+      // drawn. `FollowCamera.snap()` re-seeds from exactly this, and seeded a frame late it re-seeded
+      // at the height of the fall (see this method's doc, point 4).
+      root.position.copyFrom(to);
+    },
+    dispose(): void {
+      // The observer first: `onFrame` calls `checkSupport` and `integrate` on the controller, and a
+      // released controller integrated on a later frame is a use-after-free in the WASM heap. Today
+      // nothing renders a level being torn down (`App.svelte` swaps the render loop off it first),
+      // but that is the caller's ordering and not this file's to assume.
+      scene.onBeforeRenderObservable.removeCallback(onFrame);
+      controller.dispose();
+    },
+  };
 
   // The red target ring the owner asked for, fed `preview` rather than the committed lock — see
   // `HomingLockResult.preview`.
   const reticle = createHomingReticle(scene);
 
-  scene.onBeforeRenderObservable.add(() => {
+  // Named rather than inline, so `player.dispose` above can take it off the observable again.
+  const onFrame = () => {
     const dt = Math.min(scene.getEngine().getDeltaTime() / 1000, MAX_DT);
     if (dt <= 0) return;
 
@@ -201,7 +303,9 @@ export function createPlayer(
     const movementInput: MovementInput = {
       direction: planarDirectionFromInput(input.axis(), right, forward),
       jumpRequested,
-      runRequested: input.isRunHeld(),
+      // The character runs by default; holding Shift asks it to walk instead (`isWalkHeld`), so
+      // `runRequested` — the domain's "run this frame" flag — is the negation of that.
+      runRequested: !input.isWalkHeld(),
       homingTarget: lockResult.target,
     };
     // Asked of the domain before the step, not read back off the result: a dash whose crystal is
@@ -249,7 +353,8 @@ export function createPlayer(
     player.motion = { ...next, velocity: toVec3(controller.getVelocity()) };
 
     faceRoot(root, next.facing.x, next.facing.y);
-  });
+  };
+  scene.onBeforeRenderObservable.add(onFrame);
 
   return player;
 }

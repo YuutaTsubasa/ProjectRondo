@@ -48,12 +48,12 @@ export type HubAudio = DeferredAudio;
  * build, which put every asset in the manifest on the critical path of scene startup — and the two
  * `streaming: true` music cues resolve only on their media element's `canplaythrough`, so a browser
  * that defers media loading before a user gesture, or a hung connection, leaves that `await` pending
- * *forever*: no `runRenderLoop`, no resolved `createHubScene`, and the blank canvas `docs/HANDOFF.md`
- * §3 describes. Careful handling of the rejection path does nothing for a promise that never settles;
- * not waiting does. It also stops first render queueing behind 7,217,303 B of music — 7.2 MB decimal
- * (hub_theme 3.39 MB + avg_theme 3.83 MB), 6.9 MiB as the design spec's §5.4 table counts it — both
- * tracks copied verbatim from their sources (see `tools/audio/preprocess.mjs`), and none of it needed
- * until after the first click.
+ * *forever*: no resolved `createHubScene`, no `hub` ever assigned in `App.svelte`, and the blank
+ * canvas `docs/HANDOFF.md` §3 describes. Careful handling of the rejection path does nothing for a
+ * promise that never settles; not waiting does. It also stops first render queueing behind 7,217,303 B
+ * of music — 7.2 MB decimal (hub_theme 3.39 MB + avg_theme 3.83 MB), 6.9 MiB as the design spec's §5.4
+ * table counts it — both tracks copied verbatim from their sources (see `tools/audio/preprocess.mjs`),
+ * and none of it needed until after the first click.
  *
  * A failure in the background build therefore means a silent game, not a broken one — the same
  * contract as before, now with "never settles" covered as well as "rejects".
@@ -68,19 +68,31 @@ export type HubAudio = DeferredAudio;
  * the same shape of duplication: sound and pose answer "how fast, and off the ground?" from one
  * source, and through one rule — `jumpSound.ts` and `jumpPose.ts` both widen `airborne` via the same
  * `isOffGround` — or they will eventually answer it differently.
+ *
+ * `options.music`, when `false`, only withholds the music director: `buildHubAudio` still awaits
+ * `loadSoundBank(audio)` first, and that call fetches every cue in `MANIFEST` — including both
+ * `streaming: true` music tracks — regardless of this flag. So a level built with `music: false`
+ * still pays for those two downloads; it only guarantees nothing will ever play them. That is fine
+ * today only because the tower is reachable exclusively through the hub's colonnade, and the hub
+ * always builds its audio with music on, so by the time a `music: false` level exists the tracks are
+ * already fetched and cached. It stops being fine the moment something is reachable without passing
+ * through the hub first — at that point this flag would need to become a real load-time filter, not
+ * just a playback gate.
  */
 export function createHubAudio(
   scene: Scene,
   motion: () => KnightMotionSample,
   knight: Knight,
+  options?: { readonly music?: boolean },
 ): HubAudio {
-  return createDeferredAudio(() => buildHubAudio(scene, motion, knight));
+  return createDeferredAudio(() => buildHubAudio(scene, motion, knight, options?.music ?? true));
 }
 
 async function buildHubAudio(
   scene: Scene,
   motion: () => KnightMotionSample,
   knight: Knight,
+  music: boolean,
 ): Promise<HubAudio> {
   const audio = await createGameAudio();
 
@@ -108,7 +120,7 @@ async function buildHubAudio(
     // honoured and is never retried. `musicCrossfade` holds the request until `unlock()` says it can
     // be honoured; everything about *how* one track hands over to the next lives in there, where a
     // test can reach it without a scene.
-    const crossfade = createMusicCrossfade(soundBank);
+    const crossfade = music ? createMusicCrossfade(soundBank) : undefined;
 
     // The manifest gives some cues several files — `ui.type` has four — and `soundBank.play` picks
     // by an index its caller supplies, so something has to count. It counts on this side rather than
@@ -188,7 +200,7 @@ async function buildHubAudio(
     const tryUnlock = async () => {
       await audio.engine.unlockAsync();
       stopWatchingForGestures();
-      crossfade.unlock();
+      crossfade?.unlock();
     };
     const onGesture = () => {
       void tryUnlock().catch((error: unknown) =>
@@ -205,7 +217,9 @@ async function buildHubAudio(
 
     return {
       setMusicScene(next) {
-        crossfade.setScene(next);
+        // `crossfade` is `undefined` when this level opted out of music (`options.music: false`); a
+        // level with no music is a normal state, not a caller mistake, so this stays a silent no-op.
+        crossfade?.setScene(next);
       },
       play(cue) {
         soundBank.play(cue, { variant: variants.next(cue) });
@@ -215,7 +229,7 @@ async function buildHubAudio(
         if (observer) scene.onBeforeRenderObservable.remove(observer);
         // Before the bank: the crossfade's outgoing handles and their timers have to be released
         // while the sounds they name are still alive.
-        crossfade.dispose();
+        crossfade?.dispose();
         soundBank.dispose();
         audio.dispose();
       },

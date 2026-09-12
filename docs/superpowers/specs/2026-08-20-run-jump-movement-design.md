@@ -99,6 +99,16 @@ Run covers **1.96×** the ground per second that Walk does, so matching the exis
 
 ## 5. Input — the sprint modifier
 
+> **The polarity below shipped and has since been inverted; everything else here still holds.** The
+> character now **runs by default and holding Shift walks** — `input.ts` exposes `isWalkHeld()`, and
+> `playerController` negates it to build `runRequested`. The reason is the climbing tower
+> (`2026-09-08-climbing-tower-design.md`): its jumps want speed, so a player was holding Shift
+> continuously just to move at the pace the level is designed around, which is what a default is for.
+> The project owner made that call after playing it. What did NOT change is anything below the input
+> layer: `runRequested` still means "run this frame" and §4's domain rule is untouched, which is why
+> this was a one-line change on one side of one boundary. Read the text below as the design that was
+> decided in August, not as the mapping in the build.
+
 **Shift** (either side) held = run. `input.ts` adds `shift` to `GAME_KEYS` (so the browser does not act
 on it) and exposes `isRunHeld()`, mirroring the existing held-key pattern rather than the
 `consumeJump()` edge-trigger pattern — sprint is a state, not an event.
@@ -194,7 +204,7 @@ it is a rig-level change with its own risk, and neither defect above needs it.
 | `public/models/knight_web.glb` | rebuilt with four clips |
 | `src/domain/hub/character/movementConfig.ts` · `movementConstants.ts` | `runSpeed` |
 | `src/domain/hub/character/movementInput.ts` · `characterMovement.ts` | `runRequested` → planar target |
-| `src/presentation/babylon/input.ts` | Shift → `isRunHeld()` |
+| `src/presentation/babylon/input.ts` | Shift → `isRunHeld()` — since inverted to `isWalkHeld()`, see §5 |
 | `src/presentation/babylon/playerController.ts` | pass `runRequested`; expose grounded |
 | `src/presentation/babylon/knight.ts` | four clips, locomotion scalar, jump segments, foot planting |
 | `src/presentation/babylon/hubScene.ts` | wire grounded into `driveKnightAnimation` |

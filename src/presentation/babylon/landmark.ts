@@ -8,6 +8,7 @@ import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
 // Side-effect: registers the StandardMaterial shader. Required with tree-shaken deep imports.
 import '@babylonjs/core/Materials/standardMaterial';
 import { terrainHeight } from './terrainHeight';
+import { PEDESTAL_HEIGHT } from './pedestal';
 import { ROCK_DIFFUSE_RGB } from './rockColors';
 
 /**
@@ -18,21 +19,29 @@ import { ROCK_DIFFUSE_RGB } from './rockColors';
  * Worth knowing before moving it: in this height field the flattest ground IS the lowest ground,
  * because the flat places are basin floors. The high ground runs 16–17° across a ring this wide.
  */
-const PLAZA_X = -6;
-const PLAZA_Z = 32;
-const RING_RADIUS = 8;
+export const PLAZA_X = -6;
+export const PLAZA_Z = 32;
+/** Radius of the pillar ring — the inner edge of the colonnade's floor. */
+export const RING_RADIUS = 8;
 /** Eight, so each pillar can later carry one mode-entrance with room to spare for three modes. */
 const PILLAR_COUNT = 8;
 const PILLAR_RADIUS = 0.45;
 /** Height of the pillar crowns above the plaza centre's ground level. */
 const CROWN_HEIGHT = 4.2;
-const PEDESTAL_RADIUS = 1.6;
-const PEDESTAL_HEIGHT = 0.55;
+export const PEDESTAL_RADIUS = 1.6;
 /** How far each pillar's base is sunk below its terrain sample, so no pillar hovers over a dip
  *  between samples. Used both to lengthen the pillar (added to its height) and to lower its position
  *  (subtracted from its centre) — the two uses must change together, or the crown drifts off
  *  `crownY` and the ring stops reading level. */
 const PILLAR_SINK = 0.3;
+
+/**
+ * The height a player stands at when they are on the pedestal — its top face. A function rather than
+ * a constant because it samples `terrainHeight`, and both `hubScene`'s portal test and the pedestal
+ * mesh below must read the pedestal's real height from one place rather than each re-deriving it and
+ * drifting when the plaza or the pedestal moves.
+ */
+export const pedestalTopY = (): number => terrainHeight(PLAZA_X, PLAZA_Z) + PEDESTAL_HEIGHT;
 
 /** Reuses `scatter.ts`'s rock colour (via `rockColors.ts`) so the structure lands inside P2's grade
  *  rather than beside it. */
@@ -80,13 +89,15 @@ export function createLandmark(scene: Scene, shadows: Shadows): void {
     shadows.receive(pillar);
   }
 
-  const pedestalY = terrainHeight(PLAZA_X, PLAZA_Z);
   const pedestal = CreateCylinder(
     'plazaPedestal',
     { diameter: PEDESTAL_RADIUS * 2, height: PEDESTAL_HEIGHT, tessellation: 24 },
     scene,
   );
-  pedestal.position.set(PLAZA_X, pedestalY + PEDESTAL_HEIGHT / 2, PLAZA_Z);
+  // `pedestalTopY()` is the TOP face — the height a player stands at, and the height `hubScene`'s
+  // portal test is written in — so the cylinder's centre sits half a pedestal below it. Derived from
+  // the same call the test reads, so the mesh and the trigger cannot drift apart.
+  pedestal.position.set(PLAZA_X, pedestalTopY() - PEDESTAL_HEIGHT / 2, PLAZA_Z);
   pedestal.material = mat;
   pedestal.isPickable = false;
   new PhysicsAggregate(pedestal, PhysicsShapeType.CYLINDER, { mass: 0 }, scene);

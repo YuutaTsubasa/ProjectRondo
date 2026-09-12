@@ -1,7 +1,6 @@
 import { Engine } from '@babylonjs/core/Engines/engine';
 import { Scene } from '@babylonjs/core/scene';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
-import { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 // Side-effect: registers the StandardMaterial shader. Required with tree-shaken deep
 // imports, otherwise meshes without an explicit material silently render nothing.
 import '@babylonjs/core/Materials/standardMaterial';
@@ -10,23 +9,29 @@ import { HavokPlugin } from '@babylonjs/core/Physics/v2/Plugins/havokPlugin';
 // RegisterJoinedPhysicsEngineComponent). Without this, enablePhysics is a no-op and
 // PhysicsAggregate throws "No Physics Engine available".
 import '@babylonjs/core/Physics/joinedPhysicsEngineComponent';
-import HavokPhysics from '@babylonjs/havok';
 
-import { createFollowCamera, type FollowCamera } from './followCamera';
-import { createInput } from './input';
-import { createPlayer, type Player } from './playerController';
-import { loadKnight, driveKnightAnimation, type Knight, type KnightMotionSample } from './knight';
+import { loadHavok } from './havokModule';
+import { createCharacterRig } from './characterRig';
+import { disposeLevel, type LevelParts } from './levelTeardown';
+import type { FollowCamera } from './followCamera';
+import type { Player } from './playerController';
+import type { Knight } from './knight';
 import { createEnvironment } from './environment';
 import { createShadows } from './shadows';
 import { createAtmosphere } from './postProcessing';
 import { createTerrain } from './terrain';
+import { terrainHeight } from './terrainHeight';
+import { CAPSULE_HALF, spawnCentreY } from './capsule';
 import { loadTrees } from './trees';
 import { createGroundScatter } from './scatter';
 import { createWind } from './wind';
 import { createWater } from './water';
 import { createClouds } from './clouds';
-import { createLandmark } from './landmark';
+import { createLandmark, pedestalTopY, PEDESTAL_RADIUS, PLAZA_X, PLAZA_Z } from './landmark';
+import { createPortalRing } from './portalRing';
+import { PORTAL_START, standingOnPedestal, stepPortalTrigger, type PortalTrigger } from './portalTrigger';
 import { createCrystals } from './crystals';
+import { exposeDevHandle } from './devHandles';
 import { createHubAudio, type HubAudio } from '../audio/hubAudio';
 
 /**
@@ -44,24 +49,123 @@ const TEST_CRYSTALS = [
   { x: -3, y: 4, z: -10 },
 ] as const;
 
+/**
+ * How far from the pedestal's centre the return from the tower puts the player, in world units.
+ *
+ * Derived: twice {@link PEDESTAL_RADIUS}, so the player lands a whole pedestal-radius clear of its
+ * edge on open ground. Spec §5 makes this the *first* line of defence against a re-entry loop —
+ * `PORTAL_START` being disarmed is the second, and the two are both required, not either.
+ *
+ * **Untuned** all the same. The derivation fixes the safety margin, which is the part that has to be
+ * right; what it cannot answer is how arriving that far out *reads* — whether the ring of light
+ * ahead says "you came from there" or the pedestal is simply far enough away to look like somewhere
+ * else. Nobody has stood here. Retune by eye, in the plaza, and keep it clear of the edge.
+ */
+const RETURN_DISTANCE = PEDESTAL_RADIUS * 2;
+
+/** Where a spawn goes for the capsule's base to sit `SPAWN_CLEARANCE` over the terrain at (x, z). */
+function spawnOverTerrain(x: number, z: number): Vector3 {
+  return new Vector3(x, spawnCentreY(terrainHeight(x, z)), z);
+}
+
+/**
+ * Where the player lands on returning from the tower: on the ground beside the pedestal, never on it
+ * (spec §5, "Re-entry must not loop").
+ *
+ * Placed on the side of the pedestal that faces the hub's origin — the direction the player walked in
+ * from — so the ring of light stands between them and the exit: at {@link RETURN_DISTANCE}, twice
+ * {@link PEDESTAL_RADIUS}, they are outside the ring looking across it at the thing they just stepped
+ * out of, and the first step they take is away from it rather than back onto it.
+ *
+ * **That is where they stand, not what they see.** `createFollowCamera` opens every fresh camera at
+ * `yaw = 0` and derives nothing from the spawn, so the view on a rebuilt hub points along world −Z
+ * whatever this function returns. From (−5.4103, 28.8548) that ray passes 0.5897 u from
+ * `plazaPillar_6`'s axis at (−6, 24) — 0.1397 u outside its surface and 4.8548 u ahead — so what
+ * greets the player is a pillar spanning 1.7° to 12.2° off screen centre, and it is the plaza's
+ * offset from the origin (|`PLAZA_X`| 6 against `PLAZA_Z` 32) that makes the view read as "back
+ * down the colonnade" at all. Move the plaza and both facts change with nothing to catch it. Aiming
+ * the camera on arrival is camera work nobody has done — `towerLevel.ts`'s `TOWER_SPAWN` declines to
+ * make the claim about the same camera for the same reason.
+ *
+ * A function returning a fresh `Vector3` rather than an exported constant, because `createPlayer`
+ * hands its spawn straight to `PhysicsCharacterController`, whose `getPosition()` is documented as
+ * returning its LIVE internal vector — a shared instance is exactly the kind of thing that ends up
+ * being written through.
+ */
+export function portalReturnSpawn(): Vector3 {
+  const toOrigin = Math.hypot(PLAZA_X, PLAZA_Z);
+  const x = PLAZA_X + (-PLAZA_X / toOrigin) * RETURN_DISTANCE;
+  const z = PLAZA_Z + (-PLAZA_Z / toOrigin) * RETURN_DISTANCE;
+  return spawnOverTerrain(x, z);
+}
+
 export interface HubScene {
-  readonly engine: Engine;
   readonly scene: Scene;
   readonly follow: FollowCamera;
   readonly player: Player;
   readonly knight: Knight;
   /** Music and character sound. `App.svelte` drives the music scene through this. */
   readonly audio: HubAudio;
-  /** Suspends (on=true) or resumes (on=false) gameplay input and camera look, e.g. during an AVG overlay. */
+  /** Suspends (on=true) or resumes (on=false) gameplay input and camera look, e.g. during an AVG
+   *  overlay. The level arrives suspended and `App.svelte` resumes it once it is on screen; resuming
+   *  does not restore pointer lock — see `CharacterRig.suspendInput`. */
   suspendInput(on: boolean): void;
-  /** Tears the scene down: stops the render loop, removes DOM listeners, disposes the engine. */
+  /** Tears this level down: its rig (DOM listeners and Havok character controller), its audio, then
+   *  its scene — see `levelTeardown.ts` for why in that order. The engine outlives this and is
+   *  disposed only by whoever owns it (`App.svelte`), not here. */
   dispose(): void;
 }
 
-export async function createHubScene(canvas: HTMLCanvasElement): Promise<HubScene> {
-  // preserveDrawingBuffer (dev only) lets tooling screenshot the WebGL canvas.
-  const engine = new Engine(canvas, true, { preserveDrawingBuffer: import.meta.env.DEV, stencil: true });
+/**
+ * The hub level.
+ *
+ * `onEnterTower` fires the frame the player steps onto the colonnade's central pedestal. There is no
+ * confirm key by design (spec §5): climbing onto the pedestal is already a deliberate act, and the
+ * pedestal has no other purpose to conflict with.
+ *
+ * `spawn` defaults to the origin spawn this scene has always used, so the game's first entry is
+ * unchanged; the only caller that passes one is the return from the tower, which passes
+ * {@link portalReturnSpawn} to land the player *beside* the pedestal rather than on it.
+ *
+ * **A build that rejects tears down what it had built.** The scene exists from the first line, and
+ * three awaits after it can fail — Havok, the knight's GLB, the trees — so a rejection reached the
+ * caller with a whole scene, its Havok world, its rig and its DOM listeners already alive and
+ * nothing left pointing at them. The caller cannot clean that up (it never received anything), and
+ * a failed entry is retryable, so it was one orphan per attempt. Owned here instead, where the
+ * half-built pieces are; `levelTeardown.ts` has the order and why it matters.
+ *
+ * The three do not all land in the same place, and the middle one is not this `catch`'s to cover:
+ * Havok leaves a bare scene, the trees leave a rig this bag is holding, but the knight's GLB rejects
+ * *inside* `createCharacterRig`, before `parts.rig` is assigned — so the rig releases its own pieces
+ * and `disposeLevel` disposes the scene alone. `characterRig.ts` says why that has to be the rig's
+ * job; `towerScene.ts` is where it is the only case that remains.
+ */
+export async function createHubScene(
+  engine: Engine,
+  canvas: HTMLCanvasElement,
+  onEnterTower: () => void,
+  spawn: Vector3 = spawnOverTerrain(0, 0),
+): Promise<HubScene> {
   const scene = new Scene(engine);
+  const parts: LevelParts = {};
+  try {
+    return await buildHubScene(scene, parts, canvas, onEnterTower, spawn);
+  } catch (err) {
+    disposeLevel(scene, parts);
+    throw err;
+  }
+}
+
+/** The hub's actual construction, split off only so {@link createHubScene} can wrap it in the
+ *  teardown above without indenting the whole level inside a `try`. `parts` is filled in as the
+ *  build goes, so the failure path can tear down exactly what exists. */
+async function buildHubScene(
+  scene: Scene,
+  parts: LevelParts,
+  canvas: HTMLCanvasElement,
+  onEnterTower: () => void,
+  spawn: Vector3,
+): Promise<HubScene> {
   // Right-handed so glTF (a right-handed format) imports natively — no handedness reflection on
   // skinned characters, which otherwise collapses them to the floor when the parent yaws.
   scene.useRightHandedSystem = true;
@@ -70,84 +174,88 @@ export async function createHubScene(canvas: HTMLCanvasElement): Promise<HubScen
 
   // Physics: Havok. The domain owns all gravity and the character controller is passed zero
   // gravity, so the world gravity stays zero too — no second, contradictory source of gravity.
-  // (Set a real value here if/when dynamic rigid bodies are introduced.)
-  const havok = await HavokPhysics();
+  // (Set a real value here if/when dynamic rigid bodies are introduced.) The module comes from the
+  // page-lifetime cache, not a fresh compile per level — spec §6, and `havokModule.ts` for why.
+  const havok = await loadHavok();
   scene.enablePhysics(Vector3.Zero(), new HavokPlugin(true, havok));
 
-  // The camera is hoisted above the world build because createShadows needs it: cascade splits come
-  // from the `camera` argument passed below, and the resulting generator stays registered under that
-  // same camera for the life of the scene (see the createShadows doc comment in shadows.ts — Babylon
-  // resolves the generator via scene.activeCamera every frame, with a no-arg fallback that never
-  // matches). Setting scene.activeCamera to follow.camera immediately before createShadows is what
-  // keeps the two in sync; it depends only on playerRoot and the canvas — not on physics, the terrain
-  // or the player controller — so moving it earlier is safe.
-  const playerRoot = new TransformNode('player', scene);
-  const follow = createFollowCamera(scene, playerRoot, canvas);
-  scene.activeCamera = follow.camera;
-  const shadows = createShadows(sun, follow.camera);
+  const crystals = createCrystals(scene, TEST_CRYSTALS);
+  // The hub's answer to "how high is the ground here" — its analytic height field. The character rig
+  // takes it as an argument rather than importing it, so the same rig works in a scene that has none.
+  const rig = await createCharacterRig(scene, {
+    canvas,
+    makeShadows: (camera) => createShadows(sun, camera),
+    groundHeight: terrainHeight,
+    spawn,
+    crystals,
+    // No: nothing the hub is *designed* around comes near the threshold — walking, running and
+    // jumping were measured at 15.8 u/s against 17 — but a homing dash aimed at a crystal below the
+    // player runs at `homingSpeed` 24 and would engage the term fully, on a camera tuned for this
+    // level and for a move that has its own feel. The crystals above are a playground; the camera
+    // they would re-tune is not. `followCamera`'s DESCENT_ENGAGE_SPEED has the arithmetic.
+    descentFollow: false,
+  });
+  parts.rig = rig;
+  const { follow, shadows, player, knight, readMotion } = rig;
   // Babylon 9 keys shadow generators by camera, so the console's usual
   // `scene.lights.find(...).getShadowGenerator()` (no-arg) returns null. Expose a stable handle
   // instead, the same way playerController exposes moveConfig/charController.
-  if (import.meta.env.DEV) (window as unknown as { shadows: unknown }).shadows = shadows;
+  exposeDevHandle(scene, 'shadows', shadows);
 
   const terrain = createTerrain(scene);
   shadows.receive(terrain);
   createWind(scene);
   createGroundScatter(scene, shadows);
-  const crystals = createCrystals(scene, TEST_CRYSTALS);
   createWater(scene);
   createClouds(scene);
   createLandmark(scene, shadows);
+  // After the landmark, so the ring is drawn over ground the pedestal it encircles already stands on.
+  createPortalRing(scene);
 
   createAtmosphere(scene, follow.camera);
 
-  const input = createInput();
-  const player = createPlayer(scene, playerRoot, follow, input, crystals);
-  const readMotion = (): KnightMotionSample => {
-    const v = player.motion.velocity;
-    return {
-      planarSpeed: Math.hypot(v.x, v.z),
-      airborne: player.airborne,
-      homing: player.motion.homing !== null,
-      homingEntrySeconds: player.homingEntrySeconds,
-      bounced: player.homingBounced,
-    };
-  };
-  const knight = await loadKnight(scene, playerRoot, shadows);
-  driveKnightAnimation(scene, knight, readMotion, () => ({
-    walk: player.config.maxSpeed,
-    run: player.config.runSpeed,
-    // Up and back down under the domain's own gravity — the flat-ground airtime the jump clip fills.
-    airtime: (2 * player.config.jumpSpeed) / player.config.gravity,
-  }));
   await loadTrees(scene, shadows);
   // Not awaited, and `createHubAudio` is not async: audio must never be able to hold up first render.
   // See its doc comment — a streaming music cue whose media element never fires `canplaythrough`
-  // would otherwise leave this line pending for good, and with it the render loop below.
+  // would otherwise leave this line pending for good, and with it this promise — and App.svelte's
+  // `hub` assignment, which only happens once this promise resolves. The render loop in App.svelte
+  // already runs by then (it starts before `createHubScene` is even called), so a hang here would
+  // not stop rendering — it would just mean nothing is ever assigned to render, i.e. a blank canvas.
   // `readMotion` again, not a second function built beside it: the footsteps and the locomotion blend
   // they have to land on answer "how fast, and airborne?" from one source. Each layer's observer calls
   // it for itself, so the sample is built twice a frame — one *source*, not one sample.
   const audio = createHubAudio(scene, readMotion, knight);
+  parts.audio = audio;
 
-  engine.runRenderLoop(() => scene.render());
-  // Size the drawing buffer to the canvas now; the resize event only fires on later changes.
-  engine.resize();
-  const onResize = () => engine.resize();
-  window.addEventListener('resize', onResize);
+  // The portal: standing on the colonnade's central pedestal enters the tower (spec §5).
+  const portalY = pedestalTopY() + CAPSULE_HALF; // the capsule's CENTRE when its feet are on the top face
+  let portal: PortalTrigger = PORTAL_START;
+  scene.onBeforeRenderObservable.add(() => {
+    // The capsule, never `rig.root`: `root.position.y` is the smoothed VISUAL height, so the height
+    // half of the test below would be decided from a place the character is not. See
+    // `Player.capsulePosition` — and `towerScene.ts`, which reads its summit pedestal the same way.
+    const here = player.capsulePosition();
+    // Where the pedestal is and how wide it is are this file's to answer; what counts as standing on
+    // one is `portalTrigger.ts`'s, shared with the tower. The trigger starts disarmed, which is what
+    // makes a return from the tower that lands on the pedestal safe (spec §5's second line of
+    // defence; the first is that `portalReturnSpawn` does not land there in the first place).
+    const inside = standingOnPedestal({
+      planarDistance: Math.hypot(here.x - PLAZA_X, here.z - PLAZA_Z),
+      radius: PEDESTAL_RADIUS,
+      aboveStandingHeight: here.y - portalY,
+      airborne: player.airborne,
+    });
+    const stepped = stepPortalTrigger(portal, inside);
+    portal = stepped.trigger;
+    if (stepped.fired) onEnterTower();
+  });
 
-  const dispose = () => {
-    window.removeEventListener('resize', onResize);
-    input.dispose();
-    follow.dispose();
-    audio.dispose();
-    // engine.dispose() tears down the scene, physics, meshes, observers and the render loop.
-    engine.dispose();
-  };
+  // The same call the failure path above makes, over the same `parts` — so a finished level and a
+  // half-built one cannot be torn down in two different orders. `levelTeardown.ts` says what that
+  // order buys and why the scene is disposed last and the engine never.
+  const dispose = () => disposeLevel(scene, parts);
 
-  const suspendInput = (on: boolean) => {
-    input.setEnabled(!on);
-    follow.setEnabled(!on);
-  };
+  const suspendInput = (on: boolean) => rig.suspendInput(on);
 
-  return { engine, scene, follow, player, knight, audio, suspendInput, dispose };
+  return { scene, follow, player, knight, audio, suspendInput, dispose };
 }
