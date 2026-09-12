@@ -48,10 +48,10 @@ export interface LevelSwap<L extends SwappableLevel> {
  * still in the level they were in, control comes back, and the failure is logged. That rule is the
  * plan's own, not the spec's: see `docs/superpowers/plans/2026-09-08-climbing-tower.md`, which states
  * it and notes that the design spec has no error-handling section to cite. The cost of that order is
- * that both scenes — and both Havok worlds — are resident for the duration of the build. Spec §6's "one scene is alive at a time" is
- * about the steady state; the alternative here is disposing the only level on screen and showing
- * nothing for the second or so it takes to reload the knight's GLB into the new scene, with no way
- * back if that reload fails.
+ * that both scenes — and both Havok worlds — are resident for the duration of the build. Spec §6's
+ * "one scene is alive at a time" is about the steady state; the alternative here is disposing the
+ * only level on screen and showing nothing for the second or so it takes to reload the knight's GLB
+ * into the new scene, with no way back if that reload fails.
  *
  * **BOTH levels have their input suspended for that window, at both ends.** The outgoing one is
  * suspended by {@link LevelSwap.swap}: it is still simulating — it is still the scene being rendered

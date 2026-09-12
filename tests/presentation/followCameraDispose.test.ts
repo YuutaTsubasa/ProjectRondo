@@ -7,19 +7,6 @@ import { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 import { createFollowCamera } from '../../src/presentation/babylon/followCamera';
 import { unknownGround } from '../../src/presentation/babylon/groundHeight';
 
-/**
- * The camera places itself from `onBeforeRenderObservable`, and `place` reads the target's absolute
- * position and the ground field — both of which a level swap releases. `releaseRig` takes the
- * frame-loop subscriptions off before releasing what they read; a subscription with no handle cannot
- * be taken off, so it would run over a released player root on any frame between `follow.dispose()`
- * and the scene going down.
- *
- * `playerDispose.test.ts` pins the same property for the player's observer and says why the "same
- * function it put on" half matters. This is its counterpart: without it, deleting the removal would
- * leave every suite green — `characterRigTeardown.test.ts` mocks this module away, and
- * `followCameraObserver.test.ts` releases its mounts through the scene without ever calling
- * `follow.dispose()`.
- */
 const mounted: (() => void)[] = [];
 afterEach(() => {
   for (const release of mounted.splice(0)) release();
@@ -35,6 +22,22 @@ const build = () => {
   return { scene, target, follow };
 };
 
+/**
+ * The camera places itself from `onBeforeRenderObservable`. Nothing today runs a frame between
+ * `follow.dispose()` and the scene going down — `releaseRig` calls them back to back, and `place`'s
+ * inputs (the player root, and `groundHeight`, a closure) both outlive `player.dispose()` anyway — so
+ * this is not a live crash. It is teardown completeness: a subscription with no handle can never be
+ * removed by anything, so `dispose()` would not be a full release and any future caller that takes
+ * the camera down without the scene would keep placing one that is gone. `characterRig.ts` states
+ * the same standard for its own ordering — right today, written so it stays right if a frame ever
+ * does run in that window.
+ *
+ * `playerDispose.test.ts` pins the same property for the player's observer. This is its
+ * counterpart, and without it deleting the removal leaves every suite green:
+ * `characterRigTeardown.test.ts` mocks this module away, and `followCameraObserver.test.ts` —
+ * the one suite that builds a real camera — releases its mounts through the scene without ever
+ * calling `follow.dispose()`.
+ */
 describe('createFollowCamera().dispose', () => {
   it('takes its per-frame observer off the scene', async () => {
     const { scene, follow } = build();

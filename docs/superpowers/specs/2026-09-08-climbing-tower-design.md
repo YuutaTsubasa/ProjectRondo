@@ -964,8 +964,8 @@ Each of these was set up so that it *can* be judged, and none of them is answere
    2.136 u of reach on section 1's twelve steps (rise `18/13` = 1.3846 u) and 2.119 u on section 3's
    four (rise 1.4 u). Read more strictly, as launching and landing a clear capsule radius from either
    drop, the same step needs **2.288 u**, and walking is short on all sixteen — **0.152 u** on
-   section 1's, **0.168 u** on section 3's — while running has 4.238 u and never notices. That is the
-   geometry behind the playtest note that the jumps needed speed. Whether "you can walk the whole
+   section 1's, **0.168 u** on section 3's — while running has 4.271 u and 4.238 u respectively and
+   never notices either. That is the geometry behind the playtest note that the jumps needed speed. Whether "you can walk the whole
    tower" is a promise the level owes is a design call: honouring it means a narrower `TURN_DEGREES`
    or a wider `PLATFORM_WIDTH`. Declining it needs no edit — `TURN_DEGREES` and `footprintDistance`
    already state both readings and which one the audit holds — but it does mean the tower has a
