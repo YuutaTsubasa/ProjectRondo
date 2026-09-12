@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { NullEngine } from '@babylonjs/core/Engines/nullEngine';
 import { Scene } from '@babylonjs/core/scene';
 import { TargetCamera } from '@babylonjs/core/Cameras/targetCamera';
@@ -11,6 +11,14 @@ import { plantFeet } from '../../src/presentation/babylon/knight';
 import { unknownGround, type GroundHeight } from '../../src/presentation/babylon/groundHeight';
 import { terrainHeight } from '../../src/presentation/babylon/terrainHeight';
 import { CAPSULE_HALF } from '../../src/presentation/babylon/capsule';
+
+// Every NullEngine built here, with the scene on it, so a file of nine mounts does not leave nine
+// engines and their observers standing for the rest of the run. `rigSpawnFrame.test.ts` releases
+// the rig before the scene for `levelTeardown.ts`'s reason; these suites build no rig.
+const mounted: (() => void)[] = [];
+afterEach(() => {
+  for (const release of mounted.splice(0)) release();
+});
 
 /**
  * The foot plant, run for real, against the case that had no test and shipped a visible bug: the
@@ -66,6 +74,7 @@ interface Rig {
 function mount(ground: GroundHeight, capsuleY: number): Rig {
   const engine = new NullEngine();
   const scene = new Scene(engine);
+  mounted.push(() => { scene.dispose(); engine.dispose(); });
   const camera = new TargetCamera('cam', new Vector3(0, 0, -10), scene);
   scene.activeCamera = camera;
 

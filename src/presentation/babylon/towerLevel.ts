@@ -1,5 +1,5 @@
 import { vec3, type Vec3 } from '../../domain/math/vec3';
-import type { TowerCheckpoint } from '../../domain/tower/towerProgress';
+import type { TowerCheckpoints } from '../../domain/tower/towerProgress';
 import { DEFAULT_CONFIG } from '../../domain/hub/character/movementConfig';
 import { CAPSULE_HALF, CAPSULE_HEIGHT, CAPSULE_RADIUS, spawnCentreY } from './capsule';
 import { PEDESTAL_HEIGHT } from './pedestal';
@@ -248,7 +248,10 @@ const JUMP_RISE = 1.4;
  * by feel. (An earlier draft said 45° *overlapped* by 0.17 u. It did not: 0.1796 is
  * `centreDistance − 2 · halfDiagonal` = `3.2145 − 3.3941`, which measures a slab by its corner in
  * every direction at once — precisely the support-function/face-distance confusion {@link reachAlong}
- * exists to stop. The conclusion survived the error; the number did not.)
+ * exists to stop. The conclusion survived the error; the number did not. **Both figures in that
+ * parenthesis are from the superseded 4.2 / 2.4 layout** — 3.2145 is `2 · 4.2 · sin 22.5°` and 3.3941
+ * the diagonal of a square 2.4 u slab; at 4.6 / 3.2 the same two are 3.5207 and 4.0. They are kept
+ * as the arithmetic of the error being corrected, not as measurements of this tower.)
  *
  * A gap is not only headroom, it is also the jump — and the jump is measured from the LAUNCH, not
  * across the time spent above the far ledge. A player leaves the near edge at speed with nothing
@@ -256,9 +259,11 @@ const JUMP_RISE = 1.4;
  * it, and what they cover by then is `topSpeed · (jumpSpeed + √(jumpSpeed² − 2·gravity·rise))
  * /gravity`: **2.12 u** holding Shift to walk (`maxSpeed` 4) over a +1.4 u step, and 4.24 u by
  * default, running. The 0.80 u above is the separating-axis figure; the footprints are **0.922 u**
- * apart at the nearest. What {@link auditLayout} compares against the reach is neither: it is the
- * **1.615 u** a capsule's centre travels from the near slab to somewhere it can stand on the far
- * one, which is comfortably inside both reaches.
+ * apart at the nearest, and that is what {@link auditLayout} compares against the reach: a slab holds
+ * a capsule when its centre is over the slab, so the crossing is footprint to footprint at both ends.
+ * Read instead as launching and landing a clear capsule radius from either drop, the same step is
+ * **2.288 u** and walking is 0.17 u SHORT of it — see {@link footprintDistance} for why that reading
+ * is spec §14.8's and not this rule's.
  * Widening this starts to cost the walking margin — the tighter of the two, and the one that matters
  * because a player can choose to hold Shift through any jump in the tower.
  *
@@ -594,8 +599,10 @@ const reachAlong = (p: TowerPlatform, axis: { x: number; z: number }): number =>
   axesOf(p).reduce((sum, a) => sum + Math.abs(a.x * axis.x + a.z * axis.z) * a.half, 0);
 
 /** The widest separating gap between two slabs in the ground plane, over both slabs' face normals —
- *  negative where they overlap. It is the strip a player standing on one has to cross to reach the
- *  other, and equally the strip of the lower one that the upper one does not cover. */
+ *  negative where they overlap. It is the strip of the lower slab the upper one does not cover, which
+ *  is what the overhang rule wants. It is NOT the distance between them: a separating-axis maximum is
+ *  a lower bound on that (0.798 u where the footprints are 0.922 u apart), which is why the crossing
+ *  rule uses {@link footprintDistance} instead. */
 const slabGap = (a: TowerPlatform, b: TowerPlatform): number => {
   const offset = { x: b.x - a.x, z: b.z - a.z };
   return [...axesOf(a), ...axesOf(b)].reduce(
@@ -660,25 +667,27 @@ const footprintDistance = (a: TowerPlatform, b: TowerPlatform): number => {
 };
 
 /**
- * The part of a slab a capsule's CENTRE can stand on: the footprint inset by {@link CAPSULE_RADIUS}
- * on every side.
+ * **Where a capsule is supported, and why neither end of a crossing is inset for it.**
  *
- * **A scalar radius is not the same allowance, and it is short at exactly the geometry that matters
- * here.** Two slabs one turn apart come nearest corner to corner, and the standable set is inset
- * along BOTH edges meeting at that corner, so the point a centre has to reach is `R·√2` from it
- * rather than `R`. On the shipped step that is 1.6150 u of centre travel against the 1.4215 u the
- * air plus a flat radius gives — 0.19 u of optimism, and 0.19 u is a silent band a rule that fires
- * on gaps too WIDE cannot afford.
+ * A capsule's lower cap is a hemisphere whose lowest point sits directly below the centre, so a flat
+ * slab holds it exactly when the CENTRE is over the footprint — there is no radius of inset in the
+ * support test, at the launch or at the landing. Three rounds of review pushed an inset into the
+ * walking-reach rule, each step sound against the one before it and the chain drifting off the
+ * physics: air alone (0.9215 u on the shipped step), then plus a flat radius (1.4215), then to a
+ * landing set inset by a radius, which at a corner is `R·√2` away (1.6150). The version that fixed
+ * the asymmetry the last of those left — inset at both ends — measures **2.2876 u** against
+ * {@link stepReach}'s **2.1191 u** at `maxSpeed`, and would fire on every one of the sixteen steps
+ * of the tower as it ships.
  *
- * A slab thinner than a capsule collapses to a line or a point here rather than folding inside out.
- * Nothing can stand on such a slab at all, which is what the overhang rule reports; this one would
- * only say the same thing in worse words.
+ * That last number is not noise, and it is not this rule's to spend. It says that under a
+ * *comfortably standing* reading — launching and landing a clear capsule radius from the drop —
+ * walking is 0.17 u short on every step of section 1, which is the owner's own playtest note that
+ * the jumps needed speed, arrived at from the geometry. But comfort is a preference and this
+ * function is a bound, and the file keeps those apart deliberately: see spec §3's 6–8 u link band,
+ * left to prose for the same reason. The bound is the necessary condition — a step whose footprints
+ * a walking player cannot reach across at all is unclimbable, not merely tight — and the comfort
+ * reading is spec §14.8's, question 8.
  */
-const standableOn = (p: TowerPlatform): TowerPlatform => ({
-  ...p,
-  width: Math.max(0, p.width - 2 * CAPSULE_RADIUS),
-  depth: Math.max(0, p.depth - 2 * CAPSULE_RADIUS),
-});
 
 /**
  * How much open air a jump can carry the player across, when the far side stands `rise` higher than
@@ -1108,12 +1117,11 @@ function auditLayout(
     // A rise past the apex has no reach to compare against, and it is not this rule's to report: the
     // step is unjumpable at any speed, which the apex rule above already says in those words.
     if (reach === null) continue;
-    // What the CENTRE has to travel. It leaves from anywhere on the near footprint — a controller
-    // runs you off a ledge, so the centre reaches that slab's own edge — and has to arrive somewhere
-    // it can stand, which is the far slab inset by a capsule radius and not the far slab itself.
-    // Measuring to the footprint and adding a radius is the same allowance the column rule and the
-    // bounce band make, and it is the wrong one here: see {@link standableOn}.
-    const crossing = footprintDistance(from, standableOn(to));
+    // What the CENTRE has to travel: footprint to footprint, because a slab holds a capsule exactly
+    // when the centre is over it — the same test at both ends of the jump. The comment above
+    // `footprintDistance` records why no capsule radius is subtracted at either end, and what the
+    // reading that does subtract one says about walking this tower.
+    const crossing = footprintDistance(from, to);
     if (crossing > reach) {
       console.warn(`[towerLevel] the step from y=${from.y} to y=${to.y} cannot be walked — landing on it means carrying the capsule's centre ${crossing.toFixed(3)} u against the ${reach.toFixed(3)} u a player holding Shift covers across a ${(to.y - from.y).toFixed(3)} u rise, so the section is closed to anyone who does. See TURN_DEGREES.`);
     }
@@ -1180,7 +1188,7 @@ const respawnAbove = (pad: TowerPlatform): Vec3 => vec3(pad.x, spawnCentreY(pad.
  * section 3 — 20 u — which is the harshest single consequence in the tower and the first thing to
  * revisit if the summit plays as a wall.
  */
-export const TOWER_CHECKPOINTS: readonly TowerCheckpoint[] = [
+export const TOWER_CHECKPOINTS: TowerCheckpoints = [
   { activateY: TOWER_FLOOR_Y, respawn: TOWER_SPAWN },
   { activateY: SECTION_2_START, respawn: respawnAbove(layout.checkpointPads[0]) },
   { activateY: SECTION_3_START, respawn: respawnAbove(layout.checkpointPads[1]) },

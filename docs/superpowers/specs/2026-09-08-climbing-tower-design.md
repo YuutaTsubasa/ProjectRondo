@@ -573,7 +573,7 @@ keeps its **Untuned** marking, and the judgements that are the project owner's a
 > unchanged, so that coordinate is still the one the level computes — and `portalReturnSpawn`'s
 > constructed 3.200 u. §14.6's resize, entirely. The instrumentation caveats at the head of this
 > section: dead `requestAnimationFrame`, refused pointer lock, a scripted route that is a floor on
-> what a person costs. And §14.8's questions, all seven, which the re-solve answers none of.
+> what a person costs. And §14.8's questions, which the re-solve answers none of (it has since gained an eighth, from the audit rather than from a playthrough).
 >
 > **Re-verified on the new layout, by driving frames the same way:** a section-1 platform-to-platform
 > jump now crosses with the capsule clear of the column, and the final link still lands on the summit
@@ -958,3 +958,13 @@ Each of these was set up so that it *can* be judged, and none of them is answere
 6. **Is watching a fall from inside the column acceptable for now?** (§14.4.) It is the one finding
    here that may be worth a code change before anything else moves.
 7. **Does the backlit summit pedestal read as the way out?**
+8. **Should the tower be walkable, or is speed part of the climb?** `auditLayout` bounds every step
+   by what a walking player can cross footprint to footprint — a slab holds a capsule when its
+   centre is over it — and the shipped tower clears that by a wide margin, 0.922 u against 2.119 u.
+   Read more strictly, as launching and landing a clear capsule radius from either drop, the same
+   step needs **2.288 u** and walking is **0.17 u short on every one of the sixteen**, while running
+   has 4.238 u and never notices. That is the geometry behind the playtest note that the jumps
+   needed speed, and the reason `TURN_DEGREES` claims a walking player crosses comfortably is that
+   it is measuring the looser of the two. Whether "you can walk the whole tower" is a promise the
+   level owes is a design call: honouring it means a narrower `TURN_DEGREES` or a wider
+   `PLATFORM_WIDTH`, and declining it means `TURN_DEGREES`' prose should stop implying otherwise.

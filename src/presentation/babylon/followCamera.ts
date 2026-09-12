@@ -159,7 +159,9 @@ export interface FollowCameraConfig {
   descentFollow: boolean;
 }
 
-const DEFAULT_CONFIG: FollowCameraConfig = {
+/** Every level's camera starts from these and overrides only what it needs. Exported so a test can
+ *  assert against the shipping value rather than a copy of it that would stay green after a retune. */
+export const DEFAULT_CAMERA_CONFIG: FollowCameraConfig = {
   sensitivity: 0.005,
   minPitch: -1.2,
   maxPitch: 0.6,
@@ -211,7 +213,7 @@ export function createFollowCamera(
   groundHeight: GroundHeight,
   descentFollow: boolean,
 ): FollowCamera {
-  const config: FollowCameraConfig = { ...DEFAULT_CONFIG, descentFollow };
+  const config: FollowCameraConfig = { ...DEFAULT_CAMERA_CONFIG, descentFollow };
   // Tune live from the console, e.g. `cameraConfig.aimHeight = 0.1`. Changes apply next frame.
   exposeDevHandle(scene, 'cameraConfig', config);
 
@@ -293,7 +295,10 @@ export function createFollowCamera(
     camera.position.copyFrom(position);
     camera.setTarget(anchor.add(new Vector3(0, config.aimHeight, 0)));
   };
-  scene.onBeforeRenderObservable.add(() => place(scene.getEngine().getDeltaTime() / 1000));
+  // Kept so `dispose` can take it off. `place` reads the target's absolute position and the ground
+  // field, both of which outlive this camera by less than a frame during a level swap: `releaseRig`
+  // takes the frame-loop subscriptions off before releasing what they read, and this is one of them.
+  const onFrame = scene.onBeforeRenderObservable.add(() => place(scene.getEngine().getDeltaTime() / 1000));
 
   return {
     camera,
@@ -336,6 +341,7 @@ export function createFollowCamera(
       if (!value && document.pointerLockElement === canvas) document.exitPointerLock();
     },
     dispose: () => {
+      scene.onBeforeRenderObservable.remove(onFrame);
       canvas.removeEventListener('click', onClick);
       canvas.removeEventListener('mousemove', onMouseMove);
     },

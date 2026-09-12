@@ -861,7 +861,7 @@ Per frame: `inside` is the planar distance from the capsule to (`PLAZA_X`, `PLAZ
 
 The hub rebuild must place the player **beside** the pedestal, not on it — spec §5. `createHubScene` needs a spawn for this; give it an optional one defaulting to today's origin spawn, so the first entry is unchanged and only the return uses it. `PORTAL_START` being disarmed (Task 4) is the second line of defence, not the first.
 
-Spec §9's error handling: if building either scene rejects, stay where you are, log, and leave `gameMode` alone. A failed swap must not leave both scenes disposed and a black canvas.
+This plan's build-failure rule (the design spec has no error-handling section — its §9 is Audio, so the citation this line used to carry was wrong): if building either scene rejects, stay where you are, log, and leave `gameMode` alone. A failed swap must not leave both scenes disposed and a black canvas.
 
 - [ ] **Step 4: Verify the whole round trip in the browser**
 

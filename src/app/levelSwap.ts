@@ -45,8 +45,10 @@ export interface LevelSwap<L extends SwappableLevel> {
  *
  * **Build the next level FIRST, and only once it is standing swap onto it, tear the old one down and
  * commit.** If the build rejects, nothing has been disposed and nothing has moved — the player is
- * still in the level they were in, control comes back, and the failure is logged (spec §9's error
- * handling as the task brief states it). The cost of that order is that both scenes — and both Havok
+ * still in the level they were in, control comes back, and the failure is logged. That rule is the
+ * plan's own — `docs/superpowers/plans/2026-09-08-climbing-tower.md` states it, and cites it to the
+ * design spec's §9, which is Audio; the spec has no error-handling section. The cost of that order is
+ * that both scenes — and both Havok
  * worlds — are resident for the duration of the build. Spec §6's "one scene is alive at a time" is
  * about the steady state; the alternative here is disposing the only level on screen and showing
  * nothing for the second or so it takes to reload the knight's GLB into the new scene, with no way
@@ -80,23 +82,21 @@ export function createLevelSwap<L extends SwappableLevel>(
 ): LevelSwap<L> {
   let current: L | undefined;
   let unmounted = false;
-  // Flipped in both settle paths below, unconditionally, before either even looks at `unmounted`: it
-  // means "the in-flight build is done touching the engine", not "it succeeded". `unmount` reads it
-  // to decide whether the engine is safe to dispose yet.
-  let settled = false;
   let loading: Promise<unknown> = Promise.resolve();
+  // One fact, read two ways. `swap` refuses to start a second build while it is true; `unmount` reads
+  // it as "a build is still touching the engine" and defers the teardown. Cleared in both settle
+  // paths below, unconditionally and before either looks at `unmounted`, because it means the build
+  // is DONE with the engine and not that it succeeded.
   let swapping = false;
 
   const swap = <B extends L>(build: () => Promise<B>, commit: (built: B) => void): void => {
     if (swapping) return;
     swapping = true;
-    settled = false;
     const leaving = current;
     leaving?.suspendInput(true);
     loading = build()
       .then(
         (built) => {
-          settled = true;
           swapping = false;
           if (unmounted) { built.dispose(); return; } // unmounted before the async load finished
           current = built;
@@ -106,7 +106,6 @@ export function createLevelSwap<L extends SwappableLevel>(
           commit(built);
         },
         (err: unknown) => {
-          settled = true;
           swapping = false;
           // Nothing for THIS function to dispose, and that is a fact about who owns the wreckage
           // rather than about there being none. Both builders open with `new Scene(engine)` and
@@ -130,7 +129,7 @@ export function createLevelSwap<L extends SwappableLevel>(
   const unmount = (): void => {
     unmounted = true;
     current?.dispose();
-    if (settled) {
+    if (!swapping) {
       disposeEngine();
       return;
     }

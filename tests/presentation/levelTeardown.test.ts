@@ -4,7 +4,8 @@ import type { Scene } from '@babylonjs/core/scene';
 import { disposeLevel, type LevelParts } from '../../src/presentation/babylon/levelTeardown';
 
 /**
- * `App.svelte` builds the incoming level before disposing the outgoing one, so a rejected build is
+ * `createLevelSwap` builds the incoming level before disposing the outgoing one — `App.svelte` only
+ * supplies the `build` and `commit` halves — so a rejected build is
  * wreckage nobody outside the builder has a handle to — and a failed tower entry is retryable, so it
  * repeats per attempt. This is the rule both builders' success and failure paths go through.
  *

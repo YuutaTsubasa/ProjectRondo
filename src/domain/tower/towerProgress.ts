@@ -9,6 +9,14 @@ export interface TowerCheckpoint {
   readonly respawn: Vec3;
 }
 
+/**
+ * The checkpoints a tower was built with, in section order. A tuple rather than an array because
+ * {@link stepTowerProgress} indexes it unconditionally: an empty list has no active checkpoint to
+ * fall back to, and this is the level's own list rather than anything a player can shorten, so the
+ * type says so instead of a guard restating it every frame.
+ */
+export type TowerCheckpoints = readonly [TowerCheckpoint, ...TowerCheckpoint[]];
+
 /** Index into the checkpoint list the tower was built with. */
 export interface TowerProgress {
   readonly active: number;
@@ -36,10 +44,13 @@ export interface TowerProgressResult {
 export function stepTowerProgress(
   progress: TowerProgress,
   y: number,
-  checkpoints: readonly TowerCheckpoint[],
+  checkpoints: TowerCheckpoints,
   fallMargin: number,
 ): TowerProgressResult {
-  let active = progress.active;
+  // Clamped, so a progress index from a longer list than this one — a level swapped underneath a
+  // saved climb — lands on the last checkpoint rather than on nothing. The tuple type guarantees a
+  // first element, so the clamp is the whole of what makes the index safe.
+  let active = Math.min(Math.max(progress.active, 0), checkpoints.length - 1);
   while (active + 1 < checkpoints.length && y >= checkpoints[active + 1].activateY) active++;
 
   const reached = checkpoints[active];

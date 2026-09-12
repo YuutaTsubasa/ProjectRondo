@@ -75,8 +75,9 @@ const mounted: Array<() => void> = [];
 async function mountRig() {
   const engine = new NullEngine();
   // Pinned rather than sampled, for `followCameraObserver.test.ts`'s reason: a synchronous render
-  // burst reports a ~0 ms delta, and a zero delta takes the camera's seed branch on every frame,
-  // which would hide an ease behind a permanent re-seed.
+  // burst reports a ~0 ms delta, and `smoothY ??= targetY` on a zero delta is a no-op once
+  // `smoothY` holds a number — the follow FREEZES at its last value rather than easing, which would
+  // read as a camera that never moved.
   engine.getDeltaTime = () => DT * 1000;
   const scene = new Scene(engine);
   scene.useRightHandedSystem = true;

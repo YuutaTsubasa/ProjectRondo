@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { NullEngine } from '@babylonjs/core/Engines/nullEngine';
 import { Scene } from '@babylonjs/core/scene';
 import { TargetCamera } from '@babylonjs/core/Cameras/targetCamera';
@@ -14,6 +14,14 @@ import {
   type Knight,
   type KnightMotionSample,
 } from '../../src/presentation/babylon/knight';
+
+// Every NullEngine built here, with the scene on it, so a file of nine mounts does not leave nine
+// engines and their observers standing for the rest of the run. `rigSpawnFrame.test.ts` releases
+// the rig before the scene for `levelTeardown.ts`'s reason; these suites build no rig.
+const mounted: (() => void)[] = [];
+afterEach(() => {
+  for (const release of mounted.splice(0)) release();
+});
 
 /**
  * What the knight does while it is falling and the jump clip has run out — the half of the airborne
@@ -106,6 +114,7 @@ function mount(): Rig {
   const engine = new NullEngine();
   engine.getDeltaTime = () => STEP_MS;
   const scene = new Scene(engine);
+  mounted.push(() => { scene.dispose(); engine.dispose(); });
   scene.useConstantAnimationDeltaTime = true;
   scene.activeCamera = new TargetCamera('cam', new Vector3(0, 0, -10), scene);
 

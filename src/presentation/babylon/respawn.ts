@@ -12,7 +12,8 @@ import { NO_HOMING_LOCK, type HomingLock } from './homingLock';
  * one is reachable in exactly the situation nobody would think to play — a respawn that fires on a
  * frame with a homing dash in flight.
  *
- * **Ending the dash is the whole point.** `isHomingFrame` is `motion.homing !== null`, and
+ * **Ending the dash is the whole point.** `isHomingFrame` is `motion.homing !== null ||
+ * (!motion.isGrounded && input.homingTarget !== null)`, and
  * `characterMovement.step` reads it before anything else, so a teleport that moves the capsule and
  * leaves `homing` set has the very next frame resume that dash from the checkpoint — flying at
  * `homingSpeed` 24 toward whichever crystal the lock still holds, with `elapsed` carried over so the
@@ -20,11 +21,16 @@ import { NO_HOMING_LOCK, type HomingLock } from './homingLock';
  * tower's section 2 is a chain of crystals with `TOWER_FALL_MARGIN` 4 u below it, so a player who
  * misses a link and dashes at the crystals on the way down crosses the threshold mid-dash.
  *
- * The presentation-side lock goes with it. A lock is only *read* while `dashInFlight`, so clearing
- * `motion.homing` alone would have got away with it today — `stepHomingLock` would drop the stale lock
- * on the next frame with no press. That is a property of the order two machines happen to run in, not
- * of the respawn, and leaving a committed crystal behind a cut is the kind of thing that stops being
- * harmless when something else starts reading the lock.
+ * The presentation-side lock goes with it, and the second disjunct is why that is worth spelling out.
+ * A respawn arrives AIRBORNE by construction — `capsule.ts`'s `SPAWN_CLEARANCE` puts the capsule in
+ * open air over its pad — so `!motion.isGrounded` is satisfied on the arrival frame and everything
+ * then turns on `input.homingTarget`. That is `stepHomingLock`'s `target`, which reproduces the
+ * standing lock only while `dashInFlight`, and `dashInFlight` follows `motion.homing`: clear it and
+ * the lock is not read, so `stepHomingLock` drops it on the next frame with no press and clearing
+ * `motion.homing` alone would have got away with it today. That is a property of the order two
+ * machines happen to run in and of one flag feeding the other, not of the respawn — and leaving a
+ * committed crystal behind a cut is the kind of thing that stops being harmless the moment anything
+ * reads the lock outside `dashInFlight`.
  *
  * What is deliberately NOT reset: `GroundContactState`. A respawn lands the capsule in open air
  * `capsule.ts`'s `SPAWN_CLEARANCE` above its pad (design spec §13.1), so "airborne, falling" is the

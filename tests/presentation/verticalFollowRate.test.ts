@@ -1,15 +1,17 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  DEFAULT_CAMERA_CONFIG,
   DESCENT_ENGAGE_SPEED,
   DESCENT_SMOOTHING,
   verticalFollowRate,
 } from '../../src/presentation/babylon/followCamera';
 import { DEFAULT_CONFIG } from '../../src/domain/hub/character/movementConfig';
 
-/** The tuned vertical rate every level starts from — `FollowCameraConfig.verticalSmoothing`'s
- *  default. Named for the hub because the hub is where it was tuned. */
-const HUB_RATE = 9;
+/** The tuned vertical rate every level starts from, read off the shipping config rather than copied:
+ *  a restated 9 would keep every assertion here green while describing a camera that no longer ships.
+ *  Named for the hub because the hub is where it was tuned. */
+const HUB_RATE = DEFAULT_CAMERA_CONFIG.verticalSmoothing;
 
 /**
  * The fastest descent measured out of ordinary movement, in world units per second: scripted

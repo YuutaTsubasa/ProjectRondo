@@ -9,7 +9,7 @@ vi.mock('@babylonjs/havok', () => ({ default: havokFactory }));
  * Spec §6: "the Havok WASM module is a genuine singleton and is cached across the swap". The real
  * `@babylonjs/havok` factory memoises nothing — every call compiles the WASM again and returns a
  * fresh emscripten instance — so without the cache a hub → tower → hub round trip pays for three
- * compiles and holds two heaps at once during `App.svelte`'s build-before-dispose overlap.
+ * compiles and holds two heaps at once during the build-before-dispose overlap `levelSwap.ts` describes.
  *
  * A counting stub stands in for the factory, because what is being pinned is how many times it is
  * called, not what it returns; the real module needs a WASM compile this suite has no business

@@ -1,4 +1,6 @@
-/** Keyboard input for the hub: a WASD planar axis, a held walk modifier and an edge-triggered jump.
+/** Keyboard input for whichever level is on screen: `characterRig` builds one per rig, and both
+ *  the hub and the tower are built through it. A WASD planar axis, a held walk modifier, an
+ *  edge-triggered jump.
  *  The character runs by default; holding the modifier walks instead. */
 export interface InputState {
   /** Raw WASD axis: x = right(+)/left(-), y = forward(+)/back(-). */

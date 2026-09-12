@@ -86,18 +86,13 @@ describe('the tower layout', () => {
     const jumps = pairs.filter(([from, to]) => to.y - from.y <= apex);
     expect(jumps.length).toBeGreaterThan(0);
     for (const [from, to] of jumps) {
-      // From the near slab's nearest CORNER to the nearest corner of the far slab's standable set —
-      // the far footprint inset by a capsule radius, because a centre on the slab's own corner is
-      // standing on nothing. Corner to corner is never closer than the two shapes actually are, so
-      // this states a crossing at least as hard as the one the audit measures, and it needs no
-      // point-to-edge geometry: the rule, not a second run of its implementation.
-      const landing = corners({
-        ...to,
-        width: to.width - 2 * CAPSULE_RADIUS,
-        depth: to.depth - 2 * CAPSULE_RADIUS,
-      });
+      // The nearest pair of CORNERS, footprint to footprint — a slab holds a capsule exactly when
+      // the centre is over it, so the same test applies at the launch and at the landing, and no
+      // capsule radius comes off either end. Corner to corner is never closer than the two shapes
+      // actually are, so this states a crossing at least as hard as the one the audit measures, and
+      // it needs no point-to-edge geometry: the rule, not a second run of its implementation.
       const travel = Math.min(
-        ...corners(from).flatMap((a) => landing.map((b) => Math.hypot(a.x - b.x, a.z - b.z))),
+        ...corners(from).flatMap((a) => corners(to).map((b) => Math.hypot(a.x - b.x, a.z - b.z))),
       );
       const arrival = travel / maxSpeed;
       const rise = to.y - from.y;

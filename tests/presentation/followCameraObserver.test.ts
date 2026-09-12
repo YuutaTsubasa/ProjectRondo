@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { NullEngine } from '@babylonjs/core/Engines/nullEngine';
 import { Scene } from '@babylonjs/core/scene';
 import { TransformNode } from '@babylonjs/core/Meshes/transformNode';
@@ -12,6 +12,14 @@ import {
 } from '../../src/presentation/babylon/followCamera';
 import type { GroundHeight } from '../../src/presentation/babylon/groundHeight';
 import { CAPSULE_HALF } from '../../src/presentation/babylon/capsule';
+
+// Every NullEngine built here, with the scene on it, so a file of nine mounts does not leave nine
+// engines and their observers standing for the rest of the run. `rigSpawnFrame.test.ts` releases
+// the rig before the scene for `levelTeardown.ts`'s reason; these suites build no rig.
+const mounted: (() => void)[] = [];
+afterEach(() => {
+  for (const release of mounted.splice(0)) release();
+});
 
 /**
  * The camera's OBSERVER, run for real — `verticalFollowRate`'s own suite next door constrains the
@@ -76,6 +84,7 @@ function mount(descentFollow: boolean, ground: GroundHeight = NO_GROUND, startY 
   // Pinned, not sampled — see this file's header.
   engine.getDeltaTime = () => DT * 1000;
   const scene = new Scene(engine);
+  mounted.push(() => { scene.dispose(); engine.dispose(); });
   scene.useRightHandedSystem = true;
   const root = new TransformNode('player', scene);
   root.position.set(0, startY, 0);
@@ -173,17 +182,18 @@ function respawnRun(options: { stale: boolean; playerObserverFirst?: boolean; se
   const engine = new NullEngine();
   engine.getDeltaTime = () => DT * 1000;
   const scene = new Scene(engine);
+  mounted.push(() => { scene.dispose(); engine.dispose(); });
   scene.useRightHandedSystem = true;
   const root = new TransformNode('player', scene);
   // The tower's own numbers: released at 62 with nothing under it, checkpoint 2 active at
   // SECTION_3_START 42, so the respawn fires TOWER_FALL_MARGIN 4 below that and lands the capsule
-  // 0.9 above the pad (`capsule.ts`'s `spawnCentreY`: CAPSULE_HALF plus the 0.3 clearance every
+  // 1.3 above the pad (`capsule.ts`'s `spawnCentreY`: CAPSULE_HALF 1 plus the 0.3 clearance every
   // checkpoint and both spawns are placed in open air by). Free fall under the domain's own
   // `gravity` 24, integrated the way the domain integrates it.
   const gravity = 24;
   const startY = 62;
   const respawnBelow = 38;
-  const checkpointY = 42.9;
+  const checkpointY = 43.3;
   let capsuleY = startY;
   let capsuleVy = 0;
   let respawnFrame = -1;
@@ -234,7 +244,7 @@ function respawnRun(options: { stale: boolean; playerObserverFirst?: boolean; se
 
 /**
  * Within a float32 of the destination. The camera reads the target through `getAbsolutePosition`,
- * which comes out of a `Float32Array` world matrix, so the height it seeds at is 42.9 rounded to
+ * which comes out of a `Float32Array` world matrix, so the height it seeds at is 43.3 rounded to
  * single precision — 1.5e-6 away. A cut is therefore "no motion at all after this frame", asserted as
  * an identity below, plus this on the value itself.
  */
