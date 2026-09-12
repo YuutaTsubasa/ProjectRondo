@@ -719,18 +719,17 @@ const stepReach = (rise: number, topSpeed: number): number | null => {
  * sits at {@link PLATFORM_ORBIT}, and for two points on the same circle the nearest approach to the
  * centre is the midpoint: the projection {@link pointToSegment} takes works out to exactly 0.5
  * **whatever the turn between them**, so its clamp never bites. Every pair it is actually handed is
- * one turn apart; even the 240° pair
- * section 2's chain leaves between consecutive platforms — which is never handed to it, and is the
- * reason {@link TowerLayout.jumpSteps} exists — would still come out at 0.5, at 2.3 u from the axis
- * and squarely inside the column. (An earlier version of this comment claimed the opposite: that a
+ * one turn apart; even the 240° pair section 2's chain leaves between consecutive platforms — which
+ * is never handed to it, and is the reason {@link TowerLayout.jumpSteps} exists — would still come
+ * out at 0.5, at 2.3 u from the axis and squarely inside the column. (An earlier version of this comment claimed the opposite: that a
  * chord more than a half turn apart has its nearest approach outside the span between its ends. It
  * does not, and no pair in this tower has ever exercised the clamp.)
  *
  * What it protects is the case where the two ends are at DIFFERENT radii, which nothing generates
  * today but a pad on its own orbit would: that projection then leaves [0, 1] whenever the axis is
- * "behind" one of the ends, and the infinite line would report a clearance measured at a point the player
- * never crosses — a jump waved through on geometry that is not on the path. Cheaper to clamp than to
- * assert every caller keeps both ends on one orbit.
+ * "behind" one of the ends, and the infinite line would report a clearance measured at a point the
+ * player never crosses — a jump waved through on geometry that is not on the path. Cheaper to clamp
+ * than to assert every caller keeps both ends on one orbit.
  */
 const axisClearance = (from: TowerPlatform, to: TowerPlatform): number =>
   pointToSegment({ x: 0, z: 0 }, from, to);

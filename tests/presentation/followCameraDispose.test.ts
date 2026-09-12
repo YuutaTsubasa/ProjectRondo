@@ -33,10 +33,12 @@ const build = () => {
  * does run in that window.
  *
  * `playerDispose.test.ts` pins the same property for the player's observer. This is its
- * counterpart, and without it deleting the removal leaves every suite green:
- * `characterRigTeardown.test.ts` mocks this module away, and `followCameraObserver.test.ts` —
- * the one suite that builds a real camera — releases its mounts through the scene without ever
- * calling `follow.dispose()`.
+ * counterpart, and without it deleting the removal leaves every suite green. Two build a real
+ * camera and neither would notice: `followCameraObserver.test.ts` releases its mounts through the
+ * scene without ever calling `follow.dispose()`, and `rigSpawnFrame.test.ts` does call it —
+ * `rig.dispose()` reaches `releaseRig` in its `afterEach` — but never counts observers, so a
+ * disposal that removed nothing would read the same to it. `characterRigTeardown.test.ts` mocks
+ * this module away entirely.
  */
 describe('createFollowCamera().dispose', () => {
   it('takes its per-frame observer off the scene', async () => {
