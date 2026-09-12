@@ -46,10 +46,9 @@ export interface LevelSwap<L extends SwappableLevel> {
  * **Build the next level FIRST, and only once it is standing swap onto it, tear the old one down and
  * commit.** If the build rejects, nothing has been disposed and nothing has moved — the player is
  * still in the level they were in, control comes back, and the failure is logged. That rule is the
- * plan's own — `docs/superpowers/plans/2026-09-08-climbing-tower.md` states it, and cites it to the
- * design spec's §9, which is Audio; the spec has no error-handling section. The cost of that order is
- * that both scenes — and both Havok
- * worlds — are resident for the duration of the build. Spec §6's "one scene is alive at a time" is
+ * plan's own, not the spec's: see `docs/superpowers/plans/2026-09-08-climbing-tower.md`, which states
+ * it and notes that the design spec has no error-handling section to cite. The cost of that order is
+ * that both scenes — and both Havok worlds — are resident for the duration of the build. Spec §6's "one scene is alive at a time" is
  * about the steady state; the alternative here is disposing the only level on screen and showing
  * nothing for the second or so it takes to reload the knight's GLB into the new scene, with no way
  * back if that reload fails.

@@ -202,7 +202,8 @@ export interface FollowCamera {
    * now arrives on the checkpoint on the frame the respawn is decided, and does not move after.
    */
   snap(): void;
-  /** Removes the canvas pointer listeners. */
+  /** Removes the per-frame placement subscription and the canvas pointer listeners. The camera
+   *  itself goes with the scene. */
   dispose(): void;
 }
 

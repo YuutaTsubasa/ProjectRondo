@@ -47,10 +47,7 @@ export function stepTowerProgress(
   checkpoints: TowerCheckpoints,
   fallMargin: number,
 ): TowerProgressResult {
-  // Clamped, so a progress index from a longer list than this one — a level swapped underneath a
-  // saved climb — lands on the last checkpoint rather than on nothing. The tuple type guarantees a
-  // first element, so the clamp is the whole of what makes the index safe.
-  let active = Math.min(Math.max(progress.active, 0), checkpoints.length - 1);
+  let active = progress.active;
   while (active + 1 < checkpoints.length && y >= checkpoints[active + 1].activateY) active++;
 
   const reached = checkpoints[active];

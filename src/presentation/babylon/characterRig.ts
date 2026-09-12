@@ -74,11 +74,14 @@ interface RigPieces {
  * listeners, the camera's, and the Havok character controller (see {@link Player.dispose}, which is
  * the one of these `scene.dispose()` cannot reach at all).
  *
- * **The frame-loop subscriptions come off first**, because both of them read pieces released below —
- * the animation observer calls `readMotion`, which reads `player.motion`, and the foot plant reads
- * the player root. `disposeLevel` disposes the scene on the next line, so no frame ever runs in
- * between and the order is not load-bearing today; it is written this way so that it is still right
- * if one ever does.
+ * **Three frame-loop subscriptions come off here, and the knight's two go first**, because they read
+ * pieces released below in this same function — the animation observer calls `readMotion`, which
+ * reads `player.motion`, and the foot plant reads the player root. The camera's comes off with
+ * `pieces.follow?.dispose()` further down, which is still ahead of `player.dispose()`: `place` reads the
+ * root and the ground field, so what it must not outlive is the player and the scene rather than
+ * anything between. `disposeLevel` disposes the scene on the next line, so no frame ever runs in
+ * between and none of this order is load-bearing today; it is written this way so that it is still
+ * right if one ever does.
  *
  * One function for the finished rig and the half-built one both, for the reason `levelTeardown.ts`
  * gives one level up: an order written out twice is an order that drifts. It is called from

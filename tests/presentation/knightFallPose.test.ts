@@ -15,8 +15,8 @@ import {
   type KnightMotionSample,
 } from '../../src/presentation/babylon/knight';
 
-// Every NullEngine built here, with the scene on it, so a file of nine mounts does not leave nine
-// engines and their observers standing for the rest of the run. `rigSpawnFrame.test.ts` releases
+// Every NullEngine built here, with the scene on it, so a suite that mounts once or more per test
+// does not leave that many engines and their observers standing for the rest of the run. `rigSpawnFrame.test.ts` releases
 // the rig before the scene for `levelTeardown.ts`'s reason; these suites build no rig.
 const mounted: (() => void)[] = [];
 afterEach(() => {

@@ -262,8 +262,9 @@ const JUMP_RISE = 1.4;
  * apart at the nearest, and that is what {@link auditLayout} compares against the reach: a slab holds
  * a capsule when its centre is over the slab, so the crossing is footprint to footprint at both ends.
  * Read instead as launching and landing a clear capsule radius from either drop, the same step is
- * **2.288 u** and walking is 0.17 u SHORT of it — see {@link footprintDistance} for why that reading
- * is spec §14.8's and not this rule's.
+ * **2.288 u**, which every step in the tower is short of — 0.152 u on section 1's twelve, 0.168 u on
+ * section 3's four. See {@link footprintDistance} for why that reading is spec §14.8's and not this
+ * rule's.
  * Widening this starts to cost the walking margin — the tighter of the two, and the one that matters
  * because a player can choose to hold Shift through any jump in the tower.
  *
@@ -653,6 +654,25 @@ const pointToSegment = (
  * the two on a vertex, so the minimum over every vertex-to-edge pair is the distance itself. Slabs
  * that overlap are not disjoint and this does not measure them — {@link auditLayout}'s only caller
  * compares it against a reach, and an overlap is not a gap anything has to be jumped across.
+ *
+ * **Why neither end of a crossing is inset for the capsule.** A capsule's lower cap is a hemisphere
+ * whose lowest point sits directly below the centre, so a flat slab holds it exactly when the CENTRE
+ * is over the footprint — there is no radius of inset in the support test, at the launch or at the
+ * landing. Three rounds of review pushed one in, each step sound against the one before it and the
+ * chain drifting off the physics: air alone (0.9215 u on a one-turn step), then plus a flat radius
+ * (1.4215), then to a landing set inset by a radius, which at a corner is `R·√2` away (1.6150).
+ *
+ * The version that fixed the asymmetry the last of those left — inset at BOTH ends — measures
+ * **2.2876 u**, and every one of the tower's sixteen steps is short of it: section 1's twelve rise
+ * `18/13` = 1.3846 u for a {@link stepReach} of 2.1355 at `maxSpeed`, **0.152 u** short, and section
+ * 3's four rise 1.4 u for 2.1191, **0.168 u** short. That is not noise, and it is not this rule's to
+ * spend: under a *comfortably standing* reading — launching and landing a clear capsule radius from
+ * the drop — walking the tower does not work, which is the owner's own playtest note that the jumps
+ * needed speed, arrived at from the geometry. But comfort is a preference and the audit holds
+ * bounds, and the file keeps those apart deliberately (spec §3's 6–8 u link band is left to prose
+ * for the same reason). The bound is the necessary condition — a step whose footprints a walking
+ * player cannot reach across AT ALL is unclimbable, not merely tight — and the comfort reading is
+ * spec §14.8's question 8.
  */
 const footprintDistance = (a: TowerPlatform, b: TowerPlatform): number => {
   const footprints = [cornersOf(a), cornersOf(b)] as const;
@@ -665,29 +685,6 @@ const footprintDistance = (a: TowerPlatform, b: TowerPlatform): number => {
     }),
   );
 };
-
-/**
- * **Where a capsule is supported, and why neither end of a crossing is inset for it.**
- *
- * A capsule's lower cap is a hemisphere whose lowest point sits directly below the centre, so a flat
- * slab holds it exactly when the CENTRE is over the footprint — there is no radius of inset in the
- * support test, at the launch or at the landing. Three rounds of review pushed an inset into the
- * walking-reach rule, each step sound against the one before it and the chain drifting off the
- * physics: air alone (0.9215 u on the shipped step), then plus a flat radius (1.4215), then to a
- * landing set inset by a radius, which at a corner is `R·√2` away (1.6150). The version that fixed
- * the asymmetry the last of those left — inset at both ends — measures **2.2876 u** against
- * {@link stepReach}'s **2.1191 u** at `maxSpeed`, and would fire on every one of the sixteen steps
- * of the tower as it ships.
- *
- * That last number is not noise, and it is not this rule's to spend. It says that under a
- * *comfortably standing* reading — launching and landing a clear capsule radius from the drop —
- * walking is 0.17 u short on every step of section 1, which is the owner's own playtest note that
- * the jumps needed speed, arrived at from the geometry. But comfort is a preference and this
- * function is a bound, and the file keeps those apart deliberately: see spec §3's 6–8 u link band,
- * left to prose for the same reason. The bound is the necessary condition — a step whose footprints
- * a walking player cannot reach across at all is unclimbable, not merely tight — and the comfort
- * reading is spec §14.8's, question 8.
- */
 
 /**
  * How much open air a jump can carry the player across, when the far side stands `rise` higher than
@@ -1118,9 +1115,9 @@ function auditLayout(
     // step is unjumpable at any speed, which the apex rule above already says in those words.
     if (reach === null) continue;
     // What the CENTRE has to travel: footprint to footprint, because a slab holds a capsule exactly
-    // when the centre is over it — the same test at both ends of the jump. The comment above
-    // `footprintDistance` records why no capsule radius is subtracted at either end, and what the
-    // reading that does subtract one says about walking this tower.
+    // when the centre is over it — the same test at both ends of the jump. `footprintDistance`'s own
+    // doc records why no capsule radius is subtracted at either end, and what the reading that does
+    // subtract one says about walking this tower.
     const crossing = footprintDistance(from, to);
     if (crossing > reach) {
       console.warn(`[towerLevel] the step from y=${from.y} to y=${to.y} cannot be walked — landing on it means carrying the capsule's centre ${crossing.toFixed(3)} u against the ${reach.toFixed(3)} u a player holding Shift covers across a ${(to.y - from.y).toFixed(3)} u rise, so the section is closed to anyone who does. See TURN_DEGREES.`);

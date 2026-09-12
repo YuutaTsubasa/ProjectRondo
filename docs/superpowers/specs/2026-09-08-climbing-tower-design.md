@@ -960,11 +960,13 @@ Each of these was set up so that it *can* be judged, and none of them is answere
 7. **Does the backlit summit pedestal read as the way out?**
 8. **Should the tower be walkable, or is speed part of the climb?** `auditLayout` bounds every step
    by what a walking player can cross footprint to footprint — a slab holds a capsule when its
-   centre is over it — and the shipped tower clears that by a wide margin, 0.922 u against 2.119 u.
-   Read more strictly, as launching and landing a clear capsule radius from either drop, the same
-   step needs **2.288 u** and walking is **0.17 u short on every one of the sixteen**, while running
-   has 4.238 u and never notices. That is the geometry behind the playtest note that the jumps
-   needed speed, and the reason `TURN_DEGREES` claims a walking player crosses comfortably is that
-   it is measuring the looser of the two. Whether "you can walk the whole tower" is a promise the
-   level owes is a design call: honouring it means a narrower `TURN_DEGREES` or a wider
-   `PLATFORM_WIDTH`, and declining it means `TURN_DEGREES`' prose should stop implying otherwise.
+   centre is over it — and the shipped tower clears that by a wide margin: 0.922 u of air against
+   2.136 u of reach on section 1's twelve steps (rise `18/13` = 1.3846 u) and 2.119 u on section 3's
+   four (rise 1.4 u). Read more strictly, as launching and landing a clear capsule radius from either
+   drop, the same step needs **2.288 u**, and walking is short on all sixteen — **0.152 u** on
+   section 1's, **0.168 u** on section 3's — while running has 4.238 u and never notices. That is the
+   geometry behind the playtest note that the jumps needed speed. Whether "you can walk the whole
+   tower" is a promise the level owes is a design call: honouring it means a narrower `TURN_DEGREES`
+   or a wider `PLATFORM_WIDTH`. Declining it needs no edit — `TURN_DEGREES` and `footprintDistance`
+   already state both readings and which one the audit holds — but it does mean the tower has a
+   movement mode it is not built for, which is worth deciding on purpose.
