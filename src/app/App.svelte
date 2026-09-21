@@ -2,10 +2,11 @@
   import { onDestroy, type Component } from 'svelte';
   import FrontDoor from '../presentation/menu/FrontDoor.svelte';
   import { stepFrontDoor, type FrontDoorAction, type FrontDoorPhase } from './frontDoor';
-  import { loadGameSession } from './loadGameSession';
+  import { loadGameSession, type GameEntry } from './loadGameSession';
 
+  let entry: GameEntry = 'hub';
   let phase = $state<FrontDoorPhase>('title');
-  let Game = $state<Component<{ onReady: () => void; onFailure: (error: unknown) => void }>>();
+  let Game = $state<Component<{ onReady: () => void; onFailure: (error: unknown) => void; onExit?: () => void }>>();
   let gameHost = $state<HTMLDivElement>();
   $effect(() => {
     if (phase !== 'game') return;
@@ -27,7 +28,7 @@
 
   async function load() {
     try {
-      const loaded = await loadGameSession();
+      const loaded = await loadGameSession(entry);
       if (live && phase === 'loading') Game = loaded.default;
     } catch (error) { fail(error); }
   }
@@ -35,6 +36,9 @@
   function act(action: FrontDoorAction) {
     const next = stepFrontDoor(phase, action);
     if (next === phase) return;
+    if (action === 'course') entry = 'course';
+    if (action === 'start') entry = 'hub';
+    if (action === 'leave') Game = undefined;
     phase = next;
     if (phase === 'loading') void load();
   }
@@ -42,7 +46,7 @@
 
 {#if Game}
   <div bind:this={gameHost} class="game-session" class:preparing={phase !== 'game'} inert={phase !== 'game'}>
-    <Game onReady={() => act('ready')} onFailure={fail} />
+    <Game onReady={() => act('ready')} onFailure={fail} onExit={() => act('leave')} />
   </div>
 {/if}
 {#if phase !== 'game'}

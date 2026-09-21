@@ -34,6 +34,8 @@ describe('title and main menu', () => {
     await render();
     button('進入主選單').click(); await settle();
     key('ArrowDown'); await settle();
+    expect(document.activeElement).toBe(button('試玩第一關'));
+    key('ArrowDown'); await settle();
     expect(document.activeElement).toBe(button('設定'));
     button('設定').click(); await settle();
     expect(document.activeElement?.getAttribute('aria-label')).toBe('整體音量');
@@ -57,4 +59,20 @@ describe('title and main menu', () => {
     expect(document.activeElement).toBe(button('開始遊戲'));
     vi.restoreAllMocks();
   });
+});
+it('routes the trial, retains it on retry, and disposes it on return to menu', async () => {
+  vi.spyOn(console, 'error').mockImplementation(() => {});
+  load.mockRejectedValueOnce(new Error('offline')).mockResolvedValue({ default: GameFixture });
+  await render(); button('進入主選單').click(); await settle();
+  button('試玩第一關').click(); await settle();
+  expect(load).toHaveBeenLastCalledWith('course');
+  button('重新載入 ↗').click(); await settle();
+  expect(load).toHaveBeenLastCalledWith('course');
+  button('fixture ready').click(); await settle();
+  button('fixture exit').click(); await settle();
+  expect(document.body.textContent).not.toContain('game fixture');
+  expect(document.activeElement).toBe(button('開始遊戲'));
+  button('開始遊戲').click(); await settle();
+  expect(load).toHaveBeenLastCalledWith('hub');
+  vi.restoreAllMocks();
 });

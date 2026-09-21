@@ -64,8 +64,11 @@
           <button class="menu-button" data-initial onpointerenter={(event) => event.currentTarget.focus({ preventScroll: true })} onclick={() => onAction('start')} aria-label="開始遊戲">
             <span class="number" aria-hidden="true">01</span><span>START<small>開始遊戲</small></span><span class="arrow" aria-hidden="true">↗</span>
           </button>
+          <button class="menu-button" onpointerenter={(event) => event.currentTarget.focus({ preventScroll: true })} onclick={() => onAction('course')} aria-label="試玩第一關">
+            <span class="number" aria-hidden="true">02</span><span>TRIAL RUN<small>試玩第一關・遺跡之路</small></span><span class="arrow" aria-hidden="true">↗</span>
+          </button>
           <button class="menu-button" onpointerenter={(event) => event.currentTarget.focus({ preventScroll: true })} data-settings onclick={() => onAction('settings')} aria-label="設定">
-            <span class="number" aria-hidden="true">02</span><span>SETTINGS<small>設定</small></span><span class="arrow" aria-hidden="true">↗</span>
+            <span class="number" aria-hidden="true">03</span><span>SETTINGS<small>設定</small></span><span class="arrow" aria-hidden="true">↗</span>
           </button>
         </nav>
         <button class="back" onclick={() => onAction('back')}>← 返回標題</button>

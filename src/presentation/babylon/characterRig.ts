@@ -3,7 +3,7 @@ import type { Scene } from '@babylonjs/core/scene';
 import { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 
-import { createFollowCamera, type FollowCamera } from './followCamera';
+import { createFollowCamera, type FollowCamera, type FollowCameraConfig } from './followCamera';
 import type { GroundHeight } from './groundHeight';
 import { createInput, type InputState } from './input';
 import { createPlayer, type Player } from './playerController';
@@ -26,6 +26,9 @@ export interface CharacterRigOptions {
    * level that inherits it silently is a level nobody decided it for.
    */
   readonly descentFollow: boolean;
+  /** Initial heading around the player; existing levels retain zero. */
+  readonly initialYaw?: number;
+  readonly cameraFraming?: Partial<Pick<FollowCameraConfig, 'distance' | 'height' | 'aimHeight' | 'initialPitch'>>;
 }
 
 export interface CharacterRig {
@@ -164,7 +167,7 @@ async function buildCharacterRig(
   // this is the transform half of that seed, in the same breath, for the same reason.
   root.position.copyFrom(options.spawn);
   const follow = createFollowCamera(
-    scene, root, options.canvas, options.groundHeight, options.descentFollow);
+    scene, root, options.canvas, options.groundHeight, options.descentFollow, options.initialYaw, options.cameraFraming);
   pieces.follow = follow;
   scene.activeCamera = follow.camera;
   const shadows = options.makeShadows(follow.camera);
