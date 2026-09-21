@@ -45,4 +45,18 @@ describe('loadHavok', () => {
     expect(havokFactory).toHaveBeenCalledTimes(1);
     expect(await arriving).toBe(await leaving);
   });
+  it('retries a rejected compile while retaining the successful retry for later levels', async () => {
+    const failure = new Error('temporary WASM fetch failure');
+    havokFactory.mockRejectedValueOnce(failure);
+    const { loadHavok } = await import('../../src/presentation/babylon/havokModule');
+    const first = loadHavok();
+    const concurrent = loadHavok();
+    expect(first).toBe(concurrent);
+    await expect(first).rejects.toBe(failure);
+
+    const recovered = await loadHavok();
+    expect(recovered).toEqual({ havok: true });
+    expect(await loadHavok()).toBe(recovered);
+    expect(havokFactory).toHaveBeenCalledTimes(2);
+  });
 });

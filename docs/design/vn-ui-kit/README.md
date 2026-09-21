@@ -21,7 +21,9 @@ Light only, and only the parts with state behind them — see
 `docs/superpowers/specs/2026-09-05-vn-ui-kit-design.md` for the mapping, the contrast measurements,
 and the three places the implementation deliberately departs from the kit.
 
-Still unbuilt: the chapter card, bottom bar / main menu, sliders, toggles, small buttons, save-load
+The 2026-09-21 entry adds a Light-derived Title, main menu and audio settings (sliders/mute), using the local portrait. See `docs/superpowers/specs/2026-09-21-title-main-menu-design.md`.
+
+Still unbuilt: the chapter card, general-purpose small buttons, save-load
 slots, window frame, UI accents, decoration lines, scroll bar, and the Dark theme.
 
 ## Two things to know before using these as a source

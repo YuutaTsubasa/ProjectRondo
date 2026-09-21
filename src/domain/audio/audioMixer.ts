@@ -1,10 +1,6 @@
 import type { AudioBusId } from './soundCue';
 
-/**
- * The mix, as plain data. There is no settings UI yet (spec §9) — this exists so that when there is
- * one, the rules it binds to are already tested, and so the presentation layer has exactly one place
- * to read a bus gain from.
- */
+/** The persisted mix as plain data; busGain remains the sole rule for converting it to bus volumes. */
 export interface MixerLevels {
   readonly master: number;
   readonly music: number;
@@ -31,15 +27,14 @@ export const DEFAULT_LEVELS: MixerLevels = {
  * `AudioParam`, so it takes the bus out entirely.
  *
  * It maps to 0 rather than to the default of 1: bounding a level is this function's job, inventing
- * one is not. A `NaN` arriving from a `JSON.parse` of a hand-edited settings blob (spec §9, when the
- * mix is stored) is for the settings parser to reject at its own boundary; until there is one,
- * silence is the only output here that can neither distort nor throw.
+ * one is not. The preference store rejects nonfinite inputs; this remains a final defensive boundary
+ * for any other caller. Silence is an output that can neither distort nor throw.
  */
 const clamp01 = (v: number): number => (v > 0 ? (v < 1 ? v : 1) : 0);
 
 /**
- * The gain to apply to one bus. Clamps rather than trusting its input: these values will come from a
- * slider and, later, from storage, and a level outside [0, 1] would be a distortion bug rather than
+ * The gain to apply to one bus. Clamps rather than trusting its input: these values come from a
+ * slider and validated storage, and a level outside [0, 1] would be a distortion bug rather than
  * an obviously wrong number.
  */
 export const busGain = (levels: MixerLevels, bus: AudioBusId): number =>

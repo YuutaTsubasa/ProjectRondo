@@ -12,10 +12,10 @@ import { Texture } from '@babylonjs/core/Materials/Textures/texture';
 import { PhysicsAggregate } from '@babylonjs/core/Physics/v2/physicsAggregate';
 import { PhysicsShapeType } from '@babylonjs/core/Physics/v2/IPhysicsEnginePlugin';
 import { FIELD, terrainHeight } from './terrainHeight';
+import { meadowPatch, meadowPathDistance } from './meadowLayout';
 
 const HALF = FIELD / 2;
 const SUBDIVISIONS = 200; // ≈0.5 world-units per segment at the 100-unit span (≈80k-tri MESH collider)
-const GRASS_TILING = 6;
 
 /** Four thin invisible static walls at the field rim (belt-and-suspenders past the edge hills). */
 function createBoundaries(scene: Scene): void {
@@ -36,59 +36,73 @@ function createBoundaries(scene: Scene): void {
   }
 }
 
-/** A continuous low-poly mountain ridge encircling the field — one static mesh, no collider — so the
- *  world reads as bigger than the walls and P2's fog has something to fade into. The silhouette is a
- *  ring of connected peaks (broad ranges + jagged sub-peaks) rather than separate cones. */
+/** Distant ridges have sloping faces and small silhouette variations instead of flat cutout bands. */
 function createDistantScenery(scene: Scene): void {
-  const RING_RADIUS = 85; // beyond the enlarged field + barrier rim
-  const SEGMENTS = 80; // silhouette resolution (more segments for the bigger ring)
-  const BASE_Y = -4; // bottom skirt sits just below the horizon
-  const MIN_H = 22; // taller so the range still looms OVER the barrier from inside the field
-  const MAX_H = 48;
-
-  // Deterministic per-segment jaggedness (wraps seamlessly via i % SEGMENTS).
-  const jag = (i: number): number => {
-    let h = Math.imul((i % SEGMENTS) ^ 0x9e3779b9, 2654435761);
-    h ^= h >>> 15;
-    return ((h >>> 0) % 10000) / 10000;
-  };
-  const heightAt = (i: number, a: number): number => {
-    const broad = 0.5 + 0.5 * Math.sin(a * 3 + 1.3) * Math.sin(a * 1.7); // low-freq ranges
-    return MIN_H + (MAX_H - MIN_H) * (0.55 * broad + 0.45 * jag(i));
-  };
-
-  const positions: number[] = [];
-  const indices: number[] = [];
-  for (let i = 0; i <= SEGMENTS; i++) {
-    const a = (i / SEGMENTS) * Math.PI * 2;
-    const x = Math.cos(a) * RING_RADIUS;
-    const z = Math.sin(a) * RING_RADIUS;
-    positions.push(x, BASE_Y, z); // bottom vertex (index 2i)
-    positions.push(x, BASE_Y + heightAt(i, a), z); // top vertex (index 2i+1)
+  const segments = 192, rows = 4;
+  const ranges = [
+    { radius: 82, height: 23, amplitude: 14, phase: 0.4, color: new Color3(0.32, 0.46, 0.42) },
+    { radius: 112, height: 37, amplitude: 19, phase: 2.1, color: new Color3(0.40, 0.53, 0.55) },
+    { radius: 150, height: 52, amplitude: 24, phase: 3.2, color: new Color3(0.52, 0.62, 0.68) },
+  ];
+  for (const [layer, range] of ranges.entries()) {
+    const positions: number[] = [], indices: number[] = [], colors: number[] = [];
+    for (let i = 0; i <= segments; i++) {
+      const a = i / segments * Math.PI * 2;
+      const wave = 0.48 * Math.sin(a * 3 + range.phase) + 0.36 * Math.cos(a * 5 - range.phase)
+        + 0.16 * Math.sin(a * 8 + range.phase * 2) + 0.06 * Math.sin(a * 17 + range.phase);
+      const peak = range.height + wave * range.amplitude;
+      for (let row = 0; row < rows; row++) {
+        const t = row / (rows - 1);
+        const radius = range.radius * (0.75 + t * 0.25);
+        const fold = Math.sin(a * 11 + range.phase) * Math.sin(t * Math.PI) * 2.2;
+        positions.push(Math.cos(a) * radius, -4 + (peak + 4) * t + fold, Math.sin(a) * radius);
+        const variation = 0.93 + t * 0.07 + 0.035 * Math.sin(a * 13 + t * 3);
+        colors.push(range.color.r * variation, range.color.g * variation, range.color.b * variation, 1);
+      }
+    }
+    for (let i = 0; i < segments; i++) for (let row = 0; row < rows - 1; row++) {
+      const a = i * rows + row, b = a + rows;
+      indices.push(a, a + 1, b + 1, a, b + 1, b);
+    }
+    const normals: number[] = [];
+    VertexData.ComputeNormals(positions, indices, normals);
+    // Seen from the valley, the useful normal points upward and towards the ring centre.
+    let up = 0;
+    for (let i = 1; i < normals.length; i += 3) up += normals[i];
+    if (up < 0) for (let i = 0; i < normals.length; i++) normals[i] = -normals[i];
+    const vd = new VertexData();
+    vd.positions = positions; vd.indices = indices; vd.normals = normals; vd.colors = colors;
+    const mesh = new Mesh(`meadowHills_${layer}`, scene);
+    vd.applyToMesh(mesh);
+    const mat = new StandardMaterial(`meadowHillsMat_${layer}`, scene);
+    mat.diffuseColor = Color3.White();
+    mat.emissiveColor = new Color3(0.08, 0.09, 0.10);
+    mat.specularColor = Color3.Black();
+    mat.backFaceCulling = false;
+    mesh.material = mat;
+    mesh.isPickable = false;
   }
-  for (let i = 0; i < SEGMENTS; i++) {
-    const b0 = 2 * i, t0 = 2 * i + 1, b1 = 2 * i + 2, t1 = 2 * i + 3;
-    indices.push(b0, t0, t1, b0, t1, b1);
-  }
-  const vd = new VertexData();
-  vd.positions = positions;
-  vd.indices = indices;
-  const mesh = new Mesh('mountains', scene);
-  vd.applyToMesh(mesh);
+}
 
-  const mat = new StandardMaterial('mountainMat', scene);
-  // Distant mountains read as flat hazy silhouettes (atmospheric perspective), NOT sun-shaded solids —
-  // so disable lighting and use a desaturated blue-grey that sits between the green land and the sky.
-  // P2's fog will blend the base into the horizon.
-  const haze = new Color3(0.48, 0.55, 0.58);
-  mat.disableLighting = true;
-  mat.diffuseColor = haze;
-  mat.emissiveColor = haze;
-  mat.specularColor = new Color3(0, 0, 0);
-  mat.backFaceCulling = false; // the player views the ring from inside
-  mesh.material = mat;
-  mesh.isPickable = false;
-  mesh.alwaysSelectAsActiveMesh = true;
+/** Broad colour fields and earth trails; the material adds restrained small-scale detail. */
+function meadowColors(positions: ArrayLike<number>): number[] {
+  const colors: number[] = [];
+  const sage = new Color3(0.32, 0.46, 0.29);
+  const lime = new Color3(0.47, 0.55, 0.34);
+  const path = new Color3(0.58, 0.52, 0.40);
+  for (let i = 0; i < positions.length; i += 3) {
+    const x = positions[i], z = positions[i + 2];
+    const patch = meadowPatch(x, z);
+    const grass = Color3.Lerp(sage, lime, patch);
+    // A narrow tan centre with a 0.7m feather joins naturally with the open planting corridor.
+    const edge = Math.max(0, Math.min(1, (meadowPathDistance(x, z) + 0.1 * Math.sin(x * 1.4 + z * 1.2) - 0.75) / 0.7));
+    const blend = 1 - edge * edge * (3 - 2 * edge);
+    const color = Color3.Lerp(grass, path, blend);
+    const variation = 0.965 + 0.02 * Math.sin(x * 0.11 + z * 0.08)
+      + 0.015 * Math.sin(x * 1.3 + Math.sin(z * 0.7)) * Math.cos(z * 1.1);
+    colors.push(color.r * variation, color.g * variation, color.b * variation, 1);
+  }
+  return colors;
 }
 
 /** Builds the rolling grass terrain: a subdivided ground displaced by terrainHeight with a static
@@ -115,12 +129,20 @@ export function createTerrain(scene: Scene): AbstractMesh {
   terrain.setVerticesData(VertexBuffer.NormalKind, normals, false);
   terrain.refreshBoundingInfo(); // bounds were built for the flat plane; refresh for cull/pick
 
+  terrain.setVerticesData(VertexBuffer.ColorKind, meadowColors(pos), false);
+  terrain.useVertexColors = true;
   const mat = new StandardMaterial('groundMat', scene);
-  const grass = new Texture('/textures/grass.jpg', scene);
-  grass.uScale = GRASS_TILING;
-  grass.vScale = GRASS_TILING;
-  mat.diffuseTexture = grass;
-  mat.specularColor = new Color3(0.05, 0.05, 0.05);
+  // Detail-map red modulates luminance only, retaining the shared earth/grass trail colours.
+  const detail = new Texture('/textures/meadow-detail.png', scene);
+  detail.uScale = detail.vScale = 12;
+  detail.gammaSpace = false; // packed scalar channels, not an sRGB colour image
+  detail.anisotropicFilteringLevel = 8;
+  mat.detailMap.texture = detail;
+  mat.detailMap.diffuseBlendLevel = 1.15;
+  mat.detailMap.bumpLevel = 0;
+  mat.detailMap.isEnabled = true;
+  mat.diffuseColor = Color3.White();
+  mat.specularColor = Color3.Black();
   terrain.material = mat;
 
   new PhysicsAggregate(terrain, PhysicsShapeType.MESH, { mass: 0 }, scene);

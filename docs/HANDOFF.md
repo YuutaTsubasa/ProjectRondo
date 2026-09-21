@@ -1,8 +1,56 @@
 # ProjectRondo — Developer Handoff
 
-Last updated: 2026-09-04. Purpose: everything the next machine / developer / Claude session needs to
+Last updated: 2026-09-20. Purpose: everything the next machine / developer / Claude session needs to
 pick this up cold. The repo is the source of truth; this file is the map.
 
+## V20 player update
+
+The active 3D player is now `public/models/player-v20.glb` in both grassland and climbing tower.
+Use `tools/player-model/README.md` to import a future VRM and verify geometry and animation provenance.
+`playerModel.ts` holds the shared asset URL (receipt hash), height, facing and trail size;
+`playerMaterials.ts` / `playerToon.ts` adapt imported material metadata. Old knight PBR/face fixes and
+`knight_mr.webp` are no longer used by the player. Historical sections below describe the earlier rig.
+Automatic blinking uses the imported `playerBlink` morph, driven by `blinkTiming.ts` /
+`playerBlink.ts` independently of skeletal movement. The importer retains only the original blink
+expression; teardown releases its scene observer. Initial foot seating now evaluates a known Idle
+pose and synchronizes linked bones/world transforms through `skinnedSole.ts` before measuring;
+a first-render callback can read stale bind-pose matrices and leave the player floating.
+The old fixture is archived at `tools/knight-feet/reference.glb`; AVG portraits were subsequently updated from the new UPnNKPTwny idle clip (see README regeneration instructions).
+
+## Meadow visual refresh (2026-09-20)
+
+The user revised the direction from bright anime to a more natural JRPG meadow. `meadowLayout.ts`
+owns decorative trail distance, clearings and planting patches shared by terrain and scatter.
+Playable terrain heights, boundaries and gameplay collision remain unchanged. `terrain.ts` layers
+muted vertex colours with a packed luminance detail map and three sloping distant mountain ranges.
+Regenerate `public/textures/meadow-detail.png` with `node tools/terrain/prepare-detail.mjs`; its A/G
+channels must encode neutral detail normals, not a photograph's opaque alpha (see regression test).
+
+`scatter.ts` uses 10,000 fine five-blade grass tufts, 1,300 flower cards, 160 rocks and 90 leafy bushes.
+Placement is seeded and bounded, keeping trails, spawn, plaza and flooded pond areas open.
+`trees.ts` builds shared branching trunk geometry and irregular leaf sprays using `naturalFoliage.ts`.
+All original tree locations and trunk colliders remain. Leaves have varied orientation and folded
+surfaces; they cast ground shadows without canopy self-shadow stripes. Clones share geometry.
+
+`environment.ts`, `clouds.ts` and `postProcessing.ts` own the subdued hub sky/light grade and periodic
+noise cloud banks; the tower has its own environment. `water.ts` uses a stationary muted colour and
+reflection-stroke texture while normal ripples move. Keep its colour texture stationary: the gradient
+is not periodic. Earlier atmosphere measurements and GLB-tree notes below are historical.
+See `docs/superpowers/plans/2026-09-20-meadow-refresh.md` for verification.
+
+## Homing visual polish (2026-09-20)
+
+The hub and tower share the refined target presentation. `crystalGeometry.ts` builds bevelled sapphire
+shells/inner cores and bounded hit-ring/glint geometry; `crystals.ts` preserves static positions and
+flash(index). Geometry is shared; hits animate per-mesh visibility while their material stays shared.
+`homingReticle.ts` draws four fine warm-red arcs, pale ticks and dark keylines around an open centre.
+`reticleTiming.ts` contracts once on acquisition; repeated previews do not restart it. Existing lock
+eligibility remains the only source of target availability.
+
+`dashTrail.ts` replaces frame-count TrailMesh with two additive soft-edged ribbons. `trailHistory.ts`
+samples at fixed time intervals and clips history to 0.2 seconds; stopping emission leaves a fading
+tail, while starting/resetting discards previous history. The trail generator follows the imported Chest joint identified by the model receipt, so kick lift and lean stay aligned. Missing-joint imports use a seated torso fallback. release() disposes the custom trail.
+No homing movement, target selection, crystal placements or input rules changed.
 ## 1. What this is
 
 A **3D action game for the web**, migrated from Godot 4 (C#) to a web-native stack. A hub world hosts
@@ -523,3 +571,15 @@ machine gives the next Claude session full continuity.
 - `pnpm exec tsc --noEmit` → clean.
 - `pnpm dev`, open the URL → hub loads: the knight stands on rolling grass, an AVG intro plays, WASD
   moves, walking to the edge is blocked by a steep grassy slope (not an invisible wall).
+
+### 2026-09-21 meadow rock seam repair
+
+The rock icosphere duplicates vertices across face/UV seams. Random deformation per buffer entry pulled shared corners apart: the new geometric-edge regression reproduced 60 open edges. Cache one displaced position per original corner, use gentler radial variation and subdivisions 2 for a solid rounded silhouette. Existing placement/collider logic is unchanged. Regression passes with every edge adjoining two triangles and all normals outward; browser close-up shows a closed surface. Typecheck and production build pass; existing build chunk-size warning remains.
+
+### 2026-09-21 Title and Main Menu (Light)
+
+Entry is now Title → Main Menu → Start → existing intro/hub. Opening-game direction is deliberately undecided; no new narrative or world-map decision. App.svelte hosts the guarded front door and lazily imports GameSession.svelte (the previous App's scene lifetime). Main menu has Start, real audio Settings, and return to Title. No save/load/gallery facade. Temporary display name is Project Rondo. Character art reuses the portrait still, title/menu are silent; reduced-motion and 390px layouts are supported.
+
+Audio preferences validate and persist master/music/SFX/ambience/mute in localStorage with session fallback on storage errors. Every audio graph subscribes through existing busGain and unsubscribes on dispose. Loading blocks duplicate starts, delays dialogue until ready and hands keyboard focus to dialogue. Errors offer retry/menu recovery. Rejected Havok initialization is evicted so retry can recover, while successful/concurrent compilation remains shared.
+
+Validation: 88 files / 632 tests pass, including guarded flow, lazy mount, focus, error/retry, settings/storage/live-bus cleanup and Havok failure recovery. Typecheck and build pass (existing large game-chunk warning). Browser verified desktop Title/menu, settings persistence/reset, 390×844 settings/menu, keyboard Escape focus restoration, then Start → intro choices → playable hub without console errors. Temporary viewport reset; test audio values restored. Existing gameplay requires keyboard/mouse; responsive menu does not add mobile gameplay controls.

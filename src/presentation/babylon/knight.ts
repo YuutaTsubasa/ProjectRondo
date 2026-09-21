@@ -3,25 +3,21 @@ import { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 import type { AnimationGroup } from '@babylonjs/core/Animations/animationGroup';
 import type { Shadows } from './shadows';
 import { ImportMeshAsync } from '@babylonjs/core/Loading/sceneLoader';
-import { Texture } from '@babylonjs/core/Materials/Textures/texture';
-import type { PBRMaterial } from '@babylonjs/core/Materials/PBR/pbrMaterial';
-import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
-// Side-effect: registers the StandardMaterial shader (tree-shaken deep imports need this; see crystals.ts).
-import '@babylonjs/core/Materials/standardMaterial';
 import { Quaternion, Vector3 } from '@babylonjs/core/Maths/math.vector';
-import { Color3 } from '@babylonjs/core/Maths/math.color';
 import type { AbstractMesh } from '@babylonjs/core/Meshes/abstractMesh';
-import { TrailMesh } from '@babylonjs/core/Meshes/trailMesh';
+import { createDashTrail, type DashTrail } from './dashTrail';
 import { PhysicsRaycastResult } from '@babylonjs/core/Physics/physicsRaycastResult';
 import type { PhysicsEngine as PhysicsEngineV2 } from '@babylonjs/core/Physics/v2/physicsEngine';
 // Side-effect: registers the glTF loader plugin (with KHR_mesh_quantization / webp support).
 import '@babylonjs/loaders/glTF';
 import { CAPSULE_HALF } from './capsule';
-import { HEAD_MESHES, knightReceivesShadow } from './shadowPolicy';
+import { measureSkinnedSole } from './skinnedSole';
+import { PLAYER_MODEL } from './playerModel';
+import { applyPlayerMaterials } from './playerMaterials';
+import { attachPlayerBlink } from './playerBlink';
 import type { GroundHeight } from './groundHeight';
 import { moveToward } from '../../domain/math/scalar';
 import { stepJumpPose, INITIAL_JUMP_POSE } from './jumpPose';
-import { emissiveFactorOf, type GltfPbrMaterial } from './gltfMaterial';
 
 export interface KnightAnimations {
   readonly idle: AnimationGroup;
@@ -90,15 +86,12 @@ export interface Knight {
   planted: number;
   /** Blue dash trail, started when `homing` turns on and stopped at the bounce or the timeout — see
    *  {@link driveKnightAnimation}. Created once, hidden, in {@link loadKnight}. */
-  readonly trail: TrailMesh;
+  readonly trail: DashTrail;
   /**
-   * Unsubscribes everything {@link loadKnight} put on the scene's frame loop — today the seating
-   * pass and {@link plantFeet}'s correction, whichever of them is still attached.
+   * Unsubscribes the blink driver and {@link plantFeet} correction attached by {@link loadKnight}.
    *
-   * It is not a `dispose`: the nodes, meshes and clips are the scene's, and `scene.dispose()` is what
-   * takes those. This is only the observers, which nothing else has a handle on. Calling it more than
-   * once is harmless, and calling it on a knight whose seating pass has not run yet is the ordinary
-   * case for a level torn down during a load.
+   * Also disposes the trail meshes, materials and generator. The imported model and clips remain
+   * scene-owned. Repeated release calls are harmless, including during level teardown.
    */
   release(): void;
 }
@@ -116,7 +109,7 @@ const GROUND_PROBE_ABOVE = 0.25;
 const GROUND_PROBE_BELOW = 1;
 
 /** Target on-screen height of the knight, in world units (roughly the physics capsule height; see capsule.ts). */
-const TARGET_HEIGHT = 1.9;
+const TARGET_HEIGHT = PLAYER_MODEL.height;
 /** Fraction of the idle animation's motion to keep (0 = frozen, 1 = full sway). Kills the side rock. */
 const IDLE_SWAY_KEEP = 0.2;
 
@@ -125,711 +118,14 @@ const IDLE_SWAY_KEEP = 0.2;
  * third-person camera (the hub is right-handed and third-person cameras trail the character, so the
  * model's front has to face away from the rig). Named rather than inlined at its one call site
  * (`root.rotationQuaternion = KNIGHT_FACING.clone()` in {@link loadKnight}) so that assignment reads as
- * "the import correction" instead of a bare `Quaternion.FromEulerAngles(0, Math.PI, 0)` a reader would
+ * "the import correction" instead of a bare `Quaternion.FromEulerAngles(0, PLAYER_MODEL.facingYaw, 0)` a reader would
  * have to re-derive the reason for.
  *
  * That call site assigns a `.clone()`: Babylon's `rotationQuaternion` is more often mutated via
  * `.copyFrom`/`.set` than reassigned, so handing out this module-level instance would let a later
  * reader rewrite the correction itself.
  */
-const KNIGHT_FACING = Quaternion.FromEulerAngles(0, Math.PI, 0);
-
-/**
- * Blue emissive tint for the dash trail. Unlit and bright for the same reason as the crystal's
- * emissive tint in crystals.ts: this needs to read as a streak across the field, not blend into the
- * armour or the terrain.
- *
- * **Untuned**: deliberately a deep, saturated blue rather than the pale sky-blue `(0.3, 0.65, 1)` this
- * started as — watched on screen, the pale version sat too close to the crystal's own cyan
- * `CRYSTAL_EMISSIVE` and to the sky behind it, so the streak read as a wash rather than a stroke.
- * Dropping red and green while keeping blue near full pushes it away from both without dimming it
- * (an unlit emissive is only as visible as its brightest channel). Retune by eye.
- */
-const TRAIL_EMISSIVE = new Color3(0.08, 0.22, 0.95);
-/**
- * Trail ribbon width — and neither half of that name survives contact with what Babylon does with it.
- * It is not a diameter, and it is not in world units.
- *
- * **Not a diameter.** `TrailMesh` uses the argument as the section polygon's RADIUS: both
- * `_createMesh` and `_updateSectionVectors` place each section vertex at
- * `(cos(angle) * diameter, sin(angle) * diameter)`, so the cross-section spans `2 * diameter` across
- * opposite vertices. Checked against the installed `@babylonjs/core/Meshes/trailMesh.pure.js` rather
- * than inferred from the parameter's name, because the name says the opposite.
- *
- * **Not world units.** Those section vertices are then transformed by `generator.getWorldMatrix()`
- * (`createDashTrail` is passed `trailGenerator`, a `TransformNode` parented to the glTF `root` — see
- * {@link loadKnight}), and `root.scaling` is set in {@link loadKnight} to `TARGET_HEIGHT / rawHeight`
- * — a factor that is not 1 by construction (that line exists precisely because the raw model isn't 1.9
- * units tall). A parented node's world matrix is built from the parent's, so
- * `trailGenerator.getWorldMatrix()` carries that same scaling even though nothing on `trailGenerator`
- * itself sets it.
- *
- * So `0.2` is a radius in the GLB's own local units, the on-screen ribbon is `2 * 0.2 * root.scaling`
- * wide, and neither number is directly comparable to {@link TARGET_HEIGHT} or to any other world-space
- * measurement in this file. The measured width below closed on that arithmetic exactly for the
- * character it was taken against, which is what says the factor of two is real and not a misreading
- * of the library.
- *
- * The height `loadKnight` divides by is `getHierarchyBoundingVectors(true)`'s **Y** extent, and by
- * then the glTF loader has called `refreshBoundingInfo(true, true)` on every primitive, so it is the
- * skin applied to the bind pose — not a POSITION accessor range. Measured on the shipped GLB with
- * the installed Babylon: `min.y` 0.0225, `max.y` 0.9801, extent **0.9576**, so `root.scaling` is
- * `1.9 / 0.9576` = **1.9841** and `2 * 0.2 * 1.9841` = **0.794**. Dropping the factor of two
- * predicts 0.397 instead — a separation that holds whatever the model scales to.
- *
- * The 0.776 below was measured in the browser against the *previous* character, and it did close on
- * that character's arithmetic exactly: extent 0.9794, scaling 1.9399, ribbon 0.776. This PR swapped
- * the model and nobody has re-measured the ribbon on screen since, so 0.794 is a prediction, not a
- * reading.
- *
- * **0.9801 is the wrong number, from three directions at once, and it was published here once.** It
- * is the GLB's own long axis — the Z extent of the POSITION accessors, which is what ends up
- * vertical once the model is skinned. Nothing in the file rotates it: all 42 mesh nodes hang off the
- * single scene root `knight` and not one of them carries a TRS. Nor does the loader — the hub scene
- * is right-handed, so `__root__` is left at identity and contributes no transform at all (see
- * {@link loadKnight}, which says the same thing where it sets the facing). It is the skin that turns
- * it, its inverse bind matrices mapping mesh-local Z onto the skeleton's Y — which is why the
- * unskinned Y extent is 0.197036, the accessor range, against a skinned 0.957617. Measured under
- * both handedness settings, the Y extent is 0.957617 either way: left-handed puts *both* a
- * `[1, 1, -1]` scale and a 180-degree Y rotation on `__root__`, and scale-then-rotate composes them
- * into an **X** mirror — X reflects, Y and Z come back bit-identical.
- *
- * Calibration rotates ankle nodes and touches no vertex, so that figure is byte-identical in the
- * uncalibrated intermediate and in the shipped file, and on the *intermediate* it is also the
- * hierarchy extent exactly, because that file's soles still sit at `y = 0`. Levelling them lifts
- * the soles off the floor, which shortens the skinned bind pose to 0.9576 and moves
- * `root.scaling` by 2.3%; 0.9801 survives in the shipped file only as `max.y`. So it is at once a
- * real accessor extent, the right hierarchy extent for the wrong file, and half of the right one for
- * this file — and it is none of the three things this line needs.
- *
- * **Untuned**, and unlike {@link TRAIL_EMISSIVE} above — retuned off the same browser pass — this
- * one came out of that pass unchanged: the ribbon measured 0.776 world units across on screen — on
- * the character of the day, and it is wider now — close to the knight's own torso width and reading
- * thick, but no better width was tried, so 0.2 is still the arrival value rather than a chosen one.
- * Retune it in local units against an actual screenshot, or take the world-space width wanted,
- * halve it and divide by `root.scaling` at the call site — both corrections, not just the scaling
- * one.
- */
-const DASH_TRAIL_DIAMETER = 0.2;
-/**
- * How much history the ribbon keeps, counted in **rendered frames**, not in seconds or world units.
- * `TrailMesh.update` is subscribed to `onBeforeRenderObservable` and, on the positional constructor
- * {@link createDashTrail} uses, `_segments === _length`, which makes its section lerp factor exactly 1 —
- * each update copies every section from the one ahead of it, so the ribbon shifts by exactly one section
- * per rendered frame and its tail is the generator's position 24 frames ago.
- *
- * That coupling is the reason to be careful with this number rather than the number itself: the streak's
- * life and its world-space extent (24 × dash speed × frame time) both scale with frame time, so a machine
- * rendering at half the rate shows a streak that lives twice as long and stretches twice as far.
- *
- * **Untuned**, and with less behind it than {@link DASH_TRAIL_DIAMETER} above: 24 is the value the ribbon
- * was first written with, and no pass has recorded a reason for it. The one measurement the trail does
- * have — the 0.776-unit width cited above — is a cross-section and says nothing about how far back the
- * ribbon should reach. At 60 fps this is ~0.4 s of streak; it is as much a feel knob as the diameter
- * beside it, so retune by eye, at a known frame rate.
- */
-const DASH_TRAIL_LENGTH = 24;
-
-/**
- * How much of the albedo to add back as unlit light on the face.
- *
- * An anime face is not supposed to track scene lighting the way a surface does — it stays bright and
- * flat, and the light/shade terminator across it reads as dirt rather than form. Adding the albedo as
- * emissive decouples the face from the sun without touching the armour, which is meant to catch light.
- *
- * This works because **PBR adds emissive**; StandardMaterial folds it in before multiplying by the
- * diffuse texture, so the same trick there scales to nothing on a dark texel (see `trees.ts`).
- *
- * Measured head-on with the idle animation **paused at frame 0** and the camera tracking the `Head`
- * bone live, over the head region located by which pixels the change itself touches (158k px, ~20 % of
- * the frame) rather than by a hand-placed box — so it covers face, hair and neck, and the rest of the
- * frame serves as a control:
- *
- * | emissive | head region mean luma | control (rest of frame) |
- * | --- | --- | --- |
- * | 0    | 35.6 | 114.3 |
- * | 0.25 | 57.1 | 114.3 |
- * | 0.45 | 68.8 | 114.3 |
- *
- * The control is flat to one decimal, which is what says the armour is untouched. 0.25 is the more
- * conservative option if 0.45 reads too hot in motion.
- *
- * Reproduce it exactly that way. Two earlier figures for this constant (99 -> 175 and 70 -> 146)
- * disagreed because each used a differently hand-placed box with the idle animation *running*, so the
- * head sat at a different angle in each; both are superseded by the table above.
- *
- * **This table is from an earlier character** (whose head was `Mesh_0` + `Mesh_32`/`Mesh_33`), not the
- * current head this file swaps in (`Mesh_1` + `Mesh_23`; see `HEAD_MESHES` in `shadowPolicy.ts`), and
- * has not been retaken since. A different head mesh with a different face texture in a different frame
- * composition will not reproduce these figures. Left here because `FACE_EMISSIVE` below was *tuned*
- * against this table, so the constant's provenance is this measurement even though the measurement no
- * longer describes what ships — re-measure on the current head before trusting the numbers, and note
- * the constant itself may want retuning once that's done.
- *
- * On the current (stylized fantasy) head, `Mesh_1` carries the face *and* the hair together and
- * `Mesh_23` is the inner head; the eyes are painted into the face texture, so there is no separate
- * eyeball mesh. Both head meshes share one material and `swapHeadMaterial` below puts the same emissive
- * clone on both, so the face lift and the hair lift ride one shared `FACE_EMISSIVE`. They could be
- * split (e.g. a hair-only material) if that were ever wanted; the hair lift reads as an improvement.
- */
-const FACE_EMISSIVE = 0.45;
-
-/** Cache-buster for the packed metallic/roughness map; bump when the map is rebuilt. */
-const BODY_MR_URL = '/models/knight_mr.webp?v=2';
-
-/**
- * How metallic the armour reads — now the physically-correct 1.
- *
- * A metal has no diffuse — its albedo becomes the specular F0 — so it can only show what it reflects,
- * and the scene now gives it something to reflect: `createEnvironment` (in `environment.ts`) sets
- * `scene.environmentTexture` to a neutral studio IBL. Before that environment existed this was held at
- * 0.6, trading physical correctness for brightness, because at `metallic = 1` the majority of the
- * plate — 76.4% of the packed map's texels read metallic > 0.5, and 84.8% area-weighted through the
- * body's UVs — had nothing to reflect but the sun's specular lobe and rendered near-black.
- * With the IBL in place that concession is no longer needed and the plate reads as true silver steel —
- * this was the fix for the "darker than Tripo3D" report (Tripo's viewer lights the model with an HDRI;
- * this scene had none).
- *
- * What justifies 1 is the environment, not the roughness. An earlier version of this note argued that
- * the map is "near 1 rough over most of the plate", so rough-metal specular stands in for the diffuse
- * irradiance it replaces and the change costs little luma. That is false of this map: sampled through
- * the body meshes' own `TEXCOORD_0` and weighted by triangle area, mean roughness is **0.320**, 64.2%
- * of the surface is below 0.3, and **none** of it is above 0.8 (whole-image, only 8.5% of texels
- * exceed 0.8). `applyBodyPbr` below carries a "0.25-0.6" figure that also disagreed with "near 1",
- * but it is no corroboration: it was measured on the `?v=1` map this PR replaces, and on the shipped
- * one the G channel spans 0.000-1.000 with 49.5% of texels below 0.25 and 19.8% above 0.6. Both notes
- * were describing maps that are not the one in the tree. The premise is withdrawn; 1 is correct because
- * a metal's energy is its reflection and there is now something to reflect, and the luma it costs is
- * whatever `IBL_INTENSITY` was tuned against. Brightness is set there, not by this number, and that
- * constant's doc is the single place the shipped plate's measured luma lives.
- *
- * An earlier note here put the 0.6→1.0 sweep at ~118.6→114.3 and used the gap to justify raising
- * `IBL_INTENSITY` to 1.4. That put the shipped configuration at 114.3 where two other notes put it at
- * ~117, and made the two constants justify each other in a circle. It could not be re-measured (the
- * mask measurement needs the running scene), so it is withdrawn rather than left standing as a third
- * disagreeing figure.
- *
- * The metal-texel and roughness figures above were measured on the `knight_mr.webp` **this PR
- * ships** (`?v=2`), which is not the map the pre-PR numbers came from: the swap took metallic > 0.5
- * from 53.3% to 76.4% of texels. They, and `IBL_INTENSITY`'s luma figures, were measured
- * through that *lossy* map (its header is `VP8 `, not `VP8L` — see the
- * README's regeneration recipe). Lossy WebP chroma-subsamples and cross-contaminates the G/B channels
- * this map packs roughness and metallic into, so re-packing losslessly per that recipe changes the
- * inputs these numbers came from; re-measure after re-packing rather than trusting them against the new
- * map, and note the mask figures move with the model, so re-measure on a character swap too.
- */
-const BODY_METALLIC = 1.0;
-
-/**
- * Direct-light multiplier for the armour — back to the neutral 1.0.
- *
- * `directIntensity` scales only this material's response to the scene's *direct* lights, so it lifts
- * the armour without touching the terrain, foliage or the toon face (which is its own material). It was
- * pushed to 1.6 only to over-drive the sun and stand in for the missing image-based lighting; now that
- * `createEnvironment` sets `scene.environmentTexture` (see `BODY_METALLIC` above), keeping the 1.6
- * would double-count the fill the environment already supplies and blow out the sunlit plates. The
- * environment now carries the fill, so this returns to 1.0 and `IBL_INTENSITY` is the brightness lever.
- *
- * What the armour actually measures at this value is recorded once, on `IBL_INTENSITY` in
- * `environment.ts`, rather than restated here: three copies of that figure across two files had
- * drifted apart. The lossy-`knight_mr.webp` caveat on `BODY_METALLIC` applies to it too.
- */
-const BODY_DIRECT_INTENSITY = 1.0;
-
-/**
- * Corrects the GLB-shipped `normalTexture.scale: 0` on the knight's material while every mesh —
- * head included — still shares that one material object, so the correction is in place before
- * anything clones it.
- *
- * Must run before {@link applyFaceMaterial}. Every one of the knight's 42 meshes ships sharing a
- * single glTF material at the point `loadKnight` calls this; `swapHeadMaterial` (inside
- * `applyFaceMaterial`, called right after) is what first splits the head onto its own clone via
- * `Material.clone()`. `Material.clone()` runs every texture slot through `SerializationHelper.Clone`,
- * which calls `sourceProperty.clone()` — and `level` is a `@serialize()` field on `BaseTexture` — so
- * the clone ends up with its own `bumpTexture` *wrapper*, carrying whatever `level` the source had at
- * clone time. Correct the source here, before that clone exists, and the clone inherits the fix for
- * free. Correcting it only in {@link applyBodyPbr} instead — which runs after the split, and only
- * touches the body's copy of the material — would leave the head's two meshes, including the
- * 8047-vertex `Mesh_1` that carries the face, on the shipped `level: 0`. Babylon's loader copies `normalTexture.scale`
- * straight into `bumpTexture.level` (`glTFLoader.pure.js`), and PBR materials compile with
- * `NORMALXYSCALE` defined, so `perturbNormalBase` evaluates `normalize(n * vec3(scale, scale, 1.0))`
- * with `scale = 0` — the unperturbed geometric normal, i.e. a dead normal map on whichever mesh never
- * gets corrected.
- *
- * The base commit's GLB had no `scale` key at all (the glTF spec default of 1), so the head had a
- * live normal map before this PR swapped in a GLB that ships `scale: 0`; leaving this uncorrected
- * would be a regression this PR introduces, not a pre-existing defect.
- *
- * If a re-export ever puts the head on one material and the body on another — the most likely way
- * the "everything shares one material" assumption breaks, and exactly the split
- * {@link swapHeadMaterial} performs by hand today — that is caught HERE, not downstream. Neither
- * `applyFaceMaterial`'s nor `applyBodyPbr`'s own "shares one material" guard would catch it: each
- * only compares materials *within* its own slice (all-head, or all-body), and a head/body split
- * still leaves every mesh agreeing with the others in its own slice, so both guards pass silently.
- * The correction has to run per distinct material for the same reason: guessing "the" material and
- * skipping the rest would leave whichever material is not `source` on the shipped `level: 0` with no
- * warning anywhere — the one silent failure path in a file where every other guard warns.
- *
- * Warn-and-skip, like every other guard in this file: this runs inside `loadKnight`, which `hubScene`
- * awaits before `loadTrees` and `runRenderLoop`, so nothing here may throw.
- */
-function correctSharedNormalScale(meshes: readonly AbstractMesh[]): void {
-  const withMaterial = meshes.filter((m) => m.material);
-  if (withMaterial.length === 0) return;
-  const materials = [...new Set(withMaterial.map((m) => m.material))] as PBRMaterial[];
-  if (materials.length > 1) {
-    // Not the expected shape — nothing should have split the material yet on this GLB — but correct
-    // every distinct material anyway rather than guessing which one to fix and leaving the rest on
-    // the shipped `level: 0`. See the doc above for why neither downstream guard reports this split.
-    console.warn(
-      `[knight] meshes do not share one material before any clone has run (${materials.length} distinct: ${materials.map((m) => m?.name ?? 'none').join(', ')}) — correcting normalTexture.scale on each rather than skipping.`,
-    );
-  }
-  for (const source of materials) {
-    if (source.getClassName() !== 'PBRMaterial') continue; // applyBodyPbr's/applyFaceMaterial's own guards report a non-PBR material from their own slice.
-    if (source.bumpTexture && source.bumpTexture.level !== 1) {
-      console.warn(
-        `[knight] '${source.name}' shipped normalTexture.scale ${source.bumpTexture.level} — reset to 1, before face lighting clones this material, so both body and head pick up the armour's normal map. Re-export should fix this at the source; see the README.`,
-      );
-      source.bumpTexture.level = 1;
-    }
-  }
-}
-
-/**
- * Gives the armour a metallic/roughness map so the plate catches light as metal instead of reading as
- * flat matte, and — synchronously, before any of that map's fetch has even started — closes a seam:
- * the `backFaceCulling`/`twoSidedLighting` pair that closes up the armour's single-sided shells at
- * their see-through seams. This GLB is legitimately not `doubleSided`, so the loader correctly never
- * set `twoSidedLighting`, and dropping culling is a deliberate art call, not a correction (see the
- * comments above those two assignments below).
- *
- * The other export-side defect this material ships with — `normalTexture.scale: 0` — is corrected
- * earlier, by {@link correctSharedNormalScale}, *before* {@link applyFaceMaterial} clones this
- * material for the head. Fixing it here instead, after the clone already exists, would leave the
- * clone (and so both head meshes) on the shipped, uncorrected `level`; see that function's doc.
- *
- * Runs *after* {@link applyFaceMaterial}, so the head's toon clone — cloned before this — keeps a
- * non-metallic, unlit face. The whole body shares one material, so setting it once covers every mesh.
- *
- * **The map is fire-and-forget; the corrections above it are not.** `backFaceCulling` and
- * `twoSidedLighting` are both written to `source` before this function returns — see the comments
- * above each assignment for why they cannot wait. Only `metallicTexture` and its sampler flags are
- * deferred into the loaded texture's `onLoad` callback below, which fires at an unbounded later time —
- * after `loadKnight` has already resolved and `hubScene`'s render loop has already started. Unlike
- * {@link applyFaceMaterial}, `loadKnight` does not await this call, so a caller cannot observe the
- * map's arrival by awaiting `loadKnight`: until `onLoad` fires, the armour renders with the seam fix
- * already applied, but without the metallic/roughness map.
- *
- * Deliberately has no {@link FACE_COMPILE_TIMEOUT_MS}-style ceiling on that wait. The face path needs
- * one because `loadKnight` awaits it — an unbounded hang there would block scene startup entirely, with
- * no render loop, no trees, no input. This path is awaited by nothing, so a slow or hung fetch costs
- * only a late texture: the model keeps rendering in its already-corrected pre-map state in the
- * meantime, a stuck `onLoad` never fires and never blocks anything else, and a failed fetch still
- * surfaces via `onError`'s warning below rather than failing silently. There is no caller-visible hang
- * here for a timeout to bound.
- *
- * That head/body split only holds while `applyFaceMaterial` actually swapped the clone in.
- * `applyFaceMaterial` is deliberately warn-and-skip and returns without swapping from several guard
- * points, and this function excludes the head only *by name* — so on any of those paths the head
- * meshes are still sitting on the very material this function is about to make metallic and
- * light-tracking. Detected below and skipped rather than silently making the face metallic.
- */
-function applyBodyPbr(meshes: readonly AbstractMesh[], scene: Scene): void {
-  const body = meshes.filter((m) => !HEAD_MESHES.includes(m.name) && m.material);
-  if (body.length === 0) {
-    console.warn('[knight] no body material found — PBR skipped, armour stays matte.');
-    return;
-  }
-  const source = body[0].material as PBRMaterial;
-  // "The whole body shares one material" only means anything while the body actually shares one.
-  // `swapHeadMaterial` below guards the identical assumption for the head explicitly, and for the same
-  // reason: a re-export splitting the armour across two materials (belt, cloth, plate) would otherwise
-  // leave the second one matte, non-metallic and at `directIntensity` 1, next to a body lifted to
-  // `BODY_DIRECT_INTENSITY`, with no warning. Skip loudly instead of half-applying it.
-  if (body.some((m) => m.material !== source)) {
-    // Dedupe by material *identity*, not name: glTF does not require unique material names and the
-    // loader does not dedupe them (the same reasoning `swapHeadMaterial` below spells out for mesh
-    // names), so two distinct materials sharing a name would otherwise collapse into "1 distinct" —
-    // a message that contradicts itself in exactly the case this guard exists to report.
-    const distinct = [...new Set(body.map((m) => m.material))];
-    const names = distinct.map((m) => m?.name ?? 'none');
-    console.warn(
-      `[knight] body meshes do not share one material (${distinct.length} distinct: ${names.join(', ')}) — PBR skipped rather than painting one of them across the rest.`,
-    );
-    return;
-  }
-  // `metallicTexture`, `useRoughnessFromMetallicTextureGreen`, `useMetallnessFromMetallicTextureBlue`,
-  // `useRoughnessFromMetallicTextureAlpha`, `metallic` and `roughness` exist only on `PBRMaterial`; on
-  // any other material class every one of the writes below lands as an inert own-property and the
-  // armour silently stays matte. Check before touching, the way the head path checks `albedoTexture`.
-  if (source.getClassName() !== 'PBRMaterial') {
-    console.warn(
-      `[knight] body material '${source.name}' is a ${source.getClassName()}, not a PBRMaterial — PBR skipped, armour stays matte.`,
-    );
-    return;
-  }
-  // `body` was filtered by name, which only proves the head *meshes* aren't in it — not that the head
-  // is off `source`. `applyFaceMaterial` warn-and-skips from seven different guard points (name-count
-  // mismatch, no material, split head materials, no albedoTexture, `clone()` returning null, a clone
-  // without an albedoTexture, or a compile failure that rolls the head back to `source`), and on every
-  // one of them the head meshes are still on this exact material object. Applying `BODY_METALLIC`,
-  // `BODY_DIRECT_INTENSITY` and unculled two-sided lighting to it would make the face metallic and
-  // light-tracking — a worse outcome than the matte face `applyFaceMaterial`'s own doc promises when it
-  // skips. Detect that by identity, not by name, and skip loudly instead.
-  if (meshes.some((m) => HEAD_MESHES.includes(m.name) && m.material === source)) {
-    console.warn(
-      `[knight] head meshes are still on '${source.name}' — face lighting must not have swapped its clone in. PBR skipped rather than making the face metallic too.`,
-    );
-    return;
-  }
-  // The normal-scale defect this material ships with (`normalTexture.scale: 0`) is corrected earlier,
-  // on `source` itself, by `correctSharedNormalScale` — before this function ever runs and before
-  // `applyFaceMaterial` clones the material for the head. By the time `source` is read here it should
-  // already be 1; this function does not re-correct it (see `correctSharedNormalScale`'s doc for why
-  // the correction has to happen before the clone, not after).
-  //
-  // The armour is a stack of single-sided shells that do not quite meet — most visibly where the
-  // upper arm passes the torso. Back-face culling removes the far shell's inward-facing triangles,
-  // so those seams showed the scene straight through the character rather than the armour's inside.
-  // Measured against the knight's true silhouette (taken with culling off, so gaps are inside it,
-  // scene frozen, zero reproducibility control): 107 of 53 245 silhouette pixels read as background
-  // with culling on, 0 with it off, and every camera angle tried showed the same (241-497 px on,
-  // 0 off). Only the body needs this — leaving the face culled measures identically at 0, and the
-  // head is a closed mesh that gains nothing from the extra fragments.
-  //
-  // This also reaches the shadow map, not just the camera pass: `ShadowGenerator._renderSubMeshForShadowMap`
-  // passes the material's own `backFaceCulling` straight through, so turning it off here turns
-  // culling off for all four CSM cascade renders too, and these 40 meshes both cast and receive.
-  // Measured the consequence directly (same frozen frame, 70 436 knight pixels, zero
-  // reproducibility control), body culled vs. unculled. **Inherited, not re-measured:** this table
-  // was taken at `metallic = 0.6`, `directIntensity = 1.6` and no environment texture, all three of
-  // which this PR changed, so treat the absolute luma as historical and the culled-vs-unculled delta
-  // as the part that still carries. Re-measure before tuning against it:
-  //
-  // | | body culled | body unculled | delta |
-  // | --- | --- | --- | --- |
-  // | `scene.shadowsEnabled = true` | 53.5 mean luma, 30.68% below 20 | 51.9, 30.73% | **−1.6** |
-  // | `scene.shadowsEnabled = false` | 63.1, 29.81% | 63.1, 29.81% | **0.00** |
-  //
-  // With shadows off the change is aggregate-neutral, as expected — the seam pixels are a small
-  // fraction of the body. With shadows on, the back faces write depth into the same cascades these
-  // meshes sample, and that darkens the knight by ~1.6 luma (~3%). The near-black fraction barely
-  // moves (30.68% -> 30.73%), so this is a mild uniform darkening, not new acne — accepted. It used
-  // to say this "slightly offsets `BODY_METALLIC`/`BODY_DIRECT_INTENSITY`", which was true when those
-  // were 0.6 and 1.6 and were the brightening levers; both are 1.0 now and neither sets brightness, so
-  // what a ~1.6-luma darkening works against is `IBL_INTENSITY` in `environment.ts`. `NORMAL_BIAS = 0.04` in
-  // `shadows.ts` (Task 8) was validated against this material CULLED, so that validation no longer
-  // describes what ships — but the table above shows no acne increase with it unculled, so this is
-  // recorded rather than re-tuned. The extra fragment cost across four cascades is real and
-  // unmeasured; timing cannot be measured through a hidden browser pane on this machine.
-  //
-  // A second, independent way this PR invalidates that same Task 8 validation: it was measured at
-  // 62 meshes casting-and-receiving (31 `tripo_part_*` knight-body meshes + 31 environment meshes,
-  // spec §7; the environment half is inherited from that spec, not re-counted here). This PR takes
-  // the knight's receiving body from 31 meshes to 40 — the shipped GLB has 42 mesh-bearing nodes and
-  // `HEAD_MESHES` in `shadowPolicy.ts` excludes two — so the shipped casting-and-receiving count is
-  // now 71, not 62. `NORMAL_BIAS = 0.04`'s acne validation was never re-run at 71 — it is recorded here
-  // rather than re-tuned, same as the culled/unculled point above, and both are noted at
-  // `shadows.ts`'s `NORMAL_BIAS` declaration and its WebGL1-fallback comment.
-  //
-  // Applied here, unconditionally and synchronously — NOT deferred into the metallic/roughness map's
-  // `onLoad` below. It has no dependency on that map, and deferring it there was a bug: on a failed
-  // fetch `onLoad` never fires, so the seam fix never applied either, and the armour was not merely
-  // matte in that state but see-through (the 107/53245-pixel gap above, reopened). Setting it here
-  // means the seams stay closed regardless of whether the map ever arrives.
-  source.backFaceCulling = false;
-  // Babylon gates the back-face normal flip in `pbrBlockNormalFinal` on
-  // `!backFaceCulling && twoSidedLighting` (see `trees.ts`'s identical pairing for the doubleSided
-  // glTF case). This GLB is not `doubleSided`, so the loader never set `twoSidedLighting`, and without
-  // it every back face `backFaceCulling = false` newly rasterises would shade with its outward normal
-  // instead of the flipped one. Set it explicitly for the correct pairing on a double-sided material.
-  //
-  // Measured rather than assumed load-bearing: over the 5431 px that back faces actually fill (pixels
-  // differing between the culled and unculled renders), toggling this changed 1 pixel. Seam mean luma
-  // was 60.4 with 0% near-black either way — brighter than the armour's own mean, not the unlit black
-  // the wrong-normal mechanism predicts — because the hemispheric ambient already lights these seams
-  // adequately. So this is not what is holding the seams up today; it is the correct flag for a
-  // double-sided material and cheap insurance against future geometry or lighting changes that would
-  // make the wrong-normal shading visible.
-  source.twoSidedLighting = true;
-  // Every mutation below is applied together, and only once BODY_MR_URL has actually finished
-  // loading — inside the `onLoad` callback. The previous shape of this function set
-  // `metallic`/`roughness`/the sampler eagerly, before the fetch could possibly have completed, on
-  // the theory that non-blocking would leave the body rendering on "the shared material's current
-  // state (matte)" in the meantime. That is not what actually happens: Babylon's `_setTexture`
-  // substitutes its zero-filled `emptyTexture` for any sampler that is not ready, and
-  // `pbrBlockReflectivity` then computes `metallicRoughness.r *= map.b` and `.g *= map.g` against
-  // that all-zero texture, so both resolve to 0 — fully dielectric at roughness 0, a hard
-  // pinpoint-specular "plastic" look, the opposite end of the range from matte. The same substitution
-  // is also what a *failed* fetch leaves in place forever, silently. Measured on the knight's own
-  // pixels by pointing this texture at a URL that 404s:
-  //
-  // | state | mean luma | pixels above 150 |
-  // | --- | --- | --- |
-  // | map loaded | 85.0 | 1.32% |
-  // | failed fetch (emptyTexture) | 104.2 | 31.17% |
-  //
-  // A 24-fold jump in bright pixels — the pinpoint-specular signature. Deferring every write here to
-  // `onLoad` makes the pre-load state and a permanently-failed fetch identical: the body simply stays
-  // on the shared material's current GLB state (today, flat matte) until the map is actually ready —
-  // which is what "armour appears as it was, then gains its map" requires. `onError` also warns now,
-  // in the same voice as every other guard in this function, instead of leaving the plastic look
-  // permanent and silent.
-  const mr = new Texture(BODY_MR_URL, scene, {
-    noMipmap: false,
-    invertY: false,
-    onLoad: () => {
-      // The GLB's own metallicTexture/metallic/roughness are overwritten here with no fallback.
-      // Today's GLB ships flat factors and no metallicTexture, so nothing is lost. `knight.fbx` itself
-      // carries no metallic or roughness source either — verified against the file: its only texture
-      // references are `Material_Diffuse.jpg` and `Material_Normal.jpg`, its bytes contain no
-      // occurrence of `metal`/`Metal`/`roughness`/`Roughness`, and the committed `knight.fbm/` folder
-      // holds exactly those two JPEGs (the README's regeneration recipe says the same: no metallic or
-      // roughness source is committed). So getting them into the GLB directly is not on the table for
-      // *this* pipeline without a new source asset. This guard is kept anyway, for whatever eventually
-      // supplies one: the day a metallic/roughness-carrying GLB does ship, this would silently paint
-      // the separately-versioned `knight_mr.webp` sidecar over a correct, co-versioned map. Warn, in
-      // the same spirit as the head path's emissiveFactor/emissiveTexture/emissiveIntensity guards.
-      if (source.metallicTexture) {
-        console.warn(
-          `[knight] '${source.name}' already ships a metallicTexture. It is discarded: applyBodyPbr replaces it with ${BODY_MR_URL}.`,
-        );
-      }
-      source.metallicTexture = mr;
-      source.useRoughnessFromMetallicTextureGreen = true;
-      source.useMetallnessFromMetallicTextureBlue = true;
-      // Babylon reads roughness from the metallic texture's ALPHA channel by default, and alpha takes
-      // precedence over green — so setting Green alone does nothing. The packed map is fully opaque
-      // (alpha 255 everywhere, verified by reading it back), which pinned roughness at 1.0 and discarded
-      // the range the G channel actually carries — on the shipped `?v=2` map that is 0.000-1.000, mean
-      // 0.320 area-weighted through the body's UVs. (The "0.25-0.6" this line used to quote was measured
-      // on the `?v=1` map and did not survive the swap.) Turning this off is what lets the packing work.
-      source.useRoughnessFromMetallicTextureAlpha = false;
-      source.metallic = BODY_METALLIC;
-      source.roughness = 1;
-      source.directIntensity = BODY_DIRECT_INTENSITY;
-    },
-    onError: (message, exception) => {
-      // Nothing above ever ran — `source` is untouched, so the armour stays on the shared material's
-      // current GLB state (today, flat matte) rather than silently freezing into the pinpoint-specular
-      // look the table above measures. That is the *right* fallback, but a permanent one with no
-      // explanation, so say so. The seam fix (`backFaceCulling`/`twoSidedLighting` above this texture)
-      // does not depend on this map and is unaffected — it is applied unconditionally, so a failed
-      // fetch here costs only the metallic look, not the closed seams.
-      console.warn(
-        `[knight] failed to load ${BODY_MR_URL} — armour stays on the shared material's current (matte) state, permanently:`,
-        message ?? exception,
-      );
-    },
-  });
-}
-
-/** Ceiling on waiting for the face shader. `Material.forceCompilation`'s `checkReady` re-arms itself
- *  every 16 ms and only exits on ready-or-compile-error, so a blocking albedo texture that never
- *  becomes ready — a stalled fetch, a lost context — leaves the promise pending forever. That would
- *  hang `loadKnight`, and with it `createHubScene`: no render loop, no trees, no input, nothing
- *  logged. Ten seconds is far past a real compile and still bounded.
- *
- *  This is the budget for the whole head, not per mesh — bounding each call separately would make the
- *  real worst case `HEAD_MESHES.length` times this number, which is not what a reader budgeting hub
- *  load time off this constant would assume. */
-const FACE_COMPILE_TIMEOUT_MS = 10_000;
-
-/**
- * Gives the head its own material so the face can be lit differently from the armour.
- *
- * Every one of the knight's 42 meshes ships sharing a single glTF material, so the head needs a clone
- * before anything can be changed about it in isolation.
- *
- * `forceCompilationAsync` is not optional: swapping the material on a 100-bone skinned mesh triggers an
- * async shader rebuild, and the mesh renders as *nothing at all* until it finishes — long enough to
- * look like a bug and to poison any measurement taken in the meantime.
- *
- * Every failure here is warn-and-skip rather than throw. This runs inside `loadKnight`, which
- * `hubScene` awaits *before* `loadTrees` and `runRenderLoop` — so anything thrown takes down the whole
- * hub over a face tweak. The armour keeps the original material either way, so skipping costs one
- * cosmetic effect and nothing else.
- */
-async function applyFaceMaterial(meshes: readonly AbstractMesh[]): Promise<void> {
-  // The warn-and-skip guarantee has to cover the whole body, not just the compile await:
-  // `SerializationHelper.Clone` walks each serialized texture slot calling `.clone()` and
-  // `_clonePlugins` re-parses the plugin set, either of which can throw on a material exotic enough to
-  // have got this far. `createHubScene` does not guard `loadKnight`, and `App.svelte` calls it with
-  // `.then()` and no `.catch`, so anything escaping here is an unhandled rejection and a blank canvas.
-  try {
-    await swapHeadMaterial(meshes);
-  } catch (err) {
-    console.warn('[knight] face lighting failed; the head keeps the shared material:', err);
-  }
-}
-
-/**
- * Guards, clones, puts the clone on both head meshes, awaits its compile, and rolls the meshes
- * back if that fails. Split out from {@link applyFaceMaterial} so the try/catch there covers all of it.
- */
-async function swapHeadMaterial(meshes: readonly AbstractMesh[]): Promise<void> {
-  const head = meshes.filter((m) => HEAD_MESHES.includes(m.name));
-  // Each expected name must appear exactly once. Counting `head.length` would not establish that:
-  // glTF does not require unique node names and the loader does not dedupe them, so a GLB with two
-  // `Mesh_1`s and no `Mesh_23` still totals two — and the face lighting would land on the outer head
-  // twice while the inner head kept the dark shared material.
-  const wrongCount = HEAD_MESHES.map((name) => ({ name, n: meshes.filter((m) => m.name === name).length })).filter(
-    (x) => x.n !== 1,
-  );
-  if (wrongCount.length) {
-    // Mesh names come from the GLB, so a re-export can rename or duplicate them out from under this.
-    const detail = wrongCount.map((x) => `${x.name} x${x.n}`).join(', ');
-    console.warn(
-      `[knight] expected each of ${HEAD_MESHES.join(', ')} exactly once; got ${detail} — face lighting skipped.`,
-    );
-    return;
-  }
-
-  const source = head[0].material;
-  if (!source) {
-    console.warn(`[knight] '${head[0].name}' has no material — face lighting skipped.`);
-    return;
-  }
-  // "Clone the head's material" only means anything while the head actually shares one. Splitting the
-  // hair, or the inner head, onto its own material is an ordinary thing for a re-export to do, and
-  // would otherwise paint one of those materials across the whole head with every name check passing.
-  if (head.some((m) => m.material !== source)) {
-    const names = [...new Set(head.map((m) => m.material?.name ?? 'none'))].join(', ');
-    console.warn(
-      `[knight] head meshes no longer share one material (${names}) — face lighting skipped rather than painting one of them across the rest.`,
-    );
-    return;
-  }
-
-  const pbr = source as GltfPbrMaterial;
-  const albedo = pbr.albedoTexture;
-  if (!albedo) {
-    // With no texture to modulate it, FACE_EMISSIVE would be added as a flat grey wash over the head.
-    console.warn(`[knight] '${source.name}' has no albedoTexture — face lighting skipped.`);
-    return;
-  }
-
-  // The loader puts glTF's emissiveFactor straight into emissiveColor, which FACE_EMISSIVE overwrites.
-  // Today's GLB ships none; say so if one appears, as `trees.ts` does for the same drop.
-  const discardedEmissive = emissiveFactorOf(pbr);
-  if (discardedEmissive) {
-    console.warn(
-      `[knight] '${source.name}' has a non-zero emissiveFactor (${discardedEmissive.toHexString()}). It is discarded: face lighting owns emissiveColor.`,
-    );
-  }
-
-  // glTF permits an emissiveTexture with emissiveFactor left at [0,0,0], so the check above does not
-  // cover this one. The clone inherits it and the assignment below replaces it.
-  if (pbr.emissiveTexture) {
-    console.warn(
-      `[knight] '${source.name}' ships an emissiveTexture. It is discarded: face lighting puts the albedo there instead.`,
-    );
-  }
-
-  const face = source.clone('knightFace');
-  if (!face) {
-    // `Material.clone()` returns null on the base class (`material.pure.js:1189`); only subclasses
-    // that override it return anything. NOT a NodeMaterial, despite HANDOFF §5 proposing one for cel
-    // banding: it overrides `clone(name, shareEffect)`, and it exposes no `albedoTexture`, so a
-    // NodeMaterial head is already turned away by the guard above with a different message.
-    console.warn(
-      `[knight] '${source.name}' (${source.getClassName()}) did not clone — face lighting skipped.`,
-    );
-    return;
-  }
-  // `Material.clone()` runs every texture slot through `SerializationHelper.Clone`, which calls
-  // `sourceProperty.clone()`, so `face` owns its own `Texture` *wrappers* (verified: new uniqueIds).
-  // What it does not own is its own pixels — those wrappers share the source's `InternalTexture`,
-  // i.e. one GPU upload for both materials (verified: identical `_texture.uniqueId`).
-  //
-  // So the emissive slot takes the clone's OWN albedo wrapper, not the source's. Both point at the
-  // same upload, so nothing is saved by aliasing the source's — but aliasing it would couple the two
-  // materials at the wrapper level, where the mutable per-wrapper state lives (`level`, `uScale`,
-  // `coordinatesIndex`, `wrapU`). `trees.ts` sets `.level` on exactly such a carried-over wrapper, so
-  // that is a live pattern in this codebase, not a hypothetical.
-  //
-  // The shared upload IS reference-counted, and the clone already took a reference: `Texture.clone()`
-  // resolves through `BaseTexture._getFromCache`, which calls `incrementReferences()` on a hit — which
-  // is the only way the identical `_texture.uniqueId` above can arise. Measured live: `_references` is
-  // 2, cloning a wrapper takes it to 3 and disposing that wrapper returns it to 2 with the upload
-  // intact. (The counter is `_references`; there is no public `references`, so reading that proves
-  // nothing.) Disposing the clone's own wrappers would therefore be safe.
-  //
-  // It is still not done on the failure path, for an unrelated reason — Babylon's compile poll can
-  // outlive the material; see the catch below. The cost is that a failed compile leaves the clone's
-  // wrappers in `scene.textures` until teardown.
-  //
-  // This is NOT the HANDOFF §7 trap, which is the opposite shape: there a probe was handed the same
-  // wrapper *object* by assignment, so nothing ever incremented, and `dispose(_, true)` took the count
-  // from 1 to 0 and freed pixels the real material was still sampling.
-  const facePbr = face as GltfPbrMaterial;
-  if (!facePbr.albedoTexture) {
-    // Falling back to the source's wrapper here would silently give up the decoupling argued for
-    // above, and would leave the face with no albedo at all — flat albedoColor with the source's
-    // image in the emissive slot. That is worse than skipping, so skip and say so.
-    face.dispose(false, false);
-    console.warn(
-      `[knight] the clone of '${source.name}' came back without an albedoTexture — face lighting skipped.`,
-    );
-    return;
-  }
-  facePbr.emissiveTexture = facePbr.albedoTexture;
-  facePbr.emissiveColor = new Color3(FACE_EMISSIVE, FACE_EMISSIVE, FACE_EMISSIVE);
-  // The clone also inherits `emissiveIntensity`, which the shader folds into the emissive term as
-  // `vLightingIntensity.y` — and the shipped GLB does carry KHR_materials_emissive_strength with
-  // emissiveStrength 0 (see the README's GLB regeneration recipe), so this guard fires on every load
-  // of today's asset, not hypothetically: left unpinned, that 0 would multiply FACE_EMISSIVE to black
-  // and the measured table above would stop describing what renders. Pin it to 1 so the constant means
-  // what it says, and report the discard like the other two channels.
-  if (pbr.emissiveIntensity !== undefined && pbr.emissiveIntensity !== 1) {
-    console.warn(
-      `[knight] '${source.name}' has emissiveIntensity ${pbr.emissiveIntensity}. It is reset to 1: FACE_EMISSIVE is calibrated against unscaled emissive.`,
-    );
-  }
-  facePbr.emissiveIntensity = 1;
-  // Opt the face out of the scene's image-based lighting. `createEnvironment` sets
-  // `scene.environmentTexture` for the armour's metallic PBR (see `BODY_METALLIC`), and every PBR
-  // material reads it by default — but the face is hand-lit through `emissiveColor`/`FACE_EMISSIVE`,
-  // and letting the IBL add its diffuse irradiance on top would lift the toon face off the values that
-  // constant is calibrated against. Zero here keeps the face exactly as tuned, regardless of the
-  // environment; the armour keeps the material default of 1, which Babylon multiplies by
-  // `scene.environmentIntensity` — `IBL_INTENSITY`, 1.4 — for an effective 1.4.
-  facePbr.environmentIntensity = 0;
-  for (const mesh of head) mesh.material = face;
-
-  let abandoned = false;
-  try {
-    // Sequentially, NOT Promise.all: `forceCompilation` saves `allowShaderHotSwapping` into a per-call
-    // local and writes false for the duration, so concurrent calls on one material race — the later
-    // ones capture the false an earlier one wrote, and the last restore leaves it permanently off.
-    // Hot-swapping off is what makes a mesh vanish while a new variant compiles (HANDOFF §7), so the
-    // race would arm that trap for every later define change on the head.
-    await withTimeout(
-      (async () => {
-        for (const mesh of head) {
-          // Once the wait has been abandoned, stop feeding the loop: each call arms its own poll.
-          if (abandoned) return;
-          await face.forceCompilationAsync(mesh);
-        }
-      })(),
-      FACE_COMPILE_TIMEOUT_MS,
-      'face shader compile',
-    );
-  } catch (err) {
-    // The clone adds an EMISSIVE define on top of a 100-bone skinned variant already near the
-    // vertex-uniform ceiling, so this can fail where its parent succeeded. Put the head back on the
-    // material that already compiles rather than letting the rejection escape into hubScene.
-    abandoned = true;
-    for (const mesh of head) mesh.material = source;
-    // `face` is deliberately NOT disposed. On the timeout branch Babylon's compile poll may still be
-    // live against it — `checkReady` re-arms every 16 ms and its only bail-out is a missing scene
-    // (`material.pure.js:1243`), which `Material.dispose` never clears — so disposing here would
-    // leave that poll calling `isReadyForSubMesh` on a destroyed material, with a disposed uniform
-    // buffer, for the life of the page. One orphaned material is the cheaper failure.
-    console.warn('[knight] face material failed to compile; head reverted to the shared material:', err);
-  }
-}
+const KNIGHT_FACING = Quaternion.FromEulerAngles(0, PLAYER_MODEL.facingYaw, 0);
 
 /**
  * Builds "how high is the surface actually under the soles?", used by the foot-planting below.
@@ -928,47 +224,25 @@ export function plantFeet(
   return () => { scene.onBeforeRenderObservable.remove(observer); };
 }
 
-/**
- * Builds the dash trail, hidden and stopped: {@link driveKnightAnimation} starts it when `homing` turns
- * on and stops it at the bounce or the timeout.
- *
- * Unlit (`disableLighting`) rather than the crystal's lit-emissive combination in crystals.ts: a thin,
- * fast-tapering ribbon catches shading artefacts at its degenerate edges that a solid polyhedron
- * doesn't, and this effect only needs to read as a flat blue streak.
- */
-function createDashTrail(scene: Scene, generator: TransformNode): TrailMesh {
-  const mat = new StandardMaterial('knightTrailMat', scene);
-  // clone: handing out the module constant by reference lets a later mutation travel back into it
-  mat.emissiveColor = TRAIL_EMISSIVE.clone();
-  mat.disableLighting = true;
-  const trail = new TrailMesh('knightDashTrail', generator, scene, DASH_TRAIL_DIAMETER, DASH_TRAIL_LENGTH, false);
-  trail.material = mat;
-  trail.isPickable = false;
-  trail.setEnabled(false);
-  return trail;
+/** Seats the trail origin against this imported character's rendered torso. */
+export function anchorKnightTrail(
+  generator: TransformNode,
+  root: TransformNode,
+  importedNodes: readonly TransformNode[],
+): void {
+  // The converted VRM receipt identifies the same transform animated by FlyingKick. Following it
+  // preserves the origin when the pose raises or leans the body relative to the capsule.
+  const chest = importedNodes.find((node) => node.name === PLAYER_MODEL.trailTorsoNode && node.isDescendantOf(root));
+  generator.parent = chest ?? root;
+  generator.position.set(0, chest ? 0 : (TARGET_HEIGHT / 2 - CAPSULE_HALF - root.position.y) / root.scaling.y, 0);
 }
-
-/** Rejects if `promise` has not settled within `ms`. The underlying work is not cancellable — Babylon's
- *  compile poll keeps running — so this bounds the *wait*, not the work. */
-function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
-  let timer: ReturnType<typeof setTimeout>;
-  const expiry = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => reject(new Error(`${label} did not settle within ${ms} ms`)), ms);
-  });
-  return Promise.race([promise, expiry]).finally(() => clearTimeout(timer));
-}
-
 /**
  * Loads the knight GLB, parents it to `parent` (the physics-driven player root), scales it to
  * {@link TARGET_HEIGHT}, seats its feet at the capsule bottom, and returns the five animation
  * groups with Idle playing. The mesh inherits the parent's facing rotation. `motion` is polled each
  * frame to keep the feet planted only while the character is actually on the ground.
  *
- * Also gives the head its own material and **awaits its shader compile** — see
- * {@link applyFaceMaterial}. That await is what callers feel: `hubScene` awaits this before
- * `loadTrees` and `runRenderLoop`, so hub startup is gated on it for up to
- * {@link FACE_COMPILE_TIMEOUT_MS}. Face lighting never throws; every failure warns and leaves the
- * head on the material the rest of the character uses.
+ * Imported material metadata controls the toon adapter and body-only shadow reception.
  */
 export async function loadKnight(
   scene: Scene,
@@ -976,9 +250,7 @@ export async function loadKnight(
   shadows: Shadows,
   groundHeight: GroundHeight,
 ): Promise<Knight> {
-  // ?v bust: the browser aggressively caches the GLB, so a plain reload keeps serving an old copy.
-  // Bump this whenever knight_web.glb is rebuilt so clients refetch it.
-  const result = await ImportMeshAsync('/models/knight_web.glb?v=11', scene);
+  const result = await ImportMeshAsync(PLAYER_MODEL.url, scene);
   const root = result.meshes[0] as TransformNode;
   root.parent = parent;
   root.position.setAll(0);
@@ -991,11 +263,7 @@ export async function loadKnight(
   // The whole knight casts — including the head, so its shadow lands on the ground and the
   // shoulders. Only the body receives; a shadow edge across the face reads badly.
   shadows.cast(...result.meshes);
-  shadows.receive(...result.meshes.filter((m) => knightReceivesShadow(m.name)));
-
-  correctSharedNormalScale(result.meshes);
-  await applyFaceMaterial(result.meshes);
-  applyBodyPbr(result.meshes, scene);
+  shadows.receive(...applyPlayerMaterials(result.meshes, scene));
 
   const raw = root.getHierarchyBoundingVectors(true);
   const rawHeight = raw.max.y - raw.min.y;
@@ -1018,11 +286,8 @@ export async function loadKnight(
   const jump = byName(/jump/i);
   const kick = byName(/kick/i);
   if (!idle || !walk || !run || !jump || !kick) {
-    throw new Error(`knight_web.glb must contain Idle, Walk, Run, Jump and Flying Kick animations; found: ${groups.map((g) => g.name).join(', ') || '(none)'}`);
+    throw new Error(`${PLAYER_MODEL.url} must contain Idle, Walk, Run, Jump and Flying Kick animations; found: ${groups.map((g) => g.name).join(', ') || '(none)'}`);
   }
-  // Every clip carries a root-bone reorientation from the retarget (a big ~96° pitch on Walk, a small
-  // forward lean on Idle); neutralise them all so the knight stands straight rather than tipping over.
-  for (const g of groups) neutralizeRootBoneRotation(g);
   // The mocap idle rocks the torso ~2cm side to side ("leans left then right"). Damp the whole idle
   // toward its average pose so the knight stands steady, keeping a little life. Idle only — damping a
   // run or a jump would flatten exactly the motion those clips exist for.
@@ -1030,89 +295,39 @@ export async function loadKnight(
   for (const g of groups) g.stop();
   idle.play(true);
 
-  // The trail must NOT be generated off `root` itself: `root` is the glTF `__root__` node, and the
-  // seating above puts its origin at the CAPSULE's bottom — the knight's FEET, not its body — so a
-  // `TrailMesh` fed `root` as its generator draws the ribbon from ground level regardless of where the
-  // character actually is (the bug the owner saw). A dedicated generator node fixes it without moving
-  // `root` itself, which everything else in this file (foot planting, the terrain re-anchor below)
-  // depends on staying exactly where it is.
-  //
-  // Same coordinate-space trap `DASH_TRAIL_DIAMETER` documents: `trailGenerator` is parented to `root`,
-  // so its world position is `root`'s world matrix applied to its OWN local position — and `root.scaling`
-  // (set above to `TARGET_HEIGHT / rawHeight`) is part of that matrix. So a local Y of `rawHeight / 2`
-  // (half the model's own raw height, in the GLB's own units, BEFORE the `TARGET_HEIGHT` rescale) lands
-  // at `rawHeight / 2 * root.scaling` = `rawHeight / 2 * (TARGET_HEIGHT / rawHeight)` = `TARGET_HEIGHT / 2`
-  // in world space — mid-torso on the rescaled, on-screen knight. Using a world-space or `TARGET_HEIGHT`-
-  // relative offset here instead would be off by whatever `root.scaling` happens to be, the same mistake
-  // `DASH_TRAIL_DIAMETER`'s doc warns against for the ribbon's width.
+  // Attach to the animated torso after the known Idle seating is evaluated below.
   const trailGenerator = new TransformNode('knightTrailGenerator', scene);
   trailGenerator.parent = root;
-  trailGenerator.position.y = rawHeight / 2;
 
-  const trail = createDashTrail(scene, trailGenerator);
-  // Filled as the two frame-loop subscriptions below are made, drained by `release`. A list rather
-  // than two fields because the second one only exists after the first has run, and a level torn down
-  // in between has to release whatever there is.
+  const trail = createDashTrail(scene, trailGenerator, PLAYER_MODEL.trailRadius);
+  // Frame-loop subscriptions owned by this visual, drained by release before scene teardown.
   const attached: (() => void)[] = [];
+  // Blink and foot planting each own their own scene subscription.
+  const releaseBlink = attachPlayerBlink(scene, result.meshes);
   const knight: Knight = {
     animations: { idle, walk, run, jump, kick },
     planted: 1,
     trail,
-    release: () => { for (const detach of attached.splice(0)) detach(); },
+    release: () => { releaseBlink(); trail.dispose(); trailGenerator.dispose(); for (const detach of attached.splice(0)) detach(); },
   };
 
-  // Bind-pose bounds don't match the animated idle pose (the knight floated ~0.8u above the floor),
-  // so re-seat once on the actual posed mesh after the first rendered frame.
+  // Calibrate against a known Idle pose before the animation driver can switch to a spawn fall,
+  // jump or locomotion. The first rendered frame is not a pose-readiness boundary: linked glTF
+  // bones can still have a cached bind-pose palette, leaving the new model ~0.77u above the floor.
+  // Explicitly evaluate frame zero and synchronize skin/world matrices; no render or timer needed.
   const skinnedMeshes = result.meshes.filter((m) => m.skeleton && m.getTotalVertices() > 0);
   if (skinnedMeshes.length > 0) {
-    const seating = scene.onAfterRenderObservable.add(() => {
-      // Seat on the lowest *skinned vertex*, not the foot bones: the shoe sole extends well below the
-      // bones, and the old fixed clearance that compensated for it was hand-tuned, which is what left
-      // the knight slightly floating on flat ground. refreshBoundingInfo(applySkeleton) is expensive,
-      // but this runs exactly once.
-      for (const m of skinnedMeshes) m.refreshBoundingInfo({ applySkeleton: true, applyMorph: false });
-      const sole = Math.min(...skinnedMeshes.map((m) => m.getBoundingInfo().boundingBox.minimumWorld.y));
-      root.position.y += parent.getAbsolutePosition().y - CAPSULE_HALF - sole;
-      const seatedLocalY = root.position.y; // feet grounded when the capsule bottom sits on the surface
-      scene.onAfterRenderObservable.remove(seating);
-      attached.length = 0; // this pass is done unsubscribing itself; only the plant is left to release
-
-      // On rolling terrain the physics capsule rests ABOVE the ground (its rounded bottom rides
-      // slopes/bumps, plus the controller's keepDistance), so a rigidly-parented knight floats. Each
-      // frame, drop the visual by however far the capsule bottom sits above the surface under the
-      // player, so the feet stay planted.
-      //
-      // That surface is whatever the player is actually standing on, not the world's ground query —
-      // see {@link createGroundProbe}, which is what lets the knight stand ON the hub's plaza
-      // pedestal instead of rendering through it.
-      //
-      // Airborne that correction is exactly wrong — the gap to the ground IS the jump height, so
-      // applying it would pin the knight to the ground while the capsule flies. `knight.planted`
-      // fades it out, which also keeps takeoff and landing from popping. The probe is skipped
-      // entirely once the correction is fading to nothing, so a jump costs no raycast.
-      attached.push(plantFeet(scene, root, parent, knight, seatedLocalY, groundHeight));
-    });
-    attached.push(() => { scene.onAfterRenderObservable.remove(seating); });
+    idle.goToFrame(idle.from);
+    const sole = measureSkinnedSole(skinnedMeshes);
+    root.position.y += parent.getAbsolutePosition().y - CAPSULE_HALF - sole;
+    const seatedLocalY = root.position.y;
+    // The capsule's keepDistance and slopes lift its bottom above support. Planting removes that
+    // small gap while grounded, then fades out with the same airborne signal as the jump pose.
+    attached.push(plantFeet(scene, root, parent, knight, seatedLocalY, groundHeight));
   }
 
+  anchorKnightTrail(trailGenerator, root, result.transformNodes);
   return knight;
-}
-
-/**
- * The Mixamo→Character-Creator retarget baked a root-bone (`RL_BoneRoot`) reorientation into each
- * clip — a ~96° X pitch on Walk and a small forward lean on Idle (a Z-up↔Y-up correction that is
- * wrong once the model is displayed Y-up), which tips the whole knight over. Reset that one track
- * to identity; world placement/orientation comes from the player root anyway.
- */
-function neutralizeRootBoneRotation(group: AnimationGroup): void {
-  for (const targeted of group.targetedAnimations) {
-    const targetName = (targeted.target as { name?: string } | null)?.name ?? '';
-    if (/RL_BoneRoot/i.test(targetName) && targeted.animation.targetProperty === 'rotationQuaternion') {
-      for (const key of targeted.animation.getKeys()) {
-        (key.value as Quaternion).set(0, 0, 0, 1);
-      }
-    }
-  }
 }
 
 /**
@@ -1198,7 +413,7 @@ const BOUNCE_RESTART = 0.76;
 
 /**
  * Flying Kick clip segment, in seconds into the imported clip's 1.500s range — measured the same way
- * as {@link JUMP_LAUNCH_START} above, but by parsing `public/models/knight_web.glb`'s animation
+ * as {@link JUMP_LAUNCH_START} above, but by parsing `tools/knight-feet/reference.glb`'s animation
  * samplers directly rather than eyeballing playback, since no browser pass has ever watched this clip
  * (see the note on `DASH_TRAIL_DIAMETER`). Read off the `Hips` translation and the right leg's
  * rotation tracks (`RightUpperLeg`, `RightLowerLeg`), the knee-fold angle being each frame's rotation
@@ -1395,8 +610,6 @@ export function driveKnightAnimation(
     if (homing && !wasHoming) {
       // Collapse the ribbon to the current position so it grows fresh from the dash's start, rather
       // than snapping in a straight line from wherever it last trailed off.
-      knight.trail.reset();
-      knight.trail.setEnabled(true);
       knight.trail.start();
       // Retime [KICK_STRIKE_START, KICK_STRIKE_END] onto the dash's expected screen time, the same way
       // the jump segment above is retimed onto `airtime` — see KICK_STRIKE_START's doc for why playing
@@ -1414,7 +627,6 @@ export function driveKnightAnimation(
     }
     if (!homing && wasHoming) {
       knight.trail.stop();
-      knight.trail.setEnabled(false);
     }
     wasHoming = homing;
 

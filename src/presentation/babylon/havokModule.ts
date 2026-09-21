@@ -15,7 +15,8 @@ import HavokPhysics from '@babylonjs/havok';
  * `levelSwap.ts`, is the only thing that stops them overlapping today, and this does not want to
  * depend on that staying true.)
  *
- * Nothing ever clears it, and that is safe rather than a leak: the module is not per-scene state.
+ * Successful compilation remains cached: the module is not per-scene state. Failed attempts are
+ * cleared so the title screen can retry a temporary WASM fetch failure without reloading the page.
  * `scene.dispose()` disposes the physics engine, which disposes the plugin, which releases its own
  * Havok worlds and query collectors — it does not touch the module those worlds were created from.
  *
@@ -27,5 +28,8 @@ import HavokPhysics from '@babylonjs/havok';
  */
 let compiling: ReturnType<typeof HavokPhysics> | undefined;
 
-/** The shared Havok module; see this file's own doc for why the cache is here and never cleared. */
-export const loadHavok = (): ReturnType<typeof HavokPhysics> => (compiling ??= HavokPhysics());
+/** Share in-flight work and successful modules; a rejection permits the next call to retry. */
+export const loadHavok = (): ReturnType<typeof HavokPhysics> => (compiling ??= HavokPhysics().catch((error: unknown) => {
+  compiling = undefined;
+  throw error;
+}));

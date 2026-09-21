@@ -2,6 +2,7 @@ import type { Scene } from '@babylonjs/core/scene';
 import { Color3 } from '@babylonjs/core/Maths/math.color';
 import { CreateDisc } from '@babylonjs/core/Meshes/Builders/discBuilder';
 import { DynamicTexture } from '@babylonjs/core/Materials/Textures/dynamicTexture';
+import { rng } from '../../domain/math/rng';
 import { FresnelParameters } from '@babylonjs/core/Materials/fresnelParameters';
 import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
 // Side-effect: registers the StandardMaterial shader. Required with tree-shaken deep imports.
@@ -56,6 +57,28 @@ function rippleNormalTexture(scene: Scene): DynamicTexture {
   return tex;
 }
 
+/** Quiet colour variation and short reflected-sky strokes give the pond a readable surface. */
+function waterColorTexture(scene: Scene): DynamicTexture {
+  const tex = new DynamicTexture('pondColor', { width: 512, height: 512 }, scene, true);
+  const ctx = tex.getContext() as unknown as CanvasRenderingContext2D;
+  const gradient = ctx.createLinearGradient(0, 0, 512, 512);
+  gradient.addColorStop(0, '#465f65');
+  gradient.addColorStop(0.55, '#6b8583');
+  gradient.addColorStop(1, '#536e70');
+  ctx.fillStyle = gradient; ctx.fillRect(0, 0, 512, 512);
+  const rand = rng(145);
+  ctx.lineCap = 'round';
+  for (let i = 0; i < 42; i++) {
+    const x = rand() * 512, y = rand() * 512, length = 5 + rand() * 24;
+    ctx.strokeStyle = `rgba(213,226,223,${0.055 + rand() * 0.085})`;
+    ctx.lineWidth = 0.8 + rand() * 1.2;
+    ctx.beginPath(); ctx.moveTo(x, y);
+    ctx.quadraticCurveTo(x + length / 2, y - 1.5, x + length, y); ctx.stroke();
+  }
+  tex.update();
+  return tex;
+}
+
 /**
  * Builds the pond: a disc at the water surface with animated ripple normals.
  *
@@ -77,16 +100,20 @@ export function createWater(scene: Scene, body: WaterBody = POND): void {
   surface.isPickable = false;
 
   const mat = new StandardMaterial('waterMat', scene);
-  mat.diffuseColor = new Color3(0.16, 0.34, 0.42);
+  mat.diffuseColor = new Color3(0.6, 0.72, 0.72);
+  const color = waterColorTexture(scene);
+  mat.diffuseTexture = color;
   // Water is the one surface here that should carry a highlight — unlike the trees, where specular
   // is zeroed because PBR roughness 0.5 never produced one.
-  mat.specularColor = new Color3(0.55, 0.6, 0.6);
-  mat.specularPower = 96;
+  mat.specularColor = new Color3(0.12, 0.16, 0.16);
+  mat.specularPower = 64;
+  mat.emissiveColor = new Color3(0.025, 0.045, 0.045);
   mat.ambientColor = new Color3(1, 1, 1); // pick up the hemispheric ambient, as the rocks do
   mat.alpha = WATER_ALPHA;
   // Held as a DynamicTexture, NOT read back off `mat.bumpTexture` — that is typed
   // `Nullable<BaseTexture>`, and `uOffset` lives on `Texture`, so the scroll below would not compile.
   const ripple = rippleNormalTexture(scene);
+  ripple.level = 0.18; // shallow pond ripples, avoiding harsh normal-map highlights
   mat.bumpTexture = ripple;
   // Edge-versus-centre opacity: looking straight down the water is clearer, at a grazing angle it
   // turns opaque. The largest "reads as water" gain available without a render target.

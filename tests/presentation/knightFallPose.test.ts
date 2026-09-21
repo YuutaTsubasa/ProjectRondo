@@ -7,7 +7,7 @@ import { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { Animation } from '@babylonjs/core/Animations/animation';
 import { AnimationGroup } from '@babylonjs/core/Animations/animationGroup';
-import { TrailMesh } from '@babylonjs/core/Meshes/trailMesh';
+import { createDashTrail } from '../../src/presentation/babylon/dashTrail';
 
 import {
   driveKnightAnimation,
@@ -136,7 +136,7 @@ function mount(): Rig {
   const knight: Knight = {
     animations,
     planted: 1,
-    trail: new TrailMesh('trail', new TransformNode('trailGen', scene), scene, 0.1, 10, false),
+    trail: createDashTrail(scene, new TransformNode('trailGen', scene)),
     // Nothing to release: this rig never runs `loadKnight`, so nothing put the seating pass or the
     // foot plant on this scene's frame loop. The animation observer is `driveKnightAnimation`'s own,
     // and it hands its unsubscribe back separately.

@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import sharp from 'sharp';
 import {
   resolvePortrait,
   resolvePortraitAnimated,
@@ -39,12 +40,18 @@ const HAVE_FFMPEG = (() => {
  * a complete set of alpha chunks that are uniformly opaque. That shipped once, and looked fine to
  * every structural check.
  *
- * Node cannot decode WebP or VP9 alone, so this needs ffmpeg on PATH and names the skip in its
- * title when absent.
+ * sharp decodes the first WebP frame, including animated WebP unsupported by some ffmpeg builds.
+ * VP9 still needs ffmpeg on PATH; those tests name the dependency and skip when it is absent.
  */
-function cornerAlpha(file: string): number {
-  const args = ['-v', 'error'];
-  if (file.endsWith('.webm')) args.push('-c:v', 'libvpx-vp9'); // the native decoder drops alpha
+async function cornerAlpha(file: string): Promise<number> {
+  if (file.endsWith('.webp')) {
+    const { data, info } = await sharp(file, { page: 0, pages: 1 })
+      .ensureAlpha()
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+    return data[info.channels - 1];
+  }
+  const args = ['-v', 'error', '-c:v', 'libvpx-vp9']; // the native decoder drops alpha
   args.push('-i', file, '-frames:v', '1', '-vf', 'format=rgba,crop=1:1:0:0', '-f', 'rawvideo', '-pix_fmt', 'rgba', '-');
   return execFileSync('ffmpeg', args, { maxBuffer: 1 << 20 })[3];
 }
@@ -85,7 +92,7 @@ describe('portrait assets', () => {
   const videoFrames = (url: string) =>
     Number(
       execFileSync('ffprobe', [
-        ...['-v', 'error', '-c:v', 'libvpx-vp9', '-count_frames'],
+        ...['-v', 'error', '-count_frames'], // native VP9 is sufficient to count frames
         ...['-select_streams', 'v:0', '-show_entries', 'stream=nb_read_frames'],
         ...['-of', 'default=nw=1:nokey=1', fileFor(url)],
       ]).toString().trim(),
@@ -114,7 +121,7 @@ describe('portrait assets', () => {
   // Length is time, not frames. The two files store their rate in different places — the WebM in
   // its stream, the WebP in per-frame durations — so equal frame counts at unequal rates is a loop
   // running at half or double speed against the one it stands in for, seen only by whichever
-  // engines took the other branch. Both are 5166ms today.
+  // engines took the other branch.
   it.skipIf(!HAVE_FFMPEG)('the WebM runs for as long as the WebP it stands in for (needs ffmpeg)', () => {
     const durations = webpFrameDurations(resolvePortraitAnimated('neutral'));
     const webp = durations.reduce((total, frame) => total + frame, 0);
@@ -135,12 +142,14 @@ describe('portrait assets', () => {
 
   // The portrait stands over the live 3D scene. Without a usable alpha the removed background comes
   // back as an opaque rectangle in front of the hub, which nothing else here can see.
-  it.skipIf(!HAVE_FFMPEG)('every portrait is genuinely transparent, not merely alpha-capable (needs ffmpeg)', () => {
-    expect(urls().filter((u) => cornerAlpha(fileFor(u)) !== 0)).toEqual([]);
+  it.skipIf(!HAVE_FFMPEG)('every portrait is genuinely transparent, not merely alpha-capable (needs ffmpeg)', async () => {
+    const portraits = urls();
+    const alphas = await Promise.all(portraits.map((u) => cornerAlpha(fileFor(u))));
+    expect(portraits.filter((_, index) => alphas[index] !== 0)).toEqual([]);
   });
 
-  it.skipIf(!HAVE_FFMPEG)('the VP9 probe is fully transparent, or it proves nothing (needs ffmpeg)', () => {
-    expect(cornerAlpha(fileFor(probeUrl()!))).toBe(0);
+  it.skipIf(!HAVE_FFMPEG)('the VP9 probe is fully transparent, or it proves nothing (needs ffmpeg)', async () => {
+    expect(await cornerAlpha(fileFor(probeUrl()!))).toBe(0);
   });
 
   // The WebM is the upgrade, never the baseline: WKWebView plays VP9 and ignores its alpha, so an
