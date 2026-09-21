@@ -156,6 +156,7 @@ export function createPlayer(
   input: InputState,
   crystals: Crystals,
   spawn: Vector3,
+  movement: Partial<MovementConfig> = {},
 ): Player {
   // Where the capsule's CENTRE starts. The caller owns it, because only the caller knows what the
   // ground under it is — see the hub's call site for how it places the capsule's base on the terrain.
@@ -167,7 +168,7 @@ export function createPlayer(
   );
   // A mutable copy of the movement config, exposed on `window.moveConfig` in dev so speed/accel can be
   // tuned live (e.g. `moveConfig.maxSpeed = 3.5`) to match the walk animation without a rebuild.
-  const config = { ...DEFAULT_CONFIG };
+  const config = { ...DEFAULT_CONFIG, ...movement };
   exposeDevHandle(scene, 'moveConfig', config);
   // The Havok controller itself, for probing its solver settings live in dev.
   exposeDevHandle(scene, 'charController', controller);

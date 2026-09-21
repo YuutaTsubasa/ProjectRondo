@@ -563,6 +563,8 @@ export function driveKnightAnimation(
     const dt = scene.getEngine().getDeltaTime() / 1000;
     const { planarSpeed, airborne, homing, bounced, homingEntrySeconds } = motion();
     const { walk: walkSpeed, run: runSpeed, airtime } = tuning();
+    // The current run clip was calibrated at 8 units/s; keep its stride rate in step with level tuning.
+    run.speedRatio = runSpeed / 8;
 
     // --- off the ground, and the jump clip's seam ------------------------------------------------
     // Nothing is re-decided here: `stepJumpPose` owns both the off-ground signal the rest of this

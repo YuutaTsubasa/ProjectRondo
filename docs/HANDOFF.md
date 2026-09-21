@@ -592,3 +592,9 @@ Validation: 88 files / 632 tests pass, including guarded flow, lazy mount, focus
 - Escape or HUD Pause freezes physics/timer; Babylon's public animation-clock reset excludes paused/hidden/loading time on resume. Pause button handles Space before window game input. Replay reuses loaded assets and resets progress; exit disposes level/engine with late-build guards.
 - Validation: 651 tests/94 files pass; typecheck zero errors/warnings; build passes (existing large-chunk warning). Actual browser input driver cleared all jumps +8 homing hits in22s,0falls,0errors. Separate QA verified checkpoint fall recovery, pause/resume, replay, main-menu return and original AVG Start. Human first-attempt difficulty remains to be evaluated; this is a short first playable course, not the earlier proposed2–3minute pacing.
 - This course builds on visual/menu snapshot 8f371eb. `.superpowers/course-qa.*` is ignored local diagnostics, not the user entry URL.
+
+### 2026-09-21: Trial speed tuning after playtest
+
+- User found the trial run slow. Added a per-level movement profile: running8->10 (+25%), acceleration13->22 (full speed~0.45s), deceleration17->28 (stopping distance~1.8m). Walking4, jump/gravity and Homing tuning are inherited. Hub/tower keep their existing movement defaults.
+- The current run clip is calibrated at8units/s, so its playback ratio follows configured run speed (1.25 in the trial) and survives airborne-to-running transitions. Course layout checks now consume the actual trial profile.
+- Validation:654 tests/95files, typecheck and production build pass. Browser input traversal completed withrunSpeed10,runRate1.25,8Hominghits,0falls,0errors (~17seconds ideal scripted run). This timing is diagnostic, not a first-time player estimate.

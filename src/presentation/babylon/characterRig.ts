@@ -10,6 +10,7 @@ import { createPlayer, type Player } from './playerController';
 import { loadKnight, driveKnightAnimation, type Knight, type KnightMotionSample } from './knight';
 import type { Shadows } from './shadows';
 import type { Crystals } from './crystals';
+import type { MovementConfig } from '../../domain/hub/character/movementConfig';
 
 export interface CharacterRigOptions {
   readonly canvas: HTMLCanvasElement;
@@ -26,6 +27,8 @@ export interface CharacterRigOptions {
    * level that inherits it silently is a level nobody decided it for.
    */
   readonly descentFollow: boolean;
+  /** Optional per-level tuning, copied by the player so other scenes retain their defaults. */
+  readonly movement?: Partial<MovementConfig>;
   /** Initial heading around the player; existing levels retain zero. */
   readonly initialYaw?: number;
   readonly cameraFraming?: Partial<Pick<FollowCameraConfig, 'distance' | 'height' | 'aimHeight' | 'initialPitch'>>;
@@ -181,7 +184,7 @@ async function buildCharacterRig(
   // on the first build there is none -- it is here to stop the mouse-move steering and the click.
   input.setEnabled(false);
   follow.setEnabled(false);
-  const player = createPlayer(scene, root, follow, input, options.crystals, options.spawn);
+  const player = createPlayer(scene, root, follow, input, options.crystals, options.spawn, options.movement);
   pieces.player = player;
   const readMotion = (): KnightMotionSample => {
     const v = player.motion.velocity;

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { COURSE_GATES, COURSE_SPAWN, COURSE_KILL_Y, COURSE_PLATFORMS, COURSE_CRYSTALS, COURSE_JUMPS, COURSE_CHAINS } from '../../../src/domain/course/courseLayout';
-import { MovementConstants as movement } from '../../../src/domain/hub/character/movementConstants';
+import { COURSE_MOVEMENT as movement } from '../../../src/domain/course/courseMovement';
 import { selectHomingTarget } from '../../../src/domain/hub/character/homingTarget';
 import { CAPSULE_HALF, CAPSULE_RADIUS, SPAWN_CLEARANCE } from '../../../src/presentation/babylon/capsule';
 import { vec3 } from '../../../src/domain/math/vec3';

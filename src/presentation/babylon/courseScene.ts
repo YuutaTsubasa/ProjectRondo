@@ -4,6 +4,7 @@ import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { HavokPlugin } from '@babylonjs/core/Physics/v2/Plugins/havokPlugin';
 import '@babylonjs/core/Physics/joinedPhysicsEngineComponent';
 import { COURSE_SPAWN, COURSE_PLATFORMS, COURSE_CRYSTALS } from '../../domain/course/courseLayout';
+import { COURSE_MOVEMENT } from '../../domain/course/courseMovement';
 import { createCharacterRig } from './characterRig';
 import type { Player } from './playerController';
 import type { FollowCamera } from './followCamera';
@@ -49,6 +50,7 @@ export async function createCourseScene(engine: Engine, canvas: HTMLCanvasElemen
       spawn: new Vector3(COURSE_SPAWN.x, COURSE_SPAWN.y, COURSE_SPAWN.z),
       crystals,
       initialYaw: Math.PI,
+      movement: COURSE_MOVEMENT,
       cameraFraming: { distance: 8, height: 2, initialPitch: -0.08 },
       descentFollow: true,
     });
