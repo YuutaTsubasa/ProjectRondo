@@ -36,6 +36,7 @@
   function act(action: FrontDoorAction) {
     const next = stepFrontDoor(phase, action);
     if (next === phase) return;
+    if (action === 'palace') entry = 'palace';
     if (action === 'course') entry = 'course';
     if (action === 'start') entry = 'hub';
     if (action === 'leave') Game = undefined;

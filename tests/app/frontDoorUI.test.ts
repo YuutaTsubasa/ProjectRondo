@@ -36,6 +36,8 @@ describe('title and main menu', () => {
     key('ArrowDown'); await settle();
     expect(document.activeElement).toBe(button('試玩第一關'));
     key('ArrowDown'); await settle();
+    expect(document.activeElement).toBe(button('試玩 2D 關卡'));
+    key('ArrowDown'); await settle();
     expect(document.activeElement).toBe(button('設定'));
     button('設定').click(); await settle();
     expect(document.activeElement?.getAttribute('aria-label')).toBe('整體音量');

@@ -1,9 +1,9 @@
 export type FrontDoorPhase = 'title' | 'menu' | 'settings' | 'loading' | 'game' | 'error';
-export type FrontDoorAction = 'activate' | 'settings' | 'back' | 'start' | 'ready' | 'fail' | 'retry' | 'course' | 'leave';
+export type FrontDoorAction = 'activate' | 'settings' | 'back' | 'start' | 'ready' | 'fail' | 'retry' | 'course' | 'palace' | 'leave';
 
 const transitions: Record<FrontDoorPhase, Partial<Record<FrontDoorAction, FrontDoorPhase>>> = {
   title: { activate: 'menu' },
-  menu: { course: 'loading', start: 'loading', settings: 'settings', back: 'title' },
+  menu: { palace: 'loading', course: 'loading', start: 'loading', settings: 'settings', back: 'title' },
   settings: { back: 'menu' },
   loading: { ready: 'game', fail: 'error' },
   game: { leave: 'menu' },
