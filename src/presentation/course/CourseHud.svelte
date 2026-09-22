@@ -32,7 +32,7 @@
     <button class="pause" aria-label="暫停關卡" onclick={onPause} onkeydown={pauseKey}>Ⅱ <span>暫停</span></button>
   </header>
   <div class="progress"><span class="diamond" aria-hidden="true">◆</span><span><small>CHECKPOINT {String(run.checkpoint + 1).padStart(2, '0')}</small>{checkpointLabel}</span></div>
-  <footer><span><kbd>W A S D</kbd> 移動 <kbd>SPACE</kbd> 跳躍</span><span>空中再按 <kbd>SPACE</kbd> Homing Attack</span><span>點擊畫面轉動視角 · <kbd>ESC</kbd> 暫停</span></footer>
+  <footer><span><kbd>W A S D</kbd> 移動 <kbd>SPACE</kbd> 跳躍／二段跳</span><span><kbd>J</kbd> 揮劍 · 空中鎖定時盾牌衝擊</span><span>點擊畫面轉動視角 · <kbd>ESC</kbd> 暫停</span></footer>
 </div>
 {#if status !== 'playing'}
   <div class="modal-backdrop">

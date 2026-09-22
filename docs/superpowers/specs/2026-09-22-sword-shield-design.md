@@ -1,0 +1,9 @@
+# Sword, shield and double jump
+
+Approved in conversation on 2026-09-22: right-hand one-handed sword, left-hand medium shield; Space for ground jump and one air jump; J for sword slash on ground or in air without a target, and shield Homing when airborne with a target. Preserve Homing arrival bounce and chaining. Landing restores the air jump; a Homing bounce does not. No blocking mechanic, enemies, combo tree or inventory in this slice.
+
+Use the shared character rig in the meadow, tower and trial. Movement keeps current per-level tuning. Existing crystals are the available hit receivers: a short frontal slash flashes nearby crystals once per swing without bouncing the player. A slash is about half a second with anticipation, active hit, recovery; holding J must not repeat. The attack button selects one action, Homing takes priority over a sword swing in air, and cannot retarget a dash already underway. Jump and attack are separate edges; jump cannot steal an attack or consume an air jump while a dash owns movement.
+
+Generate compact polished metal sword/shield meshes in Babylon and attach to the imported hand joints using the import receipt, after model seating. Procedural upper-body poses and a brief slash arc provide first-pass animation; shield dash must visibly lead with the shield rather than retain the old flying kick. Preserve blink, foot seating and run speed. Effects and pose time advance with game frames, pause with the scene, and release on scene teardown.
+
+Tests cover independent input edges and suspension, one air jump per landing, bounce/dash invariants, action routing, single-hit frontal melee, equipment attachment/cleanup and pose restoration. Browser checks exercise normal and air slash, double jump, shield chains and trial completion/replay; check clipping and forward-facing shield.

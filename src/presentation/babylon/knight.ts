@@ -13,6 +13,7 @@ import '@babylonjs/loaders/glTF';
 import { CAPSULE_HALF } from './capsule';
 import { measureSkinnedSole } from './skinnedSole';
 import { PLAYER_MODEL } from './playerModel';
+import { createKnightEquipment, type KnightEquipment } from './knightEquipment';
 import { applyPlayerMaterials } from './playerMaterials';
 import { attachPlayerBlink } from './playerBlink';
 import type { GroundHeight } from './groundHeight';
@@ -29,6 +30,10 @@ export interface KnightAnimations {
 
 /** What the animation layer needs to know about the player each frame. */
 export interface KnightMotionSample {
+  /** Elapsed game time in the current half-second slash; null/undefined at rest. */
+  readonly swordSeconds?: number | null;
+  /** One-frame cue for the second jump. */
+  readonly airJumped?: boolean;
   /** Horizontal speed, world units/s. */
   readonly planarSpeed: number;
   /**
@@ -75,6 +80,7 @@ export interface KnightTuning {
 
 /** The loaded knight: its clips, plus the foot-planting seam {@link driveKnightAnimation} drives. */
 export interface Knight {
+  readonly equipment?: KnightEquipment;
   readonly animations: KnightAnimations;
   /**
    * How much the visual is pulled down onto the terrain: 1 = feet planted, 0 = riding the capsule.
@@ -304,11 +310,13 @@ export async function loadKnight(
   const attached: (() => void)[] = [];
   // Blink and foot planting each own their own scene subscription.
   const releaseBlink = attachPlayerBlink(scene, result.meshes);
+  let equipment: KnightEquipment | undefined;
   const knight: Knight = {
+    get equipment() { return equipment; },
     animations: { idle, walk, run, jump, kick },
     planted: 1,
     trail,
-    release: () => { releaseBlink(); trail.dispose(); trailGenerator.dispose(); for (const detach of attached.splice(0)) detach(); },
+    release: () => { equipment?.dispose(); releaseBlink(); trail.dispose(); trailGenerator.dispose(); for (const detach of attached.splice(0)) detach(); },
   };
 
   // Calibrate against a known Idle pose before the animation driver can switch to a spawn fall,
@@ -327,6 +335,7 @@ export async function loadKnight(
   }
 
   anchorKnightTrail(trailGenerator, root, result.transformNodes);
+  equipment = createKnightEquipment(scene, root, result.transformNodes, shadows);
   return knight;
 }
 
@@ -561,7 +570,8 @@ export function driveKnightAnimation(
 
   const observer = scene.onBeforeRenderObservable.add(() => {
     const dt = scene.getEngine().getDeltaTime() / 1000;
-    const { planarSpeed, airborne, homing, bounced, homingEntrySeconds } = motion();
+    const sample = motion();
+    const { planarSpeed, airborne, homing, bounced, homingEntrySeconds, airJumped } = sample;
     const { walk: walkSpeed, run: runSpeed, airtime } = tuning();
     // The current run clip was calibrated at 8 units/s; keep its stride rate in step with level tuning.
     run.speedRatio = runSpeed / 8;
@@ -577,7 +587,7 @@ export function driveKnightAnimation(
       // Stretch (or compress) the segment onto the actual airtime so the pose lands with the capsule.
       const ratio = (JUMP_FALL_END - JUMP_LAUNCH_START) / Math.max(airtime, DIVISOR_FLOOR);
       playSegment(jump, JUMP_LAUNCH_START, JUMP_FALL_END, ratio);
-    } else if (pose.cue === 'bounce') {
+    } else if (pose.cue === 'bounce' || airJumped) {
       // Untuned, unlike `ratio` above: retiming this the same way would need a bounce-specific
       // airtime, and `KnightTuning` exposes none. Reusing the ordinary jump's `airtime` would
       // misrepresent the bounce — that value is derived from `jumpSpeed`, while a bounce rises at
@@ -606,6 +616,7 @@ export function driveKnightAnimation(
     // frame, 159.99 in all four. {@link holdFrame} has the mechanism.
     if (offGround && !jump.isPlaying) holdFrame(jump, JUMP_FALL_END);
 
+    // Equipped knights use the upper-body shield pose; the legacy kick remains for bare test rigs.
     // --- homing dash pose and trail ---------------------------------------------------------------
     // `offGround` stays true across the whole dash and the bounce that ends it, so the block above
     // has no edge to fire on there — `homing`'s own edges are what drive the kick clip and the ribbon.
@@ -619,13 +630,13 @@ export function driveKnightAnimation(
       // set here (a dash cannot start without a freshly-locked crystal, which is what sets it — see
       // `Player.homingEntrySeconds`), but fall back to natural rate with a warning rather than divide
       // by a missing number if that invariant is ever wrong.
-      if (homingEntrySeconds === null) {
+      if (!knight.equipment && homingEntrySeconds === null) {
         console.warn('[knight] homing dash started with no homingEntrySeconds — playing the kick at natural rate.');
       }
       const kickRatio = (KICK_STRIKE_END - KICK_STRIKE_START) / Math.max(homingEntrySeconds ?? (KICK_STRIKE_END - KICK_STRIKE_START), DIVISOR_FLOOR);
       // `playSegment` calls `stop()` first for the same reason its own doc gives: `AnimationGroup.start()`
       // silently no-ops on an already-playing group, which would leave a second dash mid-flight with no clip.
-      playSegment(kick, KICK_STRIKE_START, KICK_STRIKE_END, kickRatio);
+      if (!knight.equipment) playSegment(kick, KICK_STRIKE_START, KICK_STRIKE_END, kickRatio);
     }
     if (!homing && wasHoming) {
       knight.trail.stop();
@@ -655,7 +666,7 @@ export function driveKnightAnimation(
     // it, rather than whatever a stopped group had happened to leave behind.
     jumpWeight = moveToward(jumpWeight, offGround ? 1 : 0, JUMP_BLEND_PER_SECOND * dt);
     // Same fast ease as the jump: a dash pose has to read as immediate, not cross-fade in.
-    kickWeight = moveToward(kickWeight, homing && kick.isPlaying ? 1 : 0, JUMP_BLEND_PER_SECOND * dt);
+    kickWeight = moveToward(kickWeight, !knight.equipment && homing && kick.isPlaying ? 1 : 0, JUMP_BLEND_PER_SECOND * dt);
     if (kick.isPlaying) {
       kick.setWeightForAllAnimatables(kickWeight);
       if (!homing && kickWeight <= WEIGHT_EPSILON) kick.stop();
@@ -699,10 +710,11 @@ export function driveKnightAnimation(
       else if (!want && playing.get(group)) { group.stop(); playing.set(group, false); }
       if (want) group.setWeightForAllAnimatables(weights[i]);
     }
+    knight.equipment?.apply(sample);
   });
 
   // Handed back for {@link plantFeet}'s reason: this observer is the only live reference to the
   // closure above, and nothing outside the scene can reach it. `characterRig` releases it beside the
   // input listeners and the character controller, and before the scene that owns the observable goes.
-  return () => { scene.onBeforeRenderObservable.remove(observer); };
+  return () => { scene.onBeforeRenderObservable.remove(observer); knight.equipment?.restore(); };
 }

@@ -194,6 +194,8 @@ async function buildCharacterRig(
       homing: player.motion.homing !== null,
       homingEntrySeconds: player.homingEntrySeconds,
       bounced: player.homingBounced,
+      airJumped: player.airJumped,
+      swordSeconds: player.swordSeconds,
     };
   };
   const knight = await loadKnight(scene, root, shadows, options.groundHeight);

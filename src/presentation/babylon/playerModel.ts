@@ -15,6 +15,7 @@ export interface PlayerMaterialSettings {
 export const PLAYER_MODEL = {
   url: `/models/player-v20.glb?v=${receipt.outputSha256.slice(0, 12)}`,
   height: 1.9,
+  boneMap: receipt.boneMap,
   facingYaw: Math.PI,
   /** Half-width of the soft blue dash sheath, in world units. */
   trailRadius: 0.16,

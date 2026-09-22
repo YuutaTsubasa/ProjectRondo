@@ -400,4 +400,12 @@ it('matches faster running with faster strides, including after an airborne tran
   expect(rig.knight.animations.run.speedRatio).toBeCloseTo(1.25);
   const original = mount(); original.run(1);
   expect(original.knight.animations.run.speedRatio).toBe(1);
+});it('restarts the rising pose on the one-frame air-jump cue without replanting', () => {
+  const rig = running(); rig.motion.airborne = true; rig.run(.3);
+  const starts = rig.jumpStarts();
+  rig.motion.airJumped = true; rig.step(); rig.motion.airJumped = false;
+  expect(rig.jumpStarts()).toBe(starts + 1);
+  expect(rig.knight.planted).toBe(0);
+  rig.run(.1);
+  expect(rig.jumpStarts()).toBe(starts + 1);
 });

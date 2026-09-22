@@ -18,7 +18,9 @@ import type { FollowCamera } from './followCamera';
 import type { InputState } from './input';
 import type { Crystals } from './crystals';
 import { createHomingReticle } from './homingReticle';
-import { stepGroundContact, spendBufferedJump, INITIAL_GROUND_CONTACT } from './groundContact';
+import { stepPlayerJump, INITIAL_PLAYER_JUMP } from './playerJump';
+import { stepGroundContact } from './groundContact';
+import { stepSwordAttack, NO_SWORD_ATTACK } from '../../domain/hub/character/swordAttack';
 import { stepHomingLock, NO_HOMING_LOCK } from './homingLock';
 import { respawned } from './respawn';
 import { solverVelocity } from './slopeMotion';
@@ -77,6 +79,10 @@ export interface Player {
    * crystal cannot cancel the rise this flash promises — see `GroundContactInput.bounced`.
    */
   homingBounced: boolean;
+  /** One-frame cue for the independent air jump. */
+  airJumped: boolean;
+  /** Elapsed slash time, or null while no sword attack is active. */
+  swordSeconds: number | null;
   /**
    * The physics capsule's CENTRE this frame — the character's real position, and the one any rule
    * that decides something must read.
@@ -174,14 +180,15 @@ export function createPlayer(
   exposeDevHandle(scene, 'charController', controller);
 
   // Coyote time, jump buffering and the takeoff guard all live in this pure state — see groundContact.
-  let contact = INITIAL_GROUND_CONTACT;
+  let jumpState = INITIAL_PLAYER_JUMP;
+  let sword = NO_SWORD_ATTACK;
   // Which crystal a dash is committed to, its entry estimate, and the reticle's separate selection —
   // all decided by one tested machine rather than inline here. See homingLock. Declared above the
   // player rather than beside `contact` because `teleport` clears it.
   let homingLock = NO_HOMING_LOCK;
 
   const player: Player = {
-    root, motion: IDLE, airborne: false, config, homingEntrySeconds: null, homingBounced: false,
+    root, motion: IDLE, airborne: false, config, homingEntrySeconds: null, homingBounced: false, airJumped: false, swordSeconds: null,
     capsulePosition: () => controller.getPosition().clone(),
     teleport(to: Vector3): void {
       controller.setPosition(to);
@@ -194,6 +201,12 @@ export function createPlayer(
       const cut = respawned(player.motion);
       player.motion = cut.motion;
       homingLock = cut.lock;
+      jumpState = INITIAL_PLAYER_JUMP;
+      sword = NO_SWORD_ATTACK;
+      player.swordSeconds = null;
+      player.airJumped = false;
+      player.homingBounced = false;
+      player.airborne = false;
       // Follows the lock: the observer below recomputes it from `homingLock` every frame, and this
       // keeps the two from disagreeing on the frames between the cut and the next one.
       player.homingEntrySeconds = null;
@@ -226,57 +239,26 @@ export function createPlayer(
     const dt = Math.min(scene.getEngine().getDeltaTime() / 1000, MAX_DT);
     if (dt <= 0) return;
 
-    // The jump key is edge-triggered and consumed once, then offered to BOTH the ground-contact
-    // machine below and the homing lock. The two gates are one boolean and its complement — the lock
-    // is handed `!jumpAvailable`, precisely the presses the ground machine will not spend — so every
-    // press goes to exactly one of them and none can fall between. That partition is the fix for a
-    // window in which one did: the lock used to be gated on `player.airborne`, the
-    // FALL_GRACE_SECONDS animation debounce, which lags COYOTE_SECONDS by 0.05 s, and a press inside
-    // that lag was consumed, refused as a jump and never offered as a dash. See
-    // `HomingLockInput.pressWouldDash`, which also says why the gate is not `!grounded`.
-    //
-    // Being grounded is not the only way the domain can decline a press, though: on a dash frame it
-    // takes the homing branch and never reads `jumpRequested` at all. So the ground machine is told
-    // when a dash owns the frame — `dashInFlight` below, and `bounced` for the frame the arrival's
-    // climb starts — and declines the press rather than spending it, which keeps it in the
-    // `JUMP_BUFFER_SECONDS` buffer and keeps `grounded` false through a bounce, so the chain press
-    // reaches the lock as a dash instead of coming back as an ordinary jump. See `groundContact`'s
-    // problem 5.
-    //
-    // Declining a press is not the same as routing it, though. The buffer holds every press the
-    // ground machine refuses, the one the lock goes on to commit as a dash included, and the order
-    // cannot be swapped to find out first — the lock is gated on `jumpAvailable`, which only the
-    // ground machine can answer. So the press the lock takes is retracted from the buffer below, and
-    // only the ones it declined stay in it; see `spendBufferedJump` for what the second spend was.
-    // What the buffer still cannot do is *hand* an older press to the lock: the lock is
-    // fed the frame's edge, so a chain press made before the arrival frame is remembered as a jump
-    // and not as a dash. Feeding the lock from the buffer too is a feel decision on a mechanic nobody
-    // has played yet (see `MovementConstants`' homing block), so it is left rather than guessed at.
-    const pressed = input.consumeJump();
+    // Space only requests a jump; J only requests a contextual sword / shield attack.
+    const jumpPressed = input.consumeJump();
+    const attackPressed = input.consumeAttack();
     const support = controller.checkSupport(dt, DOWN);
-    // Last frame's dash state, read once and handed to both machines, so they cannot disagree about
-    // whether a dash is under way — which of the two the press belongs to turns on exactly this.
     const dashInFlight = player.motion.homing !== null;
-    const contactResult = stepGroundContact(contact, {
+    const jumpFrame = {
       supported: support.supportedState === CharacterSupportedState.SUPPORTED,
-      jumpPressed: pressed,
-      dashInFlight,
-      verticalSpeed: player.motion.velocity.y,
-      // Still last frame's value: it is only reassigned further down, after the domain step that
-      // decides it. That is the frame the bounce was emitted on, and this is the first frame the
-      // ground machine can protect the climb from a probe that has found floor under the crystal.
-      bounced: player.homingBounced,
-      delta: dt,
-    });
-    contact = contactResult.state;
-    const { grounded, jumpRequested, jumpAvailable } = contactResult;
-    player.airborne = contactResult.airborne;
+      jumpPressed, dashInFlight, verticalSpeed: player.motion.velocity.y,
+      bounced: player.homingBounced, delta: dt,
+    };
+    let jumping = stepPlayerJump(jumpState, jumpFrame);
+    // Ground contact with no jump request answers attack eligibility independently.
+    // A coyote jump temporarily reports grounded to authorize its impulse; that must not steal J.
+    const attackContact = stepGroundContact({ ...jumpState.contact, bufferedJumpFor: 0 }, { ...jumpFrame, jumpPressed: false });
 
     const cam = follow.camera;
     const lockResult = stepHomingLock(homingLock, {
       dashInFlight,
-      jumpPressed: pressed,
-      pressWouldDash: !jumpAvailable,
+      attackPressed,
+      pressWouldDash: !attackContact.grounded,
       // The physics capsule's position, NOT `root`'s: `root.position.y` is `visualY`, the smoothed
       // visual height. While the capsule climbs steadily at `homingSpeed` 24, the smoothing at the
       // foot of this observer leaves the rendered root standing behind the capsule, at the same
@@ -294,7 +276,13 @@ export function createPlayer(
       candidates: crystals.positions,
     }, config);
     homingLock = lockResult.lock;
-    if (lockResult.consumedPress) contact = spendBufferedJump(contact);
+    // A simultaneous attack can start a dash before Space's air impulse is applied.
+    // Keep that jump buffered, without spending its flight budget on a dash-owned frame.
+    if (lockResult.consumedPress) jumping = stepPlayerJump(jumpState, { ...jumpFrame, dashInFlight: true });
+    jumpState = jumping.state;
+    const { grounded, jumpRequested } = jumping.ground;
+    player.airborne = jumping.ground.airborne;
+    player.airJumped = jumping.airJumped;
     player.homingEntrySeconds = homingLock.kind === 'locked' ? homingLock.entrySeconds : null;
     if (lockResult.preview === null) reticle.hide();
     else reticle.showAt(crystals.positions[lockResult.preview]);
@@ -304,6 +292,7 @@ export function createPlayer(
     const movementInput: MovementInput = {
       direction: planarDirectionFromInput(input.axis(), right, forward),
       jumpRequested,
+      airJumpRequested: jumping.airJumped,
       // The character runs by default; holding Shift asks it to walk instead (`isWalkHeld`), so
       // `runRequested` — the domain's "run this frame" flag — is the negation of that.
       runRequested: !input.isWalkHeld(),
@@ -322,6 +311,14 @@ export function createPlayer(
     // giving them a separate entry-frame path is a feel decision, on a move nobody has played yet.
     const dashRan = isHomingFrame(domainMotion, movementInput);
     const next = step(domainMotion, movementInput, config, dt);
+    const slash = stepSwordAttack(sword, {
+      pressed: attackPressed, homing: dashRan,
+      from: toVec3(controller.getPosition()), facing: next.facing,
+      targets: crystals.positions, delta: dt,
+    });
+    sword = slash.state;
+    player.swordSeconds = sword.seconds;
+    for (const target of slash.hits) crystals.flash(target);
 
     // A crystal flashes on the BOUNCE, not on the dash simply ending: `stepHoming` clears `homing` on
     // both an arrival and a timeout (design spec §4-5), and only the arrival hit something. The
@@ -338,7 +335,7 @@ export function createPlayer(
     // says why a jump and a dash have to be kept away from it.
     const forSolver = solverVelocity(next.velocity, toVec3(support.averageSurfaceNormal), {
       grounded,
-      ownsClimb: jumpRequested || dashRan,
+      ownsClimb: jumpRequested || jumping.airJumped || dashRan,
     });
     controller.setVelocity(toBabylon(forSolver));
     controller.integrate(dt, support, NO_GRAVITY);
