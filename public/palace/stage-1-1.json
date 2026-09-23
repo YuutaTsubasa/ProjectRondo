@@ -1,0 +1,303 @@
+{
+  "id": "1-1",
+  "rankTargets": {
+    "sTime": 30,
+    "aTime": 42,
+    "bTime": 58,
+    "cTime": 78
+  },
+  "world": {
+    "width": 9600,
+    "height": 1080,
+    "tileSize": 64
+  },
+  "playerSpawn": {
+    "x": 256,
+    "surfaceY": 512
+  },
+  "platforms": [
+    {
+      "col": 2,
+      "row": 8,
+      "width": 12,
+      "height": 1
+    },
+    {
+      "col": 16,
+      "row": 8,
+      "width": 5,
+      "height": 1
+    },
+    {
+      "col": 23,
+      "row": 7,
+      "width": 4,
+      "height": 1
+    },
+    {
+      "col": 30,
+      "row": 8,
+      "width": 5,
+      "height": 1
+    },
+    {
+      "col": 38,
+      "row": 8,
+      "width": 13,
+      "height": 1
+    },
+    {
+      "col": 54,
+      "row": 7,
+      "width": 3,
+      "height": 1
+    },
+    {
+      "col": 59,
+      "row": 6,
+      "width": 3,
+      "height": 1
+    },
+    {
+      "col": 65,
+      "row": 8,
+      "width": 12,
+      "height": 1
+    },
+    {
+      "col": 80,
+      "row": 7,
+      "width": 4,
+      "height": 1
+    },
+    {
+      "col": 86,
+      "row": 6,
+      "width": 4,
+      "height": 1
+    },
+    {
+      "col": 92,
+      "row": 5,
+      "width": 7,
+      "height": 1
+    },
+    {
+      "col": 103,
+      "row": 6,
+      "width": 5,
+      "height": 1
+    },
+    {
+      "col": 111,
+      "row": 8,
+      "width": 10,
+      "height": 1
+    },
+    {
+      "col": 124,
+      "row": 7,
+      "width": 4,
+      "height": 1
+    },
+    {
+      "col": 130,
+      "row": 6,
+      "width": 4,
+      "height": 1
+    },
+    {
+      "col": 136,
+      "row": 8,
+      "width": 12,
+      "height": 1
+    }
+  ],
+  "coins": [
+    {
+      "x": 420,
+      "y": 456
+    },
+    {
+      "x": 560,
+      "y": 456
+    },
+    {
+      "x": 700,
+      "y": 456
+    },
+    {
+      "x": 1100,
+      "y": 456
+    },
+    {
+      "x": 1540,
+      "y": 392
+    },
+    {
+      "x": 2000,
+      "y": 456
+    },
+    {
+      "x": 2540,
+      "y": 456
+    },
+    {
+      "x": 2740,
+      "y": 456
+    },
+    {
+      "x": 2940,
+      "y": 456
+    },
+    {
+      "x": 3520,
+      "y": 392
+    },
+    {
+      "x": 3840,
+      "y": 328
+    },
+    {
+      "x": 4280,
+      "y": 456
+    },
+    {
+      "x": 4700,
+      "y": 456
+    },
+    {
+      "x": 5200,
+      "y": 392
+    },
+    {
+      "x": 5580,
+      "y": 328
+    },
+    {
+      "x": 5960,
+      "y": 264
+    },
+    {
+      "x": 6160,
+      "y": 264
+    },
+    {
+      "x": 6720,
+      "y": 328
+    },
+    {
+      "x": 7240,
+      "y": 456
+    },
+    {
+      "x": 7500,
+      "y": 456
+    },
+    {
+      "x": 8064,
+      "y": 392
+    },
+    {
+      "x": 8384,
+      "y": 328
+    },
+    {
+      "x": 8820,
+      "y": 456
+    },
+    {
+      "x": 9100,
+      "y": 456
+    },
+    {
+      "x": 9240,
+      "y": 456
+    }
+  ],
+  "enemies": [
+    {
+      "id": "first-guard",
+      "x": 2700,
+      "surfaceY": 512,
+      "patrolMinX": 2520,
+      "patrolMaxX": 3060
+    },
+    {
+      "id": "homing-perch-a",
+      "x": 3552,
+      "surfaceY": 448,
+      "patrolMinX": 3500,
+      "patrolMaxX": 3604
+    },
+    {
+      "id": "homing-perch-b",
+      "x": 3840,
+      "surfaceY": 384,
+      "patrolMinX": 3800,
+      "patrolMaxX": 3880
+    },
+    {
+      "id": "final-guard",
+      "x": 5600,
+      "surfaceY": 384,
+      "patrolMinX": 5520,
+      "patrolMaxX": 5680
+    },
+    {
+      "id": "descent-guard",
+      "x": 7420,
+      "surfaceY": 512,
+      "patrolMinX": 7240,
+      "patrolMaxX": 7620
+    },
+    {
+      "id": "final-combo-a",
+      "x": 8064,
+      "surfaceY": 448,
+      "patrolMinX": 8010,
+      "patrolMaxX": 8118
+    },
+    {
+      "id": "final-combo-b",
+      "x": 8384,
+      "surfaceY": 384,
+      "patrolMinX": 8330,
+      "patrolMaxX": 8438
+    },
+    {
+      "id": "gate-guard",
+      "x": 9000,
+      "surfaceY": 512,
+      "patrolMinX": 8840,
+      "patrolMaxX": 9160
+    }
+  ],
+  "checkpoints": [
+    {
+      "id": "combat-gate",
+      "x": 2540,
+      "surfaceY": 512,
+      "spawnX": 2600,
+      "spawnSurfaceY": 512
+    },
+    {
+      "id": "final-ascent",
+      "x": 4320,
+      "surfaceY": 512,
+      "spawnX": 4380,
+      "spawnSurfaceY": 512
+    },
+    {
+      "id": "final-trial",
+      "x": 7300,
+      "surfaceY": 512,
+      "spawnX": 7360,
+      "spawnSurfaceY": 512
+    }
+  ],
+  "goal": {
+    "x": 9340,
+    "surfaceY": 512
+  }
+}

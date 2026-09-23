@@ -4,6 +4,8 @@ import { type Vec3 } from '../../math/vec3';
 export interface MovementInput {
   readonly direction: NormalizedPlanarDirection;
   readonly jumpRequested: boolean;
+  /** An air-jump impulse already authorized by the per-flight jump budget. */
+  readonly airJumpRequested?: boolean;
   /**
    * Run this frame rather than walk. A state, not an edge — unlike `jumpRequested`.
    *

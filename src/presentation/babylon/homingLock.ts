@@ -42,80 +42,22 @@ export interface HomingLockConfig extends HomingSelectionConfig {
 }
 
 export interface HomingLockInput {
-  /** `CharacterMotion.homing !== null` from last frame's result: a dash is already under way. */
   readonly dashInFlight: boolean;
-  /**
-   * The jump key-press consumed this frame. It asks for a dash only where the ground machine has
-   * already declined it as a jump — see {@link pressWouldDash}.
-   */
-  readonly jumpPressed: boolean;
-  /**
-   * Would a press right now become a dash rather than an ordinary jump —
-   * `!GroundContactResult.jumpAvailable`, which already folds coyote time, the jump buffer's takeoff
-   * guard and the dash's own frames in.
-   *
-   * Deliberately NOT `GroundContactResult.airborne`: that is the *animation* debounce, held false
-   * for `FALL_GRACE_SECONDS` 0.2 s so a two-frame hop does not throw a fall pose, while a jump stops
-   * being legal at `COYOTE_SECONDS` 0.15 s. Gating on the debounce therefore left the 0.15–0.2 s of
-   * an uncommanded fall refusing both — the press was consumed, became no jump, and never reached
-   * this machine either.
-   *
-   * And deliberately not `!grounded`, which closes that gap for a press but not for the reticle,
-   * which answers on frames with no press: `grounded` folds this frame's `jumpRequested` in, so
-   * through the coyote window of an uncommanded fall it is false with no press and true with one —
-   * the ring would light on a crystal that the very next frame's press jumps past instead of flying
-   * to. Asking whether a jump is *available* answers the press frame and the frames before it the
-   * same way: exactly one of a jump and a dash takes any press, never neither.
-   */
+  /** Independent attack-key edge. Jump never commits a lock. */
+  readonly attackPressed: boolean;
+  /** Attack is allowed to become a shield dash (off the ground). */
   readonly pressWouldDash: boolean;
-  /** The player's world position this frame. */
   readonly from: Vec3;
-  /**
-   * The camera's TRUE 3D forward (`target - position`), deliberately not `planarBasis().forward`,
-   * which is flattened to X/Z for locomotion: a climb is vertical, and a crystal directly overhead is
-   * exactly the shot a flattened aim can never take.
-   */
   readonly cameraForward: Vec3;
-  /** World positions of the crystals, in the order the returned indices refer to. */
   readonly candidates: readonly Vec3[];
 }
-
 export interface HomingLockResult {
   readonly lock: HomingLock;
-  /**
-   * What `characterMovement.step` takes as `homingTarget`: the LIVE offset to the locked crystal,
-   * recomputed every frame rather than dead-reckoned from the press-frame value, so `stepHoming` can
-   * tell a dash still closing on its target from one a wall has stopped.
-   */
+  /** Live offset to the committed crystal, recomputed every dash frame. */
   readonly target: Vec3 | null;
-  /**
-   * What a press right now would hit — the reticle's crystal, answered on every frame, including
-   * frames with no press at all.
-   *
-   * It is not read off the {@link HomingLock}: a lock must not move mid-dash, so once one is committed
-   * this keeps answering the live question and the lock keeps its own. The one frame they agree is the
-   * frame a press commits — both come from that frame's single `selectHomingTarget` call — and they
-   * must, or the ring would blink off the crystal at the instant the player aims at it, which
-   * `homingLock.test.ts`'s `previews the crystal a press would commit to` forbids.
-   */
+  /** What an attack would hit now, independent of the committed lock. */
   readonly preview: number | null;
-  /**
-   * This frame's press was spent HERE, as the start of a fresh dash. The ground machine has to be told,
-   * because it runs first — it is the one that answers {@link HomingLockInput.pressWouldDash} — and so
-   * it has already buffered the press by the time this is known. See `groundContact`'s
-   * `spendBufferedJump`, which retracts it; without that the press the lock took also stayed live for
-   * a further `JUMP_BUFFER_SECONDS` and came back as a second, unrequested jump.
-   *
-   * False for three different presses, and only two of them are this machine declining one: a press
-   * arriving mid-dash, and a press with no crystal in the cone. Those two, and only those two, are the
-   * set `groundContact`'s problem 5 keeps buffered — nothing has spent them, so the buffer is right to
-   * hold them.
-   *
-   * The third is a press made while {@link HomingLockInput.pressWouldDash} is false — grounded, or
-   * inside the coyote window — where `candidate` is already `null` before `jumpPressed` is consulted.
-   * That press is not buffered and must not be retracted: the ground machine has already spent it as
-   * an ordinary jump.
-   */
+  /** A fresh attack was committed, so do not also start a sword swing. */
   readonly consumedPress: boolean;
 }
 
@@ -144,12 +86,11 @@ export const stepHomingLock = (
     };
   }
 
-  // Wherever the press would still be taken as a jump — grounded, or anywhere the coyote window is
-  // open — pointing a reticle at a crystal would lie about what the press does.
+  // On the ground the attack is a sword swing, so no shield target should be previewed.
   const candidate = input.pressWouldDash
     ? selectHomingTarget(input.from, input.cameraForward, input.candidates, config)
     : null;
-  const crystal = input.jumpPressed ? candidate : null;
+  const crystal = input.attackPressed ? candidate : null;
   if (crystal === null) {
     return { lock: NO_HOMING_LOCK, target: null, preview: candidate, consumedPress: false };
   }

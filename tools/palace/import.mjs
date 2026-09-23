@@ -1,0 +1,17 @@
+import { execFileSync } from 'node:child_process';
+import { readFileSync, writeFileSync, mkdirSync, copyFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+const revision='76b9ca1c680e98e27ac9f51871bf4feffb3f0bbc';
+const base='repos/YuutaTsubasa/ProjectAlmost/contents/';
+const fetch = path => { let data=JSON.parse(execFileSync('gh',['api',base+path+'?ref='+revision],{maxBuffer:60*1024*1024})); if(data.encoding!=='base64') data=JSON.parse(execFileSync('gh',['api','repos/YuutaTsubasa/ProjectAlmost/git/blobs/'+data.sha],{maxBuffer:60*1024*1024})); return Buffer.from(data.content,'base64'); };
+mkdirSync('public/palace',{recursive:true});
+const source = fetch('src/domain/gameplay/gameplayStageSources.ts').toString('utf8');
+const stage=JSON.parse(source.slice(source.indexOf('"1-1": {')+7,source.indexOf('"1-2": {')).trim().replace(/,$/,''));
+writeFileSync('public/palace/stage-1-1.json',JSON.stringify(stage,null,2)+'\n');
+const paths=['maps/white_palace_sky.webp','maps/white_palace_far_bg.webp','maps/white_palace_mid_bg_loop.webp','tiles/white_palace_platform_tiles.webp','props/white_palace_checkpoint.webp','props/white_palace_goal_idle.webp','audio/world01_bgm.mp3','audio/sfx/coin.wav','audio/sfx/hit.wav','audio/sfx/checkpoint.wav','audio/sfx/goal.wav'];
+for(const path of paths) writeFileSync('public/palace/'+path.split('/').at(-1),fetch('public/assets/'+path));
+const knight=process.argv[2] ?? 'C:/Users/User/Repo/3DModel/knight-parkour/dist/assets/knight.glb';
+copyFileSync(knight,'public/palace/guard.glb');
+const files=['stage-1-1.json','guard.glb',...paths.map(p=>p.split('/').at(-1))];
+writeFileSync('public/palace/source-receipt.json',JSON.stringify({repository:'https://github.com/YuutaTsubasa/ProjectAlmost',revision,stage:'src/domain/gameplay/gameplayStageSources.ts#1-1',knightSource:knight,files:files.map(file=>({file,bytes:readFileSync('public/palace/'+file).length,sha256:createHash('sha256').update(readFileSync('public/palace/'+file)).digest('hex')}))},null,2)+'\n');
+console.log('Imported White Palace 1-1 and '+files.length+' assets.');

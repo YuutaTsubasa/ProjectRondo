@@ -7,4 +7,4 @@
  * mismatch shows up as a visible band where the ridge meets the sky. One definition means the two
  * cannot drift apart silently.
  */
-export const HORIZON_HEX = '#dcecf7';
+export const HORIZON_HEX = '#dcecf2';

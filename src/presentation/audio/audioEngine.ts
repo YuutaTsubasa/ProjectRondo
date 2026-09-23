@@ -4,7 +4,8 @@ import { CreateAudioBusAsync } from '@babylonjs/core/AudioV2/abstractAudio/audio
 import type { AudioBus, IAudioBusOptions } from '@babylonjs/core/AudioV2/abstractAudio/audioBus';
 import type { AudioEngineV2 } from '@babylonjs/core/AudioV2/abstractAudio/audioEngineV2';
 
-import { busGain, DEFAULT_LEVELS } from '../../domain/audio/audioMixer';
+import { busGain } from '../../domain/audio/audioMixer';
+import { audioPreferences } from './audioPreferences';
 import type { AudioBusId } from '../../domain/audio/soundCue';
 
 /**
@@ -52,11 +53,8 @@ export interface GameAudio {
  * `disableDefaultUI` turns off babylon's own "click to start audio" overlay, which would otherwise
  * paint a button over the canvas for a gesture the game is already collecting.
  *
- * The buses are set from `DEFAULT_LEVELS` once, here, and nothing can move them afterwards: there is
- * no settings UI (spec §9), so a `levels` parameter and an `applyLevels` on the handle would be a
- * wrapper with no caller — one that reads as "the mix is adjustable" when the only mix that can ever
- * reach the buses is the default. `busGain` stays the one place a bus gain is computed, so the panel,
- * when it is built, adds the way *in* rather than the rules.
+ * The preference subscription applies the current saved mix immediately and follows settings changes.
+ * Master is included by busGain on each bus; the engine master stays at unity to avoid applying it twice.
  */
 export async function createGameAudio(): Promise<GameAudio> {
   const engine = await CreateAudioEngineAsync({
@@ -96,12 +94,18 @@ export async function createGameAudio(): Promise<GameAudio> {
     }),
   ) as Record<AudioBusId, AudioBus>;
 
-  for (const id of BUS_IDS) buses[id].volume = busGain(DEFAULT_LEVELS, id);
+  const unsubscribe = audioPreferences.subscribe((levels) => {
+    for (const id of BUS_IDS) buses[id].volume = busGain(levels, id);
+  });
+  let disposed = false;
 
   return {
     engine,
     buses,
     dispose: () => {
+      if (disposed) return;
+      disposed = true;
+      unsubscribe();
       for (const id of BUS_IDS) buses[id].dispose();
       engine.dispose();
     },

@@ -40,7 +40,7 @@ export const resolvePortrait = (key: string): string => setFor(key).still;
  * Animated WebP: the baseline animation.
  *
  * Carries alpha in Safari 14+, Chromium and Firefox alike, so it is the answer whenever the probe
- * says no or cannot say. About six times the bytes of the WebM.
+ * says no or cannot say. About five times the bytes of the WebM.
  */
 export const resolvePortraitAnimated = (key: string): string => setFor(key).animated;
 

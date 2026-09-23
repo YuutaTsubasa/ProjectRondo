@@ -1,0 +1,7 @@
+# Homing visual polish
+
+User requests higher fidelity for the blue Homing Attack trail, target crystals, and now the reticle. Continue the natural JRPG direction. Apply the presentation consistently in hub and tower; retain static target positions, selection cone/range, collision, dash speed, bounce and input rules.
+
+Design: a slender blue trail with a pale luminous core, softer blue sheath, taper and time-based fade; a faceted cut crystal with bevels, deep blue facets, restrained highlights and internal light; a compact four-segment warm-red reticle with pale details/dark contrast and a short acquisition contraction. Keep the centre open so crystal shape remains visible. Reticle only appears when the existing target preview says an attack is available. Repeated showAt on the same target must not restart acquisition. Invalid/hide states remove it immediately. Hits retain the shared warm-red confirmation and add a brief restrained ring/sparks.
+
+No remote assets, new postprocessing or dependencies. Bound geometry/history/particles, use scene clock, release observers/materials on teardown. Trail history must be time-based across 30/60/120 FPS and reset between distinct dashes without bridging teleports. Verify with focused behavioral tests, scene lifecycle checks, actual browser shots/attack chain, full tests, typecheck and build. Keep changes uncommitted in the current preview worktree.

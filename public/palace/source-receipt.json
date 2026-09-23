@@ -1,0 +1,73 @@
+{
+  "repository": "https://github.com/YuutaTsubasa/ProjectAlmost",
+  "revision": "76b9ca1c680e98e27ac9f51871bf4feffb3f0bbc",
+  "stage": "src/domain/gameplay/gameplayStageSources.ts#1-1",
+  "knightSource": "C:/Users/User/Repo/3DModel/knight-parkour/dist/assets/knight.glb",
+  "files": [
+    {
+      "file": "stage-1-1.json",
+      "bytes": 4265,
+      "sha256": "1b7df665c08d006740cc3e67a79087a6051a9e1b0e12844cbe6b8c044eaf27c5"
+    },
+    {
+      "file": "guard.glb",
+      "bytes": 4090740,
+      "sha256": "0ebf1574a79a13ebc79e7fd37ad8b8724e944070a2dd11c20203cbf3f1981c9c"
+    },
+    {
+      "file": "white_palace_sky.webp",
+      "bytes": 100452,
+      "sha256": "cdd4b15bcd3ea850db453e87202540d1746c49104feeba14657eddb467c9e2c6"
+    },
+    {
+      "file": "white_palace_far_bg.webp",
+      "bytes": 643370,
+      "sha256": "63e8f33ac32a854ce3c77080c3e94dcf401f4befa0f8e753c60df943d3bcb21d"
+    },
+    {
+      "file": "white_palace_mid_bg_loop.webp",
+      "bytes": 875094,
+      "sha256": "6c09e06733cb60d535502c5e33169c591e505ba43265e038a1b97b76136c372b"
+    },
+    {
+      "file": "white_palace_platform_tiles.webp",
+      "bytes": 14802,
+      "sha256": "82cc936a71645d8fedbc1a9833ffb9a1dd68beed5fc0431ea105aeef90da1ecc"
+    },
+    {
+      "file": "white_palace_checkpoint.webp",
+      "bytes": 16372,
+      "sha256": "d79c19bb6f568a117356869c1650bcafa1dce49de5cec02a1967de4bcc2a525c"
+    },
+    {
+      "file": "white_palace_goal_idle.webp",
+      "bytes": 111400,
+      "sha256": "d1488f8c4b496ac011608a86062fe792fb15203b86e0a094b2ab910175ba853c"
+    },
+    {
+      "file": "world01_bgm.mp3",
+      "bytes": 2725935,
+      "sha256": "91e99e2e06fd32250de0cef1772043150bf195350c1d4b74ed84d39c70d3b2ce"
+    },
+    {
+      "file": "coin.wav",
+      "bytes": 21212,
+      "sha256": "21ed1d5c9326159519756213b27a5080b539fbfa624fb74da1e03d3cd3ccc1bf"
+    },
+    {
+      "file": "hit.wav",
+      "bytes": 384078,
+      "sha256": "c15957fbb49afa9f261e3142ca60022e5c7e5c97bd9347193c1163f883b30097"
+    },
+    {
+      "file": "checkpoint.wav",
+      "bytes": 44144,
+      "sha256": "677970196bb5d2972d66aa0ce0a36f2b37250d592f5cd106d66db2d570acbcca"
+    },
+    {
+      "file": "goal.wav",
+      "bytes": 576078,
+      "sha256": "85ae4e7399509c6850936be8b1c14977199b081c1ac741eddd16fedd74a65a87"
+    }
+  ]
+}

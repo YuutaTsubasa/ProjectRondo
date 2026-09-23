@@ -47,6 +47,6 @@ export const stepJumpSound = (state: JumpSoundState, input: JumpPoseInput): Jump
   return {
     state: next,
     cue:
-      next.offGround === state.offGround ? null : next.offGround ? 'jump.takeoff' : 'jump.land',
+      input.airJumped ? 'jump.takeoff' : next.offGround === state.offGround ? null : next.offGround ? 'jump.takeoff' : 'jump.land',
   };
 };
