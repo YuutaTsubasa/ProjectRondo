@@ -6,6 +6,7 @@ import { NodeIO } from '@gltf-transform/core';
 import { ALL_EXTENSIONS, EXTTextureWebP } from '@gltf-transform/extensions';
 
 import sharp from 'sharp';
+import { blendLipSeam, LIP_SEAM_SETTINGS } from './lipSeam.mjs';
 import { applyRelaxedPose, RELAXED_POSE } from './relaxedPose.mjs';
 import { prune } from '@gltf-transform/functions';
 import { CLIPS, prepareVrm, bakePlayerBlink, validateGameAsset, worldRotations, transferRotation, transferTranslation, inverse, multiply, normalize } from './core.mjs';
@@ -13,7 +14,7 @@ import { CLIPS, prepareVrm, bakePlayerBlink, validateGameAsset, worldRotations, 
 const DIRECTORY = path.dirname(fileURLToPath(import.meta.url));
 const DONOR_PATH = path.join(DIRECTORY, 'animations.glb');
 const DEFAULT_OUTPUT = path.resolve(DIRECTORY, '../../public/models/player-v20.glb');
-const SETTINGS = Object.freeze({ maxTextureSize: 2048, textureFormat: 'webp', textureQuality: 90, morphTargets: 'preset-blink-only', decimation: false, quantization: false, retarget: 'rest-world-axes-v1', relaxedPose: RELAXED_POSE });
+const SETTINGS = Object.freeze({ maxTextureSize: 2048, textureFormat: 'webp', textureQuality: 90, lipSeam: LIP_SEAM_SETTINGS, morphTargets: 'preset-blink-only', decimation: false, quantization: false, retarget: 'rest-world-axes-v1', relaxedPose: RELAXED_POSE });
 const io = new NodeIO().registerExtensions(ALL_EXTENSIONS);
 const sha256 = bytes => createHash('sha256').update(bytes).digest('hex');
 const nodeJson = node => ({ name: node.getName(), rotation: node.getRotation(), translation: node.getTranslation(), children: node.listChildren() });
@@ -135,11 +136,12 @@ export async function importPlayer(sourcePath, outputPath = DEFAULT_OUTPUT) {
     texture.setImage(result.data).setMimeType('image/webp').setURI('');
     textures.push({ name: texture.getName(), width: result.info.width, height: result.info.height, bytes: result.data.length });
   }
+  const lipSeam = await blendLipSeam(document);
   document.createExtension(EXTTextureWebP).setRequired(true);
   const metadata = {
     schemaVersion: 1, hipsNodeName: targetHips.getName(), rootNodeName: 'Root', orientation: 'gltf-positive-z-forward',
     headMaterialNames: root.listMaterials().filter(m => m.getExtras().playerMaterial.role === 'head').map(m => m.getName()),
-    clips: CLIPS, sourceSha256: sha256(sourceBytes), donorSha256: sha256(donorBytes), boneMap, motionScale, blink: blinkMetadata, settings: SETTINGS,
+    clips: CLIPS, sourceSha256: sha256(sourceBytes), donorSha256: sha256(donorBytes), boneMap, motionScale, blink: blinkMetadata, lipSeam, settings: SETTINGS,
   };
   root.getAsset().extras = { playerModel: metadata };
   const outputBytes = await io.writeBinary(document);

@@ -58,3 +58,20 @@ describe('player material boundary', () => {
     expect(head.material).toBe(source);
   });
 });
+
+it('keeps surface-blend weight separate from opacity and preserves the underlying face texture', () => {
+  scene = new Scene(engine);
+  const source = new PBRMaterial('surface', scene);
+  source.metadata = metadata('head');
+  source.metadata.gltf.extras.playerMaterial.surfaceColorBlend = true;
+  const texture = RawTexture.CreateRGBATexture(new Uint8Array([240, 210, 190, 255]), 1, 1, scene);
+  source.albedoTexture = texture;
+  const mesh = new Mesh('face', scene); mesh.material = source; mesh.hasVertexAlpha = true;
+  applyPlayerMaterials([mesh], scene);
+  expect(mesh.hasVertexAlpha).toBe(false);
+  expect(mesh.useVertexColors).toBe(true);
+  expect((mesh.material as import('@babylonjs/core/Materials/standardMaterial').StandardMaterial).diffuseTexture).toBe(texture);
+  expect(readPlayerMaterial(mesh.material!.metadata).surfaceColorBlend).toBe(true);
+  expect(mesh.material!.needAlphaBlendingForMesh(mesh)).toBeFalsy();
+  expect(mesh.renderOutline).toBe(false);
+});

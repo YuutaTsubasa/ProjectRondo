@@ -3,6 +3,8 @@ import receipt from '../../../public/models/player-v20.json';
 /** Runtime contract written by tools/player-model/import.mjs into each material's glTF extras. */
 export interface PlayerMaterialSettings {
   readonly role: 'head' | 'body';
+  /** COLOR_0 alpha is a local surface blend weight, not transparency. */
+  readonly surfaceColorBlend?: boolean;
   readonly shadeColorFactor: readonly [number, number, number];
   readonly shadingShiftFactor: number;
   readonly shadingToonyFactor: number;
@@ -48,6 +50,7 @@ export function readPlayerMaterial(metadata: unknown): PlayerMaterialSettings {
   };
   return {
     role: data.role,
+    surfaceColorBlend: data.surfaceColorBlend === true,
     shadeColorFactor: color('shadeColorFactor'),
     shadingShiftFactor: scalar('shadingShiftFactor', -1, 1),
     shadingToonyFactor: scalar('shadingToonyFactor', 0, 1),

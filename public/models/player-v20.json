@@ -123,10 +123,27 @@
       "Sclera.Right"
     ]
   },
+  "lipSeam": {
+    "version": 1,
+    "blendDistance": 0.006,
+    "sampleRadius": 0.006,
+    "colorStorage": "linear-vertex-blend",
+    "materials": [
+      "Repaired lower face skin",
+      "Rebuilt lip skin"
+    ],
+    "boundaryVertices": 148
+  },
   "settings": {
     "maxTextureSize": 2048,
     "textureFormat": "webp",
     "textureQuality": 90,
+    "lipSeam": {
+      "version": 1,
+      "blendDistance": 0.006,
+      "sampleRadius": 0.006,
+      "colorStorage": "linear-vertex-blend"
+    },
     "morphTargets": "preset-blink-only",
     "decimation": false,
     "quantization": false,
@@ -151,8 +168,8 @@
     }
   },
   "sourceFile": "knight_new_vrm1.vrm",
-  "outputSha256": "fe901dd9faadf65020e69df0291764d8fa2676141ede49254d7fc8ad35b48c78",
-  "outputBytes": 13173424,
+  "outputSha256": "584e33d9060e1cc2ae45560adf292c2ea25eb09b90f254e9204a89fb95a47aba",
+  "outputBytes": 13347872,
   "textures": [
     {
       "name": "tripo_rgb_3246b6d0-7117-411a-868f-2ac8d3d3de1c.jpg.001",

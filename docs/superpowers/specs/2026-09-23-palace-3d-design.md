@@ -1,0 +1,11 @@
+# White Palace full 3D scenery
+
+Approved 2026-09-23: rebuild White Palace's scenery as genuine 3D architecture while retaining the existing side-view gameplay, route, player and knight guards. Keep the semi-realistic Japanese RPG direction, warm ivory stone, restrained gold, blue roofs and soft daylight.
+
+Replace all palace/background image planes and platform tile facings. Compose an entrance terrace, guard colonnades, elevated bridges/towers and a final gate plaza. Visible platforms have closed beveled stone volumes, cornices and plausible arches/pier supports integrated into lower foundations. Their playable top/side extents agree with the unchanged domain platform bounds. Decoration stays behind the player lane or below its top; nothing suggests a false landing across an existing gap.
+
+Middle and far buildings are world-anchored 3D towers, arcades, domes and roof volumes. Camera movement produces parallax naturally. Repeated architectural modules share materials/geometry; static background pieces are merged in spatial groups and distant meshes do not cast expensive gameplay shadows. Use an atmospheric sky and light distance haze, with all architectural edges modeled rather than painted into backdrop images. Near surfaces use subdued stone variation and bevel highlights, avoiding toy-like saturation or flat white boxes.
+
+Retain 16 platforms, 8 guards, 25 coins, 3 checkpoints, goal, movement, combat, collision and results. Keep the established camera's readable side view, adjusting lighting/framing only as necessary for depth and landing clarity. Imported ProjectAlmost layout/audio remain credited; old art can stay as source reference but is not rendered as architecture. Do not alter the pending player-mouth fix.
+
+Acceptance: no repeating image-plane seams or camera-following architecture; closed geometry with correct normals and no z-fighting; coherent visible support; route gaps and enemies readable from the gameplay camera. Validate geometry and platform bounds, full existing gameplay tests, typecheck/build, and an input-driven complete run. Inspect entrance, middle/high route and goal plus slight diagnostic camera offsets. Deliver the normal local playable preview; commit/push only when requested.

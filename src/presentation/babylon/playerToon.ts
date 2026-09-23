@@ -27,8 +27,9 @@ export class PlayerToon extends MaterialPluginBase {
         { name: 'playerShade', size: 3, type: 'vec3' },
         { name: 'playerRamp', size: 3, type: 'vec3' },
         { name: 'playerTextureLinear', size: 1, type: 'float' },
+        { name: 'playerSurfaceBlend', size: 1, type: 'float' },
       ],
-      fragment: 'uniform vec3 playerSun;\nuniform vec3 playerShade;\nuniform vec3 playerRamp;\nuniform float playerTextureLinear;',
+      fragment: 'uniform vec3 playerSun;\nuniform vec3 playerShade;\nuniform vec3 playerRamp;\nuniform float playerTextureLinear;\nuniform float playerSurfaceBlend;',
     };
   }
 
@@ -38,15 +39,32 @@ export class PlayerToon extends MaterialPluginBase {
     // glTF uses hardware sRGB textures; StandardMaterial expects gamma-space diffuse samples.
     const texture = (this._material as StandardMaterial).diffuseTexture?.getInternalTexture();
     buffer.updateFloat('playerTextureLinear', texture?._useSRGBBuffer ? 1 : 0);
+    buffer.updateFloat('playerSurfaceBlend', this.settings.surfaceColorBlend ? 1 : 0);
     buffer.updateVector3('playerSun', this.towardSun);
     buffer.updateColor3('playerShade', this.shade);
     buffer.updateFloat3('playerRamp', this.settings.shadingShiftFactor,
       this.settings.shadingToonyFactor, this.settings.giEqualizationFactor);
   }
 
-  getCustomCode(shaderType: string) {
+  getCustomCode(shaderType: string): Record<string, string> | null {
+    if (shaderType === 'vertex') return {
+      CUSTOM_VERTEX_DEFINITIONS: 'varying float playerSurfaceWeight;',
+      CUSTOM_VERTEX_MAIN_END: `
+        playerSurfaceWeight = 0.0;
+        #ifdef VERTEXCOLOR
+          playerSurfaceWeight = colorUpdated.a;
+        #endif
+      `,
+    };
     if (shaderType !== 'fragment') return null;
     return {
+      CUSTOM_FRAGMENT_DEFINITIONS: 'varying float playerSurfaceWeight;',
+      CUSTOM_FRAGMENT_UPDATE_DIFFUSE: `
+        #ifdef VERTEXCOLOR
+          // Surface-blend colors are not multiplicative glTF tints.
+          if (playerSurfaceBlend > 0.5) baseColor.rgb /= max(vColor.rgb, vec3(0.00001));
+        #endif
+      `,
       CUSTOM_FRAGMENT_BEFORE_FOG: `
         float playerNdotL = dot(normalW, playerSun);
         float playerBand = clamp((playerNdotL + playerRamp.x) / max(0.001, 1.0 - playerRamp.y), 0.0, 1.0);
@@ -56,6 +74,11 @@ export class PlayerToon extends MaterialPluginBase {
         vec3 playerEnvironment = mix(clamp(diffuseBase, vec3(0.0), vec3(1.0)), vec3(1.0), playerRamp.z);
         vec3 playerTexel = playerTextureLinear > 0.5 ? toGammaSpace(baseColor.rgb) : baseColor.rgb;
         color.rgb = playerTexel * playerLight * playerEnvironment;
+
+        #ifdef VERTEXCOLOR
+          vec3 joinedSkin = toGammaSpace(vColor.rgb) * playerLight / max(diffuseColor, vec3(0.00001));
+          if (playerSurfaceBlend > 0.5) color.rgb = mix(color.rgb, joinedSkin * playerEnvironment, playerSurfaceWeight);
+        #endif
       `,
     };
   }

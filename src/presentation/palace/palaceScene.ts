@@ -2,12 +2,14 @@ import type { Engine } from '@babylonjs/core/Engines/engine';
 import { Scene } from '@babylonjs/core/scene';
 import { FreeCamera } from '@babylonjs/core/Cameras/freeCamera';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
-import { Color3, Color4 } from '@babylonjs/core/Maths/math.color';
-import { HemisphericLight } from '@babylonjs/core/Lights/hemisphericLight';
-import { DirectionalLight } from '@babylonjs/core/Lights/directionalLight';
-import { HDRCubeTexture } from '@babylonjs/core/Materials/Textures/hdrCubeTexture';
+import { Color4 } from '@babylonjs/core/Maths/math.color';
+import { createEnvironment } from '../babylon/environment';
+import { createPalaceSky } from './palaceSky';
+import { createAtmosphere } from '../babylon/postProcessing';
+
+
 import { TransformNode } from '@babylonjs/core/Meshes/transformNode';
-import { IBL_URL, IBL_FACE_SIZE, IBL_INTENSITY } from '../babylon/ibl';
+
 import { createShadows } from '../babylon/shadows';
 import { createInput } from '../babylon/input';
 import { loadKnight, driveKnightAnimation, type Knight, type KnightMotionSample } from '../babylon/knight';
@@ -37,18 +39,21 @@ export async function createPalaceScene(engine:Engine):Promise<PalaceScene> {
   try{
     scene.useRightHandedSystem=true;
     scene.clearColor=Color4.FromHexString('#e1edf3ff');
-    scene.imageProcessingConfiguration.toneMappingEnabled=true;
-    scene.imageProcessingConfiguration.exposure=.85;
     const camera=new FreeCamera('palaceSideCamera',new Vector3(10,6,25),scene);
-    camera.minZ=.1;camera.maxZ=100;camera.fov=.63;
+    camera.minZ=.1;camera.maxZ=650;camera.fov=.63;
     scene.activeCamera=camera;
-    const ambient=new HemisphericLight('palaceAmbient',Vector3.Up(),scene);
-    ambient.intensity=.65;ambient.groundColor=new Color3(.16,.19,.22);
-    const sun=new DirectionalLight('palaceSun',new Vector3(-.4,-1,-.7),scene);
-    sun.position.set(20,35,18);sun.intensity=.9;
-    scene.environmentTexture=new HDRCubeTexture(IBL_URL,scene,IBL_FACE_SIZE,false,true,false,true);
-    scene.environmentIntensity=IBL_INTENSITY;
+    const { sun } = createEnvironment(scene);
+    // Share the hub's ACES grade, bloom and MSAA rather than a second render style.
+    createAtmosphere(scene, camera);
+    scene.fogDensity = .0045;
+    createPalaceSky(scene);
+    sun.intensity = 4;
+    scene.getLightByName('ambient')!.intensity = .08;
+    scene.environmentIntensity = .5;
     const shadows=createShadows(sun,camera,{cascades:2,maxZ:60});
+    // Closed palace masonry can cast from its rear faces: avoid surface self-shadow striping.
+    shadows.generator.forceBackFacesOnly = true;
+    shadows.generator.bias = .0001;
     const scenery=createPalaceScenery(scene,shadows);
     let state=createPalaceRun();
     const playerRoot=new TransformNode('palacePlayer',scene);

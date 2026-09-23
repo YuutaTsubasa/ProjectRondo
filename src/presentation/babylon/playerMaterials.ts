@@ -44,7 +44,9 @@ export function applyPlayerMaterials(meshes: readonly AbstractMesh[], scene: Sce
     mesh.material = replacements.get(source)!;
     if (info.role === 'body') receivers.push(mesh);
     if (mesh instanceof Mesh) {
-      mesh.renderOutline = info.outlineWidthFactor > 0;
+      if (info.surfaceColorBlend) mesh.hasVertexAlpha = false;
+      // An inverted hull would redraw the internal boundary we just blended.
+      mesh.renderOutline = info.outlineWidthFactor > 0 && !info.surfaceColorBlend;
       mesh.outlineWidth = info.outlineWidthFactor;
       mesh.outlineColor = Color3.FromArray([...info.outlineColorFactor]).toGammaSpace();
     }

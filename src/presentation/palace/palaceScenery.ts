@@ -1,108 +1,101 @@
 import type { Scene } from '@babylonjs/core/scene';
 import { Mesh } from '@babylonjs/core/Meshes/mesh';
-import { CreateBox } from '@babylonjs/core/Meshes/Builders/boxBuilder';
-import { CreatePlane } from '@babylonjs/core/Meshes/Builders/planeBuilder';
 import { CreateTorus } from '@babylonjs/core/Meshes/Builders/torusBuilder';
-import { CreateCylinder } from '@babylonjs/core/Meshes/Builders/cylinderBuilder';
 import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
-import { PBRMaterial } from '@babylonjs/core/Materials/PBR/pbrMaterial';
-import { Texture } from '@babylonjs/core/Materials/Textures/texture';
 import { Color3 } from '@babylonjs/core/Maths/math.color';
 import type { Shadows } from '../babylon/shadows';
 import { PALACE_LAYOUT } from '../../domain/palace/palaceLayout';
 import type { PalaceRun } from '../../domain/palace/palaceRun';
+import { createArch, createArchSpandrel, createBeveledBox, createColumn } from './palaceArchitecture';
+import { createPalaceMaterials, mergePalaceParts } from './palaceMaterials';
+import { applyStoneUV } from './palaceStoneSurface';
+import { createPalaceDistrict } from './palaceDistrict';
+import { createPalaceCoins, createCheckpointFeedback } from './palaceCollectibles';
 
 export function createPalaceScenery(scene: Scene, shadows: Shadows) {
-  const stone = new PBRMaterial('palaceIvory', scene);
-  stone.albedoColor = Color3.FromHexString('#e9e6dc'); stone.roughness = .78; stone.metallic = .03;
-  const side = new PBRMaterial('palaceBlueStone',scene);
-  side.albedoColor = Color3.FromHexString('#8297aa'); side.roughness = .82; side.metallic = .04;
-  const trim = new PBRMaterial('palaceGold',scene);
-  trim.albedoColor = Color3.FromHexString('#b6a779'); trim.metallic = .68; trim.roughness = .35;
-  const glow = new StandardMaterial('palaceAzure',scene);
-  glow.diffuseColor = Color3.FromHexString('#458dab'); glow.emissiveColor = Color3.FromHexString('#266581');
-  const makeBox = (name:string,x:number,y:number,z:number,w:number,h:number,d:number,mat=stone) => {
-    const m=CreateBox(name,{width:w,height:h,depth:d},scene);
-    m.position.set(x,y,z); m.material=mat; m.isPickable=false;
-    shadows.cast(m); shadows.receive(m); return m;
+  const materials = createPalaceMaterials(scene);
+  let parts: Mesh[] = [];
+  const box = (name: string, x: number, y: number, z: number, width: number, height: number, depth: number, material = materials.stone, bevel = .035) => {
+    const mesh = createBeveledBox(name, { width, height, depth, bevel }, scene);
+    mesh.position.set(x, y, z); mesh.material = material; mesh.isPickable = false; parts.push(mesh); return mesh;
   };
-  const texture = (file:string,alpha:boolean) => {
-    const t=new Texture('/palace/'+file,scene,false,true,Texture.TRILINEAR_SAMPLINGMODE);
-    t.hasAlpha=alpha; return t;
+  const arch = (name: string, x: number, y: number, z: number, width: number, rise: number, thickness: number, depth: number) => {
+    const mesh = createArch(name, { width, rise, thickness, depth, segments: 28 }, scene);
+    mesh.position.set(x, y, z); mesh.material = materials.light; parts.push(mesh); return mesh;
   };
-  const tiles=new StandardMaterial('originalPalaceTiles',scene);
-  tiles.diffuseTexture=texture('white_palace_platform_tiles.webp',true);
-  tiles.useAlphaFromDiffuseTexture=true; tiles.backFaceCulling=false;
-  tiles.diffuseColor=new Color3(.87,.9,.94); tiles.specularColor=Color3.Black();
-  for(const [index,p] of PALACE_LAYOUT.platforms.entries()) {
-    const cx=p.x+p.width/2, d=3.2;
-    makeBox('palacePlatform'+index,cx,p.y-p.height/2,0,p.width,p.height,d,side);
-    // Inset cornice layers make the front edge read as carved stone, with a precise collision top.
-    makeBox('palaceTop'+index,cx,p.y-.10,0,p.width,.2,d+.12);
-    makeBox('palaceCornice'+index,cx,p.y-.33,0,p.width+.12,.12,d+.16);
-    makeBox('palaceLowerTrim'+index,cx,p.y-p.height+.08,0,p.width+.06,.16,d+.04);
-    makeBox('palaceInlay'+index,cx,p.y-.47,d/2+.014,p.width-.08,.055,.035,trim);
-    const face=CreatePlane('palaceTileFacing'+index,{width:p.width,height:.65},scene);
-    face.position.set(cx,p.y-.82,d/2+.021); face.material=tiles;
-    // Repeat only the middle third of the original tile sheet along the face.
-    const uv=face.getVerticesData('uv');
-    if(uv){const repeats=Math.max(1,Math.round(p.width/1.28)); for(let i=0;i<uv.length;i+=2)uv[i]=1/3+uv[i]*repeats/3; face.setVerticesData('uv',uv);}
-    for(let x=p.x+.5;x<p.x+p.width-.35;x+=2.6)
-      makeBox('palaceJoint',x,p.y-.65,1.63,.045,.32,.035,trim);
-    if(p.width>5) {
-      for(const x of [p.x+.65,p.x+p.width-.65]){
-        makeBox('palaceSupport',x,p.y-2.6,-.35,.68,3,1.1);
-        makeBox('palaceSupportFoot',x,p.y-4.1,-.35,.9,.18,1.3,side);
+  const flush = (name: string) => { mergePalaceParts(name, parts, shadows, true); parts = []; };
+
+  for (const [index, p] of PALACE_LAYOUT.platforms.entries()) {
+    const cx = p.x + p.width / 2, depth = 4.5;
+    // Keep this surface separate so rendering/collision alignment can be verified directly.
+    const top = box('palaceWalkable' + index, cx, p.y - .14, 0, p.width, .28, depth, materials.light, .025);
+    parts.pop(); top.metadata = { palaceWalkable: index };
+    applyStoneUV(top); top.freezeWorldMatrix(); shadows.cast(top); shadows.receive(top);
+    box('palaceDeck', cx, p.y - .69, 0, p.width - .09, .82, depth - .16);
+    box('palaceDeckCornice', cx, p.y - .32, 0, p.width - .03, .14, depth - .06, materials.light);
+    box('palaceDeckFoot', cx, p.y - p.height + .10, 0, p.width - .05, .2, depth - .10, materials.aged);
+    box('palaceFrieze', cx, p.y - .58, depth / 2 - .07, p.width - .3, .055, .07, materials.gold, .008);
+    // Masonry joints sit in the side frieze, never as alpha cards over the walking surface.
+    for (let x = p.x + 1.6; x < p.x + p.width - .4; x += 1.9) {
+      box('palaceStoneJoint', x, p.y - .9, depth / 2 - .075, .014, .34, .024, materials.aged, .002);
+    }
+    const pierWidth = p.width > 7 ? .9 : .65, inset = pierWidth / 2 + .14;
+    const innerWidth = p.width - 2 * (inset + pierWidth / 2), rise = Math.min(4.4, innerWidth * .55);
+    const springY = p.y - p.height - rise - .38;
+    for (const x of [p.x + inset, p.x + p.width - inset]) {
+      const height = springY + 24;
+      box('palaceBridgePier', x, -24 + height / 2, 0, pierWidth, height, depth - .3, materials.stone, .075);
+      box('palacePierCap', x, springY - .14, 0, pierWidth + .1, .28, depth - .05, materials.light);
+      box('palacePierBase', x, -23.6, 0, pierWidth + .5, .8, depth + .2, materials.aged, .1);
+      box('palacePierPilaster', x, springY - 4, depth / 2 - .05, pierWidth * .46, 7.5, .2, materials.light, .035);
+    }
+    const spandrel = createArchSpandrel('palaceBridgeSpandrel', { width: innerWidth, rise, thickness: .42, depth: depth - .4 }, scene);
+    spandrel.position.set(cx, springY, 0); spandrel.material = materials.stone; parts.push(spandrel);
+    arch('palaceBridgeArch', cx, springY, depth / 2 - .12, innerWidth, rise, .34, .18);
+    box('palaceArchKeystone', cx, springY + rise + .1, depth / 2 + .01, .34, .46, .22, materials.light);
+    // Coping joints on top provide scale without changing the collision surface.
+    for (let x = p.x + 1.5; x < p.x + p.width - .3; x += 1.5) {
+      box('palacePavingJoint', x, p.y + .002, 0, .012, .006, depth - .16, materials.aged, .001);
+    }
+    // Back-edge balustrade adds depth but leaves all jump/landing silhouettes unobstructed.
+    if (p.width > 7) {
+      box('palaceRearRail', cx, p.y + .98, -depth / 2 + .16, p.width - .7, .16, .3, materials.light);
+      for (let x = p.x + .5; x < p.x + p.width - .3; x += .95) {
+        box('palaceBalusterFoot', x, p.y + .09, -depth / 2 + .16, .24, .18, .3, materials.light);
+        box('palaceBaluster', x, p.y + .52, -depth / 2 + .16, .13, .72, .18, materials.stone, .04);
       }
     }
+    flush('palaceBridge' + index);
   }
-  // Three repeating camera-following image layers retain the original palace composition.
-  const layers=[
-    {file:'white_palace_sky.webp',z:-36,height:70,width:124.45,factor:0,alpha:false,y:0},
-    {file:'white_palace_far_bg.webp',z:-26,height:27,width:48,factor:.08,alpha:true,y:6},
-    {file:'white_palace_mid_bg_loop.webp',z:-15,height:21,width:74.67,factor:.18,alpha:true,y:5},
-  ].map(layer=>{
-    const mat=new StandardMaterial('background_'+layer.file,scene);
-    mat.disableLighting=true; mat.emissiveTexture=texture(layer.file,layer.alpha);
-    mat.diffuseColor=Color3.Black(); mat.emissiveColor=Color3.Black(); mat.backFaceCulling=false;
-    mat.useAlphaFromDiffuseTexture=false; mat.opacityTexture=layer.alpha?mat.emissiveTexture:null;
-    mat.fogEnabled=false; mat.disableDepthWrite=true;
-    const planes=[-1,0,1].map(i=>{
-      const mesh=CreatePlane('palaceBackdrop',{width:layer.width,height:layer.height},scene);
-      mesh.position.set(i*layer.width,layer.y,layer.z); mesh.material=mat; mesh.isPickable=false;
-      mesh.alphaIndex=layer.z; return mesh;
-    });
-    return {...layer,planes};
-  });
-  const gold=new PBRMaterial('palaceCoinGold',scene);
-  gold.albedoColor=Color3.FromHexString('#ffd16b'); gold.metallic=.7;gold.roughness=.24;
-  gold.emissiveColor=new Color3(.13,.065,.01);
-  const coins=PALACE_LAYOUT.coins.map((p,i)=>{
-    const m=CreateTorus('palaceCoin'+i,{diameter:.48,thickness:.10,tessellation:24},scene);
-    m.position.set(p.x,p.y,0); m.rotation.x=Math.PI/2; m.material=gold; return m;
-  });
-  const checkpoints=PALACE_LAYOUT.checkpoints.map((p,i)=>{
-    makeBox('checkpointBase'+i,p.x,p.y+.08,-.75,.9,.16,.65,side);
-    makeBox('checkpointPost'+i,p.x,p.y+1.1,-.75,.12,2,.12,trim);
-    const ring=CreateTorus('checkpointRing'+i,{diameter:.58,thickness:.055,tessellation:36},scene);
-    ring.rotation.x=Math.PI/2;ring.position.set(p.x,p.y+1.9,-.75);ring.material=glow;
+  createPalaceDistrict(scene, shadows, materials);
+
+  const glow = new StandardMaterial('palaceAzureLight', scene);
+  glow.diffuseColor = Color3.FromHexString('#68a8bf'); glow.emissiveColor = new Color3(.11, .3, .4);
+  glow.specularColor = Color3.Black();
+  const coins = createPalaceCoins(scene, materials);
+  const checkpoints = PALACE_LAYOUT.checkpoints.map((p, i) => {
+    box('checkpointBase' + i, p.x, p.y + .1, -1.1, .8, .2, .8, materials.aged);
+    const stem = createColumn('checkpointStem' + i, { height: 1.45, radius: .14 }, scene);
+    stem.position.set(p.x, p.y + .2, -1.1); stem.material = materials.light; parts.push(stem);
+    const ring = CreateTorus('checkpointRing' + i, { diameter: .55, thickness: .045, tessellation: 40 }, scene);
+    ring.position.set(p.x, p.y + 1.95, -1.1); ring.rotation.x = Math.PI / 2; ring.material = glow;
     return ring;
   });
-  const g=PALACE_LAYOUT.goal;
-  makeBox('goalLeft',g.x-.85,g.y+1.65,-.6,.28,3.3,.55);
-  makeBox('goalRight',g.x+.85,g.y+1.65,-.6,.28,3.3,.55);
-  makeBox('goalLintel',g.x,g.y+3.3,-.6,2.1,.25,.7);
-  const goalRing=CreateTorus('palaceGoal',{diameter:1.3,thickness:.09,tessellation:56},scene);
-  goalRing.rotation.x=Math.PI/2;goalRing.position.set(g.x,g.y+1.7,-.65);goalRing.material=glow;
-  const beam=CreateCylinder('goalPedestal',{diameter:1.4,height:.14,tessellation:48},scene);
-  beam.position.set(g.x,g.y+.07,-.5);beam.material=trim;
-  return {update(run:PalaceRun,cameraX:number){
-    for(const layer of layers) {
-      const offset=((cameraX*layer.factor)%layer.width+layer.width)%layer.width;
-      layer.planes.forEach((mesh,i)=>{mesh.position.x=cameraX-offset+(i-1)*layer.width;});
-    }
-    coins.forEach((m,i)=>{m.setEnabled(!run.collected.includes(i));m.rotation.y=run.elapsed*1.8+i*.23;});
-    checkpoints.forEach((m,i)=>{m.scaling.setAll(i<=run.checkpoint?1.12:1);m.rotation.z=run.elapsed*.35;});
-    goalRing.rotation.z=run.elapsed*.3;
-  }};
+  const updateCheckpoints = createCheckpointFeedback(scene, checkpoints);
+  const goal = PALACE_LAYOUT.goal;
+  for (const dx of [-2.2, 2.2]) {
+    const column = createColumn('palaceGateColumn', { height: 3.2, radius: .3 }, scene);
+    column.position.set(goal.x + dx, goal.y, -1.3); column.material = materials.light; parts.push(column);
+  }
+  arch('palaceGoalArch', goal.x, goal.y + 2.5, -1.3, 3.8, 2.05, .4, 1);
+  box('palaceGateKeystone', goal.x, goal.y + 4.6, -.72, .42, .65, .18, materials.gold);
+  const goalRing = CreateTorus('palaceGoal', { diameter: 1.35, thickness: .07, tessellation: 56 }, scene);
+  goalRing.position.set(goal.x, goal.y + 1.7, -1.25); goalRing.rotation.x = Math.PI / 2; goalRing.material = glow;
+  flush('palaceWaymarkers');
+
+  return { update(run: PalaceRun, _cameraX: number) {
+    coins.forEach((mesh, i) => { mesh.setEnabled(!run.collected.includes(i)); mesh.rotation.y = run.elapsed * 1.8 + i * .23; });
+    updateCheckpoints(run);
+    goalRing.rotation.z = run.elapsed * .3;
+  } };
 }
