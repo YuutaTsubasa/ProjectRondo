@@ -9,6 +9,7 @@ import type { PalaceRun } from '../../domain/palace/palaceRun';
 import { createArch, createArchSpandrel, createBeveledBox, createColumn } from './palaceArchitecture';
 import { createPalaceMaterials, mergePalaceParts } from './palaceMaterials';
 import { applyStoneUV } from './palaceStoneSurface';
+import { createPalaceLowMist } from './palaceLowMist';
 import { createPalaceDistrict } from './palaceDistrict';
 import { createPalaceCoins, createCheckpointFeedback } from './palaceCollectibles';
 
@@ -68,6 +69,7 @@ export function createPalaceScenery(scene: Scene, shadows: Shadows) {
     flush('palaceBridge' + index);
   }
   createPalaceDistrict(scene, shadows, materials);
+  const mist = createPalaceLowMist(scene);
 
   const glow = new StandardMaterial('palaceAzureLight', scene);
   glow.diffuseColor = Color3.FromHexString('#68a8bf'); glow.emissiveColor = new Color3(.11, .3, .4);
@@ -96,6 +98,7 @@ export function createPalaceScenery(scene: Scene, shadows: Shadows) {
   return { update(run: PalaceRun, _cameraX: number) {
     coins.forEach((mesh, i) => { mesh.setEnabled(!run.collected.includes(i)); mesh.rotation.y = run.elapsed * 1.8 + i * .23; });
     updateCheckpoints(run);
+    mist.update(run.elapsed);
     goalRing.rotation.z = run.elapsed * .3;
   } };
 }

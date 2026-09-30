@@ -18,7 +18,7 @@ it('buffers a used-air-jump press until landing and launches on the next substep
 });
 it('expires a homing dash at its time limit without refreshing the air jump',()=>{
  const stage={...l,guards:[{id:'target',x:8,y:0,minX:8,maxX:8}]}; const initial=createPalaceRun(stage);
- const s=stepPalaceRun({...initial,player:{...initial.player,y:3,grounded:false,coyote:0,airJumpSpent:true,homing:{targetId:'target',seconds:.645}}},{axis:0,jump:false,attack:false,dt:.05},stage);
+ const s=stepPalaceRun({...initial,player:{...initial.player,y:3,grounded:false,coyote:0,airJumpSpent:true,homing:{targetId:'target',seconds:.645,lastClear:{x:0,y:3}}}},{axis:0,jump:false,attack:false,dt:.05},stage);
  expect(s.player.homing).toBeNull();expect(s.player.airJumpSpent).toBe(true);expect(s.guards[0].defeated).toBe(false);
 });
 it('cancels a dash when its guard disappears and handles left-facing homing symmetrically',()=>{

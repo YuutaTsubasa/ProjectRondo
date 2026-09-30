@@ -142,9 +142,15 @@ describe('portrait assets', () => {
 
   // The portrait stands over the live 3D scene. Without a usable alpha the removed background comes
   // back as an opaque rectangle in front of the hub, which nothing else here can see.
-  it.skipIf(!HAVE_FFMPEG)('every portrait is genuinely transparent, not merely alpha-capable (needs ffmpeg)', async () => {
-    const portraits = urls();
+  it('every WebP portrait is genuinely transparent without ffmpeg', async () => {
+    const portraits = urls().filter(url => url.endsWith('.webp'));
     const alphas = await Promise.all(portraits.map((u) => cornerAlpha(fileFor(u))));
+    expect(portraits.filter((_, index) => alphas[index] !== 0)).toEqual([]);
+  });
+
+  it.skipIf(!HAVE_FFMPEG)('every WebM portrait is genuinely transparent (needs ffmpeg)', async () => {
+    const portraits = urls().filter(url => url.endsWith('.webm'));
+    const alphas = await Promise.all(portraits.map(url => cornerAlpha(fileFor(url))));
     expect(portraits.filter((_, index) => alphas[index] !== 0)).toEqual([]);
   });
 

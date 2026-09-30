@@ -33,6 +33,7 @@ it('pauses physics, resumes, respawns and resets a completed run without reloadi
   window.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape'})); await settle();
   stub.frame(); expect(course.scene.render).toHaveBeenCalledTimes(1); expect(document.body.textContent).toContain('PAUSED');
   window.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape'})); await settle();
+  stub.frame(); // Discard the first engine delta after resuming.
   course.set(COURSE_GATES[1].center); stub.frame(); await settle();
   course.set({x:0,y:-13,z:90}); stub.frame(); await settle();
   expect(course.player.teleport).toHaveBeenLastCalledWith(new Vector3(...Object.values(COURSE_GATES[1].spawn)));
@@ -102,6 +103,7 @@ it.each(['resume', 'restart', 'visibility'] as const)('excludes paused wall time
   }
   await settle();
   course.advanceClock(20); stub.frame();
+  expect(course.bone.position.y).toBe(before); course.advanceClock(20); stub.frame();
   expect(course.bone.position.y - before).toBeCloseTo(0.02, 6);
   expect(course.bone.position.y).toBeLessThan(0.1);
 });
@@ -118,3 +120,23 @@ it('does not charge scene loading time to a clip evaluated before the course bec
   course.advanceClock(20); stub.frame();
   expect(course.bone.position.y - before).toBeCloseTo(0.02, 6);
 });
+
+ it.each(['resume','visibility','restart'] as const)('discards the first resumed simulation frame on %s', async action => {
+  const scene=level();stub.build.mockResolvedValue(scene);
+  app=mount(CourseSession,{target:document.body,props:{onReady:vi.fn(),onFailure:vi.fn()}});await settle();
+  stub.frame();
+  if(action==='visibility') {
+    vi.spyOn(document,'hidden','get').mockReturnValue(true);
+    document.dispatchEvent(new Event('visibilitychange'));
+  } else window.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape'}));
+  await settle();
+  if(action==='restart') [...document.querySelectorAll('button')].find(b=>b.textContent?.includes('重新開始'))!.click();
+  else {
+    if(action==='visibility')vi.spyOn(document,'hidden','get').mockReturnValue(false);
+    window.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape'}));
+  }
+  await settle();
+  const calls=scene.scene.render.mock.calls.length;
+  stub.frame();expect(scene.scene.render).toHaveBeenCalledTimes(calls);
+  stub.frame();expect(scene.scene.render).toHaveBeenCalledTimes(calls+1);
+ });

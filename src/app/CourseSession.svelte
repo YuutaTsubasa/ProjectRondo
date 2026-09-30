@@ -13,6 +13,7 @@
   let run = $state(createCourseRun());
   let status = $state<'loading' | 'playing' | 'paused' | 'finished'>('loading');
   let course: CourseScene | undefined;
+  let discardNextFrame = false;
 
   function pause() {
     if (status !== 'playing') return;
@@ -22,10 +23,12 @@
     if (status !== 'paused') return;
     // Babylon clips use wall time even while scene.render is skipped. Discard the paused gap.
     course?.scene.resetLastAnimationTimeFrame();
+    discardNextFrame = true;
     status = 'playing'; course?.suspendInput(false); canvas.focus();
   }
   function restart() {
     if (!course) return;
+    discardNextFrame = true;
     course.scene.resetLastAnimationTimeFrame();
     course.player.teleport(new Vector3(COURSE_SPAWN.x, COURSE_SPAWN.y, COURSE_SPAWN.z));
     course.player.motion = { ...course.player.motion, facing: { x: 0, y: 1 } };
@@ -49,6 +52,8 @@
     engine.runRenderLoop(() => {
       if (status !== 'playing' || !course) return;
       if (document.hidden) { pause(); return; }
+      // Engine delta can still include hidden time; skip simulation and physics on this frame.
+      if (discardNextFrame) { discardNextFrame = false; course.scene.resetLastAnimationTimeFrame(); return; }
       course.scene.render();
       const stepped = stepCourseRun(run, {
         position: course.player.capsulePosition(), grounded: !course.player.airborne,

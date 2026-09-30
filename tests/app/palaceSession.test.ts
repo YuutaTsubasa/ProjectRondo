@@ -25,6 +25,7 @@ it('resumes on initial readiness, freezes pause, shows results and resets for re
  expect(document.activeElement?.textContent).toContain('繼續遊戲');
  window.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape'}));await settle();
  expect(palace.suspendInput).toHaveBeenLastCalledWith(false);
+ stub.frame(); // Discard stale resume delta.
  palace.finish();stub.frame();await settle();expect(document.body.textContent).toContain('STAGE CLEAR');
  const calls=palace.advance.mock.calls.length;stub.frame();expect(palace.advance).toHaveBeenCalledTimes(calls);
  [...document.querySelectorAll('button')].find(b=>b.textContent?.includes('再玩一次'))!.click();await settle();
@@ -47,3 +48,23 @@ it('suspends on hidden page and keeps keyboard focus inside the pause menu',asyn
  window.dispatchEvent(new KeyboardEvent('keydown',{key:'Tab',shiftKey:true,cancelable:true}));await settle();
  expect(document.activeElement?.textContent).toContain('返回主選單');
 });
+
+ it.each(['resume','visibility','restart'] as const)('discards the first resumed simulation frame on %s', async action => {
+  const scene=level();stub.build.mockResolvedValue(scene);
+  app=mount(PalaceSession,{target:document.body,props:{onReady:vi.fn(),onFailure:vi.fn()}});await settle();
+  stub.frame();
+  if(action==='visibility') {
+    vi.spyOn(document,'hidden','get').mockReturnValue(true);
+    document.dispatchEvent(new Event('visibilitychange'));
+  } else window.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape'}));
+  await settle();
+  if(action==='restart') [...document.querySelectorAll('button')].find(b=>b.textContent?.includes('重新開始'))!.click();
+  else {
+    if(action==='visibility')vi.spyOn(document,'hidden','get').mockReturnValue(false);
+    window.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape'}));
+  }
+  await settle();
+  const calls=scene.advance.mock.calls.length;
+  stub.frame();expect(scene.advance).toHaveBeenCalledTimes(calls);
+  stub.frame();expect(scene.advance).toHaveBeenCalledTimes(calls+1);
+ });

@@ -9,7 +9,7 @@ export interface PalacePlayer extends PalacePoint {
   vx:number; vy:number; facing:1|-1; grounded:boolean; airJumpSpent:boolean;
   jumpBuffer:number; coyote:number; health:number; invulnerable:number; hurt:number; deadFor:number;
   swordSeconds:number|null; swordHits:string[];
-  homing:{targetId:string;seconds:number}|null; airJumped:boolean; bounced:boolean;
+  homing:{targetId:string;seconds:number;lastClear:PalacePoint}|null; airJumped:boolean; bounced:boolean;
 }
 export interface PalaceGuard extends PalacePoint { id:string; direction:1|-1; defeated:boolean; defeatedFor:number }
 export interface PalaceRun {
@@ -29,7 +29,7 @@ export function createPalaceRun(layout:PalaceLayout=PALACE_LAYOUT):PalaceRun {
 function supported(p:PalacePlayer,l:PalaceLayout):boolean {
   return l.platforms.some(b=>Math.abs(p.y-b.y)<EPS && p.x+HALF>b.x+EPS && p.x-HALF<b.x+b.width-EPS);
 }
-/** Open segment/solid intersection avoids targeting through floor edges or walls. */
+/** Sword attacks retain solid occlusion; Homing intentionally phases through solids. */
 function clearLine(a:PalacePoint,b:PalacePoint,l:PalaceLayout):boolean {
   return !l.platforms.some(box=>{
     let near=0,far=1;
@@ -41,16 +41,20 @@ function clearLine(a:PalacePoint,b:PalacePoint,l:PalaceLayout):boolean {
   });
 }
 function center(p:PalacePoint):PalacePoint {return {x:p.x,y:p.y+PALACE_BODY_HEIGHT/2};}
-function targetFor(p:PalacePlayer,guards:PalaceGuard[],l:PalaceLayout):PalaceGuard|undefined {
-  return guards.filter(g=>!g.defeated && (g.x-p.x)*p.facing>0 && Math.hypot(g.x-p.x,g.y-p.y)<=12 && clearLine(center(p),center(g),l))
+function targetFor(p:PalacePlayer,guards:PalaceGuard[]):PalaceGuard|undefined {
+  return guards.filter(g=>!g.defeated && (g.x-p.x)*p.facing>0 && Math.hypot(g.x-p.x,g.y-p.y)<=12)
     .sort((a,b)=>Math.hypot(a.x-p.x,a.y-p.y)-Math.hypot(b.x-p.x,b.y-p.y))[0];
 }
 /** The reticle and attack input share this exact eligibility decision. */
-export function selectPalaceTarget(state:PalaceRun,layout:PalaceLayout=PALACE_LAYOUT):string|null {
+export function selectPalaceTarget(state:PalaceRun,_layout:PalaceLayout=PALACE_LAYOUT):string|null {
   const p=state.player;
   if(state.finished || p.health<=0 || p.grounded || p.hurt>0 || p.swordSeconds!==null)return null;
   if(p.homing)return state.guards.some(g=>g.id===p.homing!.targetId && !g.defeated)?p.homing.targetId:null;
-  return targetFor(p,state.guards,layout)?.id??null;
+  return targetFor(p,state.guards)?.id??null;
+}
+function insideSolid(p:PalacePoint,l:PalaceLayout):boolean {
+  return l.platforms.some(b=>p.x+HALF>b.x+EPS && p.x-HALF<b.x+b.width-EPS
+    && p.y<b.y-EPS && p.y+PALACE_BODY_HEIGHT>b.y-b.height+EPS);
 }
 function move(p:PalacePlayer,l:PalaceLayout,dt:number):boolean {
   let blocked=false;
@@ -86,7 +90,7 @@ export function stepPalaceRun(state:PalaceRun,input:PalaceInput,layout:PalaceLay
     if(input.attack && !s.player.homing && s.player.swordSeconds===null && s.player.hurt<=0) {
       const targetId=selectPalaceTarget(s,layout);
       const target=targetId?s.guards.find(g=>g.id===targetId):undefined;
-      if(target) {s.player.homing={targetId:target.id,seconds:0};s.player.swordHits=[];}
+      if(target) {s.player.homing={targetId:target.id,seconds:0,lastClear:{x:s.player.x,y:s.player.y}};s.player.swordHits=[];}
       else {s.player.swordSeconds=0;s.player.swordHits=[];}
     }
   }
@@ -117,15 +121,22 @@ function simulate(s:PalaceRun,axis:number,dt:number,l:PalaceLayout):void {
   }
   p.jumpBuffer=Math.max(0,p.jumpBuffer-dt);
   let dashTarget=p.homing?s.guards.find(g=>g.id===p.homing!.targetId && !g.defeated):undefined;
-  if(p.homing && (!dashTarget || p.homing.seconds>=.65 || !clearLine(center(p),center(dashTarget),l))) {p.homing=null;dashTarget=undefined;}
+  if(p.homing && (!dashTarget || p.homing.seconds>=.65)) {
+    if(insideSolid(p,l)) {p.x=p.homing.lastClear.x;p.y=p.homing.lastClear.y;p.vx=0;p.vy=0;}
+    p.homing=null;dashTarget=undefined;
+  }
   if(p.homing && dashTarget) {
     p.homing.seconds+=dt;
     const dx=dashTarget.x-p.x,dy=dashTarget.y-p.y,distance=Math.hypot(dx,dy);
     p.vx=distance>EPS?dx/distance*24:0;p.vy=distance>EPS?dy/distance*24:0;
-    const blocked=move(p,l,dt);
+    // Homing alone bypasses solid movement; retain a safe cancellation point.
+    p.x+=p.vx*dt;p.y+=p.vy*dt;p.grounded=false;p.coyote=0;
+    if(!insideSolid(p,l))p.homing.lastClear={x:p.x,y:p.y};
     if(Math.hypot(dashTarget.x-p.x,dashTarget.y-p.y)<.8) {
+      // Approaching from below can reach hit radius while still inside the target's platform.
+      p.x=dashTarget.x;p.y=dashTarget.y;
       defeat(dashTarget);p.homing=null;p.vy=12.8;p.vx=p.facing*10;p.grounded=false;p.coyote=0;p.bounced=true;
-    } else if(blocked)p.homing=null;
+    }
   } else {
     if(p.hurt<=0)p.vx=approach(p.vx,axis*10,(axis?19:30)*dt);
     p.vy-=30*dt;move(p,l,dt);
@@ -145,7 +156,11 @@ function simulate(s:PalaceRun,axis:number,dt:number,l:PalaceLayout):void {
     const nearestY=Math.max(p.y,Math.min(p.y+PALACE_BODY_HEIGHT,coin.y));
     if(!s.collected.includes(index) && Math.hypot(Math.max(0,Math.abs(coin.x-p.x)-HALF),coin.y-nearestY)<=.7)s.collected.push(index);
   });
-  l.checkpoints.forEach((cp,index)=>{if(index>s.checkpoint && p.grounded && Math.abs(p.y-cp.y)<.15 && Math.abs(p.x-cp.x)<1)s.checkpoint=index;});
+  // Allow jumps and shield dashes through the beacon; keep below-floor and high flyovers outside.
+  l.checkpoints.forEach((cp,index)=>{
+    const height=p.y-cp.y;
+    if(index>s.checkpoint && Math.abs(p.x-cp.x)<1.4 && height>=-.15 && height<=4)s.checkpoint=index;
+  });
   if(!p.homing && !p.bounced && p.invulnerable<=0) {
     const contact=s.guards.find(g=>!g.defeated && Math.abs(g.x-p.x)<.8 && Math.abs(g.y-p.y)<PALACE_BODY_HEIGHT);
     if(contact){p.health--;p.invulnerable=.9;p.hurt=.42;p.vx=(p.x<contact.x?-1:1)*7;p.vy=6;p.grounded=false;p.swordSeconds=null;if(p.health<=0)die(s);}

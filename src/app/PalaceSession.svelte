@@ -10,6 +10,7 @@
   let run=$state(createPalaceRun());
   let status=$state<'loading'|'playing'|'paused'|'finished'>('loading');
   let palace:PalaceScene|undefined;
+  let discardNextFrame=false;
   let dialogHost:HTMLDivElement;
   $effect(()=>{
     if(status!=='paused'&&status!=='finished')return;
@@ -17,8 +18,8 @@
     return()=>clearTimeout(id);
   });
   function pause(){if(status!=='playing')return;status='paused';palace?.suspendInput(true);}
-  function resume(){if(status!=='paused')return;status='playing';palace?.suspendInput(false);canvas.focus();}
-  function restart(){if(!palace)return;run=palace.reset();status='playing';palace.suspendInput(false);canvas.focus();}
+  function resume(){if(status!=='paused')return;discardNextFrame=true;status='playing';palace?.suspendInput(false);canvas.focus();}
+  function restart(){if(!palace)return;discardNextFrame=true;run=palace.reset();status='playing';palace.suspendInput(false);canvas.focus();}
   function leave(){palace?.suspendInput(true);onExit?.();}
   function keydown(event:KeyboardEvent){
     if(event.key==='Escape'&&!event.repeat){event.preventDefault();if(status==='playing')pause();else if(status==='paused')resume();}
@@ -37,6 +38,7 @@
     engine.runRenderLoop(()=>{
       if(status!=='playing'||!palace)return;
       if(document.hidden){pause();return;}
+      if(discardNextFrame){discardNextFrame=false;palace.scene.resetLastAnimationTimeFrame();return;}
       run=palace.advance(engine.getDeltaTime()/1000);
       if(run.finished){status='finished';palace.suspendInput(true);}
     });

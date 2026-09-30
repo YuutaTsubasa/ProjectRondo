@@ -4,6 +4,7 @@ import { Color3 } from '@babylonjs/core/Maths/math.color';
 import { Mesh } from '@babylonjs/core/Meshes/mesh';
 import { createStoneTextures, applyStoneUV } from './palaceStoneSurface';
 import { VertexBuffer } from '@babylonjs/core/Buffers/buffer';
+import { PalaceHeightMist } from './palaceLowMist';
 import type { Shadows } from '../babylon/shadows';
 
 export function createPalaceMaterials(scene: Scene) {
@@ -23,6 +24,7 @@ export function createPalaceMaterials(scene: Scene) {
       material.useRoughnessFromMetallicTextureGreen = true;
       material.useMetallnessFromMetallicTextureBlue = true;
     }
+    new PalaceHeightMist(material);
     return material;
   };
   return {
