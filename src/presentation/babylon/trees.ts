@@ -1,103 +1,27 @@
 import type { Scene } from '@babylonjs/core/scene';
-import type { AssetContainer } from '@babylonjs/core/assetContainer';
-import type { Material } from '@babylonjs/core/Materials/material';
-import type { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 import type { Shadows } from './shadows';
-import { LoadAssetContainerAsync } from '@babylonjs/core/Loading/sceneLoader';
-import { Quaternion } from '@babylonjs/core/Maths/math.vector';
+import { Quaternion, Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { Color3 } from '@babylonjs/core/Maths/math.color';
-// Importing the binding also runs the module, so this doubles as the shader's side-effect import.
 import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
+import { Mesh } from '@babylonjs/core/Meshes/mesh';
+import { RawTexture } from '@babylonjs/core/Materials/Textures/rawTexture';
+import { Texture } from '@babylonjs/core/Materials/Textures/texture';
+import { createNaturalFoliage, type FoliagePatch } from './naturalFoliage';
+import { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 import { CreateCylinder } from '@babylonjs/core/Meshes/Builders/cylinderBuilder';
 import { PhysicsAggregate } from '@babylonjs/core/Physics/v2/physicsAggregate';
 import { PhysicsShapeType } from '@babylonjs/core/Physics/v2/IPhysicsEnginePlugin';
 import { terrainHeight } from './terrainHeight';
-import { emissiveFactorOf, type GltfPbrMaterial } from './gltfMaterial';
 import { applyWind } from './wind';
-import '@babylonjs/loaders/glTF'; // side-effect: registers the glTF loader
 
-/** The tree GLB is normalized to ~1 unit tall (Tripo output); scale it up to a real tree height.
- *  The per-spot scale below multiplies this, so trees land around 6 units (taller than the ~1.9 knight). */
+/** Normalized prototypes keep the existing roughly six-unit tree height. */
 const BASE_SCALE = 6;
-
-/**
- * Multiplier on the albedo texture's contribution, and — with {@link TREE_EMISSIVE} — half of what
- * puts the trees back where they were before they stopped being PBR.
- *
- * **Why the trees are not PBR.** The GLB ships a `PBRMaterial`, and every other surface fog actually
- * reaches is a `StandardMaterial`. The trees-vs-hub mismatch that creates only becomes visible once
- * fog is on. PBR shades and mixes fog in linear space, where a small blend toward a near-white fog colour multiplies a dark pixel
- * several-fold; StandardMaterial mixes in gamma space, where the same blend barely moves it. Measured
- * at the spawn viewpoint, a tree ~27 units out took a 0.32 fog blend where EXP2 asks for 0.04 and the
- * grass beside it took 0.07 — so the trees bleached to grey while the terrain behind them looked
- * untouched. That reads as "the fog is only on the trees", but the fog is uniform; the trees were the
- * only surface reacting in linear space, and the only one dark enough for it to show.
- *
- * (The knight is glTF and therefore PBR too, but it sits about 5 units from the camera —
- * `followCamera.ts`'s `distance` — where EXP2 puts fog at 0.14 %, so the mismatch never shows on it.
- * See HANDOFF §7.)
- *
- * Rebuilding over the same albedo texture as a StandardMaterial puts them back in line. Measured on
- * the final shipped material, with the grass beside them held as an untouched control at 0.069: near
- * trunk 0.32 -> 0.05, near canopy 0.19 -> 0.09, mid canopy 0.47 -> 0.13. Inverting EXP2 on the near
- * trunk's 0.05 implies 30 units against the ~27 measured geometrically; its PBR blend of 0.32 implied
- * 82. Nothing is lost — the source is metallic 0 with no metallic-roughness map, i.e. diffuse-only.
- *
- * Gamma-space shading then lands the canopy far darker than PBR did, which is what this constant is
- * for. 2.5 was picked against the pre-conversion render at the spawn viewpoint.
- */
-const TREE_TEXTURE_LEVEL = 2.5;
-
-/** Emissive floor, the same trick `scatter.ts` uses on grass and bushes: without one the canopy's
- *  shaded undersides go pure black under ACES.
- *
- *  "Floor" is loose wording. StandardMaterial computes
- *  `clamp(diffuseBase * diffuseColor + emissiveColor + ambient) * baseColor`, and `baseColor` has
- *  already been scaled by `texture.level` — so this is multiplied by TREE_TEXTURE_LEVEL and by the
- *  texel, and changing the level rescales this too. The switch that would make it genuinely
- *  texture-independent is `useEmissiveAsIllumination`, which moves emissive outside that multiply.
- *
- *  Measured from under a tree as the fraction of the frame at pure black. What was swept is a single
- *  scalar on the hue vector below, normalised so green = 1 — so each sweep value IS the resulting
- *  green channel: 0 -> 10.5 %, 0.16 -> 1.4 %, 0.24 -> 0.20 %, for +5 % mean luma. 0.24 green shipped,
- *  which is the same colour as the grass floor x 1.41 described below; re-measure by sweeping that
- *  scalar, not by scaling the triple channel-wise.
- *
- *  Measure this against a whole frame, never against sampled points: on lit canopy the floor looks
- *  like it does nothing (a 4x sweep moved a lit sample by 3/255), because the shaded side is the
- *  entire point — that mistake shipped once already. The tint is `scatter.ts`'s grass floor
- *  (0.10, 0.17, 0.06) scaled by 1.41: the same hue, not one measured off the canopy. */
-const TREE_EMISSIVE = new Color3(0.141, 0.24, 0.085);
-
-/** Trunk collider: a thin invisible cylinder so the player stops at the trunk, not the canopy. */
 const TRUNK_RADIUS = 0.5;
 const TRUNK_HEIGHT = 4;
-
-/**
- * Wind amplitude for tree canopies, in WORLD units — see `applyWind`'s doc comment for what the number
- * means (it is the per-sine scale; peak displacement is ~1.5x it, because the gust envelope
- * `sin(x) + 0.5*sin(2.3x + 1.7)` peaks at ~1.4999).
- *
- * Bracketed by two sightings rather than derived:
- *
- * - **0.06** (peak ~0.09, ~1.5% of a ~6-unit tree): a reviewer's judgement that the canopy would not
- *   read as moving at all. Never seen on screen by anyone.
- * - **0.6** (peak ~0.90, ~15%): **seen and reported as visibly too much** by the project owner. This
- *   is the only datum here that came from looking at the actual render.
- *
- * 0.2 sits between them at peak ~0.30, ~5% of tree height. Chosen as roughly a third of the value that
- * was too much, not as a midpoint — the failure at 0.6 was a reasoning error (matching grass's
- * proportional lean, see `applyWind`) and the correction is toward the few-percent crown deflection a
- * real tree shows, not toward the arithmetic middle of two guesses.
- *
- * **Still unverified**: nobody has looked at 0.2. To move it, the mapping is
- * `peak = amplitude * 1.5`, `proportional lean = peak / 6`:
- * 0.12 -> ~3%, 0.2 -> ~5%, 0.3 -> ~7.5%, 0.4 -> ~10%.
- */
+/** World-space sway, owned by the shared wind clock; trunks stay rigid. */
 const TREE_WIND_AMPLITUDE = 0.2;
 
-/** Fixed scatter: [x, z, yawRadians, scale]. Spread across the enlarged 100×100 field (out to ±36);
- *  the centre (~radius 5) is left clear so no tree spawns on the player's spawn point. */
+/** Fixed scatter: [x, z, yawRadians, scale]. The player spawn stays clear. */
 const SPOTS: readonly [number, number, number, number][] = [
   [12, -14, 0.3, 1.0], [-13, -12, 1.9, 1.15], [14, 13, 2.7, 0.9], [-15, 15, 0.8, 1.05],
   [26, 5, 1.2, 1.2], [-25, -7, 2.2, 1.1], [6, -28, 0.5, 1.0], [-8, 27, 3.0, 1.15],
@@ -107,216 +31,122 @@ const SPOTS: readonly [number, number, number, number][] = [
 ];
 
 /**
- * Loads /models/tree.glb and scatters copies across the field as shadow-casting trees. If the GLB is
- * absent (not added yet), logs a note and no-ops so the rest of the scene still renders.
- *
- * Uses an AssetContainer + `instantiateModelsToScene` (rather than `mesh.clone`) so the whole
- * multi-node glTF hierarchy is duplicated correctly — a naive clone of the loader's `__root__` leaves
- * the geometry behind at the origin. `doNotInstantiate: true` produces real cloned meshes so each tree
- * registers as a normal shadow caster.
- *
- * The GLB should be texture-optimized offline like the knight (gltf-transform: `resize --width 1024
- * --height 1024` then `webp --quality 80`; trees are static, so geometry `simplify` is also safe here).
+ * Irregular sprays of individual leaves expose the forked branch structure. Both prototypes share
+ * geometry across their clones, use gamma-space StandardMaterial fog, and belong to this scene.
+ * The async entry point remains compatible with the hub's parallel asset loading.
  */
 export async function loadTrees(scene: Scene, shadows: Shadows): Promise<void> {
-  let container;
-  try {
-    container = await LoadAssetContainerAsync('/models/tree.glb?v=4', scene);
-  } catch (err) {
-    // Absent asset OR a real load failure (bad GLB, network) both reject here — log the cause so a
-    // genuine error isn't mistaken for "just not added yet". Either way, skip trees and keep the scene.
-    console.info('[trees] tree.glb not loaded — skipping trees (add /public/models/tree.glb to enable):', err);
-    return;
-  }
-
-  // Swap once on the container, before instantiation: every clone copies the container mesh's
-  // material reference, so doing this per tree would rebuild the same material once per spot.
-  retargetMaterials(scene, container);
-  // Where the canopies get their sway. Must run after the swap (it bends the StandardMaterials the
-  // swap produced) and, like the swap, before instantiation, so every clone shares one bent material.
-  bendCanopiesWithWind(container);
+  const canopy = createCanopy(scene);
+  const bark = createBark(scene);
+  canopy.setEnabled(false);
+  bark.setEnabled(false);
 
   SPOTS.forEach(([x, z, yaw, scale], i) => {
-    const { rootNodes } = container.instantiateModelsToScene((name) => `tree_${i}_${name}`, false, {
-      doNotInstantiate: true,
-    });
-    const root = rootNodes[0] as TransformNode;
+    const root = new TransformNode(`tree_${i}`, scene);
     const y = terrainHeight(x, z);
     root.position.set(x, y, z);
+    root.rotationQuaternion = Quaternion.FromEulerAngles(0, yaw, 0);
+    root.scaling.setAll(BASE_SCALE * scale);
 
+    const crown = canopy.clone(`tree_${i}_canopy`, root);
+    const branches = bark.clone(`tree_${i}_bark`, root);
+    crown.setEnabled(true);
+    branches.setEnabled(true);
+    crown.isPickable = branches.isPickable = false;
+    shadows.cast(crown, branches);
+    // Small leaves cast a broken ground silhouette; their upward-biased normals keep the
+    // interior foliage softly lit without self-shadow striping as the shared wind bends it.
+    shadows.receive(branches);
+
+    // Preserve the original collision footprint, independently of visual crown or trunk shape.
     const trunk = CreateCylinder(`tree_${i}_trunk`, { diameter: TRUNK_RADIUS * 2, height: TRUNK_HEIGHT }, scene);
     trunk.position.set(x, y + TRUNK_HEIGHT / 2, z);
     trunk.isVisible = false;
     trunk.isPickable = false;
     new PhysicsAggregate(trunk, PhysicsShapeType.CYLINDER, { mass: 0 }, scene);
-    root.rotationQuaternion = Quaternion.FromEulerAngles(0, yaw, 0);
-    root.scaling.setAll(BASE_SCALE * scale);
-    // Trees both cast and catch each other's shadows. `cast`/`receive` skip zero-vertex nodes, so
-    // the explicit getTotalVertices guard that used to live here is no longer needed.
-    const meshes = root.getChildMeshes(false);
-    shadows.cast(...meshes);
-    shadows.receive(...meshes);
   });
-
-  // NB: do NOT dispose `container` here. `instantiateModelsToScene(doNotInstantiate)` clones share
-  // the container's geometry, so `container.dispose()` strips the live trees' vertices (verified: the
-  // trees render empty). The template lingers until engine.dispose() — a negligible one-off leak.
 }
 
-/** Replaces the container's glTF materials in place, before any tree is instantiated. */
-function retargetMaterials(scene: Scene, container: AssetContainer): void {
-  const replacements = new Map<Material, StandardMaterial>();
-  for (const source of container.materials) {
-    const replacement = toStandard(scene, source);
-    if (replacement) replacements.set(source, replacement);
-  }
-  // Rebinding the meshes is the part that actually matters: `container.materials` is only a
-  // bookkeeping list, and the clones take their material from `mesh.material`. Rebind before
-  // disposing, or the meshes are left with a null material and render untextured.
-  for (const mesh of container.meshes) {
-    const swap = mesh.material && replacements.get(mesh.material);
-    if (swap) mesh.material = swap;
-  }
-  container.materials = container.materials.map((m) => replacements.get(m) ?? m);
+/** Uneven boughs leave pockets of sky between leaf sprays, including through the crown. */
+const FOLIAGE_PATCHES: readonly FoliagePatch[] = [
+  { center: [-0.20, 0.65, 0.02], radius: [0.17, 0.105, 0.14], sprays: 34 },
+  { center: [0.22, 0.73, -0.075], radius: [0.16, 0.12, 0.14], sprays: 35 },
+  { center: [0.065, 0.66, 0.235], radius: [0.155, 0.095, 0.115], sprays: 29 },
+  { center: [-0.14, 0.76, -0.19], radius: [0.14, 0.13, 0.13], sprays: 32 },
+  { center: [0.035, 0.89, 0.01], radius: [0.155, 0.14, 0.14], sprays: 42 },
+  { center: [-0.085, 0.86, 0.14], radius: [0.15, 0.105, 0.13], sprays: 30 },
+  { center: [0.15, 0.81, 0.17], radius: [0.13, 0.11, 0.12], sprays: 29 },
+  { center: [0.07, 0.78, -0.21], radius: [0.13, 0.12, 0.115], sprays: 31 },
+  { center: [-0.24, 0.79, -0.04], radius: [0.115, 0.11, 0.12], sprays: 27 },
+  { center: [-0.05, 0.72, 0.015], radius: [0.16, 0.13, 0.16], sprays: 42 },
+];
 
-  // Warn BEFORE the empty-map guard would have returned: the case where *nothing* converted is the
-  // worst one, not a benign no-op. It means every tree ships as PBR — the bleaching bug at full
-  // strength — and it is reachable, because the GLB is versioned (`tree.glb?v=4`) and an asset swap
-  // can drop the albedo texture this conversion keys off.
-  for (const m of container.materials) {
-    if (!(m instanceof StandardMaterial)) {
-      console.warn(
-        `[trees] '${m.name}' (${m.getClassName()}) left unconverted — it will fog differently from the rest of the hub.`,
-      );
+function createCanopy(scene: Scene): Mesh {
+  const mesh = createNaturalFoliage(scene, 'tree_canopy_template', FOLIAGE_PATCHES, 2718);
+  applyWind(mesh.material!, mesh.getBoundingInfo().boundingBox.maximum.y, TREE_WIND_AMPLITUDE);
+  return mesh;
+}
+
+/** The tapering limbs remain readable between sprays, with thin forks under each leafy bough. */
+function createBark(scene: Scene): Mesh {
+  const limbs: [Vector3, Vector3, number, number][] = [
+    [new Vector3(0, 0, 0), new Vector3(0.015, 0.38, 0.005), 0.052, 0.034],
+    [new Vector3(0.015, 0.37, 0.005), new Vector3(-0.025, 0.75, 0), 0.035, 0.015],
+    [new Vector3(-0.025, 0.74, 0), new Vector3(0.035, 0.94, 0.01), 0.015, 0.003],
+  ];
+  FOLIAGE_PATCHES.forEach((patch, i) => {
+    const tip = Vector3.FromArray(patch.center);
+    const start = new Vector3(0.012 - i * 0.003, 0.36 + i * 0.035, 0.005);
+    const elbow = Vector3.Lerp(start, tip, 0.58);
+    elbow.y -= 0.025;
+    const radius = 0.019 - i * 0.00065;
+    limbs.push([start, elbow, radius, radius * 0.54], [elbow, tip, radius * 0.54, 0.0028]);
+    for (let fork = 0; fork < 4; fork++) {
+      const angle = i * 2.4 + fork * 1.8;
+      const forkStart = Vector3.Lerp(elbow, tip, 0.38 + fork * 0.15);
+      const forkTip = tip.add(new Vector3(Math.cos(angle) * patch.radius[0] * 0.8,
+        (fork % 2 === 0 ? 0.45 : -0.16) * patch.radius[1], Math.sin(angle) * patch.radius[2] * 0.8));
+      limbs.push([forkStart, forkTip, 0.0042, 0.0008]);
+    }
+  });
+  const parts = limbs.map(([from, to, bottomRadius, topRadius], index) => {
+    const direction = to.subtract(from);
+    const limb = CreateCylinder(`tree_branch_${index}`, {
+      height: direction.length(), diameterBottom: bottomRadius * 2,
+      diameterTop: topRadius * 2, tessellation: bottomRadius > 0.012 ? 9 : 5,
+    }, scene);
+    limb.position.copyFrom(from.add(to).scale(0.5));
+    const unit = direction.normalize();
+    const axis = Vector3.Cross(Vector3.Up(), unit).normalize();
+    limb.rotationQuaternion = Quaternion.RotationAxis(axis, Math.acos(Vector3.Dot(Vector3.Up(), unit)));
+    return limb;
+  });
+  const mesh = Mesh.MergeMeshes(parts, true)!;
+  mesh.name = 'tree_bark_template';
+  const material = new StandardMaterial('tree_bark', scene);
+  material.diffuseColor = new Color3(0.55, 0.50, 0.42);
+  material.emissiveColor = new Color3(0.025, 0.023, 0.018);
+  material.specularColor = Color3.Black();
+  // Low-contrast longitudinal grain: detailed close up without black stripes at a distance.
+  const width = 64;
+  const height = 256;
+  const pixels = new Uint8Array(width * height * 4);
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const ridge = Math.sin(x * 1.1 + Math.sin(y * 0.058) * 0.45);
+      const grain = Math.sin(x * 2.61 + y * 0.72) * Math.cos(y * 1.27 - x * 0.41);
+      const tone = 144 + ridge * 12 + grain * 7;
+      const index = (y * width + x) * 4;
+      pixels[index] = tone;
+      pixels[index + 1] = tone * 0.88;
+      pixels[index + 2] = tone * 0.74;
+      pixels[index + 3] = 255;
     }
   }
-
-  // Scale only the textures the new materials actually sample. Applying this to every texture the
-  // container holds would also hit any normal/emissive/occlusion map the GLB ships — channels
-  // TREE_TEXTURE_LEVEL's rationale says nothing about, and where 2.5x would blow out. Today's asset
-  // is diffuse-only, but that is the assumption the rest of this function exists to stop relying on.
-  // Note this rescales TREE_EMISSIVE too — see there.
-  for (const mat of replacements.values()) {
-    if (mat.diffuseTexture) mat.diffuseTexture.level = TREE_TEXTURE_LEVEL;
-  }
-
-  // dispose(forceDisposeEffect, forceDisposeTextures): the second `false` is what keeps the textures,
-  // which the replacements now sample. The meshes are already safe — rebinding above cleared each old
-  // material's `meshMap`.
-  for (const source of replacements.keys()) source.dispose(false, false);
-}
-
-/**
- * Attaches the shared wind to the container's tree materials, so every canopy instantiated from it
- * sways. Runs on the container, before instantiation, for the same reason the material swap does: the
- * clones share these materials, so bending them once bends every tree.
- *
- * Bend height per material, in LOCAL space, taken from the tallest mesh that uses it — the shader
- * weights by the raw `position` attribute, which is what a bounding box's `maximum` is expressed in.
- * Read from the container's own meshes, before `root.scaling` multiplies everything by BASE_SCALE:
- * tree.glb is normalized to ~1 unit tall and that normalization is what this reads. A hard-coded 6
- * here would weight the whole canopy at ~0 and the trees would stand still.
- */
-function bendCanopiesWithWind(container: AssetContainer): void {
-  const bendHeights = new Map<StandardMaterial, number>();
-  for (const mesh of container.meshes) {
-    const mat = mesh.material;
-    if (!(mat instanceof StandardMaterial) || mesh.getTotalVertices() === 0) continue;
-    const top = mesh.getBoundingInfo().boundingBox.maximum.y;
-    bendHeights.set(mat, Math.max(bendHeights.get(mat) ?? 0, top));
-  }
-  for (const [mat, height] of bendHeights) {
-    // A non-positive extent means the mesh sits entirely at or below its own origin. `applyWind`
-    // rejects that outright, and rightly — but here it is a fact about a loaded model rather than a
-    // bug in this file, so screen it out and leave that material unswayed instead of failing the load.
-    // Warned, like every other asset-driven degradation in this file: a swapped GLB can reach this,
-    // and the result — a motionless canopy — is otherwise indistinguishable from wind being broken.
-    if (height > 0) {
-      applyWind(mat, height, TREE_WIND_AMPLITUDE);
-    } else {
-      console.warn(`[trees] '${mat.name}' has a non-positive bounding-box height (${height}) — left unswayed by wind.`);
-    }
-  }
-}
-
-/**
- * Rebuilds one loaded glTF material as a `StandardMaterial` over the same albedo texture, so trees
- * light and fog identically to the rest of the hub — see the block comment on the constants above.
- *
- * `specularColor` is zeroed because StandardMaterial defaults to a white specular that PBR roughness
- * 0.5 never produced — left in, it makes the canopy look wet. Brightness is then restored with
- * `TREE_TEXTURE_LEVEL` and `TREE_EMISSIVE`; see those for why both are needed.
- */
-function toStandard(scene: Scene, source: Material): StandardMaterial | null {
-  const pbr = source as GltfPbrMaterial;
-  const albedo = pbr.albedoTexture;
-  if (!albedo) return null; // no texture to carry over — leave whatever the GLB shipped
-
-  const mat = new StandardMaterial(`${source.name}_std`, scene);
-  mat.diffuseTexture = albedo;
-  mat.specularColor = new Color3(0, 0, 0);
-  // TREE_EMISSIVE takes the emissive channel over, so glTF's emissiveFactor — which the loader puts
-  // straight into emissiveColor — is discarded. Today's asset ships none; warn if one ever appears,
-  // at parity with the emissiveTexture and occlusionTexture drops below.
-  const discardedEmissive = emissiveFactorOf(pbr);
-  if (discardedEmissive) {
-    console.warn(
-      `[trees] '${source.name}' has a non-zero emissiveFactor (${discardedEmissive.toHexString()}). It is discarded: TREE_EMISSIVE owns emissiveColor.`,
-    );
-  }
-  // clone: handing out the module constant by reference lets a later mutation travel back into it
-  mat.emissiveColor = TREE_EMISSIVE.clone();
-
-  // Everything below carries a property that changes how the material renders. Copying only some of
-  // them is worse than copying none, because the result looks plausible: `tree.glb` is
-  // `"doubleSided": true`, which makes the loader set `backFaceCulling = false` *and*
-  // `twoSidedLighting = true`, and StandardMaterial gates the shader on
-  // `!backFaceCulling && twoSidedLighting`. Carrying only the first flipped every back-facing canopy
-  // polygon to its front-facing normal, so leaves seen from behind were lit as though they faced away
-  // from the sun. That shipped, and TREE_TEXTURE_LEVEL was fitted against the darkening it caused.
-  mat.backFaceCulling = source.backFaceCulling;
-  if (pbr.twoSidedLighting !== undefined) mat.twoSidedLighting = pbr.twoSidedLighting;
-  // glTF's baseColorFactor: RGB lands on albedoColor, A on the material's alpha. Both default to
-  // "no tint" and today's asset omits the factor entirely — but a swapped GLB that carries one would
-  // otherwise convert cleanly, warn about nothing, and render the wrong colour.
-  if (pbr.albedoColor) mat.diffuseColor = pbr.albedoColor.clone();
-  mat.alpha = source.alpha;
-  if (pbr.alphaCutOff !== undefined) mat.alphaCutOff = pbr.alphaCutOff;
-  // glTF normalTexture, with the inversion flags that decide what its green channel means. The scene
-  // is right-handed, so the loader hands us `invertNormalMapY = true`; StandardMaterial defaults both
-  // to false and feeds them into `vTangentSpaceParams` exactly as PBR does, so carrying the texture
-  // without the flags would light the surface from the wrong side.
-  if (pbr.bumpTexture) {
-    mat.bumpTexture = pbr.bumpTexture;
-    if (pbr.invertNormalMapX !== undefined) mat.invertNormalMapX = pbr.invertNormalMapX;
-    if (pbr.invertNormalMapY !== undefined) mat.invertNormalMapY = pbr.invertNormalMapY;
-  }
-  // glTF occlusionTexture is deliberately NOT carried, and strength is not the reason. In *this*
-  // scene PBR's occlusion map is a no-op: it only reaches direct light through
-  // `ambientTextureImpactOnAnalyticalLights`, which defaults to 0 and the glTF loader never sets, and
-  // its only other use multiplies irradiance behind `#ifdef REFLECTION`, which never compiles because
-  // nothing here sets an environment texture. StandardMaterial has no such gate: `baseAmbientColor`
-  // multiplies the whole `finalDiffuse` term, and `emissiveColor` sits *inside* that term — so
-  // copying the map would convert a no-op into a real darkening and dim TREE_EMISSIVE, the one thing
-  // holding the shaded canopy off pure black. Losing AO is the smaller lie, and it is not a silent one.
-  if (pbr.ambientTexture) {
-    console.warn(
-      `[trees] '${source.name}' ships an occlusionTexture. It is not carried: StandardMaterial would apply it to the whole diffuse term including the emissive floor, where PBR applies it to nothing in this scene.`,
-    );
-  }
-  // glTF emissiveTexture is deliberately not carried either: `emissiveColor` above is this scene's
-  // shading fix rather than the asset's intent, and StandardMaterial multiplies the two. A GLB that
-  // ships a real emissive map needs that conflict resolved on purpose, not silently compounded — so
-  // this warns for the same reason the occlusion drop does.
-  if (pbr.emissiveTexture) {
-    console.warn(
-      `[trees] '${source.name}' ships an emissiveTexture. It is not carried: TREE_EMISSIVE occupies emissiveColor, and StandardMaterial would multiply the two.`,
-    );
-  }
-
-  if (albedo.hasAlpha) {
-    mat.useAlphaFromDiffuseTexture = true;
-    mat.transparencyMode = source.transparencyMode;
-  }
-  return mat;
+  const texture = RawTexture.CreateRGBATexture(pixels, width, height, scene, true, false, Texture.TRILINEAR_SAMPLINGMODE);
+  texture.name = 'tree_bark_grain';
+  texture.wrapU = texture.wrapV = Texture.WRAP_ADDRESSMODE;
+  material.diffuseTexture = texture;
+  mesh.material = material;
+  return mesh;
 }

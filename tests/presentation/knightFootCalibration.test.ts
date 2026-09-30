@@ -1,3 +1,4 @@
+/** Regression coverage for the archived pre-VRM fixture and its calibration tool. Active player coverage is in playerModelAsset.test.ts. */
 import { describe, it, expect, beforeAll } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -18,7 +19,7 @@ import { landmarks, measured } from '../../tools/knight-feet/sole.mjs';
  * checks the heel-to-toe line is level in the poses that have to be level. It is not a structural
  * echo of the receipt in `asset.extras` — a hand-edited receipt over an uncalibrated mesh fails here.
  */
-const GLB = fileURLToPath(new URL('../../public/models/knight_web.glb', import.meta.url));
+const GLB = fileURLToPath(new URL('../../tools/knight-feet/reference.glb', import.meta.url));
 
 /** Same bound `verify.mjs` enforces, and the same poses it enforces it on. */
 const LEVEL_TOLERANCE_DEGREES = 1;

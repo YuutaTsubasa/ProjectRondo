@@ -195,7 +195,7 @@
         <div class="rail" aria-hidden="true"></div>
         <!-- Last, so it takes the clicks; stretched over the box so its padding and the arrow are
              part of the target. Carries the focus ring for the box. -->
-        <button class="hit" onclick={onBoxClick} aria-label="advance dialogue"></button>
+        <button class="hit" data-game-entry onclick={onBoxClick} aria-label="advance dialogue"></button>
       </div>
     </div>
   </div>

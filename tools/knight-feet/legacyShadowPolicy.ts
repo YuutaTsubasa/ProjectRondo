@@ -1,11 +1,11 @@
+/** Archived policy for the old animation/reference fixture; not used by the playable V20 model. */
 // Pure shadow policy — NO babylon imports, so it unit-tests in the node env (see vite.config.ts,
-// `environment: 'node'`). knight.ts imports HEAD_MESHES from here rather than declaring its own, so
-// the face-material list and the shadow-receiver list cannot drift apart.
+// `environment: 'node'`). Only archived fixture tests import this policy.
 
 /** The head group of the stylized fantasy knight, by mesh name — which is the glTF **node** name,
  *  since that is what Babylon names the runtime mesh after.
  *
- *  Counted off the shipped `public/models/knight_web.glb`: it has **42** mesh-bearing nodes, all
+ *  Counted off the shipped `tools/knight-feet/reference.glb`: it has **42** mesh-bearing nodes, all
  *  sharing one material, and these two are the whole head. Both are above every other mesh in the
  *  model, measured in the GLB's own space at rest (before `loadKnight` scales it to `TARGET_HEIGHT`,
  *  roughly 2x): `Mesh_1` is 8047 verts spanning Y 0.8245-0.9801 and is the topmost mesh in the

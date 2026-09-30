@@ -1,8 +1,9 @@
+/** Regression coverage for the archived pre-VRM fixture and its calibration tool. Active player coverage is in playerModelAsset.test.ts. */
 import { describe, it, expect, beforeAll } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { load } from '../../tools/knight-feet/glb.mjs';
-import { HEAD_MESHES, knightReceivesShadow } from '../../src/presentation/babylon/shadowPolicy';
+import { HEAD_MESHES, knightReceivesShadow } from '../../tools/knight-feet/legacyShadowPolicy';
 
 describe('knightReceivesShadow', () => {
   it('excludes every head mesh', () => {
@@ -37,7 +38,7 @@ describe('knightReceivesShadow', () => {
  * spots, 8 pillars, the pedestal, rock, bush), and nothing here pins that half: add a tree spot and
  * every 71 goes stale with this suite still green.
  */
-const GLB = fileURLToPath(new URL('../../public/models/knight_web.glb', import.meta.url));
+const GLB = fileURLToPath(new URL('../../tools/knight-feet/reference.glb', import.meta.url));
 
 // Its own suite, deliberately. A `beforeAll` that loads the GLB pre-empts every test in its own
 // describe — including this one, which is then reported as skipped rather than failed, and the

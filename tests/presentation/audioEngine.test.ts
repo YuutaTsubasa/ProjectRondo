@@ -1,6 +1,7 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 import { busGain, DEFAULT_LEVELS } from '../../src/domain/audio/audioMixer';
+import { audioPreferences } from '../../src/presentation/audio/audioPreferences';
 
 /**
  * Pins what `createGameAudio` does when babylon does *not* cooperate: it leaves nothing behind.
@@ -31,6 +32,7 @@ class FakeBus {
 }
 
 class FakeEngine {
+  volume = 1;
   dispose(): void {
     disposed.push('engine');
   }
@@ -65,9 +67,17 @@ vi.mock('@babylonjs/core/AudioV2/abstractAudio/audioEngineV2', () => ({
   },
 }));
 
-const { createGameAudio } = await import('../../src/presentation/audio/audioEngine');
+const { createGameAudio: buildGameAudio } = await import('../../src/presentation/audio/audioEngine');
+const graphs: Awaited<ReturnType<typeof buildGameAudio>>[] = [];
+async function createGameAudio() {
+  const audio = await buildGameAudio();
+  graphs.push(audio);
+  return audio;
+}
+afterEach(() => { for (const graph of graphs.splice(0)) graph.dispose(); });
 
 beforeEach(() => {
+  audioPreferences.reset();
   disposed.length = 0;
   failing.clear();
   slow.clear();
@@ -76,6 +86,35 @@ beforeEach(() => {
 });
 
 describe('the audio graph', () => {
+  it('applies saved preferences on creation and updates every live bus without applying master twice', async () => {
+    audioPreferences.setLevel('master', 0.5);
+    audioPreferences.setLevel('music', 0.4);
+    audioPreferences.setLevel('sfx', 0.6);
+    audioPreferences.setLevel('ambience', 0.8);
+    const audio = await createGameAudio();
+    expect(audio.buses.music.volume).toBeCloseTo(0.2);
+    expect(audio.buses.sfx.volume).toBeCloseTo(0.3);
+    expect(audio.buses.ambience.volume).toBeCloseTo(0.4);
+    expect(engine!.volume).toBe(1);
+    audioPreferences.setLevel('master', 0.25);
+    expect(audio.buses.music.volume).toBeCloseTo(0.1);
+    expect(audio.buses.sfx.volume).toBeCloseTo(0.15);
+    expect(audio.buses.ambience.volume).toBeCloseTo(0.2);
+    audioPreferences.setMuted(true);
+    for (const bus of Object.values(audio.buses)) expect(bus.volume).toBe(0);
+    audioPreferences.setMuted(false);
+    expect(audio.buses.music.volume).toBeCloseTo(0.1);
+    expect(engine!.volume).toBe(1);
+  });
+
+  it('unsubscribes before disposal so later settings cannot write to a dead graph', async () => {
+    const audio = await createGameAudio();
+    audio.dispose();
+    audio.dispose();
+    expect(disposed).toEqual(['bus:music', 'bus:sfx', 'bus:ambience', 'engine']);
+    audioPreferences.setMuted(true);
+    for (const bus of Object.values(audio.buses)) expect(bus.volume).toBe(1);
+  });
   it('builds one engine and the three named buses, at the default mix', async () => {
     const audio = await createGameAudio();
 
@@ -91,7 +130,7 @@ describe('the audio graph', () => {
   it('pairs each bus with its own id however the factories settle', async () => {
     // `music` is asked for first and answers last. Indexing the *fulfilled* results would put the
     // music bus under `ambience` here, and a mis-set bus gain is inaudible until someone moves a
-    // slider that does not exist yet.
+    // settings slider.
     slow.add('music');
     const audio = await createGameAudio();
 

@@ -29,7 +29,7 @@ export const step = (
 
   const facing = nextFacing(motion, input, config, delta);
   const planar = nextPlanarVelocity(motion, input, config, delta, facing);
-  const justJumped = motion.isGrounded && input.jumpRequested;
+  const justJumped = (motion.isGrounded && input.jumpRequested) || (!motion.isGrounded && input.airJumpRequested === true);
   const verticalSpeed = nextVerticalSpeed(motion, justJumped, config, delta);
 
   return {
@@ -42,8 +42,8 @@ export const step = (
 
 /**
  * Whether {@link step} spends this frame dashing rather than moving normally: a dash already in
- * flight continues, and an airborne press that came with a target offset starts one. On the ground
- * the same button is an ordinary jump.
+ * flight continues, and an airborne attack that came with a target offset starts one.
+ * Jump impulses use a separate input.
  *
  * Exported because presentation cannot recover this from the result. A dash whose target is within
  * `homingSpeed * delta` at entry arrives on its own entry frame, so `CharacterMotion.homing` is never
@@ -184,7 +184,8 @@ const nextPlanarVelocity = (
 const nextVerticalSpeed = (
   motion: CharacterMotion, justJumped: boolean, config: MovementConfig, delta: number,
 ): number => {
-  if (motion.isGrounded) return justJumped ? config.jumpSpeed : 0;
+  if (justJumped) return config.jumpSpeed;
+  if (motion.isGrounded) return 0;
   return motion.velocity.y - config.gravity * delta;
 };
 

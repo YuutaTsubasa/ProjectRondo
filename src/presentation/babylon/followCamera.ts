@@ -213,14 +213,16 @@ export function createFollowCamera(
   canvas: HTMLCanvasElement,
   groundHeight: GroundHeight,
   descentFollow: boolean,
+  initialYaw = 0,
+  framing: Partial<Pick<FollowCameraConfig, 'distance' | 'height' | 'aimHeight' | 'initialPitch'>> = {},
 ): FollowCamera {
-  const config: FollowCameraConfig = { ...DEFAULT_CAMERA_CONFIG, descentFollow };
+  const config: FollowCameraConfig = { ...DEFAULT_CAMERA_CONFIG, ...framing, descentFollow };
   // Tune live from the console, e.g. `cameraConfig.aimHeight = 0.1`. Changes apply next frame.
   exposeDevHandle(scene, 'cameraConfig', config);
 
   const camera = new TargetCamera('follow', new Vector3(0, config.height, config.distance), scene);
   camera.minZ = config.nearPlane;
-  let yaw = 0;
+  let yaw = initialYaw;
   let pitch = config.initialPitch;
   let enabled = true;
 

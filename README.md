@@ -22,7 +22,7 @@ Engineering approach: **TDD + DDD + Functional + Reactive**.
 | `src/presentation/audio/` | AudioV2 wiring: engine + buses, the cue manifest, the sound bank (load + missing-asset policy), and the per-frame hub audio wiring. |
 | `src/app/` | Svelte entry + full-window canvas. |
 | `tests/` | Vitest specs (mirror the domain's former xUnit tests). |
-| `public/models/` | `knight_web.glb` (baked Idle/Walk, texture-only optimized), `knight_mr.webp` (packed metallic/roughness map). |
+| `public/models/` | `player-v20.glb` and its provenance receipt; the V20 player shared by grassland and climbing tower. |
 | `public/audio/` | Shipped `music/`, `sfx/`, `ambience/` (Vorbis/MP3), plus `CREDITS.md` for source provenance. Regenerated from raw sources by `tools/audio/preprocess.mjs`, not hand-edited. |
 | `public/env/` | `studio.hdr`, the armour's image-based lighting. **Not reproducible** — its generator was never committed; `CREDITS.md` records what is knowable and `tools/env/inspect_studio_hdr.mjs` re-derives it from the file. |
 | `src-tauri/` | Tauri v2 shell (desktop/mobile packaging). |
@@ -37,10 +37,9 @@ Tauri v2. Package manager: **pnpm**.
 
 ## What's playable now
 
-A stylized 3D hub grassland — flat field with trees, a procedural skydome, sun/shadows, and ground
-scatter (grass, wildflowers, rocks, bushes). A third-person, mouse-look knight (`WASD` move, `Space`
+A natural JRPG-inspired hub meadow — textured rolling hills, earth paths, branching leafy trees, layered distant ranges, broken cloud banks and a muted pond, with wind-swayed grass and flowers. A third-person, mouse-look knight (`WASD` move, `Space`
 jump, click to capture the mouse) walks the field: movement is driven by the pure domain, the character
-is a Havok capsule, and the knight is a glTF model with Idle/Walk animation blended by speed. Entering
+is a Havok capsule, and the knight is a glTF model with Idle/Walk/Run animation blended by speed, plus Jump and FlyingKick. Entering
 the hub plays an AVG dialogue intro.
 
 It's also audible: the hub theme crossfades in once the intro ends, footsteps play as a two-layer
@@ -69,64 +68,30 @@ pnpm tauri dev
 Open the printed URL (default http://localhost:5173). `pnpm build` produces a static bundle in `dist/`;
 `pnpm tauri build` produces a desktop app bundle.
 
-### Regenerating the knight GLB
+### Updating the 3D player model
 
-The knight model + retargeted animations live in the Godot prototype. Re-export and optimize with:
+The grassland and climbing tower share `public/models/player-v20.glb`, converted offline from the
+V20 VRM 1.0 source. AVG portraits are independent and unchanged. Future updates can reuse:
 
-```bash
-# 0. Rebuild the AnimationLibrary when a clip, .import, or extract_anims.gd changes.
-#    Godot can serve a stale import — delete .godot/imported/<Name>.fbx-* first or the bone
-#    renaming silently does not apply.
-Godot --headless --path __prototype__ --import
-Godot --headless --path __prototype__ --script res://tools/extract_anims.gd
-
-# 1. Export a GLB (mesh + Idle/Walk/Run/Jump/FlyingKick) from Godot headless
-Godot --headless --path __prototype__ --script res://tools/export_web_glb.gd
-
-# 2. Texture-only optimization (do NOT simplify/quantize/resample — it corrupts the skeletal animation)
-gltf-transform resize __prototype__/knight_web.glb /tmp/k.glb --width 1024 --height 1024
-gltf-transform webp /tmp/k.glb /tmp/knight-uncalibrated.glb --quality 80
-
-# 3. Level heel-to-toe pitch in rest/T-Pose/Idle and correct the ankle offset in every motion clip.
-#    This took a third argument, a fixed pre-rotation in degrees; it has been removed and passing
-#    one is now an error. Nothing in this repository bakes an ankle offset for it to cancel.
-node tools/knight-feet/calibrate.mjs /tmp/knight-uncalibrated.glb public/models/knight_web.glb
-node tools/knight-feet/verify.mjs /tmp/knight-uncalibrated.glb public/models/knight_web.glb
+```powershell
+node tools/player-model/import.mjs C:/path/to/new-model.vrm
+node tools/player-model/verify.mjs C:/path/to/new-model.vrm
 ```
 
-See [foot calibration and validation](docs/knight-foot-calibration.md) for the measurements and for
-what was known about the retired pre-rotation argument.
+See [the player importer](tools/player-model/README.md) for conversion limits, the immutable animation
+donor and validation. The receipt's output hash automatically refreshes the runtime asset URL.
+Review all five animations and foot contact after changing body proportions. The game approximates
+MToon lighting; only the combined blink expression is retained, and VRM spring bones are not part
+of this derivative. The player blinks automatically after random 3-6 second open intervals.
 
-Bump the `?v=N` query on the GLB URL in `src/presentation/babylon/knight.ts` after rebuilding so
-browsers refetch it. Then delete the 68 MB `__prototype__/knight_web.glb` intermediate and the
-`knight_web*.png` / `.import` side files Godot's next scan drops next to it.
+The original model remains at `tools/knight-feet/reference.glb` for historical calibration tests.
+[Archived Godot export instructions](docs/legacy-knight-pipeline.md) describe that older pipeline.
 
-**Known defect in the currently shipped GLB: the `gltf-transform` pass writes default-valued scalars
-as `0` instead of omitting them, and at least three of them ship this way.** `extensionsUsed` includes
-`KHR_materials_emissive_strength`, and the material's `pbrMetallicRoughness`/`extensions` blocks read:
+### Regenerating the terrain detail
 
-- `normalTexture: {"index": 1, "scale": 0}` — the base commit's GLB had no `scale` key at all (the
-  glTF spec default, 1); `0` zeroes out the armour's normal map entirely (`knight.ts`'s
-  `correctSharedNormalScale` corrects it at load time, before `applyBodyPbr`/`applyFaceMaterial` ever
-  run — see `source.bumpTexture.level` there — and warns when it has to).
-- `extensions.KHR_materials_emissive_strength.emissiveStrength: 0` (spec default 1) — Babylon maps
-  this straight to `emissiveIntensity = 0`, which trips `swapHeadMaterial`'s guard in `knight.ts` on
-  every load and would zero `FACE_EMISSIVE` if that guard did not pin it back to 1.
-- `pbrMetallicRoughness.metallicFactor: 0` (spec default 1) — `applyBodyPbr` overwrites `metallic` only
-  from inside its metallic/roughness texture's `onLoad` callback (see `knight.ts`), so this `0` is still
-  in force before that map arrives and stays in force forever on a permanently failed fetch; it is
-  currently benign on both those paths only because the GLB ships no `roughnessFactor` key, so
-  roughness stays at the spec default 1, and metallic 0 with roughness 1 reads matte. It is the same
-  defect as the other two above and would surface the moment a regeneration or reorder changed that.
-
-Because this is a systematic property of the export pass and not three coincidences, **no scalar in
-this GLB should be trusted without checking it against the glTF spec default** — do not stop at
-`normalTexture` when regenerating. Neither `export_web_glb.gd` nor `knight.fbx.import` sets any of
-these anywhere, so the values are coming from somewhere in step 1 or 2 above that has not been isolated
-(Godot's glTF exporter, or the `gltf-transform` pass itself). Check every scalar in the freshly
-exported GLB's JSON chunk against its spec default before shipping a regeneration, and drop the
-corresponding load-time correction in `knight.ts` once a regenerated file ships the correct defaults
-(or no key at all) on its own.
+Run `node tools/terrain/prepare-detail.mjs` to rebuild `public/textures/meadow-detail.png` from
+the existing `grass.jpg`. The packed map keeps neutral normal channels and puts luminance detail
+in red; using an ordinary opaque photograph directly in Babylon detailMap can black out the terrain.
 
 ### Regenerating the audio assets
 
@@ -159,7 +124,7 @@ That prints the format, resolution, greyscale-ness, radiance range, solid-angle-
 vertical gradient and soft-light positions — the same figures `public/env/CREDITS.md` records, so the
 provenance note can be verified instead of believed, and a replacement can be measured against it.
 
-### Regenerating the knight's metallic/roughness map
+### Archived knight metallic/roughness map (not used by V20)
 
 `public/models/knight_mr.webp` packs the armour's roughness and metallic channels glTF-style
 (roughness → G, metallic → B, alpha left opaque at 255 — Babylon reads roughness off metallic
@@ -254,7 +219,7 @@ resolution; `npm install @gltf-transform/cli@4.4.2` into a scratch dir instead, 
 ### Regenerating the AVG portrait assets
 
 `public/portraits/` holds four files, and the code depends on properties of each that no build step
-enforces — see `tests/presentation/dialogue/portraitAssets.test.ts`, which asserts them.
+enforces — see `tests/presentation/dialogue/portraitAssets.test.ts`, which asserts them. WebP pixel checks use the installed `sharp` decoder; VP9 alpha checks use FFmpeg with libvpx, and frame counts use ffprobe without FFmpeg-only codec options.
 
 **Two ffmpeg traps make this pipeline easy to get wrong in ways every obvious check survives**, so
 read these before re-encoding anything:
@@ -275,22 +240,20 @@ exception and the one that matters most: it is synthesised from nothing, so its 
 complete on its own.
 
 ```bash
-SRC=magnific_video-background-removal_8aHGVd3IrU.webm   # not in the repo
+SRC=magnific_video-background-removal_UPnNKPTwny.webm   # not in the repo
 
 # knight_idle.webm — VP9 with alpha, the upgrade path. 514x900 (from -2:900), 12fps, 62 frames.
 ffmpeg -c:v libvpx-vp9 -i "$SRC" -vf 'scale=-2:900,fps=12' \
   -c:v libvpx-vp9 -pix_fmt yuva420p -b:v 0 -crf 34 -row-mt 1 -an \
   -fflags +bitexact -flags:v +bitexact public/portraits/knight_idle.webm
 
-# knight_idle.webp — animated WebP, the universal baseline. Same geometry and length, ~6x the bytes.
+# knight_idle.webp — animated WebP, the universal baseline. Same geometry and length, ~5x the bytes.
 ffmpeg -c:v libvpx-vp9 -i "$SRC" -vf 'scale=-2:900,fps=12' \
   -c:v libwebp_anim -pix_fmt yuva420p -lossless 0 -q:v 35 -loop 0 -an public/portraits/knight_idle.webp
 
 # knight_idle_still.webp — frame 0, shown while the probe runs, under prefers-reduced-motion, and as
-# the <video> poster. Every cold load fetches it, on every path, so quality is chosen against the
-# frame that replaces it: at q90 the mean RGB delta from the WebM's frame 0 is 2.57/255 where a
-# lossless encode reaches 1.98 — the floor, since the reference is itself lossy VP9 — for a third of
-# the bytes. If a re-encode of this file comes out opaque, it is trap #1, not the lossy encoder.
+# the <video> poster. Use the same first frame and geometry as the animation at quality90.
+# If a re-encode of this file comes out opaque, it is trap #1, not the lossy encoder.
 ffmpeg -c:v libvpx-vp9 -i "$SRC" -vf 'scale=-2:900,fps=12' -frames:v 1 \
   -c:v libwebp -lossless 0 -q:v 90 -pix_fmt bgra public/portraits/knight_idle_still.webp
 
@@ -302,11 +265,13 @@ ffmpeg -f lavfi -i 'color=c=black@0.0:s=2x2:r=1:d=1,format=rgba' \
   -fflags +bitexact -flags:v +bitexact public/portraits/vp9-alpha-probe.webm
 ```
 
-**This is a reconstruction, and it was checked rather than remembered: re-running all four against
-the source reproduces the shipped files byte-for-byte.** That is worth having rather than
-approximating, because it means any diff at all after a re-encode is a real change and not noise to
-squint past.
-
+The current three portraits were regenerated on 2026-09-20 using FFmpeg 6.1.1 from the new
+`magnific_video-background-removal_UPnNKPTwny.webm` in the owner's Downloads directory.
+Source SHA256: `c93f7d77a6e4c298185db62a10b3d2ea6ec4bbc0e6462a194c9ad9b26b07d9ff`.
+The source stays untouched and outside Git. All outputs are 514x900: WebM 481,112 bytes,
+animated WebP 2,389,974 bytes, and still WebP 66,774 bytes. Both animations contain 62 frames
+and run approximately 5.166 seconds; audio is removed. The existing probe was retained.
+The recipes above reproduce the asset settings; byte-for-byte output can depend on codec versions.
 Getting there needed the `bitexact` flags on the two WebM encodes. Without them the matroska muxer
 writes a randomly generated `TrackUID` (element `0x73C5`) twice, and two runs over identical input
 differ in exactly those 16 bytes — at offsets 283 and 407 — with every byte of encoded video

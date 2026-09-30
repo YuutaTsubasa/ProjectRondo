@@ -1,8 +1,56 @@
 # ProjectRondo — Developer Handoff
 
-Last updated: 2026-09-04. Purpose: everything the next machine / developer / Claude session needs to
+Last updated: 2026-09-20. Purpose: everything the next machine / developer / Claude session needs to
 pick this up cold. The repo is the source of truth; this file is the map.
 
+## V20 player update
+
+The active 3D player is now `public/models/player-v20.glb` in both grassland and climbing tower.
+Use `tools/player-model/README.md` to import a future VRM and verify geometry and animation provenance.
+`playerModel.ts` holds the shared asset URL (receipt hash), height, facing and trail size;
+`playerMaterials.ts` / `playerToon.ts` adapt imported material metadata. Old knight PBR/face fixes and
+`knight_mr.webp` are no longer used by the player. Historical sections below describe the earlier rig.
+Automatic blinking uses the imported `playerBlink` morph, driven by `blinkTiming.ts` /
+`playerBlink.ts` independently of skeletal movement. The importer retains only the original blink
+expression; teardown releases its scene observer. Initial foot seating now evaluates a known Idle
+pose and synchronizes linked bones/world transforms through `skinnedSole.ts` before measuring;
+a first-render callback can read stale bind-pose matrices and leave the player floating.
+The old fixture is archived at `tools/knight-feet/reference.glb`; AVG portraits were subsequently updated from the new UPnNKPTwny idle clip (see README regeneration instructions).
+
+## Meadow visual refresh (2026-09-20)
+
+The user revised the direction from bright anime to a more natural JRPG meadow. `meadowLayout.ts`
+owns decorative trail distance, clearings and planting patches shared by terrain and scatter.
+Playable terrain heights, boundaries and gameplay collision remain unchanged. `terrain.ts` layers
+muted vertex colours with a packed luminance detail map and three sloping distant mountain ranges.
+Regenerate `public/textures/meadow-detail.png` with `node tools/terrain/prepare-detail.mjs`; its A/G
+channels must encode neutral detail normals, not a photograph's opaque alpha (see regression test).
+
+`scatter.ts` uses 10,000 fine five-blade grass tufts, 1,300 flower cards, 160 rocks and 90 leafy bushes.
+Placement is seeded and bounded, keeping trails, spawn, plaza and flooded pond areas open.
+`trees.ts` builds shared branching trunk geometry and irregular leaf sprays using `naturalFoliage.ts`.
+All original tree locations and trunk colliders remain. Leaves have varied orientation and folded
+surfaces; they cast ground shadows without canopy self-shadow stripes. Clones share geometry.
+
+`environment.ts`, `clouds.ts` and `postProcessing.ts` own the subdued hub sky/light grade and periodic
+noise cloud banks; the tower has its own environment. `water.ts` uses a stationary muted colour and
+reflection-stroke texture while normal ripples move. Keep its colour texture stationary: the gradient
+is not periodic. Earlier atmosphere measurements and GLB-tree notes below are historical.
+See `docs/superpowers/plans/2026-09-20-meadow-refresh.md` for verification.
+
+## Homing visual polish (2026-09-20)
+
+The hub and tower share the refined target presentation. `crystalGeometry.ts` builds bevelled sapphire
+shells/inner cores and bounded hit-ring/glint geometry; `crystals.ts` preserves static positions and
+flash(index). Geometry is shared; hits animate per-mesh visibility while their material stays shared.
+`homingReticle.ts` draws four fine warm-red arcs, pale ticks and dark keylines around an open centre.
+`reticleTiming.ts` contracts once on acquisition; repeated previews do not restart it. Existing lock
+eligibility remains the only source of target availability.
+
+`dashTrail.ts` replaces frame-count TrailMesh with two additive soft-edged ribbons. `trailHistory.ts`
+samples at fixed time intervals and clips history to 0.2 seconds; stopping emission leaves a fading
+tail, while starting/resetting discards previous history. The trail generator follows the imported Chest joint identified by the model receipt, so kick lift and lean stay aligned. Missing-joint imports use a seated torso fallback. release() disposes the custom trail.
+No homing movement, target selection, crystal placements or input rules changed.
 ## 1. What this is
 
 A **3D action game for the web**, migrated from Godot 4 (C#) to a web-native stack. A hub world hosts
@@ -523,3 +571,95 @@ machine gives the next Claude session full continuity.
 - `pnpm exec tsc --noEmit` → clean.
 - `pnpm dev`, open the URL → hub loads: the knight stands on rolling grass, an AVG intro plays, WASD
   moves, walking to the edge is blocked by a steep grassy slope (not an invisible wall).
+
+### 2026-09-21 meadow rock seam repair
+
+The rock icosphere duplicates vertices across face/UV seams. Random deformation per buffer entry pulled shared corners apart: the new geometric-edge regression reproduced 60 open edges. Cache one displaced position per original corner, use gentler radial variation and subdivisions 2 for a solid rounded silhouette. Existing placement/collider logic is unchanged. Regression passes with every edge adjoining two triangles and all normals outward; browser close-up shows a closed surface. Typecheck and production build pass; existing build chunk-size warning remains.
+
+### 2026-09-21 Title and Main Menu (Light)
+
+Entry is now Title → Main Menu → Start → existing intro/hub. Opening-game direction is deliberately undecided; no new narrative or world-map decision. App.svelte hosts the guarded front door and lazily imports GameSession.svelte (the previous App's scene lifetime). Main menu has Start, real audio Settings, and return to Title. No save/load/gallery facade. Temporary display name is Project Rondo. Character art reuses the portrait still, title/menu are silent; reduced-motion and 390px layouts are supported.
+
+Audio preferences validate and persist master/music/SFX/ambience/mute in localStorage with session fallback on storage errors. Every audio graph subscribes through existing busGain and unsubscribes on dispose. Loading blocks duplicate starts, delays dialogue until ready and hands keyboard focus to dialogue. Errors offer retry/menu recovery. Rejected Havok initialization is evicted so retry can recover, while successful/concurrent compilation remains shared.
+
+Validation: 88 files / 632 tests pass, including guarded flow, lazy mount, focus, error/retry, settings/storage/live-bus cleanup and Havok failure recovery. Typecheck and build pass (existing large game-chunk warning). Browser verified desktop Title/menu, settings persistence/reset, 390×844 settings/menu, keyboard Escape focus restoration, then Start → intro choices → playable hub without console errors. Temporary viewport reset; test audio values restored. Existing gameplay requires keyboard/mouse; responsive menu does not add mobile gameplay controls.
+
+### 2026-09-21: First playable traversal course
+
+- Main Menu now has Trial Run / 試玩第一關; original Start retains the AVG -> hub -> tower flow. Separate lazy CourseSession owns the new scene, HUD, pause/result UI and return-menu teardown.
+- `domain/course/courseLayout.ts` authors a 207m +Z grassland/ruin route, six gap jumps and two four-crystal chains. Ordered grounded gate volumes; falling below -12 returns to last checkpoint. `courseProgress.ts` owns timer/falls/finish latch. No enemies or open-world decision added.
+- Reuses player v20, homing, atmosphere, shadows, audio. Course-only camera framing and initial heading make landings visible. `courseScenery.ts` supplies physical support separately from decorated cliffs/vegetation; packed meadow texture uses linear detailMap.
+- Escape or HUD Pause freezes physics/timer; Babylon's public animation-clock reset excludes paused/hidden/loading time on resume. Pause button handles Space before window game input. Replay reuses loaded assets and resets progress; exit disposes level/engine with late-build guards.
+- Validation: 651 tests/94 files pass; typecheck zero errors/warnings; build passes (existing large-chunk warning). Actual browser input driver cleared all jumps +8 homing hits in22s,0falls,0errors. Separate QA verified checkpoint fall recovery, pause/resume, replay, main-menu return and original AVG Start. Human first-attempt difficulty remains to be evaluated; this is a short first playable course, not the earlier proposed2–3minute pacing.
+- This course builds on visual/menu snapshot 8f371eb. `.superpowers/course-qa.*` is ignored local diagnostics, not the user entry URL.
+
+### 2026-09-21: Trial speed tuning after playtest
+
+- User found the trial run slow. Added a per-level movement profile: running8->10 (+25%), acceleration13->22 (full speed~0.45s), deceleration17->28 (stopping distance~1.8m). Walking4, jump/gravity and Homing tuning are inherited. Hub/tower keep their existing movement defaults.
+- The current run clip is calibrated at8units/s, so its playback ratio follows configured run speed (1.25 in the trial) and survives airborne-to-running transitions. Course layout checks now consume the actual trial profile.
+- Validation:654 tests/95files, typecheck and production build pass. Browser input traversal completed withrunSpeed10,runRate1.25,8Hominghits,0falls,0errors (~17seconds ideal scripted run). This timing is diagnostic, not a first-time player estimate.
+
+### 2026-09-22: Sword, shield and independent double jump
+
+- Approved controls: Space jumps and allows one extra air jump; J performs a short sword slash on the ground or without an airborne lock, otherwise starts shield Homing. Homing retains crystal bounce/chaining and does not restore the air-jump budget. Landing and checkpoint respawn restore it. Held attack does not repeat. Simultaneous Space/J during coyote time cannot steal the valid shield dash.
+- Shared meadow/tower/trial rig carries a receipt-mapped right-hand sword and left-hand shield. Procedural upper-body poses restore the animation baseline each frame, leaving locomotion legs intact; equipped Homing suppresses Flying Kick. The existing airborne clip restarts and takeoff audio plays for the second jump.
+- A 0.5s slash flashes nearby frontal crystals once during its active window; this is the current hit receiver, not an enemy/health/combo system. Slash effects and poses follow scene time and are cleaned up on level teardown. Trial control hints use the new keys.
+- Browser QA used real keyboard edges: ground and no-target air slash, three jump presses producing exactly one air jump, and complete course with all eight J Homing arrivals, zero falls/errors and visible Stage Clear. Isolated pose inspection uses the ignored local QA page; its diagnostic camera and freeze controls are not shipped.
+- Independent spec review caught and verified the coyote simultaneous-input fix; quality review found no correctness blockers. Full tests/typecheck/build passed before the final sword orientation polish; final verification recorded below.
+- Final verification after carry/charge polish: 673 tests across 101 files pass; both TypeScript checks and Svelte diagnostics pass (0 errors/warnings); production build passes with the existing large-chunk warning. Actual GLB pose tests check shield chest-relative position and sword clearance. Browser close-up confirms the shield forward and the sword carried down/back; pause/resume freezes then resumes movement, restart resets the timer/checkpoint. Final independent visual-code review found no blockers. Prepared for PR #43 with the playable local preview retained.
+
+### 2026-09-22: White Palace 1-1 in the 3D renderer
+
+- Approved scope: a fixed-side 2.5D adaptation of ProjectAlmost's first stage; current v20 player with sword/shield and independent double jump, 3DModel knights as enemy guards. Main Menu adds White Palace / 試玩 2D 關卡. The original 3D trial and Start flow remain available.
+- Pinned source revision `76b9ca1c680e98e27ac9f51871bf4feffb3f0bbc`; imports the current runtime stage, not the older 6400px prototype document. Preserves all 16 platforms, 8 guards, 25 coins, 3 checkpoints, spawn and goal positions, scaled at 50px/world unit. `public/palace/README.md` and `source-receipt.json` record provenance; `tools/palace/import.mjs` reproduces the import without changing either source project.
+- Pure side-plane simulation handles solid sides/ceilings/landings, patrol bounds, sword hits, airborne shield Homing, contact damage and knockback, 3 HP and checkpoint respawn. Defeated guards and collected coins persist through death; replay resets everything. Checkpoints activate on the ground; reaching the goal does not require every guard or coin.
+- Babylon presentation uses the original palace parallax images and music, solid ivory platforms, animated independent knight clones, shared player/equipment animation, coins and 3D beacons/gate. Movement is constrained to the side plane; this level's collision is the tested domain controller, not Havok. A/D moves, Space jumps/double-jumps, J slashes or performs an airborne locked shield dash, Escape pauses.
+- Session owns input, hidden-tab/pause freeze, late-load cleanup, audio preferences, HUD, result stats, replay and menu return. Goal audio survives the completion freeze and is still stopped on teardown. Independent reviews caught additive emissive saturation and completion audio cutoff; both fixes have red/green regression tests. Background vertical orientation and sky coverage were verified visually.
+- Final verification: 697 tests across 109 files pass; typecheck has 0 errors/warnings; production build passes with the existing large-chunk warning. Spec review compared the complete stage against the pinned GitHub source and verified all 13 receipt hashes; quality re-review found no actionable issues.
+- Browser verification: actual keyboard-driven full traversal reached Stage Clear with 8/8 guards, 18/25 coins, 0 deaths and no captured runtime errors. This scripted route skipped the last grounded checkpoint; the deterministic domain traversal separately covers all three. Isolated QA also confirmed contact damage, checkpoint respawn at x=52 with restored 3 HP and preserved coins, frozen pause state, resume, replay reset and main-menu return. Diagnostic checkpoint placement/fall controls were used only for isolated recovery checks, not the full-route claim. Player skinned sole measured approximately -0.004 world units at a zero-height platform; knight animation and background layering were inspected in-browser.
+- Feature prepared on `codex/vrm-player-v20` after commit `44d6b58` for inclusion in PR #43. This is a playable first adaptation, with human difficulty tuning still open. It does not close Issue #7's older HubNPC/Godot integration requirements. `.superpowers/palace-qa.*` remains ignored diagnostics; normal entry is http://127.0.0.1:5183/.
+
+### 2026-09-22: Player mouth seam correction
+
+- Close-up inspection reproduced a color boundary around the rebuilt lip patch; disabling the face outline alone left the color discontinuity. Source geometry has 148 coincident boundary vertex entries with matching normals (minimum dot approximately 0.99999986), while separate skin/lip textures have visible albedo differences. Residual fine lines also came from the lower-face inverted-hull outline.
+- Import now adds a local 6mm surface-color blend on both sides of the V20 mouth seam, using nearby skin samples. It retains original images, UVs, material factors, geometry, animation and blink deltas. Runtime keeps these surfaces opaque, carries blend weight through a separate shader varying, and suppresses their internal outline. Hair/armor outlines are preserved. The exact material pair gates this correction for future imports.
+- Verification: 699 tests / 110 files pass; final focused material/asset checks pass; typecheck has 0 errors/warnings and production build succeeds with the existing chunk-size warning. Independent source verifier confirms neutral geometry, topology, weights, bind matrices, rest transforms, base factors and all 14 blink primitives unchanged. Browser comparison covered original/corrected front and three-quarter views, side profile and closed eyes. Local changes are not yet committed or pushed; ignored `.superpowers/face-qa.html` provides an A/B close-up preview.
+
+
+### 2026-09-23: Modeled White Palace and presentation alignment
+
+- Replaced architectural image planes/tile facings with closed beveled decks, filled arch spandrels, grounded piers, balustrades, loggias, windowed towers and domes. Architecture stays in world space, with spatial/material batches; supports extend to a lower district foundation below the fall zone. Slate roofs, brass trim, banners, planters, paving joints and subtle world-space stone grain add scale and detail. Original 16 platform bounds, route, 8 guards, 25 coins, 3 checkpoints and all domain gameplay are unchanged.
+- Palace now shares createEnvironment/createAtmosphere with the hub: ACES exposure/contrast, restrained bloom and 4x MSAA; distance haze uses the trial density .0045. Reduced stone IBL response keeps ivory surfaces from losing all shadow contrast while preserving the shared player/steel lighting.
+- Palace HUD, pause and results consume the project Light color/font/focus tokens, outlined display headings and white active/focused buttons. Solid minted coins replace torus pickups. Checkpoint activation emits a ground pulse and rising motes, changes the beacon permanently and shows a brief HUD notice; effects use run.elapsed, freeze with pause and reset on replay. Existing activation audio remains.
+- Guards previously used Run at .48 regardless of patrol travel. Their imported Idle arm/hand stance now accompanies a measured-rig two-bone leg solve, 1.4m distance-driven stride, planted stance feet and low swing clearance. Asset, patrol speed, player animation and game simulation remain unchanged. Real-GLB tests cover boot support, knees, arm opposition, both directions, independent instances, reset and defeat revival.
+- Verification: 716 tests in 112 files passed; typecheck/Svelte diagnostics zero errors/warnings; production build passed with the existing chunk-size warning. Independent spec and quality reviews found no remaining blockers. Browser input traversal reached Stage Clear with 8/8 guards, 18/25 coins, 0 deaths and no captured errors; the fast route jumps over checkpoint triggers, which are covered separately by domain tests and isolated browser activation/respawn checks. Replay, checkpoint reactivation and pause/result styling were checked. Entrance/high-tower/gate views show closed 3D surfaces; a final small planter-support widening was verified separately.
+- A visible 1627x1216 entrance sample rendered 241 frames in 4.01s (~60 FPS), with mean scene.render CPU time 5.34ms/max15ms. This is a short local sample, not a whole-stage or minimum-hardware performance guarantee; scene total is about297 meshes/982k vertices including actors and hidden effects. Early background preview FPS readings were throttled and are not representative.
+- Changes remain local and uncommitted, alongside the prior mouth-seam correction. Normal entry is http://127.0.0.1:5183/ via White Palace. Ignored .superpowers/palace-qa.* contains diagnostic placement/performance buttons and the keyboard route driver; diagnostic teleports were not used in the full traversal.
+
+### 2026-09-23: Palace stone surface, cloud sky and shadow contrast
+
+- Reused the pinned White Palace sky asset as a background Layer, with centered texture cropping to preserve proportions and the existing gradient as a loading/failure fallback. Buildings remain modeled geometry. Source provenance is recorded in public/palace/README.md.
+- Replaced color-only stone grain with shared periodic albedo, tangent-normal and packed roughness maps. Metre-scaled world projection uses one axis per triangle, splitting UV seams while preserving smooth normals; only stone batches pay that vertex cost. A curved-column test at x=154 guards against UV stretching across projection changes.
+- Browser shadow on/off and direct-sun comparisons identified excessive environment fill and surface shadow acne. Palace-specific sun4/ambient.08, stone IBL .025, environment .5 retain metal reflections while giving stone clear sunlight/shade separation. Backface shadow rendering removes visible self-shadow striping; bias remains .0001. Shared hub lighting is unchanged.
+- Automated verification: 719 tests across113 files pass. Latest type/build and final browser checks are recorded after completion below. Local preview is now http://127.0.0.1:5173/; use White Palace from Main Menu. Changes remain uncommitted alongside the prior model/scene work.
+- Final verification: typecheck/Svelte diagnostics report0 errors/warnings; production build passes with the pre-existing chunk-size warning. Browser final settings completed the keyboard-driven route with8/8 guards,18/25 coins and0 deaths, then replay and high-tower views were checked. Shadow on/off comparisons show player and architecture cast shadows; the prior surface striping is absent in the reviewed views. Sky coverage/proportions checked at1280x720 and1000x800, viewport reset, console warnings/errors empty. Diagnostic tab closed; normal5173 preview server remains available.
+
+### 2026-09-26: Palace Homing passage and lower mist
+
+- Homing now selects live forward targets within12 units through solids and bypasses solid movement only during its dash. Sword occlusion and normal movement collisions remain. Hits place the player at the guard surface before bouncing, so an approach through a platform underside cannot leave the player embedded. Timeout/lost-target cancellation inside a solid restores the last clear body position. Air-jump budget is preserved until landing.
+- Added world-height material fog (-1.5 to -8.5) and a cloud sea at y=-9. This hides nearby supports and distant foundations even from elevated cameras. The cloud shader drifts on run.elapsed, freezes on pause and resets on replay. A distant opacity fade softens the sky/sea horizon; neither layer changes gameplay collision or shared hub visuals.
+- Six new domain cases were observed failing before the collision change and passing after it. Full725 tests/113 files passed, with final focused palace domain/scene25 tests passing after the world-height fog revision. Typecheck/build pass (existing chunk warning). Independent review found a foreground-only mist perspective defect; world-height fog plus depth-occluding sea resolved it. Browser verified an isolated dash from below a platform through its solid to defeat a guard and safely land, with no runtime errors. Mist readiness and pause clock were checked.
+- These changes are local follow-up work after90259b6. Preview: http://127.0.0.1:5173/ -> White Palace. Ignored diagnostic controls are not shipped.
+- Final browser route after widening the ignored input driver's key pulse to80ms completed with8/8 guards,17/25 coins and0 deaths. The earlier35ms driver missed jumps in this browser and repeatedly respawned; no gameplay tuning was made to obtain the final result. The pure fixed-step input route also passes with0 deaths and all3 checkpoints. Final entrance/high-tower views show hidden distant bases and a softened sea/sky horizon; pause, replay and shader console were checked. No captured warnings/errors. Final typecheck/Svelte diagnostics and build passed; diagnostic tab closed,5173 server remains running.
+
+### 2026-09-26: Airborne checkpoint activation
+
+- White Palace checkpoints activate when the player passes within1.4 units horizontally and feet are between-.15 and4 units above the beacon platform; grounding is no longer required. Ordinary jumps and Homing passes activate the existing pulse/audio/HUD notice. Higher flyovers and approaches below the floor stay outside the trigger. Respawn still uses the authored safe platform coordinates, and earlier checkpoints cannot replace later progress.
+- Added8 focused cases covering ground/air height, horizontal/vertical exclusion, fast Homing, latest-checkpoint persistence, safe respawn and replay reset. Four cases failed under the previous grounded-only condition, then all8 passed with the new volume. Existing palace combat/route tests also passed.
+- Final verification:733 tests across114 files passed; typecheck/Svelte0 errors/warnings and production build passed (existing chunk warning). Browser diagnostic placement confirmed activation at y≈2.22 with grounded=false and the checkpoint notice visible, then falling returned the player to x52/y0 with3 HP and the checkpoint retained. No captured browser warnings/errors. Local preview remains5173; this change is not pushed yet.
+
+### 2026-10-01: PR #43 merge preparation
+
+- Include the Homing-through-solids, height mist/cloud sea and airborne checkpoint follow-ups in PR #43.
+- Address earlier review feedback: both trial sessions discard the first engine frame after resume/restart and rebase the animation clock on that frame, so hidden-tab time cannot advance simulation or animation. WebP alpha checks now run independently of ffmpeg; WebM checks retain the dependency guard.
+- Final validation: 740 tests across 114 files passed; TypeScript and Svelte diagnostics report zero errors/warnings; production build passed with the existing chunk-size warning. Independent review found no correctness blockers in the gameplay/visual changes or the pause/portrait follow-ups. Prior browser traversal and visual checks are recorded above.

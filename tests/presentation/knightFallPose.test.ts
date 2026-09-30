@@ -7,7 +7,7 @@ import { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { Animation } from '@babylonjs/core/Animations/animation';
 import { AnimationGroup } from '@babylonjs/core/Animations/animationGroup';
-import { TrailMesh } from '@babylonjs/core/Meshes/trailMesh';
+import { createDashTrail } from '../../src/presentation/babylon/dashTrail';
 
 import {
   driveKnightAnimation,
@@ -111,7 +111,7 @@ function clip(
   return group;
 }
 
-function mount(): Rig {
+function mount(runSpeed = 8): Rig {
   const engine = new NullEngine();
   engine.getDeltaTime = () => STEP_MS;
   const scene = new Scene(engine);
@@ -136,7 +136,7 @@ function mount(): Rig {
   const knight: Knight = {
     animations,
     planted: 1,
-    trail: new TrailMesh('trail', new TransformNode('trailGen', scene), scene, 0.1, 10, false),
+    trail: createDashTrail(scene, new TransformNode('trailGen', scene)),
     // Nothing to release: this rig never runs `loadKnight`, so nothing put the seating pass or the
     // foot plant on this scene's frame loop. The animation observer is `driveKnightAnimation`'s own,
     // and it hands its unsubscribe back separately.
@@ -144,9 +144,9 @@ function mount(): Rig {
   };
 
   const motion = {
-    planarSpeed: 8, airborne: false, homing: false, homingEntrySeconds: null, bounced: false,
+    planarSpeed: runSpeed, airborne: false, homing: false, homingEntrySeconds: null, bounced: false,
   };
-  driveKnightAnimation(scene, knight, () => motion, () => ({ walk: 4, run: 8, airtime: AIRTIME }));
+  driveKnightAnimation(scene, knight, () => motion, () => ({ walk: 4, run: runSpeed, airtime: AIRTIME }));
 
   // Every `AnimationGroup.start()` on the jump, counted. The hold is a restart, so how many there
   // are is the difference between pinning a pose once and re-pinning it every frame for the length
@@ -389,4 +389,23 @@ describe('what pinning the held frame costs', () => {
     expect(rig.jumpStarts()).toBe(afterLanding);
     expect(rig.knight.animations.jump.isPlaying).toBe(false);
   });
+});
+
+it('matches faster running with faster strides, including after an airborne transition', () => {
+  const rig = mount(10); rig.run(1);
+  expect(rig.knight.animations.run.speedRatio).toBeCloseTo(1.25);
+  rig.motion.airborne = true; rig.run(.5);
+  rig.motion.airborne = false; rig.run(.5);
+  expect(rig.knight.animations.run.isPlaying).toBe(true);
+  expect(rig.knight.animations.run.speedRatio).toBeCloseTo(1.25);
+  const original = mount(); original.run(1);
+  expect(original.knight.animations.run.speedRatio).toBe(1);
+});it('restarts the rising pose on the one-frame air-jump cue without replanting', () => {
+  const rig = running(); rig.motion.airborne = true; rig.run(.3);
+  const starts = rig.jumpStarts();
+  rig.motion.airJumped = true; rig.step(); rig.motion.airJumped = false;
+  expect(rig.jumpStarts()).toBe(starts + 1);
+  expect(rig.knight.planted).toBe(0);
+  rig.run(.1);
+  expect(rig.jumpStarts()).toBe(starts + 1);
 });

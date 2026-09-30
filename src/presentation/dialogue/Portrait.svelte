@@ -40,8 +40,8 @@
 
   // Three states, not two: `undefined` means the probe has not answered yet. A boolean here would
   // force a guess during that window, and both guesses cost. Guessing WebM paints a black rectangle
-  // on the engines the probe exists to protect; guessing the animated WebP starts a 2.2MB download
-  // that a positive answer then throws away -- roughly six times the WebM it was meant to avoid.
+  // on the engines the probe exists to protect; guessing the animated WebP starts a 2.4MB download
+  // that a positive answer then throws away -- roughly five times the WebM it was meant to avoid.
   // So nothing animated is committed to until the answer lands, and the still covers the gap.
   let vp9Alpha = $state<boolean | undefined>(undefined);
   $effect(() => {

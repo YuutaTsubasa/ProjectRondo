@@ -1,0 +1,9 @@
+# Title and Main Menu — Light
+
+User approved establishing Title → Main Menu while the opening story/gameplay direction remains undecided. Project Rondo is a temporary display title. Follow the shipped Light reference: pale blue opaque background, ink typography, outlined Archivo Black display, Chakra Petch labels, blue selection bars, geometric frame and character art. Reuse the current portrait, without new external assets.
+
+Title offers click/tap or a non-modifier key to open the menu. Menu has Start, Settings and return to Title. Settings exposes real master/music/SFX/ambience volume and mute, persisted locally with safe fallback when storage is unavailable. No pretend save/load/gallery entries. Keyboard focus follows transitions, native buttons/sliders remain usable, reduced-motion and small screens are supported.
+
+Start loads the existing intro/hub session only on demand. Existing gameplay and portal transitions remain inside a separately mounted GameSession. Loading prevents repeated starts; failed import/scene initialization shows an error with retry/menu recovery. Unmount must dispose pending scene resources via existing levelSwap lifetime rules. No world-map or narrative choice is finalized here. Title/menu are intentionally silent in this first version; settings affect the in-game mix.
+
+Verify transition guards and UI keyboard/back navigation, no gameplay before Start, load error/retry, settings validation/persistence and live bus gains. Run complete tests/typecheck/build and inspect desktop and narrow layouts in browser. Leave Title visible for user review; no commits/merges.

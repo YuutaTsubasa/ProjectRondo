@@ -1,0 +1,217 @@
+{
+  "schemaVersion": 1,
+  "hipsNodeName": "Hips",
+  "rootNodeName": "Root",
+  "orientation": "gltf-positive-z-forward",
+  "headMaterialNames": [
+    "New full head",
+    "Repaired lower face skin",
+    "Rebuilt lip skin",
+    "Original eyelid skin cleaned",
+    "Full head hair",
+    "Deep blue iris",
+    "Anchored upper eyelid crease",
+    "Mouth interior.001",
+    "Neck cap skin.001",
+    "Eye white",
+    "Teeth",
+    "Tongue"
+  ],
+  "clips": [
+    {
+      "name": "Idle",
+      "durationSeconds": 9.933333396911621,
+      "channels": 53
+    },
+    {
+      "name": "Walk",
+      "durationSeconds": 1.0333333015441895,
+      "channels": 53
+    },
+    {
+      "name": "Run",
+      "durationSeconds": 0.6333333253860474,
+      "channels": 53
+    },
+    {
+      "name": "Jump",
+      "durationSeconds": 2.1666667461395264,
+      "channels": 53
+    },
+    {
+      "name": "FlyingKick",
+      "durationSeconds": 1.5,
+      "channels": 53
+    }
+  ],
+  "sourceSha256": "84f3256ead444b9bdf3045ea93fac08739891ab8b31e4de7ad5494098df01ab4",
+  "donorSha256": "a4c21bc7d118f2d6a7f62b29d2106ad89e0853d8563eb0bea52b62bc132fe732",
+  "boneMap": {
+    "chest": "Chest",
+    "head": "Head",
+    "hips": "Hips",
+    "leftEye": "Eye.L",
+    "leftFoot": "Foot.L",
+    "leftHand": "Hand.L",
+    "leftIndexDistal": "IndexDistal.L",
+    "leftIndexIntermediate": "IndexIntermediate.L",
+    "leftIndexProximal": "IndexProximal.L",
+    "leftLittleDistal": "LittleDistal.L",
+    "leftLittleIntermediate": "LittleIntermediate.L",
+    "leftLittleProximal": "LittleProximal.L",
+    "leftLowerArm": "LowerArm.L",
+    "leftLowerLeg": "LowerLeg.L",
+    "leftMiddleDistal": "MiddleDistal.L",
+    "leftMiddleIntermediate": "MiddleIntermediate.L",
+    "leftMiddleProximal": "MiddleProximal.L",
+    "leftRingDistal": "RingDistal.L",
+    "leftRingIntermediate": "RingIntermediate.L",
+    "leftRingProximal": "RingProximal.L",
+    "leftShoulder": "Shoulder.L",
+    "leftThumbDistal": "ThumbDistal.L",
+    "leftThumbMetacarpal": "ThumbProximal.L",
+    "leftThumbProximal": "ThumbIntermediate.L",
+    "leftToes": "Toes.L",
+    "leftUpperArm": "UpperArm.L",
+    "leftUpperLeg": "UpperLeg.L",
+    "neck": "Neck",
+    "rightEye": "Eye.R",
+    "rightFoot": "Foot.R",
+    "rightHand": "Hand.R",
+    "rightIndexDistal": "IndexDistal.R",
+    "rightIndexIntermediate": "IndexIntermediate.R",
+    "rightIndexProximal": "IndexProximal.R",
+    "rightLittleDistal": "LittleDistal.R",
+    "rightLittleIntermediate": "LittleIntermediate.R",
+    "rightLittleProximal": "LittleProximal.R",
+    "rightLowerArm": "LowerArm.R",
+    "rightLowerLeg": "LowerLeg.R",
+    "rightMiddleDistal": "MiddleDistal.R",
+    "rightMiddleIntermediate": "MiddleIntermediate.R",
+    "rightMiddleProximal": "MiddleProximal.R",
+    "rightRingDistal": "RingDistal.R",
+    "rightRingIntermediate": "RingIntermediate.R",
+    "rightRingProximal": "RingProximal.R",
+    "rightShoulder": "Shoulder.R",
+    "rightThumbDistal": "ThumbDistal.R",
+    "rightThumbMetacarpal": "ThumbProximal.R",
+    "rightThumbProximal": "ThumbIntermediate.R",
+    "rightToes": "Toes.R",
+    "rightUpperArm": "UpperArm.R",
+    "rightUpperLeg": "UpperLeg.R",
+    "spine": "Spine",
+    "upperChest": "UpperChest"
+  },
+  "motionScale": 1.7356878269274352,
+  "blink": {
+    "targetName": "playerBlink",
+    "sourcePreset": "blink",
+    "sourceBindCount": 14,
+    "primitiveCount": 14,
+    "nodeNames": [
+      "Face",
+      "FaceDetail.25",
+      "FaceDetail.26",
+      "Glint.Left",
+      "Glint.Right",
+      "Iris.Left",
+      "Iris.Right",
+      "Lash.Left",
+      "Lash.Right",
+      "MouthCavity",
+      "Sclera.Left",
+      "Sclera.Right"
+    ]
+  },
+  "lipSeam": {
+    "version": 1,
+    "blendDistance": 0.006,
+    "sampleRadius": 0.006,
+    "colorStorage": "linear-vertex-blend",
+    "materials": [
+      "Repaired lower face skin",
+      "Rebuilt lip skin"
+    ],
+    "boundaryVertices": 148
+  },
+  "settings": {
+    "maxTextureSize": 2048,
+    "textureFormat": "webp",
+    "textureQuality": 90,
+    "lipSeam": {
+      "version": 1,
+      "blendDistance": 0.006,
+      "sampleRadius": 0.006,
+      "colorStorage": "linear-vertex-blend"
+    },
+    "morphTargets": "preset-blink-only",
+    "decimation": false,
+    "quantization": false,
+    "retarget": "rest-world-axes-v1",
+    "relaxedPose": {
+      "idleLegOutwardDegrees": 4.5,
+      "gaitLegOutwardDegrees": 6.6,
+      "gaitToeOutwardDegrees": {
+        "Walk": 12,
+        "Run": 12
+      },
+      "fingerCurlDegrees": [
+        30,
+        45,
+        20
+      ],
+      "thumbCurlDegrees": [
+        8,
+        12,
+        8
+      ]
+    }
+  },
+  "sourceFile": "knight_new_vrm1.vrm",
+  "outputSha256": "584e33d9060e1cc2ae45560adf292c2ea25eb09b90f254e9204a89fb95a47aba",
+  "outputBytes": 13347872,
+  "textures": [
+    {
+      "name": "tripo_rgb_3246b6d0-7117-411a-868f-2ac8d3d3de1c.jpg.001",
+      "width": 2048,
+      "height": 2048,
+      "bytes": 870452
+    },
+    {
+      "name": "tripo_rgb_d2662412-19cb-4016-a437-45915d3d2ef3.jpg",
+      "width": 2048,
+      "height": 2048,
+      "bytes": 563806
+    },
+    {
+      "name": "HeadFix lower skin corrected",
+      "width": 2048,
+      "height": 2048,
+      "bytes": 115046
+    },
+    {
+      "name": "Rebuilt lip skin",
+      "width": 256,
+      "height": 256,
+      "bytes": 484
+    },
+    {
+      "name": "eyelid-skin-projection.png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 57704
+    },
+    {
+      "name": "Rear hair matched dark brown",
+      "width": 2048,
+      "height": 2048,
+      "bytes": 495198
+    },
+    {
+      "name": "eyelid-crease-projection.png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 59574
+    }
+  ]
+}

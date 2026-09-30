@@ -34,6 +34,8 @@
  */
 
 export interface JumpPoseInput {
+  /** One-frame cue for a second jump in the same flight. */
+  readonly airJumped?: boolean;
   /** `GroundContactResult.airborne` — the debounced capsule verdict, true for a whole jump. */
   readonly airborne: boolean;
   /** A homing dash is in flight this frame (`KnightMotionSample.homing`). */

@@ -3,13 +3,14 @@ import type { Scene } from '@babylonjs/core/scene';
 import { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 
-import { createFollowCamera, type FollowCamera } from './followCamera';
+import { createFollowCamera, type FollowCamera, type FollowCameraConfig } from './followCamera';
 import type { GroundHeight } from './groundHeight';
 import { createInput, type InputState } from './input';
 import { createPlayer, type Player } from './playerController';
 import { loadKnight, driveKnightAnimation, type Knight, type KnightMotionSample } from './knight';
 import type { Shadows } from './shadows';
 import type { Crystals } from './crystals';
+import type { MovementConfig } from '../../domain/hub/character/movementConfig';
 
 export interface CharacterRigOptions {
   readonly canvas: HTMLCanvasElement;
@@ -26,6 +27,11 @@ export interface CharacterRigOptions {
    * level that inherits it silently is a level nobody decided it for.
    */
   readonly descentFollow: boolean;
+  /** Optional per-level tuning, copied by the player so other scenes retain their defaults. */
+  readonly movement?: Partial<MovementConfig>;
+  /** Initial heading around the player; existing levels retain zero. */
+  readonly initialYaw?: number;
+  readonly cameraFraming?: Partial<Pick<FollowCameraConfig, 'distance' | 'height' | 'aimHeight' | 'initialPitch'>>;
 }
 
 export interface CharacterRig {
@@ -164,7 +170,7 @@ async function buildCharacterRig(
   // this is the transform half of that seed, in the same breath, for the same reason.
   root.position.copyFrom(options.spawn);
   const follow = createFollowCamera(
-    scene, root, options.canvas, options.groundHeight, options.descentFollow);
+    scene, root, options.canvas, options.groundHeight, options.descentFollow, options.initialYaw, options.cameraFraming);
   pieces.follow = follow;
   scene.activeCamera = follow.camera;
   const shadows = options.makeShadows(follow.camera);
@@ -178,7 +184,7 @@ async function buildCharacterRig(
   // on the first build there is none -- it is here to stop the mouse-move steering and the click.
   input.setEnabled(false);
   follow.setEnabled(false);
-  const player = createPlayer(scene, root, follow, input, options.crystals, options.spawn);
+  const player = createPlayer(scene, root, follow, input, options.crystals, options.spawn, options.movement);
   pieces.player = player;
   const readMotion = (): KnightMotionSample => {
     const v = player.motion.velocity;
@@ -188,6 +194,8 @@ async function buildCharacterRig(
       homing: player.motion.homing !== null,
       homingEntrySeconds: player.homingEntrySeconds,
       bounced: player.homingBounced,
+      airJumped: player.airJumped,
+      swordSeconds: player.swordSeconds,
     };
   };
   const knight = await loadKnight(scene, root, shadows, options.groundHeight);

@@ -34,7 +34,7 @@ const DASHING: CharacterMotion = {
 const nextFrameDashes = (motion: CharacterMotion, lock: HomingLock): boolean => {
   const result = stepHomingLock(lock, {
     dashInFlight: motion.homing !== null,
-    jumpPressed: false,
+    attackPressed: false,
     pressWouldDash: true,
     from: ZERO3,
     cameraForward: vec3(0, 1, 0),

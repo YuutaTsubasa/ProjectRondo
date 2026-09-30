@@ -18,42 +18,17 @@ import { HORIZON_HEX } from './atmosphereColors';
  */
 const FOG_COLOR = Color3.FromHexString(HORIZON_HEX);
 
-/**
- * EXP2 density, chosen from the scene's real distances rather than by eye: the field's half-extent is
- * 50, the mountain ring sits at radius 85, and the barrier confines the player to about 42 — so the
- * far side of the field is up to ~100 units away and the mountains 43–127 depending on where the
- * player stands.
- *
- * With `factor = exp(-(d * density)^2)`, this value leaves ~9 % haze at 40 units (the field the player
- * is actually looking across stays clear) and ~50 % at 110 (the mountains read as far off). Squared
- * falloff rather than linear because aerial perspective builds with distance; linear fog reads as a
- * flat curtain hung in front of the scene.
- */
+/** Light distance haze leaves the play area clear and unifies the layered backdrop. */
 const FOG_DENSITY = 0.0076;
 
-/**
- * Exposure and contrast are nudges, not a grade: the palette is deliberately unchanged (spec §1), so
- * these exist to stop ACES flattening the image, not to restyle it.
- *
- * ACES darkens this scene globally — full-frame mean luminance runs ~20-22% below a fixed
- * reference (no tone mapping, exposure 1.0, contrast 1.0) captured at the `spawn` and `shade`
- * viewpoints. That reference must be captured once and held fixed while exposure is swept; if it's
- * re-captured at each exposure step it moves with the sweep and the comparison is meaningless
- * (measures "what ACES costs at this exposure", not "does it match the pre-ACES scene"). Exposure
- * is the global control that puts the lost brightness back without touching any material colour, so
- * it's the fix, not the material floors. EXPOSURE = 1.7 was chosen this way: it brings mean
- * luminance within about 3% of that fixed reference at both viewpoints (spawn +2.9%, shade +0.7%)
- * with zero blown pixels. Re-measure the same way (full-frame luminance against the fixed
- * reference, camera locked, several settle frames before sampling so the shadow map has converged)
- * before changing either constant.
- */
-const EXPOSURE = 1.7;
-const CONTRAST = 1.1;
+/** The meadow palette uses a broad ambient fill, so a gentle grade preserves greens and steel. */
+const EXPOSURE = 1.25;
+const CONTRAST = 1.05;
 
 /** Only pixels above this luminance bloom, so the effect finds highlights rather than the whole image. */
 const BLOOM_THRESHOLD = 0.85;
 /** How much of the blurred highlight is added back. Low: this is a sheen, not a glow. */
-const BLOOM_WEIGHT = 0.15;
+const BLOOM_WEIGHT = 0.08;
 /** Blur radius in pixels. */
 const BLOOM_KERNEL = 32;
 /** Resolution the bloom is computed at, as a fraction of the frame. Half-res is the usual trade. */
