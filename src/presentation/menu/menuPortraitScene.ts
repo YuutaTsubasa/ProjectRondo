@@ -29,7 +29,7 @@ export function createMenuPortraitScene(engine:AbstractEngine){
  const holder=new TransformNode('portrait',scene);
  let container:AssetContainer|undefined,releaseBlink:(()=>void)|undefined;
  let releasePainting:(()=>void)|undefined;
- let disposed=false,loaded=false,active=false,reduced=false,dirty=true,pose:PortraitPose='menu';
+ let disposed=false,loaded=false,active=false,reduced=false,dirty=true,snap=false,pose:PortraitPose='menu';
  const target=new Vector3(0,1.03,0);
  const positions={menu:new Vector3(2.2,1.45,3.4),loading:new Vector3(-1.65,1.64,1.02)};
  const targets={menu:new Vector3(0,1.03,0),loading:new Vector3(0,1.57,0)};
@@ -64,9 +64,13 @@ export function createMenuPortraitScene(engine:AbstractEngine){
    pose=next;active=visible;reduced=reduceMotion;scene.animationsEnabled=!reduced;
   },
   invalidate(){dirty=true;},
+  /** A new screen took the portrait over: frame its pose at once instead of gliding from the last screen's. */
+  snapToPose(){snap=true;dirty=true;},
+  /** Render one frame while hidden so model and post-process shaders compile before a screen shows it. */
+  prime(){if(disposed||!loaded)return;scene.render();dirty=true;},
   render(){
    if(disposed||!loaded||!active||reduced&&!dirty)return;
-   const blend=reduced?1:1-Math.exp(-Math.min(.05,engine.getDeltaTime()/1000)*9);
+   const blend=reduced||snap?1:1-Math.exp(-Math.min(.05,engine.getDeltaTime()/1000)*9);snap=false;
    Vector3.LerpToRef(camera.position,positions[pose],blend,camera.position);
    Vector3.LerpToRef(target,targets[pose],blend,target);camera.setTarget(target);
    // A reduced-motion render is a still pose, including the independently driven blink.

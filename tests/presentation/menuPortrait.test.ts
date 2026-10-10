@@ -57,3 +57,15 @@ it('releases its scene when model loading fails',async()=>{
  const view=createMenuPortraitScene(engine);await expect(view.ready).rejects.toThrow('model unavailable');
  expect(view.scene.isDisposed).toBe(true);
 });
+it('snaps to a new screen pose in one frame and primes shaders while hidden',async()=>{
+ engine=new NullEngine();stub.load.mockImplementation((_url,scene)=>Promise.resolve(model(scene)));
+ const view=createMenuPortraitScene(engine);await view.ready;
+ const render=vi.spyOn(view.scene,'render').mockImplementation(()=>{});
+ view.prime();expect(render).toHaveBeenCalledOnce();
+ const camera=view.scene.activeCamera!;
+ // With motion on, a normal frame only eases toward the pose; a takeover frames it at once.
+ view.setPresentation('loading',true,false);view.snapToPose();view.render();
+ expect(camera.position.x).toBeCloseTo(-1.65,5);expect(camera.position.z).toBeCloseTo(1.02,5);
+ view.setPresentation('menu',true,false);view.render();
+ expect(camera.position.x).toBeLessThan(2.2);view.dispose();
+});

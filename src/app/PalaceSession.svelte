@@ -1,6 +1,7 @@
 <script lang="ts">
   import {recordStageClear} from './stageRecords';
   import { onMount } from 'svelte';
+  import {retainMenuPortrait} from '../presentation/menu/sharedMenuPortrait';
   import { Engine } from '@babylonjs/core/Engines/engine';
   import { createLevelSwap } from './levelSwap';
   import { createPalaceScene,type PalaceScene } from '../presentation/palace/palaceScene';
@@ -31,6 +32,8 @@
       if(buttons.length){event.preventDefault();buttons[(index+(event.shiftKey?buttons.length-1:1))%buttons.length].focus();}
     }
   }
+  // Load the results-screen portrait while this stage loads, before its clear timer runs.
+  onMount(()=>'WebGLRenderingContext' in window?retainMenuPortrait():undefined);
   onMount(()=>{
     let live=true;
     let engine:Engine;

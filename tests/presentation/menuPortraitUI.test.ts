@@ -16,7 +16,7 @@ function support(){
  vi.stubGlobal('ResizeObserver',class{observe(){}disconnect(){}});
 }
 function renderer(ready=Promise.resolve()){
- return {ready,resize:vi.fn(),start:vi.fn(),stop:vi.fn(),dispose:vi.fn(),setPresentation:vi.fn()};
+ return {ready,resize:vi.fn(),start:vi.fn(),stop:vi.fn(),dispose:vi.fn(),setPresentation:vi.fn(),snapToPose:vi.fn(),prime:vi.fn()};
 }
 it('shows the canvas when ready, pauses while hidden and keeps the shared renderer on removal',async()=>{
  support();const view=renderer();stub.mount.mockReturnValue(view);
@@ -88,4 +88,16 @@ it('a warm-up keeps the portrait loaded and lets the results screen show it at o
  release();await unmount(component);component=undefined;
  await vi.advanceTimersByTimeAsync(PORTRAIT_IDLE_RELEASE_MS);await fsettle();
  expect(view.dispose).toHaveBeenCalledOnce();
+});
+
+it('primes a warmed portrait while hidden and snaps a taken-over portrait to the new pose',async()=>{
+ support();vi.useFakeTimers({toFake:['setTimeout','clearTimeout']});
+ const view=renderer();stub.mount.mockReturnValue(view);
+ const release=retainMenuPortrait();await fsettle();
+ // Shaders compile during the warm-up, not on the results screen's first frame.
+ expect(view.prime).toHaveBeenCalledOnce();
+ component=mount(MenuPortrait,{target:document.body});await fsettle();
+ expect(view.snapToPose).toHaveBeenCalled();
+ expect(view.snapToPose.mock.invocationCallOrder[0]).toBeLessThan(view.setPresentation.mock.invocationCallOrder.at(-1)!);
+ release();
 });

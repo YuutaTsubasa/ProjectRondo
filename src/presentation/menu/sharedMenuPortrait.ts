@@ -12,7 +12,11 @@ function create():Shared{
  const canvas=document.createElement('canvas');canvas.dataset.menuPortrait='';
  const renderer=import('./menuPortraitRuntime').then(runtime=>runtime.mountMenuPortrait(canvas));
  const created:Shared={canvas,renderer,owner:null,loaded:false,keepers:0,idle:undefined};
- renderer.then(view=>view.ready).then(()=>{created.loaded=true;},()=>{
+ renderer.then(async view=>{await view.ready;return view;}).then(view=>{
+  created.loaded=true;
+  // Warmed with no screen showing it: compile shaders now, not on the results screen's first frame.
+  if(created.owner===null)view.prime();
+ },()=>{
   // A failed engine or model is not kept: the next screen retries from scratch.
   if(shared===created)shared=undefined;
   clearTimeout(created.idle);void renderer.then(view=>view.dispose(),()=>{});

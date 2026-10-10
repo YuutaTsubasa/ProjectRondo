@@ -27,6 +27,7 @@
   const resize=new ResizeObserver(()=>{if(own.owns())renderer?.resize();});resize.observe(host);
   void own.renderer.then(async view=>{
    if(cancelled)return;
+   if(own.owns())view.snapToPose();
    renderer=view;
    await view.ready;
    if(cancelled||!own.owns())return;

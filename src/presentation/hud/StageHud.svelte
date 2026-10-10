@@ -4,11 +4,6 @@
  import HudWaves from './HudWaves.svelte';
  import HudIdentity from './HudIdentity.svelte';
  import LocationMarquee from './LocationMarquee.svelte';
- import {onMount} from 'svelte';
- import {retainMenuPortrait} from '../menu/sharedMenuPortrait';
- // Warm the results-screen portrait during play, so clearing the stage does not stall on a fresh
- // WebGL engine and model load. Released with the HUD; idle release frees it after the stage.
- onMount(()=>'WebGLRenderingContext' in window?retainMenuPortrait():undefined);
  import {projectStagePoint,stageHeading,type StagePoint} from './stageNavigation';
  let {number,title,objective,detail,elapsed,stats,player,facing,target,route,platforms=[],sideView=false,statusLabel,statusValue,statusMax,notice='',onPause}: {
   number:string;title:string;objective:string;detail:string;elapsed:number;

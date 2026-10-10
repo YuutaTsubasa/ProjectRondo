@@ -1,6 +1,7 @@
 <script lang="ts">
   import {recordStageClear} from './stageRecords';
   import { onMount } from 'svelte';
+  import { retainMenuPortrait } from '../presentation/menu/sharedMenuPortrait';
   import { Engine } from '@babylonjs/core/Engines/engine';
   import { Vector3 } from '@babylonjs/core/Maths/math.vector';
   import { createLevelSwap } from './levelSwap';
@@ -53,6 +54,8 @@
     if (status === 'playing') pause(); else if (status === 'paused') resume();
   }
 
+  // Load the results-screen portrait while this stage loads, before its clear timer runs.
+  onMount(() => 'WebGLRenderingContext' in window ? retainMenuPortrait() : undefined);
   onMount(() => {
     let live = true;
     let engine: Engine;
