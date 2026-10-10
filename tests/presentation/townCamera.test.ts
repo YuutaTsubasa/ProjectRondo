@@ -40,4 +40,22 @@ describe('town and region camera obstruction', () => {
     const clear = new Vector3(6, 3, 0);
     expect(townCameraPosition(aim, clear, solids)).toEqual(clear);
   });
+
+  it('does not pull the camera into the character when the aim starts inside a solid or its padding', () => {
+    // Aim inside an oversized box (e.g. a rounded boulder's AABB): keep the full boom.
+    const inside = new Vector3(0, 2, -4), behind = new Vector3(0, 3, 3);
+    expect(townCameraPosition(inside, behind, solids)).toEqual(behind);
+    // Aim in the padding beside a wall: stop at the wall surface rather than collapsing to 0.1 u.
+    const hugging = new Vector3(0, 2, -2.8);
+    const stopped = townCameraPosition(hugging, new Vector3(0, 3, -9.8), solids);
+    expect(Vector3.Distance(stopped, hugging)).toBeLessThan(.25);
+    const away = townCameraPosition(hugging, new Vector3(0, 3, 4.2), solids);
+    expect(away.z).toBeCloseTo(4.2, 5);
+  });
+
+  it('skips solids beyond the boom without changing the result', () => {
+    const aim = new Vector3(0, 2, 0), desired = new Vector3(0, 3, 7);
+    const far = [...solids, { min: new Vector3(100, 0, 100), max: new Vector3(110, 10, 110) }];
+    expect(townCameraPosition(aim, desired, far)).toEqual(townCameraPosition(aim, desired, []));
+  });
 });

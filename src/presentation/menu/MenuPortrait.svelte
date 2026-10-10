@@ -1,43 +1,47 @@
 <script lang="ts">
  import {onMount} from 'svelte';
  import type {PortraitPose} from './menuPortraitScene';
- import type {mountMenuPortrait} from './menuPortraitRuntime';
+ import {acquireMenuPortrait,type PortraitRenderer} from './sharedMenuPortrait';
  let {active=true,pose='menu'}:{active?:boolean;pose?:PortraitPose}=$props();
- let canvas:HTMLCanvasElement;
- let renderer=$state<ReturnType<typeof mountMenuPortrait>>();
+ let host:HTMLDivElement;
+ let lease:ReturnType<typeof acquireMenuPortrait>|undefined;
+ let renderer=$state<PortraitRenderer>();
  let ready=$state(false),hidden=$state(false),reduced=$state(false);
  $effect(()=>{
-  if(!renderer)return;
+  if(!renderer||!lease?.owns())return;
   renderer.setPresentation(pose,active&&!hidden,reduced);
   if(active&&!hidden)renderer.start();else renderer.stop();
  });
+ // Read `ready` first so the effect subscribes to it even before the lease exists.
+ $effect(()=>{const shown=String(ready);if(lease?.owns())lease.canvas.dataset.ready=shown;});
  onMount(()=>{
   // The scene background remains visible until the 3D portrait is available.
   if(!('WebGLRenderingContext' in window))return;
-  let cancelled=false,current:ReturnType<typeof mountMenuPortrait>|undefined;
+  let cancelled=false;
   const preference=window.matchMedia('(prefers-reduced-motion: reduce)');
   const visibility=()=>{hidden=document.hidden;reduced=preference.matches;};
   visibility();document.addEventListener('visibilitychange',visibility);preference.addEventListener('change',visibility);
-  const resize=new ResizeObserver(()=>current?.resize());resize.observe(canvas);
-  void import('./menuPortraitRuntime').then(async({mountMenuPortrait})=>{
+  const own=lease=acquireMenuPortrait(host);own.canvas.dataset.ready='false';
+  const resize=new ResizeObserver(()=>{if(own.owns())renderer?.resize();});resize.observe(host);
+  // A portrait reused from an earlier screen is already loaded and appears at once.
+  void own.renderer.then(async view=>{
    if(cancelled)return;
-   current=mountMenuPortrait(canvas);renderer=current;
-   await current.ready;
-   if(cancelled)return;
-   ready=true;current.resize();
+   renderer=view;
+   await view.ready;
+   if(cancelled||!own.owns())return;
+   ready=true;view.resize();
   }).catch(error=>{
    if(!cancelled){console.warn('3D title portrait unavailable; keeping the scene background.',error);ready=false;}
-   current?.dispose();renderer=undefined;
+   renderer=undefined;
   });
-  return()=>{cancelled=true;renderer=undefined;current?.dispose();resize.disconnect();document.removeEventListener('visibilitychange',visibility);preference.removeEventListener('change',visibility);};
+  return()=>{cancelled=true;renderer=undefined;own.release();lease=undefined;resize.disconnect();document.removeEventListener('visibilitychange',visibility);preference.removeEventListener('change',visibility);};
  });
 </script>
-<div class="portrait" class:ready aria-hidden="true">
- <canvas bind:this={canvas} data-menu-portrait data-ready={ready}></canvas>
-</div>
+<!-- The shared portrait canvas is appended here while this screen owns it. -->
+<div class="portrait" class:ready aria-hidden="true" bind:this={host}></div>
 <style>
  .portrait{position:absolute;inset:0;pointer-events:none}
- canvas{display:block;width:100%;height:100%;opacity:0;transition:opacity .3s}
- .ready canvas{opacity:1}
- @media(prefers-reduced-motion:reduce){canvas{transition:none}}
+ .portrait :global(canvas){display:block;width:100%;height:100%;opacity:0;transition:opacity .3s}
+ .ready :global(canvas){opacity:1}
+ @media(prefers-reduced-motion:reduce){.portrait :global(canvas){transition:none}}
 </style>
