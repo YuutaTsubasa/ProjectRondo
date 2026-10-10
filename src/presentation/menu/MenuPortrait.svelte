@@ -21,9 +21,10 @@
   const preference=window.matchMedia('(prefers-reduced-motion: reduce)');
   const visibility=()=>{hidden=document.hidden;reduced=preference.matches;};
   visibility();document.addEventListener('visibilitychange',visibility);preference.addEventListener('change',visibility);
-  const own=lease=acquireMenuPortrait(host);own.canvas.dataset.ready='false';
+  const own=lease=acquireMenuPortrait(host);
+  // A portrait loaded by an earlier screen or a warm-up shows at once rather than fading in again.
+  ready=own.loaded;own.canvas.dataset.ready=String(own.loaded);
   const resize=new ResizeObserver(()=>{if(own.owns())renderer?.resize();});resize.observe(host);
-  // A portrait reused from an earlier screen is already loaded and appears at once.
   void own.renderer.then(async view=>{
    if(cancelled)return;
    renderer=view;

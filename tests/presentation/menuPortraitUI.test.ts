@@ -2,12 +2,14 @@
 import {afterEach,expect,it,vi} from 'vitest';
 import {flushSync,mount,unmount} from 'svelte';
 import MenuPortrait from '../../src/presentation/menu/MenuPortrait.svelte';
-import {disposeMenuPortrait} from '../../src/presentation/menu/sharedMenuPortrait';
+import {disposeMenuPortrait,retainMenuPortrait,PORTRAIT_IDLE_RELEASE_MS} from '../../src/presentation/menu/sharedMenuPortrait';
 const stub=vi.hoisted(()=>({mount:vi.fn()}));
 vi.mock('../../src/presentation/menu/menuPortraitRuntime',()=>({mountMenuPortrait:stub.mount}));
 let component:ReturnType<typeof mount>|undefined;
 const settle=async()=>{flushSync();await new Promise(resolve=>setTimeout(resolve,0));flushSync();};
-afterEach(async()=>{if(component)await unmount(component);component=undefined;disposeMenuPortrait();await new Promise(resolve=>setTimeout(resolve,0));stub.mount.mockReset();document.body.innerHTML='';vi.unstubAllGlobals();vi.restoreAllMocks();});
+// Under fake timers: drain promises and zero-delay timers without moving the idle clock.
+const fsettle=async()=>{flushSync();await vi.advanceTimersByTimeAsync(0);flushSync();};
+afterEach(async()=>{vi.useRealTimers();if(component)await unmount(component);component=undefined;disposeMenuPortrait();await new Promise(resolve=>setTimeout(resolve,0));stub.mount.mockReset();document.body.innerHTML='';vi.unstubAllGlobals();vi.restoreAllMocks();});
 function support(){
  vi.stubGlobal('WebGLRenderingContext',class{});
  vi.stubGlobal('matchMedia',()=>({matches:false,addEventListener:vi.fn(),removeEventListener:vi.fn()}));
@@ -57,4 +59,33 @@ it('reuses one loaded renderer across menu and results screens instead of buildi
  expect(document.querySelector('canvas')?.getAttribute('data-ready')).toBe('true');
  expect(view.setPresentation).toHaveBeenLastCalledWith('loading',true,false);
  expect(view.dispose).not.toHaveBeenCalled();
+});
+
+it('frees an unused portrait after the idle delay, and a re-acquire cancels it',async()=>{
+ support();vi.useFakeTimers({toFake:['setTimeout','clearTimeout']});
+ const view=renderer();stub.mount.mockReturnValue(view);
+ component=mount(MenuPortrait,{target:document.body});await fsettle();
+ await unmount(component);component=undefined;
+ await vi.advanceTimersByTimeAsync(PORTRAIT_IDLE_RELEASE_MS-1);
+ component=mount(MenuPortrait,{target:document.body});await fsettle();
+ await vi.advanceTimersByTimeAsync(PORTRAIT_IDLE_RELEASE_MS);await fsettle();
+ expect(view.dispose).not.toHaveBeenCalled();
+ await unmount(component);component=undefined;
+ await vi.advanceTimersByTimeAsync(PORTRAIT_IDLE_RELEASE_MS);await fsettle();
+ expect(view.dispose).toHaveBeenCalledOnce();
+});
+
+it('a warm-up keeps the portrait loaded and lets the results screen show it at once',async()=>{
+ support();vi.useFakeTimers({toFake:['setTimeout','clearTimeout']});
+ const view=renderer();stub.mount.mockReturnValue(view);
+ const release=retainMenuPortrait();await fsettle();
+ await vi.advanceTimersByTimeAsync(PORTRAIT_IDLE_RELEASE_MS*2);await fsettle();
+ expect(view.dispose).not.toHaveBeenCalled();
+ component=mount(MenuPortrait,{target:document.body});flushSync();
+ // Already loaded: ready before any promise turn, so the canvas never fades in from empty.
+ expect(document.querySelector('canvas')?.getAttribute('data-ready')).toBe('true');
+ expect(document.querySelector('.portrait')?.classList.contains('ready')).toBe(true);
+ release();await unmount(component);component=undefined;
+ await vi.advanceTimersByTimeAsync(PORTRAIT_IDLE_RELEASE_MS);await fsettle();
+ expect(view.dispose).toHaveBeenCalledOnce();
 });
