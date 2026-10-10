@@ -10,6 +10,7 @@ import {LoadAssetContainerAsync} from '@babylonjs/core/Loading/sceneLoader';
 import type {AssetContainer} from '@babylonjs/core/assetContainer';
 import '@babylonjs/loaders/glTF';
 import {PLAYER_MODEL} from '../babylon/playerModel';
+import {waitForRegionReadiness} from '../../app/regionReadiness';
 import {applyPlayerMaterials} from '../babylon/playerMaterials';
 import {applyPortraitPainting} from './portraitPainting';
 import {attachPlayerBlink} from '../babylon/playerBlink';
@@ -70,7 +71,15 @@ export function createMenuPortraitScene(engine:AbstractEngine){
   snapToPose(){snap=true;dirty=true;},
   /** Compile the portrait's effects while hidden, before a screen shows it. Asynchronous (parallel
    * shader compile where available) rather than a blocking render, since a warm-up runs during play. */
-  async prime(){if(disposed||!loaded)return;await scene.whenReadyAsync(true);dirty=true;},
+  async prime(){
+   if(disposed||!loaded)return;
+   // Babylon's own wait never settles once the scene is disposed or never becomes ready; this one
+   // resolves on dispose and rejects after its timeout, so a warm-up always finishes.
+   const released=new AbortController(),watch=scene.onDisposeObservable.addOnce(()=>released.abort());
+   try{await waitForRegionReadiness(scene,released.signal);}
+   finally{scene.onDisposeObservable.remove(watch);}
+   dirty=true;
+  },
   render(){
    if(disposed||!loaded||!active||reduced&&!dirty)return;
    const blend=reduced||snap?1:1-Math.exp(-Math.min(.05,engine.getDeltaTime()/1000)*9);snap=false;

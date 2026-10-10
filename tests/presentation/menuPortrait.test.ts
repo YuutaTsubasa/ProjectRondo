@@ -71,3 +71,11 @@ it('snaps to a new screen pose in one frame and primes shaders while hidden',asy
  view.setPresentation('menu',true,false);view.render();
  expect(camera.position.x).toBeLessThan(2.2);view.dispose();
 });
+
+it('finishes priming when the portrait is released mid-wait instead of hanging',async()=>{
+ engine=new NullEngine();stub.load.mockImplementation((_url,scene)=>Promise.resolve(model(scene)));
+ const view=createMenuPortraitScene(engine);await view.ready;
+ vi.spyOn(view.scene,'whenReadyAsync').mockReturnValue(new Promise<void>(()=>{}));
+ const primed=view.prime();view.dispose();
+ await expect(primed).resolves.toBeUndefined();
+});
