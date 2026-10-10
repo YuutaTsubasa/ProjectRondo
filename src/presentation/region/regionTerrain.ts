@@ -8,12 +8,12 @@ import { Texture } from '@babylonjs/core/Materials/Textures/texture';
 import { Color3 } from '@babylonjs/core/Maths/math.color';
 import { PhysicsAggregate } from '@babylonjs/core/Physics/v2/physicsAggregate';
 import { PhysicsShapeType } from '@babylonjs/core/Physics/v2/IPhysicsEnginePlugin';
-import { REGION_BOUNDS, regionHeight, regionPathDistance } from '../../domain/region/regionLayout';
+import { REGION_BOUNDS, REGION_TOWN_EDGE_Z, regionHeight, regionPathDistance } from '../../domain/region/regionLayout';
 import { createTownSea } from '../town/townSea';
 
 /** ~40k triangles at 1.5m spacing: physical relief without a huge region-wide physics mesh. */
 export function createRegionTerrain(scene: Scene) {
-  const width = REGION_BOUNDS.maxX - REGION_BOUNDS.minX, depth = -63 - REGION_BOUNDS.minZ;
+  const width = REGION_BOUNDS.maxX - REGION_BOUNDS.minX, depth = REGION_TOWN_EDGE_Z - REGION_BOUNDS.minZ;
   const ground = CreateGround('region-ground', { width, height: depth, subdivisions: 144 }, scene);
   const positions = ground.getVerticesData(VertexBuffer.PositionKind)!;
   const colors: number[] = [];

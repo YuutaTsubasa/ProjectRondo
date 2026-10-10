@@ -1,6 +1,9 @@
-/** The town ends at the southern gate (z = -63). A small dead band avoids repeated fades. */
+import { REGION_TOWN_EDGE_Z } from './regionLayout';
+
+/** The town ends at the southern gate. A small dead band avoids repeated fades. */
+const DEAD_BAND = 2;
 export function regionMusicScene(z: number, current?: 'town' | 'meadow'): 'town' | 'meadow' {
-  if (!current) return z >= -63 ? 'town' : 'meadow';
-  if (current === 'town') return z < -65 ? 'meadow' : 'town';
-  return z > -61 ? 'town' : 'meadow';
+  if (!current) return z >= REGION_TOWN_EDGE_Z ? 'town' : 'meadow';
+  if (current === 'town') return z < REGION_TOWN_EDGE_Z - DEAD_BAND ? 'meadow' : 'town';
+  return z > REGION_TOWN_EDGE_Z + DEAD_BAND ? 'town' : 'meadow';
 }

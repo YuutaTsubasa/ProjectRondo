@@ -1,4 +1,7 @@
-import { townLocation } from '../town/townLayout';
+import { TOWN_BOUNDS, townLocation } from '../town/townLayout';
+
+/** The town's southern gate: north of it is flat town, south of it is the meadow. */
+export const REGION_TOWN_EDGE_Z = TOWN_BOUNDS.minZ;
 
 export type RegionPlaceId = 'signal' | 'course' | 'palace' | 'homecoming' | 'ridge' | 'cove' | 'watch';
 export interface RegionPlace {
@@ -31,7 +34,7 @@ export const REGION_INTERACTION_PLACES: readonly RegionPlace[] = REGION_PLACES.m
 }));
 /** Every branch connects to the main southern road. Town routes follow existing streets. */
 export const REGION_TRAILS: readonly (readonly (readonly [number, number])[])[] = [
-  [[0, -35], [0, -63], [0, -82], [0, -118], [-18, -145], [-64, -170], [-62, -208], [-50, -250]],
+  [[0, -35], [0, REGION_TOWN_EDGE_Z], [0, -82], [0, -118], [-18, -145], [-64, -170], [-62, -208], [-50, -250]],
   [[0, -82], [-30, -85], [-65, -92], [-105, -85]],
   [[0, -118], [28, -145], [45, -170], [65, -180]],
 ];
@@ -42,14 +45,14 @@ function relief(x: number, z: number): number {
   const roll = .6 * Math.sin(x * .045 + z * .022) * Math.sin(z * .05);
   const shore = 2 * smooth((x - 38) / 40) + 5 * smooth((x - 76) / 9);
   const rim = 12 * smooth((-x - 116) / 14) + 13 * smooth((-z - 274) / 16);
-  return (inland + roll - shore + rim) * smooth((-z - 63) / 24);
+  return (inland + roll - shore + rim) * smooth((REGION_TOWN_EDGE_Z - z) / 24);
 }
 /** Single source for rendered ground, Havok support, camera probes and scenery placement. */
 export function regionHeight(x: number, z: number): number {
-  if (z >= -63) return 0;
+  if (z >= REGION_TOWN_EDGE_Z) return 0;
   let y = relief(x, z);
   for (const place of REGION_PLACES) {
-    if (place.z >= -63) continue;
+    if (place.z >= REGION_TOWN_EDGE_Z) continue;
     const distance = Math.hypot(x - place.x, z - place.z);
     if (distance < 9) y += (relief(place.x, place.z) - y) * (1 - smooth((distance - 3) / 6));
   }
@@ -69,10 +72,10 @@ export function isRegionPositionSafe(point: { x: number; y: number; z: number })
   const { x, y, z } = point;
   return [x, y, z].every(Number.isFinite) && y >= -3 && y <= 120
     && x >= REGION_BOUNDS.minX && x <= REGION_BOUNDS.maxX && z >= REGION_BOUNDS.minZ && z <= REGION_BOUNDS.maxZ
-    && (z <= -63 || x >= -40 && x <= 40);
+    && (z <= REGION_TOWN_EDGE_Z || x >= TOWN_BOUNDS.minX && x <= TOWN_BOUNDS.maxX);
 }
 export function regionLocation(x: number, z: number): string {
-  if (z >= -63) return townLocation(x, z);
+  if (z >= REGION_TOWN_EDGE_Z) return townLocation(x, z);
   if (x > 38) return '潮音海岸 · TIDAL COAST';
   if (x < -82 && z > -140) return '西風山脊 · WESTWIND RIDGE';
   if (z < -218) return '南境丘陵 · SOUTHERN WATCH';

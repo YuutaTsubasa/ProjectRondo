@@ -54,6 +54,8 @@ export async function createCourseScene(engine: Engine, canvas: HTMLCanvasElemen
     const crystals = createCrystals(scene, COURSE_CRYSTALS);
     let combat = createCourseCombat();
     const stageAudio=createCourseAudio();parts.audio=stageAudio;
+    // Fetch the stage loop alongside the scene build; a failure is reported at the readiness wait below.
+    const music=stageAudio.prepare();music.catch(()=>{});
     // Stable indices keep a locked moving enemy and a crystal chain on the same attack path.
     const targets = {
       get positions() { return [...crystals.positions, ...combat.guards.map(g => g.phase === 'defeated'
@@ -124,7 +126,7 @@ export async function createCourseScene(engine: Engine, canvas: HTMLCanvasElemen
     };
     exposeDevHandle(scene, 'course', course);
     exposeDevHandle(scene, 'shadows', rig.shadows);
-    await waitForAudioReadiness(()=>stageAudio.prepare());
+    await waitForAudioReadiness(()=>music);
     return course;
   } catch (error) {
     // Includes failed model loads: createCharacterRig releases its own partial DOM/Havok state.

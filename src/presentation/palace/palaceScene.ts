@@ -38,6 +38,9 @@ export async function createPalaceScene(engine:Engine):Promise<PalaceScene> {
   let guards:Awaited<ReturnType<typeof loadPalaceGuards>>|undefined;
   let audio:ReturnType<typeof createPalaceAudio>|undefined;
   try{
+    audio=createPalaceAudio();
+    // Fetch the stage loop alongside the rest of the build; a failure is reported at the readiness wait below.
+    const music=audio.prepare();music.catch(()=>{});
     scene.useRightHandedSystem=true;
     scene.clearColor=Color4.FromHexString('#e1edf3ff');
     const camera=new FreeCamera('palaceSideCamera',new Vector3(10,6,25),scene);
@@ -69,7 +72,6 @@ export async function createPalaceScene(engine:Engine):Promise<PalaceScene> {
     stopAnimation=driveKnightAnimation(scene,knight,motion,()=>({walk:4,run:10,airtime:25.6/30}));
     guards=await loadPalaceGuards(scene,shadows);
     const reticle=createHomingReticle(scene);
-    audio=createPalaceAudio();
     let cameraX=state.player.x+4,cameraY=2.7;
     const update=(snap=false)=>{
       const p=state.player;
@@ -117,7 +119,7 @@ export async function createPalaceScene(engine:Engine):Promise<PalaceScene> {
     };
     update(true);
     exposeDevHandle(scene,'palace',api);
-    await waitForAudioReadiness(()=>audio!.prepare());
+    await waitForAudioReadiness(()=>music);
     return api;
   }catch(error){
     input.dispose();audio?.dispose();stopAnimation?.();knight?.release();guards?.dispose();scene.dispose();throw error;

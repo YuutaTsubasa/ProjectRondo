@@ -1,5 +1,5 @@
 <script lang="ts">
- import {REGION_TRAILS,REGION_PLACES} from '../../domain/region/regionLayout';
+ import {REGION_TRAILS,REGION_PLACES,REGION_INTERACTION_PLACES} from '../../domain/region/regionLayout';
  import {TOWN_BUILDINGS} from '../../domain/town/townLayout';
  import type {RegionPoint} from '../../domain/region/regionObjectives';
  import {minimapOffset} from '../hud/hudNavigation';
@@ -8,7 +8,8 @@
  const id=$props.id();
  const zoom=1.7;
  let atlasFailed=$state(false);
- const target=$derived(REGION_PLACES.find(p=>p.id===navigationId));
+ // The beacon the HUD distance, compass and prompt all measure to.
+ const target=$derived(REGION_INTERACTION_PLACES.find(p=>p.id===navigationId));
  const marker=$derived(target?minimapOffset(position,target,67/zoom):null);
 </script>
 <div class="minimap" role="img" aria-label="附近地圖，北方朝上">

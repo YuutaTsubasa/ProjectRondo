@@ -4,7 +4,7 @@
  import type {RegionProgress} from '../../domain/region/regionProgress';
  import type {RegionPoint} from '../../domain/region/regionObjectives';
  import {regionObjective} from '../../domain/region/regionObjectives';
- import {REGION_INTERACTION_PLACES} from '../../domain/region/regionLayout';
+ import {REGION_INTERACTION_PLACES,REGION_TOWN_EDGE_Z} from '../../domain/region/regionLayout';
  import LocationMarquee from '../hud/LocationMarquee.svelte';
  import HudWaves from '../hud/HudWaves.svelte';
  import HudIdentity from '../hud/HudIdentity.svelte';
@@ -23,7 +23,7 @@
  const copy=$derived(target&&target.id!==objective.placeId?{title:`前往${target.name}`,instruction:target.kind==='expedition'?'查看遠征入口':target.kind==='vista'?'探索這處風景':'調查回聲管'}:regionHudCopy[progress.chapter]);
  const distance=$derived(target?Math.round(Math.hypot(target.x-position.x,target.z-position.z)):0);
  const location=$derived(locationLabel.split('·')[0].trim());
- const area=$derived(position.z>=-63?'白色王城':location);
+ const area=$derived(position.z>=REGION_TOWN_EDGE_Z?'白色王城':location);
  const promptVerb=$derived(prompt.split(' · ')[0]);
  const interactAction=$derived(promptVerb==='接聽回聲管'?'調查':promptVerb);
  const interactTarget=$derived(prompt.split(' · ').slice(1).join(' · '));
