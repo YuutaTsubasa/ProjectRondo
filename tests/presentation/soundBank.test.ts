@@ -293,3 +293,10 @@ describe('the sound bank, when the audio engine fails under it', () => {
     expect(calls).toEqual([]);
   });
 });
+
+it('does not fetch or decode music when the stage owns its music separately', async () => {
+ const bank=await loadSoundBank(audio,{music:false});
+ for(const [cue,spec] of Object.entries(MANIFEST)) if(spec.bus==='music') expect(made.has(spec.files[0])).toBe(false);
+ expect(made.has(MANIFEST['jump.takeoff'].files[0])).toBe(true);
+ expect(bank.startLoop('music.course')).toBeNull();bank.dispose();
+});

@@ -1,0 +1,33 @@
+import {afterEach,expect,it} from 'vitest';
+import {NullEngine} from '@babylonjs/core/Engines/nullEngine';
+import {Scene} from '@babylonjs/core/scene';
+import {FreeCamera} from '@babylonjs/core/Cameras/freeCamera';
+import {Vector3} from '@babylonjs/core/Maths/math.vector';
+import {MeshBuilder} from '@babylonjs/core/Meshes/meshBuilder';
+import {StandardMaterial} from '@babylonjs/core/Materials/standardMaterial';
+import {RawTexture} from '@babylonjs/core/Materials/Textures/rawTexture';
+import {applyPortraitPainting,portraitPaintProfile} from '../../src/presentation/menu/portraitPainting';
+let engine:NullEngine;
+afterEach(()=>engine?.dispose());
+it('covers body, hair and skin while protecting eyes and oral details',()=>{
+ expect(portraitPaintProfile('player:03-body-fix.001','body').brush).toBe(1);
+ expect(portraitPaintProfile('player:Full head hair','head').brush).toBe(.9);
+ expect(portraitPaintProfile('player:Rebuilt lip skin','head').brush).toBe(.08);
+ for(const name of ['Deep blue iris','Eye white','Teeth','Tongue','Mouth interior','Anchored upper eyelid crease'])expect(portraitPaintProfile(name,'head').brush).toBe(0);
+});
+it('shares one treatment per material, retains geometry/textures and releases mask resources',()=>{
+ engine=new NullEngine();const scene=new Scene(engine),camera=new FreeCamera('camera',new Vector3(0,1,3),scene);
+ const mesh=MeshBuilder.CreateBox('body',{},scene),other=mesh.clone('other');
+ const material=new StandardMaterial('player:body',scene);material.metadata={gltf:{extras:{playerMaterial:{role:'body'}}}};
+ const texture=RawTexture.CreateRGBATexture(new Uint8Array([100,120,140,255]),1,1,scene);material.diffuseTexture=texture;
+ mesh.material=other.material=material;const geometry=mesh.geometry;
+ const dispose=applyPortraitPainting(scene,camera,[mesh,other]);
+ expect(mesh.geometry).toBe(geometry);expect(mesh.material).toBe(material);expect(material.diffuseTexture).toBe(texture);
+ expect(material.pluginManager?.getPlugin('PortraitPaint')).toBeTruthy();
+ expect(scene.customRenderTargets).toHaveLength(1);expect(scene.customRenderTargets[0].renderList).toHaveLength(2);expect(scene.customRenderTargets[0].renderList?.[0]).toBe(mesh);expect(scene.customRenderTargets[0].renderList?.[1]).toBe(other);
+ expect(scene.materials.filter(m=>m.name.startsWith('portraitMask:'))).toHaveLength(1);
+ dispose();dispose();expect(scene.customRenderTargets).toHaveLength(0);
+ expect(scene.materials.filter(m=>m.name.startsWith('portraitMask:'))).toHaveLength(0);
+ expect(scene.textures).toContain(texture);expect(material.diffuseTexture).toBe(texture);
+ scene.dispose();
+});

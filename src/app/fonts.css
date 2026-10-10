@@ -55,3 +55,12 @@
   font-display: swap;
   src: url('/fonts/archivo-black-400.woff2') format('woff2');
 }
+
+/* Noto Serif TC derived chapter face. Self-hosted, 600 weight; see public/fonts/chapter-serif-source.txt. */
+@font-face {
+  font-family: 'Rondo Chapter Serif';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('/fonts/rondo-chapter-serif-600.woff2') format('woff2');
+}

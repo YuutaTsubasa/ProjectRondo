@@ -8,7 +8,7 @@ import { createInput } from '../../src/presentation/babylon/input';
 import { createPlayer } from '../../src/presentation/babylon/playerController';
 import type { FollowCamera } from '../../src/presentation/babylon/followCamera';
 import type { Crystals } from '../../src/presentation/babylon/crystals';
-const physics = vi.hoisted(() => ({ supported: true }));
+const physics = vi.hoisted(() => ({ supported: true, showTarget:vi.fn() }));
 vi.mock('@babylonjs/core/Physics/v2/characterController', async () => {
   const { Vector3 } = await import('@babylonjs/core/Maths/math.vector');
   return { CharacterSupportedState: { SUPPORTED: 2 }, PhysicsCharacterController: class {
@@ -21,9 +21,9 @@ vi.mock('@babylonjs/core/Physics/v2/characterController', async () => {
     dispose() {}
   } };
 });
-vi.mock('../../src/presentation/babylon/homingReticle', () => ({ createHomingReticle: () => ({ showAt() {}, hide() {} }) }));
+vi.mock('../../src/presentation/babylon/homingReticle', () => ({ createHomingReticle: () => ({ showAt:physics.showTarget, hide() {} }) }));
 const cleanup: (() => void)[] = [];
-afterEach(() => { cleanup.splice(0).reverse().forEach(fn => fn()); physics.supported = true; });
+afterEach(() => { cleanup.splice(0).reverse().forEach(fn => fn()); physics.supported = true; physics.showTarget.mockClear(); });
 const key = (type: string, key: string) => window.dispatchEvent(new KeyboardEvent(type, { key, cancelable: true }));
 function rig(targets = [new Vector3(0,1,-1.5)]) {
   const engine = new NullEngine(); engine.getDeltaTime = () => 1000/60;
@@ -33,7 +33,7 @@ function rig(targets = [new Vector3(0,1,-1.5)]) {
   const player = createPlayer(scene, root, follow, input, { positions: targets, flash } as unknown as Crystals, new Vector3(0,1,0));
   const frame = () => scene.onBeforeRenderObservable.notifyObservers(scene);
   cleanup.push(() => { player.dispose(); input.dispose(); scene.dispose(); engine.dispose(); });
-  return { player, frame, flash, input };
+  return { player, frame, flash, input, follow };
 }
 it('uses J for a grounded slash and flashes a crystal once, without jumping', () => {
   const r = rig(); key('keydown','j'); r.frame();
@@ -65,4 +65,20 @@ it('gives airborne J priority even when Space requests a coyote jump on the same
   key('keydown',' '); key('keydown','j'); r.frame();
   expect(r.player.motion.homing).not.toBeNull(); expect(r.player.swordSeconds).toBeNull();
   expect(r.player.airJumped).toBe(false);
+});
+
+it('previews and dashes toward character facing even when the camera points backward or sideways',()=>{
+ const front=new Vector3(0,3,-6),back=new Vector3(0,3,4);const r=rig([front,back]);
+ key('keydown',' ');r.frame();physics.supported=false;key('keyup',' ');
+ r.follow.camera.position.set(0,1,-5);r.frame();expect(physics.showTarget).toHaveBeenLastCalledWith(front);
+ r.follow.camera.position.set(5,9,0);r.frame();expect(physics.showTarget).toHaveBeenLastCalledWith(front);
+ key('keydown','j');r.frame();expect(r.player.motion.homing).not.toBeNull();expect(r.player.motion.velocity.z).toBeLessThan(0);
+});
+it('changes the target when the character turns while the camera remains fixed',()=>{
+ const front=new Vector3(0,3,-6),right=new Vector3(5,3,0);const r=rig([front,right]);
+ key('keydown',' ');r.frame();physics.supported=false;key('keyup',' ');r.frame();
+ expect(physics.showTarget).toHaveBeenLastCalledWith(front);
+ r.player.motion={...r.player.motion,facing:{x:1,y:0}};r.frame();
+ expect(physics.showTarget).toHaveBeenLastCalledWith(right);
+ key('keydown','j');r.frame();expect(r.player.motion.velocity.x).toBeGreaterThan(0);
 });

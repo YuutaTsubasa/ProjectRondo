@@ -1,0 +1,55 @@
+{
+  "generator": "Blender FBX import and glTF export; see tools/town/import.py",
+  "assets": [
+    {
+      "kind": "house",
+      "file": "house.glb",
+      "sourceFile": "classical+building+3d+model.zip",
+      "sourceSha256": "546e12adde2c91900acd928070955c5f31b5f3bc50608aad5ceb01e2dd005d24",
+      "sha256": "c796403edccb5ff33ba1b9b191d3326e92480c3c6214de1a9b8b6eacfdde68f7",
+      "triangles": 8553,
+      "textureMaxSize": 2048,
+      "geometryRepaired": false
+    },
+    {
+      "kind": "shop",
+      "file": "shop.glb",
+      "sourceFile": "ornate+building+3d+model.zip",
+      "sourceSha256": "25ad3e4e70884cdd468d4112ad3e33b37d97226867744fdaf40a5f5965ea2d28",
+      "sha256": "d98311d5d975c8f68ed922f09e18420c5f95a914cfb493db7b77ba3595e20d83",
+      "triangles": 7322,
+      "textureMaxSize": 2048,
+      "geometryRepaired": false
+    },
+    {
+      "kind": "tower",
+      "file": "tower.glb",
+      "sourceFile": "architectural+tower+3d+model (1).zip",
+      "sourceSha256": "5ab7a1addcd1245f0c71381a339179e6fef973e30a9db2c0b2bd86fb006a2d8f",
+      "sha256": "c2831df73649ac4f42dc77700e5bb13306555ad731a76d968b1d78904a665e0d",
+      "triangles": 8212,
+      "textureMaxSize": 2048,
+      "geometryRepaired": false
+    },
+    {
+      "kind": "gate",
+      "file": "gate.glb",
+      "sourceFile": "arch+gateway+3d+model.zip",
+      "sourceSha256": "2a1bfc20deba67d83de1ceccace2765205b8cf0f29bb05275ea57ae4938ac860",
+      "sha256": "5a0baa00486c19c8dbcb60ed3cdb5bab7f1d1d67c3ffe86b7a9dbd29b6f564ba",
+      "triangles": 7624,
+      "textureMaxSize": 2048,
+      "geometryRepaired": false
+    },
+    {
+      "kind": "arcade",
+      "file": "arcade.glb",
+      "sourceFile": "classical+arch+3d+model.zip",
+      "sourceSha256": "b161ce1639e391545d7644d6b193a47abb7fcba9dc1e28bd4f2b3b815f0f48b1",
+      "sha256": "ab2042d466945e3efc01f508e21406909819b5b1095525f941da5ed2488c5907",
+      "triangles": 8938,
+      "textureMaxSize": 2048,
+      "geometryRepaired": false
+    }
+  ]
+}

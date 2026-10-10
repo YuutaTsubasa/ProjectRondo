@@ -1,0 +1,94 @@
+PROJECT RONDO｜主選單以外的 House BGM 生成提示詞
+2026-10-10
+
+風格方向
+以已選定的主選單 Bittersweet Groove 為聽感參考：律動清楚、明亮但帶感傷、乾淨的 House 鼓組、溫暖切分低音、Rhodes 和透明的合成器。以下是創作方向，不代表已分析或重現原曲旋律。若生成工具有參考音訊功能，可使用你自己的主選單音樂；單靠文字無法保證生成相同的音色或主題。
+
+每段英文可獨立貼上。建議先生成 01、02、05、06、07、10，確認共同聽感後再補其他版本。每首先留完整 WAV（若工具提供）和未處理原檔；能否無縫循環仍需實際聽接點，提示詞本身無法保證。
+共通避免：人聲／人聲切片、史詩交響主導、失真硬核踢鼓、尖銳高頻、長篇升壓、突然靜音與大落差 Drop。House 感來自鼓與低音的互動，不必每首都有強烈抽吸。
+
+01｜白色王城・潮光街道｜white_palace_town
+場景：白塔廣場、城門、拱廊與港邊街道。主城市探索音樂。
+方向：Melodic / French-touch House，122 BPM，約 2 分鐘循環。
+Prompt:
+Instrumental melodic house with a restrained French-touch groove, 122 BPM, for exploring a bright coastal capital of white stone, open arcades and sunlit water. A rounded four-on-the-floor kick, crisp soft claps, lightly swung hats, a warm syncopated bassline, expressive Rhodes chords, sparkling glass plucks and a short bittersweet lead motif. Elegant, lived-in and welcoming, with the melodic clarity of a rhythm-game soundtrack. Keep the groove present from the opening bar. Gentle filter variation across 8-bar phrases; stable energy and perceived loudness. About two minutes, arranged as a repeatable game loop with matching opening and ending harmony and drum pattern. No vocals, vocal chops, long intro, huge drops, harsh distortion or fade-out.
+
+02｜白潮原野・順風而行｜palace_meadow
+場景：白宮草原、南境丘陵、西風山脊；先共用，不需要每個地名一首。
+方向：Progressive / Melodic House，124 BPM，約 2–3 分鐘循環。
+Prompt:
+Instrumental progressive melodic house, 124 BPM, for running through sunlit grasslands between a white coastal city and distant mountains. Steady clean house drums, warm rolling bass, airy piano accents, soft wide pads, bright restrained arpeggios and an uplifting yet slightly wistful melodic hook. A sense of open space, forward movement and curiosity. Evolve the arrangement gently every 8 or 16 bars while keeping a consistent drum pulse and even perceived loudness. Clear game-friendly mix with room for footsteps and action sounds. Two to three minutes of loopable exploration music; connect the ending directly to the opening groove. No vocals, dramatic breakdowns, silent pauses, festival drops, orchestral bombast or fade-out.
+
+03｜潮音海岸・藍色餘光｜tidal_coast
+場景：潮音海灣與慢步看海；可先用 02，這首屬於地區變奏。
+方向：Balearic / Deep House，118 BPM，約 2 分鐘循環。
+Prompt:
+Instrumental Balearic deep house, 118 BPM, for a quiet blue coastline beside an elegant white fantasy city. Soft but clearly defined four-on-the-floor drums, gently swung percussion, deep rounded bass, warm electric piano, delicate clean guitar harmonics and translucent synth chords. Relaxed, sunny and gently nostalgic, still carrying a satisfying dance groove. Keep the melody sparse and the mix spacious, with modest sidechain movement and smooth dynamics. About two minutes, looping naturally through the same harmony and rhythmic pocket. No vocals, actual ocean sound effects, tropical novelty instruments, big builds, hard drops or fade-out.
+
+04｜裂谷入口・舊訊號｜rift_ruins_exploration
+場景：遺跡入口、訊標附近探索；尚未進入跑跳試煉時。
+方向：Deep / Progressive House，120 BPM，約 2 分鐘循環。
+Prompt:
+Instrumental deep progressive house, 120 BPM, for exploring an ancient white-stone relay ruin above a wind-carved valley. A tight understated four-on-the-floor beat, a rounded pulsing bassline, filtered chord stabs, glassy repeating notes and distant metallic synth textures. Curious and quietly mysterious, with a restrained bittersweet motif and subtle harmonic tension. The atmosphere suggests forgotten machinery waking up, without horror or danger stingers. Maintain a steady groove and consistent volume; develop detail through texture rather than large drops. A seamless two-minute game-loop arrangement. No vocals, heavy industrial noise, loud impacts, long silence or fade-out.
+
+05｜3D 遺跡之路・踏光飛躍｜ruin_run_3d
+場景：裂谷遺跡的跑跳、二段跳、Homing 空中接力；其他 3D 試煉可先共用。
+方向：Rhythm-game Electro / Progressive House，130 BPM，約 2 分鐘循環。
+Prompt:
+Instrumental rhythm-game electro house with progressive-house melody, 130 BPM, for fast platforming, double jumps and chained aerial shield dashes through white-stone ruins. Punchy clean four-on-the-floor drums, a nimble syncopated bassline, bright staccato synth hooks, agile arpeggios and wide uplifting chords with a bittersweet edge. Energetic, precise and weightless. The main groove starts immediately and stays playable throughout; use short fills and melodic variations instead of breakdowns. Leave space for attack and landing sounds. Roughly two minutes with an ending that feeds straight into the opening phrase. No vocals, vocal chops, distorted hardcore kicks, long risers, dramatic tempo changes or fade-out.
+
+06｜2D 蒼穹迴廊・沿水而上｜aqueduct_2d
+場景：白宮引水道橫向關卡、廊橋與騎士守衛。
+方向：French-touch / Electro House，128 BPM，約 2 分鐘循環。
+Prompt:
+Instrumental French-touch electro house, 128 BPM, for a side-scrolling sword-and-shield action stage through luminous palace arcades and ancient aqueduct bridges. A driving house kick, snappy controlled claps, funky tightly syncopated bass, chopped instrumental chord stabs, sparkling plucks and a memorable short adventurous synth melody. Noble white-stone architecture meets crisp rhythm-game momentum. Slightly more rhythmic and percussive than an exploration theme, with a steady energetic mix and gentle filter motion. Keep action continuous with no long breakdown. A repeatable two-minute game loop. No vocals or vocal chops, bombastic orchestra, distorted bass walls, dramatic pauses or fade-out.
+
+07｜AVG 日常・回聲管的另一端｜avg_conversation
+場景：王城開場〈潮聲未到的午後〉、一般對話、日常交流。
+方向：Soft Deep House，112 BPM，約 90–120 秒循環。
+Prompt:
+Instrumental soft deep house, 112 BPM, for an intimate visual-novel conversation between a traveler and a harbor clerk speaking through an old voice pipe. Warm Rhodes voicings, a gentle rounded house kick, delicate hats, a sparse mellow bass groove, soft plucked synth notes and a small bittersweet melodic phrase. Friendly, lightly playful and human, with plenty of space between musical gestures. Keep the lead unobtrusive so written dialogue remains the focus. Consistent low-to-medium intensity, restrained sidechain and smooth level balance. Ninety to one hundred twenty seconds, naturally loopable without an intro or ending. No vocals, vocal chops, solos, sudden fills, dramatic swells or fade-out.
+
+08｜AVG 懸疑・三短一長｜avg_old_signal
+場景：〈草原上的閉閘聲〉發現舊命令、調查訊號的對話。
+方向：Minimal Deep House，112 BPM，約 90–120 秒循環。
+Prompt:
+Instrumental minimal deep house, 112 BPM, for quietly uncovering an old repeating signal in a sunlit fantasy ruin. Muted four-on-the-floor pulse, warm restrained sub bass, sparse ticking percussion, filtered Rhodes chords and a glass-pluck motif shaped as three short notes followed by one longer note. Curious, thoughtful and slightly uneasy rather than frightening. Small harmonic shifts create questions while the groove stays soft and continuous. Dialogue-friendly arrangement, stable perceived loudness and no sudden events. A seamless ninety-to-one-hundred-twenty-second loop with no resolved ending. No vocals, horror drones, alarms, jump scares, huge bass drops or fade-out.
+
+09｜AVG 決意與歸來・讓船回家｜avg_homecoming
+場景：〈送得出去的聲音〉決定趕在退潮前開閘、〈第一艘回家的船〉、〈白色王城的回聲〉。
+方向：Warm Melodic House，116 BPM，約 2 分鐘循環。
+Prompt:
+Instrumental warm melodic house, 116 BPM, for a sincere story scene about restoring a city's waterway and helping waiting ships return home. Soft steady house drums, rounded syncopated bass, expressive electric piano, luminous sustained chords and a tender memorable synth motif. Quiet determination becomes relief, gratitude and the feeling of being welcomed into a new place. Hopeful with a trace of wistfulness, never sentimental or triumphant to excess. Maintain restrained dynamics and a spacious dialogue-friendly mix; let harmony carry the emotion rather than loud percussion. Two-minute repeatable game loop. No vocals, dramatic orchestral swells, huge builds, abrupt drops or fade-out.
+
+10｜STAGE CLEAR・旅程的下一步｜stage_clear_loop
+場景：2D／3D 結算停留畫面。先生成此循環，再視需要加 11。
+方向：Bright Melodic / French House，124 BPM，約 60–90 秒循環。
+Prompt:
+Instrumental melodic French house, 124 BPM, for a polished game stage-clear results screen. A satisfying bouncy bass groove, clean house drums, bright piano chord stabs, sparkling synth accents and a short confident melodic hook. Joyful achievement with a refined bittersweet warmth, energetic enough to feel rewarding but relaxed enough to examine scores. The groove is already established on the first bar and remains consistent, with tasteful fills every eight bars. Sixty to ninety seconds, seamless loop, no final cadence. No vocals, brass fanfare, crowd sounds, long buildup, exaggerated volume jump or fade-out.
+
+11｜過關瞬間短曲｜stage_clear_stinger（非循環；選配）
+場景：抵達終點的那一刻，接 10 的循環。兩段是否同調、同拍，需生成後實際確認。
+Prompt:
+A short instrumental game victory stinger in a polished melodic-house palette, 124 BPM, about four bars or eight seconds. One clear bright opening accent, a nimble rising glass-synth phrase, warm piano chords, rounded bass and a compact clean drum fill. Confident, elegant and rewarding, with a bittersweet melodic color. Finish on a held luminous chord with a short clean reverb tail, suitable for transitioning into a house results loop. Even controlled loudness, no vocals, crowd cheers, orchestral brass, huge bass impact or long fade. This is a one-shot cue, not a loop.
+
+12｜挑戰失敗・再一次｜retry_stinger（非循環）
+場景：三命耗盡的失敗／重試提示；普通掉落與受傷用音效即可，不要一直切歌。
+Prompt:
+A short instrumental game retry stinger, about four seconds, using warm electric piano, a soft descending synth motif and a restrained electronic percussion accent. Gently disappointed but encouraging, matching a clean bittersweet house soundtrack. A compact musical sentence with a clear ending and a brief reverb tail. Quiet-to-medium intensity, consistent level, no harsh buzzer, comedy sound, tragic orchestra, vocals or heavy bass drop. One-shot cue, not a loop.
+
+13｜一般戰鬥・白石守衛｜battle_house（擴充預備）
+場景：未來大世界有獨立戰鬥切換時再生成。目前 2D 守衛可直接沿用 06，不必多切一首。
+Prompt:
+Instrumental electro house for an action RPG battle, 130 BPM. Tight punchy house drums, agile syncopated bass, short sharp synth stabs, controlled bright arpeggios and a determined melodic hook with a bittersweet edge. Sword and shield combat in a luminous white coastal kingdom, tense and kinetic without becoming dark or aggressive. Keep the groove continuous and the low end clean so combat sound effects remain audible. Stable intensity, short rhythmic variations, seamless two-minute loop. No vocals, hardcore distortion, cinematic impacts, long breakdowns or fade-out.
+
+畫面共用原則
+- 主選單及其 NEW GAME / LOAD GAME / EXTRA / SETTINGS：保留已選主選單曲，本清單不另外生成。
+- 遊戲中暫停、設定、地圖、劇情回顧：沿用目前曲目，淡降音量或降低高頻；關閉後淡回。此為後續接線設計，尚未在本次替換音樂。
+- Loading：短載入延續／淡出來源曲，目標場景 ready 後再淡入目標曲；不因載入幾秒而重開一首。
+- 視窗失焦／切場：保持一致的音量規則，避免兩首重疊過大。
+- 普通收集、受傷、記錄點、UI 按鈕：屬於 SFX，不要用 BGM 替代。
+- 夜晚、Boss、商店、後續章節：目前第一區域沒有對應完整玩法，等內容確立再另開曲目。
+
+生成後交付建議
+檔名用上面的英文 ID，保留未裁切原檔。一次先試兩個版本，選鼓與 bass 最合適的版本，再調旋律和亮暗。避免同時要求 House、Hardcore、Frenchcore；本批統一 House 家族，讓整個遊戲聽起來像同一張原聲帶。

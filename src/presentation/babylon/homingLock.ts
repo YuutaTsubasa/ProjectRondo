@@ -1,4 +1,5 @@
-import { type Vec3, sub, length } from '../../domain/math/vec3';
+import type { Vec2 } from '../../domain/math/vec2';
+import { type Vec3, vec3, sub, length } from '../../domain/math/vec3';
 import { selectHomingTarget, type HomingSelectionConfig } from '../../domain/hub/character/homingTarget';
 
 /**
@@ -48,7 +49,8 @@ export interface HomingLockInput {
   /** Attack is allowed to become a shield dash (off the ground). */
   readonly pressWouldDash: boolean;
   readonly from: Vec3;
-  readonly cameraForward: Vec3;
+  /** Current world X/Z character heading, independent of the camera. */
+  readonly facing: Vec2;
   readonly candidates: readonly Vec3[];
 }
 export interface HomingLockResult {
@@ -88,7 +90,7 @@ export const stepHomingLock = (
 
   // On the ground the attack is a sword swing, so no shield target should be previewed.
   const candidate = input.pressWouldDash
-    ? selectHomingTarget(input.from, input.cameraForward, input.candidates, config)
+    ? selectHomingTarget(input.from, vec3(input.facing.x, 0, input.facing.y), input.candidates, config)
     : null;
   const crystal = input.attackPressed ? candidate : null;
   if (crystal === null) {

@@ -1,0 +1,11 @@
+# White Palace town preview assets
+
+The user supplied Tripo Studio FBX/PBR ZIP exports for the tower, townhouse, shop, gateway and arcade. `source-receipt.json` records each original ZIP filename/SHA256 and the derived GLB SHA256. Originals remain in Downloads. This record does not grant or alter the source asset license.
+
+Rebuild with Blender 5 using `blender --background --factory-startup --python tools/town/import.py -- C:/Users/User/Downloads`. The importer packs base color, normal and metallic/roughness into self-contained GLBs with textures capped at 2048px. Original normalized dimensions are retained; scene placement sets metres from measured bounds. Repeated buildings share meshes/materials.
+
+These are exterior-only preview assets. Generative seams remain around columns and roofs, and the shop doorway differs from its input reference. Simple invisible collision volumes support the playable preview. No visible bounding-box backing is added: roof eaves and recessed porticoes make overall bounds unsuitable for filling the building interior. Source seams remain until they can be repaired locally. No interiors or enterable shops are supplied.
+
+Gateway update: append the asset kind to import only one model, e.g. `blender --background --factory-startup --python tools/town/import.py -- C:/Users/User/Downloads gate`. This preserves the other exported files and receipts. `gate.glb` contains 7,624 triangles; its passage is open through the mesh. At 11 m scene height its width/depth are about 12.09/4.93 m. Back-side decorative seams remain. The gate uses split piers and a stepped upper arch collision profile, never a full building box.
+
+Arcade update (2026-10-09): `classical+arch+3d+model.zip` becomes `arcade.glb` (8,938 triangles, embedded 2K PBR). Import only this asset with the optional `arcade` argument. At 6 m height, bounds are about 5.597 m wide and 4.844 m deep. Front/back renders and mesh-ray scans confirm open passages on both axes. Fine generated relief/roof irregularities remain; no topology repair is claimed. Three copies share geometry/materials along the plaza-to-seafront cross street. Four pier volumes, stepped arch shoulders and a roof slab provide collision without sealing the passages. Collision profiles assume the authored axis-aligned placement.

@@ -14,7 +14,7 @@ export const normalize = (a: Vec3): Vec3 => {
   // documents. NaN spreads without ever announcing itself — every comparison against it is false, so
   // a cone test would quietly reject and a distance test quietly accept — where ZERO3 stays a number
   // the caller can reason about. It is not a substitute for a caller's own guard: the one input that
-  // can genuinely arrive zero-length is `selectHomingTarget`'s `cameraForward`, and its coincident
+  // can genuinely arrive zero-length is `selectHomingTarget`'s `characterForward`, and its coincident
   // *candidates* are rejected on `distance > 0` before reaching here, for the reason its doc gives.
   return len === 0 ? ZERO3 : scale(a, 1 / len);
 };

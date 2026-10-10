@@ -12,7 +12,7 @@ const families = [...new Set([...css.matchAll(/font-family:\s*'([^']+)'/g)].map(
 
 describe('fonts.css', () => {
   it('declares exactly the expected families', () => {
-    expect(families.slice().sort()).toEqual(['Archivo Black', 'Chakra Petch', 'Noto Sans TC']);
+    expect(families.slice().sort()).toEqual(['Archivo Black', 'Chakra Petch', 'Noto Sans TC', 'Rondo Chapter Serif']);
   });
 
   // The list above is a literal, so on its own it cannot catch a --font-* token that names a family

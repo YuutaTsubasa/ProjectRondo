@@ -1,0 +1,81 @@
+{
+  "source": "Swipe_the_sword_#2-1791646738806.mp3",
+  "sourceSha256": "e749d1bd0fe7327d7a01e7ee941d4bc66a44a1bfae5ea46fbec202de93dbdfb3",
+  "sampleRate": 48000,
+  "channels": 2,
+  "processing": "Silence trim, 2 ms entry / 10 ms tail fades, peak headroom; no pitch or time changes.",
+  "samples": [
+    {
+      "file": "public\\audio\\sword\\swipe-01.wav",
+      "sourceStart": 0.08,
+      "sourceEnd": 0.515,
+      "duration": 0.435,
+      "gainDb": -4.128389254768304,
+      "peakDb": -3.1028118123531847,
+      "sha256": "4aa4715647cecc4b90d63047e177afbbb7e6a0f619fe162369a04e861cf85152"
+    },
+    {
+      "file": "public\\audio\\sword\\swipe-02.wav",
+      "sourceStart": 1.16,
+      "sourceEnd": 1.43,
+      "duration": 0.27,
+      "gainDb": 3.0000000000000004,
+      "peakDb": -3.5758022301059578,
+      "sha256": "2ac5fea8796b94ef6c4f068da948b1206aa4db96daeed421c409ca98e06163d8"
+    },
+    {
+      "file": "public\\audio\\sword\\swipe-03.wav",
+      "sourceStart": 2.11,
+      "sourceEnd": 2.485,
+      "duration": 0.375,
+      "gainDb": -3.888750342561881,
+      "peakDb": -3.217994789036715,
+      "sha256": "99e284ce0593cbed788ddc234bf17e5f30a0b56fa22fa6a0e45c13b886fc7aad"
+    },
+    {
+      "file": "public\\audio\\sword\\swipe-04.wav",
+      "sourceStart": 3.125,
+      "sourceEnd": 3.4,
+      "duration": 0.275,
+      "gainDb": -3.0068136074501157,
+      "peakDb": -3.2452974419234404,
+      "sha256": "ecc33538776c859b8d5a1e4b202c824ec7afc97d4a594fb3e074e5dc37cb9c8a"
+    },
+    {
+      "file": "public\\audio\\sword\\swipe-05.wav",
+      "sourceStart": 4.09,
+      "sourceEnd": 4.43,
+      "duration": 0.34,
+      "gainDb": -4.081426581081522,
+      "peakDb": -3.0052313366523715,
+      "sha256": "17c70ec510217c57336af8ffe4cdac10d8a044c6d451546412bef5ef285c0426"
+    },
+    {
+      "file": "public\\audio\\sword\\swipe-06.wav",
+      "sourceStart": 5.08,
+      "sourceEnd": 5.41,
+      "duration": 0.33,
+      "gainDb": -4.009671955846464,
+      "peakDb": -3.148778052552472,
+      "sha256": "1d54111b4925ee9d992ba4280c1b59b21e9d7840ff09678373d0a53ce609406f"
+    },
+    {
+      "file": "public\\audio\\sword\\swipe-07.wav",
+      "sourceStart": 6.03,
+      "sourceEnd": 6.335,
+      "duration": 0.305,
+      "gainDb": -3.4684843025158854,
+      "peakDb": -3.08162024432242,
+      "sha256": "206469bc0067547567b4387a8052064501a75d97777aa8e42a980b6e5f94d882"
+    },
+    {
+      "file": "public\\audio\\sword\\swipe-08.wav",
+      "sourceStart": 7.08,
+      "sourceEnd": 7.395,
+      "duration": 0.315,
+      "gainDb": -4.07620477240422,
+      "peakDb": -3.0277394851328028,
+      "sha256": "cdd2506eee58a1faebfcdacdedf4b69a5095ddb77b54e9542341a753417edd06"
+    }
+  ]
+}

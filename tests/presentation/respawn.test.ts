@@ -37,7 +37,7 @@ const nextFrameDashes = (motion: CharacterMotion, lock: HomingLock): boolean => 
     attackPressed: false,
     pressWouldDash: true,
     from: ZERO3,
-    cameraForward: vec3(0, 1, 0),
+    facing: vec2(0, -1),
     candidates: CRYSTALS,
   }, CONFIG);
   return isHomingFrame(motion, { ...NONE_INPUT, homingTarget: result.target });

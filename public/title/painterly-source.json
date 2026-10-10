@@ -1,0 +1,8 @@
+{
+  "source": "C:\\Users\\User\\Repo\\ProjectVtuber\\projects\\vrm-model\\scripts\\trial_painterly_portrait.py",
+  "sha256": "617b49da972069a15653d32e6f300c5a3f71ecbfdbc4e3e62fa568a5f2b54fb2",
+  "date": "2026-10-09",
+  "reference": "painterly-portrait-2026-10-08/painted variant",
+  "implementation": "Babylon real-time approximation: UV grain and directional palette plus masked edge-directed sector smoothing; not Blender compositor equivalence",
+  "scope": "menu and loading character only; original model and textures retained"
+}

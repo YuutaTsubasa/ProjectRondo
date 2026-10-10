@@ -2,6 +2,7 @@ import type { Observer } from '@babylonjs/core/Misc/observable';
 import type { Scene } from '@babylonjs/core/scene';
 import type { Nullable } from '@babylonjs/core/types';
 
+import { swordSoundCrossed } from './swordSound';
 import { createFootstepCadence } from '../../domain/audio/footstepCadence';
 import { cadenceSample } from '../../domain/audio/locomotionGait';
 import { surfaceCue } from '../../domain/audio/soundCue';
@@ -69,15 +70,8 @@ export type HubAudio = DeferredAudio;
  * source, and through one rule — `jumpSound.ts` and `jumpPose.ts` both widen `airborne` via the same
  * `isOffGround` — or they will eventually answer it differently.
  *
- * `options.music`, when `false`, only withholds the music director: `buildHubAudio` still awaits
- * `loadSoundBank(audio)` first, and that call fetches every cue in `MANIFEST` — including both
- * `streaming: true` music tracks — regardless of this flag. So a level built with `music: false`
- * still pays for those two downloads; it only guarantees nothing will ever play them. That is fine
- * today only because the tower is reachable exclusively through the hub's colonnade, and the hub
- * always builds its audio with music on, so by the time a `music: false` level exists the tracks are
- * already fetched and cached. It stops being fine the moment something is reachable without passing
- * through the hub first — at that point this flag would need to become a real load-time filter, not
- * just a playback gate.
+ * `options.music: false` skips music assets and the music director. The course owns its
+ * stage/result music separately, so this graph loads only its motion and UI effects.
  */
 export function createHubAudio(
   scene: Scene,
@@ -110,7 +104,7 @@ async function buildHubAudio(
     // A `const` alias, taken right after the assignment above: `bank` itself stays `| undefined` so
     // the `catch` below can tell whether it needs disposing, but every use inside this closure below
     // wants the narrowed, definitely-assigned type.
-    const soundBank = (bank = await loadSoundBank(audio));
+    const soundBank = (bank = await loadSoundBank(audio, {music}));
 
     // Music is deferred until the audio engine actually unlocks. The tracks are *streaming* sounds
     // — HTMLMediaElements — and a browser rejects their playback outright before a user gesture,
@@ -132,7 +126,9 @@ async function buildHubAudio(
 
     const cadence = createFootstepCadence();
     // Seeded from the first sample rather than from a standing pose — see `jumpSoundFrom`.
-    let jumpSound: JumpSoundState = jumpSoundFrom(motion());
+    const initial = motion();
+    let jumpSound: JumpSoundState = jumpSoundFrom(initial);
+    let previousSword = initial.swordSeconds;
 
     observer = scene.onBeforeRenderObservable.add(() => {
       const elapsed = scene.getEngine().getDeltaTime() / 1000;
@@ -140,6 +136,10 @@ async function buildHubAudio(
       // comment. One source, two readings a frame; not one reading shared between them.
       const sample = motion();
       const { planarSpeed } = sample;
+      if (swordSoundCrossed(previousSword, sample.swordSeconds)) {
+        soundBank.play('sword.swing', { variant: variants.next('sword.swing') });
+      }
+      previousSword = sample.swordSeconds;
 
       // Take-off and landing ride the edges of the same widened off-ground signal the jump clip's
       // pose rides, not the bare `airborne` flag: the support probe finds floor mid-dash and beside a

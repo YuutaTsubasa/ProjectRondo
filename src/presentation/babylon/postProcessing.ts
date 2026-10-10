@@ -1,3 +1,4 @@
+import {bindDisplayPreferences} from '../settings/bindDisplayPreferences';
 import { Scene } from '@babylonjs/core/scene';
 import { Color3 } from '@babylonjs/core/Maths/math.color';
 import type { Camera } from '@babylonjs/core/Cameras/camera';
@@ -80,4 +81,5 @@ export function createAtmosphere(scene: Scene, camera: Camera): void {
   // FXAA would be the cheaper alternative, but MSAA is geometric and this scene's aliasing is almost
   // entirely geometric edges rather than shader aliasing.
   pipeline.fxaaEnabled = false;
+  bindDisplayPreferences(scene,pipeline,EXPOSURE,CONTRAST);
 }

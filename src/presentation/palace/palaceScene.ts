@@ -32,7 +32,7 @@ export interface PalaceScene {
 }
 export async function createPalaceScene(engine:Engine):Promise<PalaceScene> {
   const scene=new Scene(engine);
-  const input=createInput();input.setEnabled(false);
+  const input=createInput({canvas:engine.getRenderingCanvas()??undefined});input.setEnabled(false);
   let knight:Knight|undefined,stopAnimation:(()=>void)|undefined;
   let guards:Awaited<ReturnType<typeof loadPalaceGuards>>|undefined;
   let audio:ReturnType<typeof createPalaceAudio>|undefined;
@@ -101,7 +101,7 @@ export async function createPalaceScene(engine:Engine):Promise<PalaceScene> {
         audio!.update(before,state);scene.render();return state;
       },
       reset(){
-        state=createPalaceRun();input.setEnabled(false);input.setEnabled(!suspended);
+        state=createPalaceRun();audio!.reset();input.setEnabled(false);input.setEnabled(!suspended);
         scene.resetLastAnimationTimeFrame();update(true);return state;
       },
       suspendInput(on){

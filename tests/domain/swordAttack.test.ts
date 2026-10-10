@@ -20,3 +20,10 @@ it('rejects vertical targets outside blade reach', () => {
   for(let i=0;i<10;i++) { result=stepSwordAttack(result.state, frame({ targets:[{x:0,y:4,z:-1}] })); hits.push(...result.hits); }
   expect(hits).toEqual([]);
 });
+
+it('does not damage a late arrival during the visible wave afterimage', () => {
+  const state={seconds:.35,hitTargets:[]};
+  const result=stepSwordAttack(state,frame({targets:[{x:0,y:1,z:-1}]}));
+  expect(result.state.seconds).toBeCloseTo(.4);
+  expect(result.hits).toEqual([]);
+});

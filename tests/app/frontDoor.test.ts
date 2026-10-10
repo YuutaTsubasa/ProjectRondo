@@ -5,7 +5,8 @@ describe('front door', () => {
   it('requires title and menu before starting, then waits for the game to be ready', () => {
     expect(stepFrontDoor('title', 'start')).toBe('title');
     expect(stepFrontDoor('title', 'activate')).toBe('menu');
-    expect(stepFrontDoor('menu', 'start')).toBe('loading');
+    expect(stepFrontDoor('menu', 'start')).toBe('new-game');
+    expect(stepFrontDoor('new-game','confirm-new')).toBe('loading');
     expect(stepFrontDoor('loading', 'start')).toBe('loading');
     expect(stepFrontDoor('loading', 'ready')).toBe('game');
     expect(stepFrontDoor('menu', 'ready')).toBe('menu');

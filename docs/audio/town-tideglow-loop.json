@@ -1,0 +1,24 @@
+{
+  "source": "Harmonie Douce.mp3",
+  "source_sha256": "202433818a4d655c5afbf790d8eafeb93a20a0d6f692eebdef225a07f9187543",
+  "sample_rate": 48000,
+  "channels": 2,
+  "samples": 3687384,
+  "duration_seconds": 76.8205,
+  "head_overlap_seconds": [
+    31.56,
+    35.4
+  ],
+  "tail_overlap_seconds": [
+    108.3805,
+    112.2205
+  ],
+  "crossfade_seconds": 3.84,
+  "overlap_correlation": 0.39806538781646694,
+  "constant_gain_db": 0.0,
+  "true_peak_dbfs": -4.298550479139274,
+  "wrap_sample_step": 0.0397910550236702,
+  "normal_sample_step_99th_percentile": 0.10090488135814679,
+  "seam_preview_boundary_seconds": 8,
+  "playback": "Loop the complete decoded WAV or OGG buffer; no runtime crossfade or additional silence."
+}

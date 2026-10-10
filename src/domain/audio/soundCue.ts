@@ -10,10 +10,22 @@ export type SoundCue =
   | 'footstep.grass'
   | 'jump.takeoff'
   | 'jump.land'
+  | 'sword.swing'
   | 'ui.type'
   | 'ui.move'
   | 'ui.confirm'
+  | 'ui.back'
+  | 'stage.coin'
+  | 'stage.hit'
+  | 'stage.death'
+  | 'stage.checkpoint'
+  | 'stage.goal'
+  | 'music.result'
+  | 'music.palace'
+  | 'music.course'
   | 'music.hub'
+  | 'music.town'
+  | 'music.meadow'
   | 'music.avg';
 
 /** The three mix groups. Master is the engine's own output, not a bus. */

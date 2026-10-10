@@ -67,3 +67,12 @@
      of which notices 3px becoming 4px in one of two places. */
   --rail-dash: repeating-linear-gradient(to bottom, var(--c-blue) 0 3px, transparent 3px 6px);
 }
+
+/* AVG cinematic glass, kept separate from the Light menu surfaces. */
+:root {
+  --avg-navy-rgb: 15, 29, 53;
+  --avg-text: #f1f5ff;
+  --avg-muted: #b8c9e5;
+  --avg-light: #c5e3ff;
+  --avg-glow: #4e8eff;
+}

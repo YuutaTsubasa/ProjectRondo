@@ -31,6 +31,7 @@ export interface CharacterRigOptions {
   readonly movement?: Partial<MovementConfig>;
   /** Initial heading around the player; existing levels retain zero. */
   readonly initialYaw?: number;
+    readonly interact?: boolean;
   readonly cameraFraming?: Partial<Pick<FollowCameraConfig, 'distance' | 'height' | 'aimHeight' | 'initialPitch'>>;
 }
 
@@ -175,7 +176,7 @@ async function buildCharacterRig(
   scene.activeCamera = follow.camera;
   const shadows = options.makeShadows(follow.camera);
 
-  const input = createInput();
+  const input = createInput({canvas:options.canvas,camera:true,interact:options.interact});
   pieces.input = input;
   // Suspended from here, not from the `return` below: everything after this line can await — the
   // knight's GLB alone is most of a second — and the listeners are already bound by now. See this

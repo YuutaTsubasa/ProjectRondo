@@ -39,3 +39,17 @@ describe('the audio manifest', () => {
     for (const [, file] of entries) expect(file.startsWith('/audio/')).toBe(true);
   });
 });
+
+it('decodes both stage loops instead of streaming media with seek gaps', () => {
+  for (const cue of ['music.palace', 'music.course'] as const) {
+    expect(MANIFEST[cue]).toMatchObject({bus: 'music', volume: 0.5});
+    expect('streaming' in MANIFEST[cue] && MANIFEST[cue].streaming).not.toBe(true);
+    expect(MANIFEST[cue].files[0]).toMatch(/\.ogg$/);
+  }
+});
+
+it('uses imported ProjectAlmost effects and the requested result loop', () => {
+  expect(MANIFEST['music.result'].files).toEqual(['/audio/music/result_victoire.ogg']);
+  expect(MANIFEST['ui.back'].files).toEqual(['/audio/project-almost/ui-back.wav']);
+  expect(MANIFEST['jump.takeoff'].files).toEqual(['/audio/project-almost/armor-step.wav']);
+});

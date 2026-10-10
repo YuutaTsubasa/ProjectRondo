@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
-import { afterEach, expect, it, vi } from 'vitest';
+import {readStageBest} from '../../src/app/stageRecords';
+import { beforeEach, afterEach, expect, it, vi } from 'vitest';
 import { flushSync, mount, unmount } from 'svelte';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { NullEngine } from '@babylonjs/core/Engines/nullEngine';
@@ -17,21 +18,52 @@ vi.mock('@babylonjs/core/Engines/engine', () => ({ Engine: class {
   runRenderLoop(fn: () => void) { stub.frame = fn; }
   resize() {} getDeltaTime() { return 20; } dispose() { stub.disposeEngine(); }
 } }));
+beforeEach(()=>{localStorage.clear();vi.stubGlobal('matchMedia',()=>({matches:true,addEventListener:vi.fn(),removeEventListener:vi.fn()}));});
+afterEach(()=>vi.unstubAllGlobals());
 let app: ReturnType<typeof mount> | undefined;
 const settle = async () => { flushSync(); await new Promise(r => setTimeout(r, 0)); flushSync(); };
 afterEach(async () => { if(app) await unmount(app); app=undefined; document.body.innerHTML=''; vi.clearAllMocks(); vi.restoreAllMocks(); });
 function level() {
   let position = new Vector3(0, 1.14, 0);
-  return { scene: { render: vi.fn(), resetLastAnimationTimeFrame: vi.fn() }, player: { airborne: false, motion: { facing: {x:0,y:1} }, root: { rotation: { y:0 } }, capsulePosition: () => position,
+  return { combat:{health:3,defeated:0,damage:0}, resetCombat:vi.fn(), updateAudio:vi.fn(), scene: { render: vi.fn(), resetLastAnimationTimeFrame: vi.fn() }, player: { airborne: false, motion: { facing: {x:0,y:1} }, root: { rotation: { y:0 } }, capsulePosition: () => position,
     teleport: vi.fn((to: Vector3) => { position=to; }) }, follow: { snap: vi.fn() }, suspendInput: vi.fn(), dispose: vi.fn(), set: (p: {x:number;y:number;z:number}) => {position=new Vector3(p.x,p.y,p.z);} };
 }
+it('reports each completed expedition once and prioritizes its return action', async () => {
+  const course = level(), onComplete = vi.fn(), onExit = vi.fn(); stub.build.mockResolvedValue(course);
+  app = mount(CourseSession, { target: document.body, props: { onReady: vi.fn(), onFailure: vi.fn(), onComplete, onExit, exitLabel: '返回白潮原野' } }); await settle();
+  const finish = async () => { for (const gate of COURSE_GATES.slice(1)) { course.set(gate.center); stub.frame(); } await settle(); };
+  await finish(); stub.frame(); stub.frame();
+  expect(onComplete).toHaveBeenCalledTimes(1);
+  expect(course.updateAudio).toHaveBeenCalledWith(expect.objectContaining({finished:false}),expect.objectContaining({finished:true}));
+  expect(readStageBest('course')).toBeGreaterThan(0);
+  expect(document.body.textContent).toContain('STAGE CLEAR');
+  const buttons = [...document.querySelectorAll<HTMLButtonElement>('[role=dialog] button')];
+  expect(buttons[0]?.textContent).toContain('返回白潮原野');
+  expect(document.activeElement).toBe(buttons[0]);
+  buttons.find(button => button.textContent?.includes('重新挑戰'))!.click(); await settle();
+  expect(onComplete).toHaveBeenCalledTimes(1);
+  stub.frame(); // Discard stale restart delta.
+  await finish(); expect(onComplete).toHaveBeenCalledTimes(2);
+  document.querySelector<HTMLButtonElement>('[role=dialog] button')!.click();
+  expect(onExit).toHaveBeenCalledTimes(1); expect(onComplete).toHaveBeenCalledTimes(2);
+});
+it('does not complete an expedition when paused, restarted or abandoned', async () => {
+  const course = level(), onComplete = vi.fn(), onExit = vi.fn(); stub.build.mockResolvedValue(course);
+  app = mount(CourseSession, { target: document.body, props: { onReady: vi.fn(), onFailure: vi.fn(), onComplete, onExit, exitLabel: '返回白潮原野' } }); await settle();
+  window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })); await settle();
+  [...document.querySelectorAll('button')].find(button => button.textContent?.includes('重新開始'))!.click(); await settle();
+  window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })); await settle();
+  const exit = [...document.querySelectorAll('button')].find(button => button.textContent?.includes('返回白潮原野'));
+  expect(exit).toBeDefined(); exit!.click();
+  expect(onExit).toHaveBeenCalledTimes(1); expect(onComplete).not.toHaveBeenCalled();
+});
 it('pauses physics, resumes, respawns and resets a completed run without reloading the scene', async () => {
   const course=level(), ready=vi.fn(); stub.build.mockResolvedValue(course);
   app=mount(CourseSession,{target:document.body,props:{onReady:ready,onFailure:vi.fn(),onExit:vi.fn()}}); await settle();
   expect(ready).toHaveBeenCalledTimes(1);
   stub.frame(); expect(course.scene.render).toHaveBeenCalledTimes(1);
   window.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape'})); await settle();
-  stub.frame(); expect(course.scene.render).toHaveBeenCalledTimes(1); expect(document.body.textContent).toContain('PAUSED');
+  stub.frame(); expect(course.scene.render).toHaveBeenCalledTimes(1); expect(document.body.textContent).toContain('PAUSE');
   window.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape'})); await settle();
   stub.frame(); // Discard the first engine delta after resuming.
   course.set(COURSE_GATES[1].center); stub.frame(); await settle();
@@ -39,10 +71,12 @@ it('pauses physics, resumes, respawns and resets a completed run without reloadi
   expect(course.player.teleport).toHaveBeenLastCalledWith(new Vector3(...Object.values(COURSE_GATES[1].spawn)));
   course.set(COURSE_GATES[2].center); stub.frame(); course.set(COURSE_GATES[3].center); stub.frame(); await settle();
   expect(document.body.textContent).toContain('STAGE CLEAR'); const frames=course.scene.render.mock.calls.length;
+  expect(document.querySelector('[role=dialog] button')?.textContent).toContain('重新挑戰');
+  expect(document.querySelector('[role=dialog] button:last-child')?.textContent).toContain('返回主選單');
   stub.frame(); expect(course.scene.render).toHaveBeenCalledTimes(frames);
-  [...document.querySelectorAll('button')].find(b=>b.textContent?.includes('再玩一次'))!.click(); await settle();
+  [...document.querySelectorAll('button')].find(b=>b.textContent?.includes('重新挑戰'))!.click(); await settle();
   expect(stub.build).toHaveBeenCalledTimes(1); expect(document.body.textContent).not.toContain('STAGE CLEAR');
-  expect(document.body.textContent).toContain('00:00'); expect(document.body.textContent).toContain('草坡起跑');
+  expect(document.body.textContent).toContain('00:00'); expect(document.body.textContent).toContain('白石前庭');
 });
 it('defers engine teardown until a pending course build is disposed after unmount', async () => {
   const course=level(), ready=vi.fn(), failure=vi.fn();
@@ -140,3 +174,19 @@ it('does not charge scene loading time to a clip evaluated before the course bec
   stub.frame();expect(scene.scene.render).toHaveBeenCalledTimes(calls);
   stub.frame();expect(scene.scene.render).toHaveBeenCalledTimes(calls+1);
  });
+
+it('uses combat life, recovers at checkpoint and fully resets guards on restart', async () => {
+ const course=level();stub.build.mockResolvedValue(course);
+ app=mount(CourseSession,{target:document.body,props:{onReady:vi.fn(),onFailure:vi.fn()}});await settle();
+ expect(course.suspendInput).toHaveBeenLastCalledWith(false);
+ course.set(COURSE_GATES[1].center);stub.frame();
+ course.combat={health:2,defeated:3,damage:1};stub.frame();await settle();
+ expect(document.querySelector('[aria-label="生命 2 / 3"]')).not.toBeNull();
+ expect(document.querySelector('[aria-label="守衛 3 / 10"]')).not.toBeNull();
+ course.combat.health=0;stub.frame();await settle();
+ expect(course.resetCombat).toHaveBeenLastCalledWith(false);
+ expect(course.player.teleport).toHaveBeenLastCalledWith(new Vector3(...Object.values(COURSE_GATES[1].spawn)));
+ window.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape'}));await settle();
+ [...document.querySelectorAll('button')].find(b=>b.textContent?.includes('重新開始'))!.click();await settle();
+ expect(course.resetCombat).toHaveBeenLastCalledWith(true);
+});

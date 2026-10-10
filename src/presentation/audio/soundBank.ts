@@ -149,8 +149,8 @@ const load = async (audio: GameAudio, cue: SoundCue, spec: CueSpec): Promise<Loa
  * Resolves once all of them have either loaded or failed. It never rejects: a caller that has to
  * remember to `.catch` is the failure mode this is avoiding.
  */
-export async function loadSoundBank(audio: GameAudio): Promise<SoundBank> {
-  const cues = Object.keys(MANIFEST) as SoundCue[];
+export async function loadSoundBank(audio: GameAudio, options: {music?: boolean} = {}): Promise<SoundBank> {
+  const cues = (Object.keys(MANIFEST) as SoundCue[]).filter(cue => options.music !== false || MANIFEST[cue].bus !== 'music');
   const loaded = new Map<SoundCue, Loaded>();
   await Promise.all(
     cues.map(async (cue) => {

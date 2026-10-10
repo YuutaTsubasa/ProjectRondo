@@ -1,0 +1,35 @@
+{
+  "revision": 1,
+  "source": "Cathartic Release.mp3",
+  "source_sha256": "e7b63caf0a23a781f76cb83754fe5022df1aa1e532b91ce9b8daa629306c9c8c",
+  "sample_rate": 48000,
+  "channels": 2,
+  "samples": 5573624,
+  "decoded_samples": 5573624,
+  "duration_seconds": 116.11716666666666,
+  "source_alignment_seconds": [
+    52.5,
+    168.61716666666666
+  ],
+  "estimated_bars": 64,
+  "estimated_average_bpm": 132.28018251679697,
+  "harmonic_crossfade_seconds": 0.9,
+  "percussive_crossfade_seconds": 0.055,
+  "incoming_harmonic_gain_db": 1.6854959707027604,
+  "gain_release_seconds": 4,
+  "global_gain_db": 0.0,
+  "harmonic_correlation": 0.09375236997560456,
+  "percussive_correlation": 0.06104841906929178,
+  "decoded_true_peak_dbfs": -4.693818052548947,
+  "decoded_endpoint_step": 0.014264419674873352,
+  "decoded_local_step_p99": 0.06020783957093942,
+  "audition_seconds": 38,
+  "audition_join_positions_seconds": [
+    6,
+    19,
+    32
+  ],
+  "edit_note": "Shared stereo HPSS mask only around splice; beat-aligned short percussion overlap; sustained harmonic bridge. No time stretch or global loudness reduction unless peak headroom demands it. Estimated bars are inferred from repetition, not a score. Audition first two joins are edited musical splice; third is decoded file boundary. One-second silence separates excerpts, with outer 30 ms fades.",
+  "playback": "Loop complete decoded OGG buffer; no runtime crossfade.",
+  "listening_status": "Signal analysis verified; subjective listening not available in this tool environment."
+}
