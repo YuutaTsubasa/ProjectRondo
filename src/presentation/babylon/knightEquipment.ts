@@ -125,6 +125,7 @@ export function createKnightEquipment(
   const slashTrail = createSwordSlashTrail(scene);
   const arc = slashTrail.mesh;
   const slashWave = createSwordSlashWave(scene);
+  const bladeHeel = new Vector3(), bladeTip = new Vector3(), waveOrigin = new Vector3(), waveForward = new Vector3();
 
   const baseline = new Map<TransformNode, Quaternion>();
   let disposed = false;
@@ -191,14 +192,15 @@ export function createKnightEquipment(
       // Pose edits happen after animation evaluation, which may have cached these world matrices.
       // Refresh sockets now so attached equipment follows the newly posed hands in this same frame.
       sword.computeWorldMatrix(true); shield.computeWorldMatrix(true);
+      // Runs every frame; scratch vectors keep it allocation-free. The trail clones what it keeps.
       const bladeMatrix = sword.getWorldMatrix();
-      slashTrail.update(homing ? null : swordSeconds ?? null,
-        Vector3.TransformCoordinates(new Vector3(0, .18, 0), bladeMatrix),
-        Vector3.TransformCoordinates(new Vector3(0, .95, 0), bladeMatrix));
-      const origin = root.getAbsolutePosition().clone();
-      origin.y = chest.getAbsolutePosition().y;
-      slashWave.update(swordSeconds ?? null,origin,
-        Vector3.TransformNormal(Vector3.Forward(),root.computeWorldMatrix(true)).normalize(),deltaSeconds,homing);
+      Vector3.TransformCoordinatesFromFloatsToRef(0, .18, 0, bladeMatrix, bladeHeel);
+      Vector3.TransformCoordinatesFromFloatsToRef(0, .95, 0, bladeMatrix, bladeTip);
+      slashTrail.update(homing ? null : swordSeconds ?? null, bladeHeel, bladeTip);
+      waveOrigin.copyFrom(root.getAbsolutePosition());
+      waveOrigin.y = chest.getAbsolutePosition().y;
+      Vector3.TransformNormalFromFloatsToRef(0, 0, 1, root.computeWorldMatrix(true), waveForward).normalize();
+      slashWave.update(swordSeconds ?? null, waveOrigin, waveForward, deltaSeconds, homing);
     },
     dispose: () => {
       if(disposed) return; disposed=true; restore(); scene.onBeforeAnimationsObservable.remove(before);

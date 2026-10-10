@@ -1,5 +1,6 @@
 <script lang="ts">
  import StageResults from '../course/StageResults.svelte';
+ import {stageTime} from '../../app/stageRecords';
  import {scoreStage,PALACE_RANK_TIMES} from '../../domain/course/stageScore';
  import PauseScreen from '../menu/PauseScreen.svelte';
  import StageHud from '../hud/StageHud.svelte';
@@ -7,7 +8,6 @@
   import { untrack } from 'svelte';
   import type { PalaceRun } from '../../domain/palace/palaceRun';
   let {run,status,onPause,onResume,onRestart,onExit,exitLabel='返回主選單'}:{run:PalaceRun;status:'playing'|'paused'|'finished';onPause:()=>void;onResume:()=>void;onRestart:()=>void;onExit:()=>void;exitLabel?:string}=$props();
-  const clock=(seconds:number)=>Math.floor(seconds/60).toString().padStart(2,'0')+':'+Math.floor(seconds%60).toString().padStart(2,'0');
   let noticeAt = $state<number | null>(null);
   let previousCheckpoint = -1;
   $effect(() => {
@@ -19,7 +19,8 @@
   let nextTarget=$derived(PALACE_LAYOUT.checkpoints[run.checkpoint+1]??PALACE_LAYOUT.goal);
   let checkpointLabel=$derived(['宮殿入口','守衛迴廊','高塔之路','最後試煉'][run.checkpoint+1]??'末端閘門');
   let defeated=$derived(run.guards.filter(g=>g.defeated).length);
-  let score=$derived(scoreStage({elapsed:run.elapsed,times:PALACE_RANK_TIMES,coins:run.collected.length,coinTarget:PALACE_LAYOUT.coins.length,enemies:defeated,enemyTarget:PALACE_LAYOUT.guards.length,checkpoints:run.reachedCheckpoints.length,checkpointTarget:PALACE_LAYOUT.checkpoints.length,damage:run.damageTaken,falls:run.falls}));
+  // Only the results screen reads the score; skip it on every playing frame.
+  let score=$derived(status!=='finished'?undefined:scoreStage({elapsed:run.elapsed,times:PALACE_RANK_TIMES,coins:run.collected.length,coinTarget:PALACE_LAYOUT.coins.length,enemies:defeated,enemyTarget:PALACE_LAYOUT.guards.length,checkpoints:run.reachedCheckpoints.length,checkpointTarget:PALACE_LAYOUT.checkpoints.length,damage:run.damageTaken,falls:run.falls}));
 </script>
 <div class="palace-hud">
   <div class="play-hud" class:pause-covered={status!=='playing'} inert={status !== 'playing'}>
@@ -33,12 +34,12 @@
    {#if run.player.deadFor>0&&status==='playing'}<div class="respawn">返回檢查點…</div>{/if}
   </div>
   {#if status==='paused'}
-    <PauseScreen {onResume} chapterLabel="TRIAL" chapterNumber="1-1" chapterTitle="白宮引水道" subtitle="蒼穹迴廊" location={['宮殿入口','守衛迴廊','高塔之路','最後試煉'][run.checkpoint+1]} elapsed={clock(run.elapsed)} objective="抵達末端閘門" detail={`已收集 ${run.collected.length} / 25 枚金幣`} tip="空中鎖定敵人時可使用盾牌衝擊，落地後則能揮劍攻擊。"
+    <PauseScreen {onResume} chapterLabel="TRIAL" chapterNumber="1-1" chapterTitle="白宮引水道" subtitle="蒼穹迴廊" location={['宮殿入口','守衛迴廊','高塔之路','最後試煉'][run.checkpoint+1]} elapsed={stageTime(run.elapsed)} objective="抵達末端閘門" detail={`已收集 ${run.collected.length} / 25 枚金幣`} tip="空中鎖定敵人時可使用盾牌衝擊，落地後則能揮劍攻擊。"
       actions={[{label:'重新開始',english:'RESTART',run:onRestart},{label:exitLabel,english:exitLabel==='返回主選單'?'MAIN MENU':'RETURN TO REGION',run:onExit}]}/>
   {:else if status==='finished'}
     <StageResults number="1-1" title="白色宮殿" subtitle="蒼穹迴廊" description="穿越守衛迴廊，抵達引水道的末端。" {score}
       stats={[
-       {label:'完成時間',english:'CLEAR TIME',value:clock(run.elapsed),icon:'time'},
+       {label:'完成時間',english:'CLEAR TIME',value:stageTime(run.elapsed),icon:'time'},
        {label:'收集金幣',english:'COINS',value:`${run.collected.length} / ${PALACE_LAYOUT.coins.length}`,icon:'coin'},
        {label:'擊倒守衛',english:'ENEMIES',value:`${defeated} / ${PALACE_LAYOUT.guards.length}`,icon:'guard'},
        {label:'受傷／掉落',english:'DAMAGE / FALLS',value:`${run.damageTaken} / ${run.falls}`,icon:'retry'}

@@ -170,16 +170,22 @@ function createVegetation(scene: Scene, casters: AbstractMesh[], receivers: Abst
   // Reuse the meadow's slim, curved blades, rather than broad triangular cards.
   const mat=grassMaterial(scene);mat.diffuseColor.set(.82,.82,.82);mat.emissiveColor.set(.10,.12,.07);
   const grass=grassMesh(scene,mat);grass.name='region-grass';applyWind(mat,.43,.065);
-  const matrices: number[] = [];
-  for (let i = 0; i < 46000; i++) {
+  // Load-path loop: write into one preallocated buffer through scratch values instead of allocating per blade.
+  const ATTEMPTS = 46000, matrices = new Float32Array(ATTEMPTS * 16);
+  const size = new Vector3(), place = new Vector3(), turn = new Quaternion(), blade = new Matrix();
+  let count = 0;
+  for (let i = 0; i < ATTEMPTS; i++) {
     const x = -118 + random() * 190, z = -69 - random() * 212;
     if (!clear(x, z, 3.3)) continue;
     const patch=(Math.sin(x*.10+Math.cos(z*.04)*2)*Math.cos(z*.065)+1)/2;
     if(random()>.28+patch*.72)continue;
     const scale = .85 + random() * 1.1;
-    Matrix.Compose(new Vector3(scale, scale, scale), Quaternion.RotationYawPitchRoll(random() * Math.PI * 2, 0, 0), new Vector3(x, regionHeight(x, z), z)).copyToArray(matrices, matrices.length);
+    size.setAll(scale); place.set(x, regionHeight(x, z), z);
+    Quaternion.RotationYawPitchRollToRef(random() * Math.PI * 2, 0, 0, turn);
+    Matrix.ComposeToRef(size, turn, place, blade);
+    blade.copyToArray(matrices, count++ * 16);
   }
-  grass.thinInstanceSetBuffer('matrix', new Float32Array(matrices), 16); receivers.push(grass);
+  grass.thinInstanceSetBuffer('matrix', matrices.slice(0, count * 16), 16); receivers.push(grass);
 }
 
 /** Continuous deformation preserves sphere seam positions; welded normals keep the stone rounded. */

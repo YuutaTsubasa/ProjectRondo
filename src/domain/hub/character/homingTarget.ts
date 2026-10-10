@@ -7,7 +7,9 @@ export interface HomingSelectionConfig {
   readonly homingConeHalfAngle: number;
 }
 
-/** A link counts as vertical inside this planar radius: a bounce never lands exactly on its crystal's axis. */
+/** A link counts as vertical inside this planar radius, provided the height difference exceeds the
+ * planar spread: a bounce never lands exactly on its crystal's axis, but a near-level target still
+ * goes through the facing cone. */
 const VERTICAL_LINK_RADIUS = 0.6;
 /** ...or when it is steeper than 75 degrees, so tall chain links tolerate proportionally more drift. */
 const VERTICAL_LINK_SLOPE = Math.tan(Math.PI / 12);
