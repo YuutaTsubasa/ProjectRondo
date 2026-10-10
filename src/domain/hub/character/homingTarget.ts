@@ -37,7 +37,9 @@ export const selectHomingTarget = (
     const offset = sub(candidate, from), distance = length(offset);
     if (!(distance > 0 && distance <= config.homingRange)) return;
     const planar = vec3(offset.x, 0, offset.z), spread = length(planar);
-    if (spread <= Math.max(VERTICAL_LINK_RADIUS, Math.abs(offset.y) * VERTICAL_LINK_SLOPE)) {
+    // Drift tolerance only applies when the height difference dominates. Nearby
+    // targets on the same plane must still respect facing and nearest-target priority.
+    if (Math.abs(offset.y) > spread && spread <= Math.max(VERTICAL_LINK_RADIUS, Math.abs(offset.y) * VERTICAL_LINK_SLOPE)) {
       if (distance < verticalDistance) { vertical = index; verticalDistance = distance; }
       return;
     }

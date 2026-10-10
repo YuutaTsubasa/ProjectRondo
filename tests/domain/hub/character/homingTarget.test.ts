@@ -98,3 +98,10 @@ it('prefers the next forward crystal over the crystal directly below after a bou
  expect(selectHomingTarget(AT_ORIGIN,FORWARD,[vec3(0,-1,0),vec3(0,2,-5)],C)).toBe(1);
  expect(selectHomingTarget(AT_ORIGIN,FORWARD,[vec3(0,2,-5),vec3(0,-1,0)],C)).toBe(0);
 });
+
+it('does not treat nearby horizontal targets as vertical bounce links',()=>{
+ expect(selectHomingTarget(AT_ORIGIN,FORWARD,[vec3(0,0,.3)],C)).toBeNull();
+ expect(selectHomingTarget(AT_ORIGIN,FORWARD,[vec3(0,.1,.3)],C)).toBeNull();
+ // A nearby forward target still outranks a farther forward one.
+ expect(selectHomingTarget(AT_ORIGIN,FORWARD,[vec3(0,0,-.3),vec3(0,0,-5)],C)).toBe(0);
+});

@@ -3,6 +3,14 @@
 Last updated: 2026-10-11. Purpose: everything the next machine / developer / Claude session needs to
 pick this up cold. The repo is the source of truth; this file is the map.
 
+## Review follow-up (2026-10-11)
+
+Retained e01c7da's shared save validator, analog-input cleanup and vertical-chain drift
+allowance. Restricted that allowance to targets whose vertical offset exceeds their
+horizontal spread: otherwise a same-height target 0.3 units behind the character could
+bypass facing, and a nearby forward target could incorrectly lose to a farther target.
+Regression tests cover both cases while preserving the airborne chain tests.
+
 ## Production UI and Windows playtest (2026-10-11)
 
 Reproduced missing region HUD/marquees and apparently missing PAUSE on the Netlify
