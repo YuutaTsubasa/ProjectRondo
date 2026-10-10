@@ -64,6 +64,8 @@ export function createMenuPortraitScene(engine:AbstractEngine){
    pose=next;active=visible;reduced=reduceMotion;scene.animationsEnabled=!reduced;
   },
   invalidate(){dirty=true;},
+  /** Released by its screen: the next show must restart the animation clock, not catch up the gap. */
+  hide(){if(disposed)return;active=false;},
   /** A new screen took the portrait over: frame its pose at once instead of gliding from the last screen's. */
   snapToPose(){snap=true;dirty=true;},
   /** Render one frame while hidden so model and post-process shaders compile before a screen shows it. */

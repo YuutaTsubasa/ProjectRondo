@@ -2,7 +2,7 @@
 import {afterEach,expect,it,vi} from 'vitest';
 import {flushSync,mount,unmount} from 'svelte';
 import MenuPortrait from '../../src/presentation/menu/MenuPortrait.svelte';
-import {disposeMenuPortrait,retainMenuPortrait,PORTRAIT_IDLE_RELEASE_MS} from '../../src/presentation/menu/sharedMenuPortrait';
+import {disposeMenuPortrait,retainMenuPortrait,retainMenuPortraitAfter,PORTRAIT_IDLE_RELEASE_MS} from '../../src/presentation/menu/sharedMenuPortrait';
 const stub=vi.hoisted(()=>({mount:vi.fn()}));
 vi.mock('../../src/presentation/menu/menuPortraitRuntime',()=>({mountMenuPortrait:stub.mount}));
 let component:ReturnType<typeof mount>|undefined;
@@ -16,7 +16,7 @@ function support(){
  vi.stubGlobal('ResizeObserver',class{observe(){}disconnect(){}});
 }
 function renderer(ready=Promise.resolve()){
- return {ready,resize:vi.fn(),start:vi.fn(),stop:vi.fn(),dispose:vi.fn(),setPresentation:vi.fn(),snapToPose:vi.fn(),prime:vi.fn()};
+ return {ready,resize:vi.fn(),start:vi.fn(),stop:vi.fn(),dispose:vi.fn(),setPresentation:vi.fn(),snapToPose:vi.fn(),prime:vi.fn(),hide:vi.fn()};
 }
 it('shows the canvas when ready, pauses while hidden and keeps the shared renderer on removal',async()=>{
  support();const view=renderer();stub.mount.mockReturnValue(view);
@@ -117,4 +117,35 @@ it('discards a portrait whose hidden render fails and retries on the next screen
   expect(document.querySelector('canvas')?.getAttribute('data-ready')).toBe('true');
   expect(replacement.start).toHaveBeenCalled();
  }finally{release();}
+});
+
+it('marks a released portrait hidden so the next screen restarts its animation clock',async()=>{
+ support();const view=renderer();stub.mount.mockReturnValue(view);
+ component=mount(MenuPortrait,{target:document.body});await settle();
+ await unmount(component);component=undefined;await settle();
+ expect(view.stop).toHaveBeenCalled();expect(view.hide).toHaveBeenCalled();
+});
+
+it('logs a failed warm-up instead of failing silently',async()=>{
+ support();const warn=vi.spyOn(console,'warn').mockImplementation(()=>{});
+ const view=renderer(Promise.reject(new Error('context lost')));view.ready.catch(()=>{});stub.mount.mockReturnValue(view);
+ const release=retainMenuPortrait();await settle();
+ expect(warn).toHaveBeenCalledWith(expect.stringContaining('warm-up failed'),expect.any(Error));
+ expect(view.dispose).toHaveBeenCalled();release();
+});
+
+it('starts the warm-up only after the stage is shown, at an idle moment, and can be cancelled first',async()=>{
+ support();const view=renderer();stub.mount.mockReturnValue(view);
+ let idle:(()=>void)|undefined;
+ vi.stubGlobal('requestIdleCallback',(fn:()=>void)=>{idle=fn;return 7;});vi.stubGlobal('cancelIdleCallback',vi.fn());
+ let shown!:()=>void;const stage=new Promise<void>(resolve=>shown=resolve);
+ const release=retainMenuPortraitAfter(stage);await settle();
+ expect(stub.mount).not.toHaveBeenCalled();
+ shown();await settle();expect(stub.mount).not.toHaveBeenCalled();
+ idle!();await settle();expect(stub.mount).toHaveBeenCalledOnce();
+ release();
+ // Leaving before the stage shows never builds a portrait.
+ stub.mount.mockClear();let never!:()=>void;
+ const cancel=retainMenuPortraitAfter(new Promise<void>(resolve=>never=resolve));cancel();never();await settle();
+ expect(stub.mount).not.toHaveBeenCalled();
 });

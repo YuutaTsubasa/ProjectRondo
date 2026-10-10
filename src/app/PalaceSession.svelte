@@ -1,7 +1,7 @@
 <script lang="ts">
   import {recordStageClear} from './stageRecords';
   import { onMount } from 'svelte';
-  import {retainMenuPortrait} from '../presentation/menu/sharedMenuPortrait';
+  import {retainMenuPortraitAfter} from '../presentation/menu/sharedMenuPortrait';
   import { Engine } from '@babylonjs/core/Engines/engine';
   import { createLevelSwap } from './levelSwap';
   import { createPalaceScene,type PalaceScene } from '../presentation/palace/palaceScene';
@@ -32,8 +32,10 @@
       if(buttons.length){event.preventDefault();buttons[(index+(event.shiftKey?buttons.length-1:1))%buttons.length].focus();}
     }
   }
-  // Load the results-screen portrait while this stage loads, before its clear timer runs.
-  onMount(()=>'WebGLRenderingContext' in window?retainMenuPortrait():undefined);
+  // Warm the results-screen portrait once this stage is up; see retainMenuPortraitAfter.
+  let stageShown!:()=>void;
+  const shown=new Promise<void>(resolve=>{stageShown=resolve;});
+  onMount(()=>'WebGLRenderingContext' in window?retainMenuPortraitAfter(shown):undefined);
   onMount(()=>{
     let live=true;
     let engine:Engine;
@@ -56,7 +58,7 @@
     },built=>{
       palace=built;run=built.state;status='playing';
       built.scene.resetLastAnimationTimeFrame();
-      if(document.hidden)pause();onReady();
+      if(document.hidden)pause();onReady();stageShown();
     });
     return()=>{live=false;palace=undefined;swap.unmount();window.removeEventListener('resize',resize);document.removeEventListener('visibilitychange',hidden);};
   });

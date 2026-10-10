@@ -16,8 +16,9 @@ function create():Shared{
   // Warmed with no screen showing it: compile shaders now, not on the results screen's first frame.
   if(created.owner===null)view.prime();
   created.loaded=true;
- }).catch(()=>{
+ }).catch(error=>{
   // A failed engine, model or warm-up render is not kept: the next screen retries from scratch.
+  console.warn('3D portrait warm-up failed; the next portrait screen will load it again.',error);
   if(shared===created)shared=undefined;
   clearTimeout(created.idle);void renderer.then(view=>view.dispose(),()=>{});
  });
@@ -48,7 +49,8 @@ export function acquireMenuPortrait(host:HTMLElement){
   release(){
    if(current.owner!==lease)return;
    current.owner=null;current.canvas.remove();
-   void current.renderer.then(view=>view.stop(),()=>{});
+   // Mark it hidden, not just stopped, so the next screen's show resets the animation clock.
+   void current.renderer.then(view=>{view.stop();view.hide();},()=>{});
    scheduleIdleRelease(current);
   },
  };
@@ -60,6 +62,20 @@ export function retainMenuPortrait():()=>void{
  const current=hold();current.keepers++;
  let released=false;
  return()=>{if(released)return;released=true;current.keepers--;scheduleIdleRelease(current);};
+}
+
+/** Retain once the stage has been built and shown, at the first idle moment: the stage has already
+ * read the player model (a cache hit, no second download), and loading is not stretched by a second
+ * parse. A run's timer clamps frame time, so an idle-time hitch costs at most one clamped step. */
+export function retainMenuPortraitAfter(stageShown:Promise<unknown>):()=>void{
+ let release:(()=>void)|undefined,cancelled=false,idle:number|undefined;
+ const start=()=>{idle=undefined;if(!cancelled)release=retainMenuPortrait();};
+ void stageShown.then(()=>{
+  if(cancelled)return;
+  if(typeof requestIdleCallback==='function')idle=requestIdleCallback(start,{timeout:2000});
+  else start();
+ },()=>{});
+ return()=>{cancelled=true;if(idle!==undefined)cancelIdleCallback(idle);release?.();};
 }
 
 /** Free the shared context now (idle release, tests, or a host shutting the app down). */
