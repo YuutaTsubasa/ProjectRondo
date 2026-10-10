@@ -101,3 +101,20 @@ it('primes a warmed portrait while hidden and snaps a taken-over portrait to the
  expect(view.snapToPose.mock.invocationCallOrder[0]).toBeLessThan(view.setPresentation.mock.invocationCallOrder.at(-1)!);
  release();
 });
+
+
+it('discards a portrait whose hidden render fails and retries on the next screen',async()=>{
+ support();vi.useFakeTimers({toFake:['setTimeout','clearTimeout']});
+ const broken=renderer(),replacement=renderer();
+ broken.prime.mockImplementation(()=>{throw new Error('portrait render failed');});
+ stub.mount.mockReturnValueOnce(broken).mockReturnValueOnce(replacement);
+ const release=retainMenuPortrait();
+ try{
+  await fsettle();
+  expect(broken.dispose).toHaveBeenCalledOnce();
+  component=mount(MenuPortrait,{target:document.body});await fsettle();
+  expect(stub.mount).toHaveBeenCalledTimes(2);
+  expect(document.querySelector('canvas')?.getAttribute('data-ready')).toBe('true');
+  expect(replacement.start).toHaveBeenCalled();
+ }finally{release();}
+});
