@@ -20,9 +20,12 @@ export function nearbyRegionPlace<T extends PlacePoint>(position:RegionPoint,pla
   .sort((a,b)=>Math.hypot(a.x-position.x,a.z-position.z)-Math.hypot(b.x-position.x,b.z-position.z))[0];
 }
 
+/** Where the 3D course entrance stood in the meadow before it moved to the tower square. */
+const LEGACY_COURSE_ENTRANCE={x:-64,z:-170} as const;
 /** Only unfinished relay visits used the old outdoor entrance as their destination.
  * Preserve later free exploration and every save elsewhere in the region. */
 export function restoreRegionCoursePosition(position:RegionPoint,chapter:RegionChapter):RegionPoint{
- return (chapter==='relay'||chapter==='relay-report')&&Math.hypot(position.x+64,position.z+170)<=8
+ return (chapter==='relay'||chapter==='relay-report')
+  &&Math.hypot(position.x-LEGACY_COURSE_ENTRANCE.x,position.z-LEGACY_COURSE_ENTRANCE.z)<=8
   ? {...COURSE_RETURN}:position;
 }

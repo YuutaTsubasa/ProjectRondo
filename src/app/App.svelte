@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onDestroy, onMount, type Component } from 'svelte';
-  import {hasRegionSave,backupRegionSave,regionStorage,readRegionSave} from './regionSave';
+  import {backupRegionSave,regionStorage,inspectRegionSave} from './regionSave';
   import InputLayer from '../presentation/input/InputLayer.svelte';
   import FrontDoor from '../presentation/menu/FrontDoor.svelte';
   import { stepFrontDoor, type FrontDoorAction, type FrontDoorPhase } from './frontDoor';
@@ -21,8 +21,9 @@
 
   let entry: GameEntry = 'region';
   let freshStart = $state(false);
-  let saveAvailable = $state(hasRegionSave(regionStorage()));
-  let saveProgress = $state(readRegionSave(regionStorage()).progress);
+  const initialSave = inspectRegionSave(regionStorage());
+  let saveAvailable = $state(initialSave.available);
+  let saveProgress = $state(initialSave.progress);
   let menuError = $state('');
   let phase = $state<FrontDoorPhase>('title');
   let Game = $state<Component<{ onReady: () => void; onFailure: (error: unknown) => void; onExit?: () => void; freshStart?: boolean }>>();
@@ -60,8 +61,8 @@
     if (next === phase) return;
     if (phase !== 'loading' && phase !== 'game') void menuMusic?.unlock();
     menuError='';
-    saveAvailable=hasRegionSave(regionStorage());
-    saveProgress=readRegionSave(regionStorage()).progress;
+    const save=inspectRegionSave(regionStorage());
+    saveAvailable=save.available;saveProgress=save.progress;
     if(action==='continue'&&!saveAvailable)return;
     if(action==='confirm-new'){
       if(!backupRegionSave(regionStorage())){menuError='無法保留目前的存檔，尚未開始新旅程。請確認瀏覽器儲存空間後再試。';return;}

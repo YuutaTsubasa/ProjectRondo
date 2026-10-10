@@ -63,27 +63,29 @@ function uniqueAllowedList(value: unknown, allowed: readonly string[]): value is
     new Set(value).size === value.length;
 }
 
-/** Untrusted local storage is accepted only when its stage flags agree with its chapter. */
+/** Untrusted progress is accepted only when its stage flags agree with its chapter; otherwise null. */
+export function validateRegionProgress(value: unknown): RegionProgress | null {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return null;
+  const candidate = value as Record<string, unknown>;
+  if (candidate.version !== 1 || typeof candidate.chapter !== 'string' ||
+    !Object.hasOwn(requiredExpeditions, candidate.chapter) ||
+    !uniqueAllowedList(candidate.discoveries, siteIds) ||
+    !uniqueAllowedList(candidate.completedExpeditions, ['course', 'palace'])) return null;
+  const chapter = candidate.chapter as RegionChapter;
+  const expected = requiredExpeditions[chapter];
+  const completed = candidate.completedExpeditions;
+  if (completed.length !== expected.length || !expected.every(id => completed.includes(id))) return null;
+  return {
+    version: 1, chapter, discoveries: [...candidate.discoveries],
+    completedExpeditions: [...expected],
+  };
+}
+
+/** Untrusted local storage; anything invalid starts a new chapter. */
 export function parseRegionProgress(raw: string | null): RegionProgress {
   if (raw === null) return createRegionProgress();
   try {
-    const value: unknown = JSON.parse(raw);
-    if (value === null || typeof value !== 'object' || Array.isArray(value)) return createRegionProgress();
-    const candidate = value as Record<string, unknown>;
-    if (candidate.version !== 1 || typeof candidate.chapter !== 'string' ||
-      !Object.hasOwn(requiredExpeditions, candidate.chapter) ||
-      !uniqueAllowedList(candidate.discoveries, siteIds) ||
-      !uniqueAllowedList(candidate.completedExpeditions, ['course', 'palace'])) return createRegionProgress();
-    const chapter = candidate.chapter as RegionChapter;
-    const expected = requiredExpeditions[chapter];
-    const completed = candidate.completedExpeditions;
-    if (completed.length !== expected.length || !expected.every(id => completed.includes(id))) {
-      return createRegionProgress();
-    }
-    return {
-      version: 1, chapter, discoveries: [...candidate.discoveries],
-      completedExpeditions: [...expected],
-    };
+    return validateRegionProgress(JSON.parse(raw)) ?? createRegionProgress();
   } catch {
     return createRegionProgress();
   }

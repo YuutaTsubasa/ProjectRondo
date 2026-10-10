@@ -83,6 +83,17 @@ it('selects elevated forward targets and vertical chain links without aiming the
  expect(selectHomingTarget(AT_ORIGIN,FORWARD,[vec3(0,13,-1)],C)).toBeNull();
 });
 
+it('keeps vertical chain links selectable when a bounce leaves the player slightly off-axis',()=>{
+ // Above but 0.3 u behind the facing: a planar direction is meaningless at this spread.
+ expect(selectHomingTarget(AT_ORIGIN,FORWARD,[vec3(0,6,.3)],C)).toBe(0);
+ expect(selectHomingTarget(AT_ORIGIN,FORWARD,[vec3(.4,6,0)],C)).toBe(0);
+});
+
+it('prefers the next forward crystal over a near-vertical crystal below, whichever way the bounce drifted',()=>{
+ expect(selectHomingTarget(AT_ORIGIN,FORWARD,[vec3(0,-1,-.3),vec3(0,2,-5)],C)).toBe(1);
+ expect(selectHomingTarget(AT_ORIGIN,FORWARD,[vec3(.2,-1,.1),vec3(0,2,-5)],C)).toBe(1);
+});
+
 it('prefers the next forward crystal over the crystal directly below after a bounce',()=>{
  expect(selectHomingTarget(AT_ORIGIN,FORWARD,[vec3(0,-1,0),vec3(0,2,-5)],C)).toBe(1);
  expect(selectHomingTarget(AT_ORIGIN,FORWARD,[vec3(0,2,-5),vec3(0,-1,0)],C)).toBe(0);

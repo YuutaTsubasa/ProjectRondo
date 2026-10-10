@@ -70,7 +70,14 @@ export function createInput(options: {canvas?:HTMLCanvasElement;camera?:boolean;
           y: (down.has('w') ? 1 : 0) - (down.has('s') ? 1 : 0),
         }
       : { x: 0, y: 0 },
-    isWalkHeld: () => enabled && ((deviceInput.getState().device==='keyboard' && down.has(WALK_KEY)) || deviceInput.walkHeld() || (Math.hypot(deviceInput.axis().x,deviceInput.axis().y)>0 && Math.hypot(deviceInput.axis().x,deviceInput.axis().y)<.55)),
+    isWalkHeld: () => {
+      if (!enabled) return false;
+      if (deviceInput.getState().device==='keyboard' && down.has(WALK_KEY)) return true;
+      if (deviceInput.walkHeld()) return true;
+      // A light analog tilt walks; zero is "no input", not a walk.
+      const {x,y}=deviceInput.axis(),tilt=Math.hypot(x,y);
+      return tilt>0 && tilt<.55;
+    },
     consumeJump: () => {
       if (!enabled) { jumpQueued = false; return false; }
       const j = jumpQueued;
