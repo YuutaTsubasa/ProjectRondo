@@ -1,0 +1,4 @@
+Rondo Chapter Serif: a renamed, static 600-weight CJK/Latin web subset of Noto Serif TC.
+Source: Windows NotoSerifTC-VF.ttf, version 2.02.
+© 2017-2023 Adobe (http://www.adobe.com/).
+Licensed under SIL OFL 1.1; see OFL-NotoSerifTC.txt.

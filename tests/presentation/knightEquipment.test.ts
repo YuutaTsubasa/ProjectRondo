@@ -60,6 +60,7 @@ it('restores the animation baseline without accumulating swing rotations or chan
 });
 it('leads Homing with the shield face and limits the slash arc to active frames', () => {
   const { equipment, root } = rig();
+  equipment.apply({ swordSeconds: .18, homing: false });
   equipment.apply({ swordSeconds: .2, homing: false });
   expect(equipment.arc.isEnabled()).toBe(true);
   equipment.apply({ swordSeconds: .45, homing: false });
@@ -177,4 +178,103 @@ it.each([.8,1,1.3])('places the shield ahead of the real jumping chest at %ss an
   expect(tip.y).toBeLessThan(at('Head').y);
   expect(tip.z).toBeLessThan(chest.z-.25);
   equipment.dispose();
+});
+
+it.each(['Idle','Run'])('anchors the slash ribbon to the actual %s blade under rotated/scaled parents', (clipName) => {
+  const { equipment, root } = assetRig(clipName);
+  root.position.set(5,2,-3); root.rotationQuaternion=Quaternion.FromEulerAngles(.1,1.2,0);
+  let previousTip:Vector3|undefined;
+  for(const seconds of [.15,.17,.19,.21]) {
+    equipment.apply({swordSeconds:seconds,homing:false});
+    const bladeMatrix=equipment.sword.computeWorldMatrix(true);
+    const tip=Vector3.TransformCoordinates(new Vector3(0,.95,0),bladeMatrix);
+    const heel=Vector3.TransformCoordinates(new Vector3(0,.18,0),bladeMatrix);
+    if(previousTip){
+      const positions=equipment.arc.getVerticesData('position')!;
+      const world=equipment.arc.computeWorldMatrix(true);
+      const points=Array.from({length:positions.length/3},(_,i)=>Vector3.TransformCoordinates(Vector3.FromArray(positions,i*3),world));
+      expect(Math.min(...points.map(p=>Vector3.Distance(p,tip)))).toBeLessThan(.00001);
+      expect(Math.min(...points.map(p=>Vector3.Distance(p,heel)))).toBeLessThan(.00001);
+      expect(Math.min(...points.map(p=>Vector3.Distance(p,previousTip!)))).toBeLessThan(.00001);
+      const frozen=[...positions];equipment.apply({swordSeconds:seconds,homing:false});
+      expect([...equipment.arc.getVerticesData('position')!]).toEqual(frozen);
+    }
+    previousTip=tip;
+  }
+  equipment.apply({swordSeconds:null,homing:false});
+  equipment.apply({swordSeconds:.15,homing:false});
+  expect(equipment.arc.isEnabled()).toBe(false); // no ribbon joining separate attacks
+  equipment.dispose();
+});
+
+
+it.each(['Idle','Run','Jump'])('sweeps the real %s blade horizontally across the forward hit volume', (clipName) => {
+  const { equipment, root } = assetRig(clipName);
+  root.rotationQuaternion=Quaternion.FromEulerAngles(0,1.2,0);
+  const inverse=root.computeWorldMatrix(true).clone().invert();
+  const directions:Vector3[]=[]; const heights:number[]=[];
+  for(const seconds of [.14,.18,.22,.26,.30]) {
+    equipment.apply({swordSeconds:seconds,homing:false});
+    const matrix=equipment.sword.computeWorldMatrix(true);
+    const blade=Vector3.TransformNormal(Vector3.Up(),matrix).normalize();
+    expect(Math.abs(blade.y)).toBeLessThan(.02);
+    directions.push(Vector3.TransformNormal(blade,inverse).normalize());
+    heights.push(Vector3.TransformCoordinates(new Vector3(0,.95,0),matrix).y);
+  }
+  expect(directions[0].x).toBeLessThan(-.7);
+  expect(directions[2].z).toBeGreaterThan(.98);
+  expect(directions[4].x).toBeGreaterThan(.7);
+  expect(Math.max(...heights)-Math.min(...heights)).toBeLessThan(.12);
+});
+
+it('leaves a thick world-space light wave after recovery without following a turn or replaying during pause', () => {
+  const { equipment, scene, root } = rig();
+  equipment.apply({swordSeconds:.18,homing:false});
+  equipment.apply({swordSeconds:.30,homing:false});
+  const wave=scene.getMeshByName('swordSlashWave');
+  expect(wave).not.toBeNull();
+  expect(wave!.isEnabled()).toBe(true);
+  const points=wave!.getVerticesData('position')!;
+  const heights=points.filter((_,i)=>i%3===1);
+  expect(Math.max(...heights)-Math.min(...heights)).toBeGreaterThan(.15);
+  const origin=wave!.position.clone(),rotation=wave!.rotationQuaternion!.clone();
+  const opacity=wave!.visibility;
+  equipment.apply({swordSeconds:.30,homing:false});
+  expect(wave!.visibility).toBe(opacity);
+  root.position.x+=2;root.rotation.y=Math.PI;
+  equipment.apply({swordSeconds:.45,homing:false});
+  equipment.apply({swordSeconds:null,homing:false});
+  expect(wave!.isEnabled()).toBe(true);
+  expect(wave!.position.equals(origin)).toBe(true);
+  expect(wave!.rotationQuaternion!.equals(rotation)).toBe(true);
+  for(let i=0;i<60;i++)equipment.apply({swordSeconds:null,homing:false});
+  expect(wave!.isEnabled()).toBe(false);
+  equipment.apply({swordSeconds:0,homing:false});
+  equipment.apply({swordSeconds:.2,homing:false});
+  expect(wave!.isEnabled()).toBe(true);
+  equipment.apply({swordSeconds:null,homing:true});
+  expect(wave!.isEnabled()).toBe(false);
+});
+
+
+it.each([0,Math.PI/2,-Math.PI/2,Math.PI])('places the wave ahead of the strike at yaw %s', yaw => {
+  const { equipment, root, scene }=rig();
+  root.position.set(3,2,5);root.rotationQuaternion=Quaternion.RotationAxis(Vector3.Up(),yaw);
+  equipment.apply({swordSeconds:.2,homing:false});
+  const wave=scene.getMeshByName('swordSlashWave')!;
+  const positions=wave.getVerticesData('position')!;
+  const matrix=wave.computeWorldMatrix(true);
+  const forward=Vector3.TransformNormal(Vector3.Forward(),root.computeWorldMatrix(true)).normalize();
+  const center=root.getAbsolutePosition();
+  for(let i=0;i<positions.length;i+=3) {
+    const point=Vector3.TransformCoordinates(Vector3.FromArray(positions,i),matrix);
+    expect(Vector3.Dot(point.subtract(center),forward)).toBeGreaterThan(.5);
+  }
+  equipment.apply({swordSeconds:0,homing:false});
+  expect(wave.isEnabled()).toBe(false); // a new windup must not recycle the previous crescent
+  equipment.apply({swordSeconds:.2,homing:false});
+  expect(wave.isEnabled()).toBe(true);
+  root.position.x+=20;
+  equipment.apply({swordSeconds:null,homing:false});
+  expect(wave.isEnabled()).toBe(false); // respawn/teleport clears the departed location
 });

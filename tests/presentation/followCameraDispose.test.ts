@@ -69,3 +69,9 @@ describe('createFollowCamera().dispose', () => {
     expect(follow.camera.position.equals(placed)).toBe(true);
   });
 });
+
+import {deviceInput} from '../../src/presentation/input/deviceInput';
+it('uses touch look to orbit the real camera only while gameplay is enabled',()=>{
+ const rig=deviceInput.registerGameplay(true);rig.setEnabled(true);const {scene,follow}=build();scene.render();const before=follow.camera.position.clone();deviceInput.touchLook(50,0);scene.render();expect(follow.camera.position.equals(before)).toBe(false);
+ follow.setEnabled(false);rig.setEnabled(false);const stopped=follow.camera.position.clone();deviceInput.touchLook(50,0);scene.render();expect(follow.camera.position.equals(stopped)).toBe(true);follow.dispose();rig.dispose();
+});

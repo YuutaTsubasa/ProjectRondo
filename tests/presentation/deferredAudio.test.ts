@@ -216,3 +216,13 @@ describe('createDeferredAudio, one-shot cues', () => {
     expect(fake.cues).toEqual([]);
   });
 });
+
+it('exposes readiness only after the audio graph has loaded',async()=>{
+ const deferred=deferBuild(),audio=createDeferredAudio(deferred.build),ready=vi.fn();
+ const waiting=audio.whenReady().then(ready);await flush();expect(ready).not.toHaveBeenCalled();
+ deferred.settle(makeFake());await waiting;expect(ready).toHaveBeenCalledOnce();audio.dispose();
+});
+it('reports failed preparation to callers waiting at Loading',async()=>{
+ const audio=createDeferredAudio(async()=>{throw new Error('music unavailable');});
+ await expect(audio.whenReady()).rejects.toThrow('music unavailable');audio.dispose();
+});

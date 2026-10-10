@@ -1,43 +1,39 @@
-import { expect, it } from 'vitest';
-import { NodeIO } from '@gltf-transform/core';
-import { ALL_EXTENSIONS } from '@gltf-transform/extensions';
+import {expect,it} from 'vitest';
+import {Document,NodeIO} from '@gltf-transform/core';
+import {ALL_EXTENSIONS} from '@gltf-transform/extensions';
+import sharp from 'sharp';
+import {blendLipSeam} from '../../tools/player-model/lipSeam.mjs';
 
-it('joins both sides of the lip patch with continuous colors and a local fade', async () => {
-  const document = await new NodeIO().registerExtensions(ALL_EXTENSIONS).read('public/models/player-v20.glb');
-  const primitives = document.getRoot().listNodes().find(n => n.getName() === 'Face')!.getMesh()!.listPrimitives();
-  const skin = primitives.find(p => p.getMaterial()!.getName() === 'Repaired lower face skin')!;
-  const lip = primitives.find(p => p.getMaterial()!.getName() === 'Rebuilt lip skin')!;
-  const colors = lip.getAttribute('COLOR_0'), skinColors = skin.getAttribute('COLOR_0');
-  expect(colors, 'lip patch needs continuous surface colors').not.toBeNull();
-  expect(skinColors, 'the skin side must fade into the same seam color').not.toBeNull();
-  const position = skin.getAttribute('POSITION')!;
-  const byPosition = new Map<string, number>();
-  const key = (p: number[]) => p.map(v => v.toFixed(6)).join(',');
-  for (let i = 0; i < position.getCount(); i++) if (!byPosition.has(key(position.getElement(i, [])))) byPosition.set(key(position.getElement(i, [])), i);
-  const lipPosition = lip.getAttribute('POSITION')!;
-  let shared = 0, outside = 0;
-  for (let i = 0; i < lipPosition.getCount(); i++) {
-    const match = byPosition.get(key(lipPosition.getElement(i, [])));
-    if (match === undefined) continue;
-    const actual = colors!.getElement(i, []), expected = skinColors!.getElement(match, []);
-    expect(actual[3]).toBe(1);
-    expect(expected[3]).toBe(1);
-    actual.forEach((v, c) => expect(v).toBeCloseTo(expected[c]!, 6));
-    shared++;
-  }
-  for (let i = 0; i < position.getCount(); i++) {
-    const p = position.getElement(i, []);
-    if (Math.abs(p[0]!) > .04 || p[1]! > 1.56 || p[1]! < 1.49) {
-      expect(skinColors!.getElement(i, [])[3]).toBe(0);
-      outside++;
-    }
-  }
-  expect(shared).toBeGreaterThan(100);
-  expect(outside).toBeGreaterThan(1000);
-  for (const primitive of [skin, lip]) {
-    expect(primitive.getMaterial()!.getBaseColorTexture()).not.toBeNull();
-    expect(primitive.getMaterial()!.getExtras()).toMatchObject({ playerMaterial: { surfaceColorBlend: true } });
-    expect(Array.from(primitive.getAttribute('COLOR_0')!.getArray()!).every(n => Number.isFinite(n) && n >= 0 && n <= 1)).toBe(true);
-  }
-  expect(primitives.filter(p => p.getAttribute('COLOR_0'))).toEqual([skin, lip]);
+it('joins the legacy V20 seam and fades locally without depending on the active player',async()=>{
+ const doc=new Document(),buffer=doc.createBuffer();
+ const image=await sharp({create:{width:2,height:2,channels:3,background:{r:210,g:160,b:140}}}).png().toBuffer();
+ const texture=doc.createTexture().setImage(image).setMimeType('image/png');
+ const mesh=doc.createMesh();doc.createNode('Face').setMesh(mesh);
+ const boundary=[0,0,0,.003,0,0,0,.003,0];
+ const primitive=(name:string,extra:number[])=>{
+  const positions=[...boundary,...extra];
+  const p=doc.createPrimitive().setMaterial(doc.createMaterial(name).setBaseColorTexture(texture).setExtras({playerMaterial:{role:'head'}}));
+  p.setAttribute('POSITION',doc.createAccessor().setBuffer(buffer).setType('VEC3').setArray(new Float32Array(positions)));
+  p.setAttribute('TEXCOORD_0',doc.createAccessor().setBuffer(buffer).setType('VEC2').setArray(new Float32Array(positions.length/3*2).fill(.5)));
+  mesh.addPrimitive(p);return p;
+ };
+ const skin=primitive('Repaired lower face skin',[.03,0,0]),lip=primitive('Rebuilt lip skin',[.001,.001,0]);
+ const original=skin.getAttribute('POSITION')!.getArray()!.slice();
+ expect(await blendLipSeam(doc)).toMatchObject({boundaryVertices:3});
+ const a=skin.getAttribute('COLOR_0')!,b=lip.getAttribute('COLOR_0')!;
+ for(let i=0;i<3;i++){expect(a.getElement(i,[])[3]).toBe(1);expect(a.getElement(i,[])).toEqual(b.getElement(i,[]));}
+ expect(a.getElement(3,[])[3]).toBe(0);expect(b.getElement(3,[])[3]).toBeGreaterThan(0);
+ expect(skin.getAttribute('POSITION')!.getArray()).toEqual(original);
+ for(const p of [skin,lip]){
+  expect(p.getMaterial()!.getBaseColorTexture()).toBe(texture);
+  expect(p.getMaterial()!.getExtras()).toMatchObject({playerMaterial:{surfaceColorBlend:true}});
+  expect(Array.from(p.getAttribute('COLOR_0')!.getArray()!).every(n=>Number.isFinite(n)&&n>=0&&n<=1)).toBe(true);
+ }
+ await expect(blendLipSeam(doc)).rejects.toThrow('unmodified source');
+});
+it('leaves the V33 authored face textures untouched by the legacy correction',async()=>{
+ const doc=await new NodeIO().registerExtensions(ALL_EXTENSIONS).read('public/models/player-v20.glb');
+ expect(doc.getRoot().listMaterials().some(m=>m.getName().includes('soft cheek V33'))).toBe(true);
+ expect(await blendLipSeam(doc)).toBeNull();
+ expect(doc.getRoot().listMaterials().some(m=>(m.getExtras() as any).playerMaterial?.surfaceColorBlend)).toBe(false);
 });

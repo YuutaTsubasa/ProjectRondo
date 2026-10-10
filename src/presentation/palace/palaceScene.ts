@@ -1,3 +1,4 @@
+import {waitForAudioReadiness} from '../audio/audioReadiness';
 import type { Engine } from '@babylonjs/core/Engines/engine';
 import { Scene } from '@babylonjs/core/scene';
 import { FreeCamera } from '@babylonjs/core/Cameras/freeCamera';
@@ -32,11 +33,14 @@ export interface PalaceScene {
 }
 export async function createPalaceScene(engine:Engine):Promise<PalaceScene> {
   const scene=new Scene(engine);
-  const input=createInput();input.setEnabled(false);
+  const input=createInput({canvas:engine.getRenderingCanvas()??undefined});input.setEnabled(false);
   let knight:Knight|undefined,stopAnimation:(()=>void)|undefined;
   let guards:Awaited<ReturnType<typeof loadPalaceGuards>>|undefined;
   let audio:ReturnType<typeof createPalaceAudio>|undefined;
   try{
+    audio=createPalaceAudio();
+    // Fetch the stage loop alongside the rest of the build; a failure is reported at the readiness wait below.
+    const music=audio.prepare();music.catch(()=>{});
     scene.useRightHandedSystem=true;
     scene.clearColor=Color4.FromHexString('#e1edf3ff');
     const camera=new FreeCamera('palaceSideCamera',new Vector3(10,6,25),scene);
@@ -68,7 +72,6 @@ export async function createPalaceScene(engine:Engine):Promise<PalaceScene> {
     stopAnimation=driveKnightAnimation(scene,knight,motion,()=>({walk:4,run:10,airtime:25.6/30}));
     guards=await loadPalaceGuards(scene,shadows);
     const reticle=createHomingReticle(scene);
-    audio=createPalaceAudio();
     let cameraX=state.player.x+4,cameraY=2.7;
     const update=(snap=false)=>{
       const p=state.player;
@@ -101,7 +104,7 @@ export async function createPalaceScene(engine:Engine):Promise<PalaceScene> {
         audio!.update(before,state);scene.render();return state;
       },
       reset(){
-        state=createPalaceRun();input.setEnabled(false);input.setEnabled(!suspended);
+        state=createPalaceRun();audio!.reset();input.setEnabled(false);input.setEnabled(!suspended);
         scene.resetLastAnimationTimeFrame();update(true);return state;
       },
       suspendInput(on){
@@ -116,6 +119,7 @@ export async function createPalaceScene(engine:Engine):Promise<PalaceScene> {
     };
     update(true);
     exposeDevHandle(scene,'palace',api);
+    await waitForAudioReadiness(()=>music);
     return api;
   }catch(error){
     input.dispose();audio?.dispose();stopAnimation?.();knight?.release();guards?.dispose();scene.dispose();throw error;

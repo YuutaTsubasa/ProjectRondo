@@ -25,22 +25,10 @@ afterEach(() => {
  * The foot plant, run for real, against the case that had no test and shipped a visible bug: the
  * knight drawn down on the tower's floor while its capsule stood on a platform 20 or 40 u up.
  *
- * **The rule these hold** is the one the bug broke and nothing else states: *a frame the ground probe
- * cannot answer moves the plant not at all.* The knight is parented to the capsule root, so its local
- * Y is exactly its disagreement with the capsule, and the assertion is that such a frame leaves that
- * number alone — exactly, not within a tolerance.
- *
- * It is stated that way because the obvious looser form does not carry its own weight. "Never
- * disagrees with the capsule by more than the character's own height" sounds like the rule, and is
- * nearly vacuous: the correction the plant legitimately makes is ~0.13 u, so a 1.9 u bound leaves
- * room for a fourteenfold error before it says anything. Restore the old behaviour and the bound
- * catches it at 18 u and above only because the numbers there are enormous; the exact comparison
- * catches it at every height the two answers actually differ at.
- *
- * They do not differ at one of them. The `standing on 0 u` row is the tower's floor, where "hold the
- * last correction" and "answer with the floor" are the same answer, so no assertion at that height
- * can tell them apart. It is in the table anyway, because it is the height at which the shipped bug
- * was invisible and the reason nothing looked wrong until the climb started.
+ * The original regression is a stationary edge with no world ground field: a missing probe
+ * must not invent a floor far below the capsule. The landing regression below also moves
+ * the rendered parent after a hit: its previous local correction is no longer valid once
+ * render smoothing settles, so the nearby world surface must remain the anchor instead.
  *
  * Why this shape and not a scripted level: `loadKnight` fetches a GLB and `createPlayer` needs a
  * compiled Havok module, neither of which a test process has, and neither says anything about the
@@ -168,5 +156,62 @@ describe('the foot plant against a world that answers everywhere', () => {
     // seatedLocalY − planted · (footY − surface): the arithmetic is untouched by this fix, and a
     // half-faded plant is what takeoff and landing ride.
     expect(rig.drift()).toBeCloseTo(-0.5 * 0.3, 6);
+  });
+});
+
+describe('a supported platform edge after landing', () => {
+  it('keeps soles on the last nearby surface as the rendered parent settles', () => {
+    const rig = mount(unknownGround, 20.7);
+    rig.hit = 20;
+    rig.frame();
+    expect(rig.drift()).toBeCloseTo(-.7, 5);
+
+    // The capsule still overlaps the slab, but its center ray now misses. Render smoothing
+    // continues settling after touchdown; retaining the old LOCAL offset buries the feet.
+    rig.capsule.position.set(3.2, 20.12 + CAPSULE_HALF, -7);
+    rig.hit = null;
+    rig.frame();
+    rig.frame();
+    expect(rig.drift()).toBeCloseTo(-.12, 5);
+    expect(rig.capsule.position.y - CAPSULE_HALF + rig.drift()).toBeCloseTo(20, 5);
+  });
+
+  it('fades the last correction while taking off beyond the last support footprint', () => {
+    const rig = mount(unknownGround, 20.12);
+    rig.hit = 20;
+    rig.frame();
+    rig.hit = null;
+    rig.capsule.position.x += 2;
+    rig.knight.planted = .5;
+    rig.frame();
+    expect(rig.drift()).toBeCloseTo(-.06, 5);
+    rig.knight.planted = 0;
+    rig.frame();
+    expect(rig.drift()).toBe(0);
+  });
+
+  it('forgets the previous support after becoming airborne', () => {
+    const rig = mount(unknownGround, 20.12);
+    rig.hit = 20;
+    rig.frame();
+    rig.knight.planted = 0;
+    rig.hit = null;
+    rig.frame();
+    rig.capsule.position.y = 42 + CAPSULE_HALF;
+    rig.knight.planted = 1;
+    rig.frame();
+    rig.frame();
+    expect(rig.drift()).toBe(0);
+  });
+
+  it('continues following fresh sloped and flat surface samples', () => {
+    const rig = mount(unknownGround, .12);
+    for (const surface of [0, .15, .3, .3]) {
+      rig.capsule.position.y = surface + .12 + CAPSULE_HALF;
+      rig.hit = surface;
+      rig.frame();
+      rig.frame();
+      expect(rig.drift()).toBeCloseTo(-.12, 5);
+    }
   });
 });

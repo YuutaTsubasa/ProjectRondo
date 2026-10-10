@@ -6,7 +6,8 @@ import { VertexData } from '@babylonjs/core/Meshes/mesh.vertexData';
 import { CreateBox } from '@babylonjs/core/Meshes/Builders/boxBuilder';
 import { CreateSphere } from '@babylonjs/core/Meshes/Builders/sphereBuilder';
 import { PBRMaterial } from '@babylonjs/core/Materials/PBR/pbrMaterial';
-import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
+import { createSwordSlashTrail } from './swordSlashTrail';
+import { createSwordSlashWave } from './swordSlashWave';
 import { Color3 } from '@babylonjs/core/Maths/math.color';
 import { Quaternion, Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { PLAYER_MODEL } from './playerModel';
@@ -15,6 +16,7 @@ import type { Shadows } from './shadows';
 export interface EquipmentPose {
   readonly swordSeconds?: number | null;
   readonly homing: boolean;
+  readonly deltaSeconds?: number;
 }
 export interface KnightEquipment {
   readonly sword: TransformNode;
@@ -120,21 +122,10 @@ export function createKnightEquipment(
   box('shieldHandle',shield,leather,.15,.04,.045,0,0,-.055);
   shadows?.cast(...meshes); shadows?.receive(...meshes);
 
-  const arc = new Mesh('swordSlashArc', scene); arc.parent = root; arc.scaling.setAll(unit);
-  const positions: number[] = [], indices: number[] = [];
-  for (let i=0;i<=24;i++) {
-    const angle = -.95 + i/24*2.2;
-    for (const radius of [.86,1.08]) positions.push(Math.sin(angle)*radius, .12*Math.sin(angle),Math.cos(angle)*radius);
-    if(i<24) indices.push(i*2,i*2+1,i*2+2,i*2+1,i*2+3,i*2+2);
-  }
-  const data = new VertexData(); data.positions=positions; data.indices=indices; data.applyToMesh(arc);
-  const arcMaterial = new StandardMaterial('slashArcMaterial',scene);
-  arcMaterial.disableLighting=true; arcMaterial.emissiveColor=Color3.FromHexString('#b9f8ff');
-  arcMaterial.alpha=.55; arcMaterial.backFaceCulling=false; arc.material=arcMaterial;
-  arc.isPickable=false; arc.setEnabled(false);
-  // Sit the arc at the already calibrated hands, after Idle seating (never include it in foot bounds).
-  const handInRoot = Vector3.TransformCoordinates(rightHand.getAbsolutePosition(),root.getWorldMatrix().clone().invert());
-  arc.position.set(0,handInRoot.y + .2*unit,0);
+  const slashTrail = createSwordSlashTrail(scene);
+  const arc = slashTrail.mesh;
+  const slashWave = createSwordSlashWave(scene);
+  const bladeHeel = new Vector3(), bladeTip = new Vector3(), waveOrigin = new Vector3(), waveForward = new Vector3();
 
   const baseline = new Map<TransformNode, Quaternion>();
   let disposed = false;
@@ -150,11 +141,12 @@ export function createKnightEquipment(
     remember(node); node.rotationQuaternion!.multiplyInPlace(Quaternion.FromEulerAngles(x,y,z));
   };
   // Set model-space axes explicitly for a readable shield charge, independent of the fall clip.
-  const orient = (node: TransformNode, modelRotation: Quaternion) => {
+  const orient = (node: TransformNode, modelRotation: Quaternion, weight = 1) => {
     remember(node); root.computeWorldMatrix(true); (node.parent as TransformNode).computeWorldMatrix(true);
     const worldRotation = root.absoluteRotationQuaternion.multiply(modelRotation);
     const parentRotation = (node.parent as TransformNode).absoluteRotationQuaternion;
-    node.rotationQuaternion!.copyFrom(parentRotation.conjugate().multiply(worldRotation));
+    const target = parentRotation.conjugate().multiply(worldRotation);
+    node.rotationQuaternion!.copyFrom(Quaternion.Slerp(node.rotationQuaternion!,target,weight));
     node.computeWorldMatrix(true);
   };
   const directionRotation = (direction: Vector3) => {
@@ -169,7 +161,7 @@ export function createKnightEquipment(
   const before = scene.onBeforeAnimationsObservable.add(restore);
   return {
     sword, shield, arc, restore,
-    apply: ({ swordSeconds, homing }) => {
+    apply: ({ swordSeconds, homing, deltaSeconds = 1/60 }) => {
       if (disposed) return;
       restore();
       for(const finger of fingers) offset(finger,.42,0,0);
@@ -186,24 +178,35 @@ export function createKnightEquipment(
         const t = swordSeconds;
         const ease = (v: number) => { const x=Math.max(0,Math.min(1,v)); return x*x*(3-2*x); };
         const wind = ease(t/SWORD_ACTIVE_START), strike = ease((t-SWORD_ACTIVE_START)/(SWORD_ACTIVE_END-SWORD_ACTIVE_START)), recover = 1-ease((t-SWORD_ACTIVE_END)/(SWORD_DURATION-SWORD_ACTIVE_END));
-        const sweep = (-1.1*wind+2.5*strike)*recover;
-        offset(rightUpper,-.35*wind*recover,.25*recover,sweep);
-        offset(rightLower,.15*recover,0,.5*wind*recover);
-        offset(chest,0,(-.22*wind+.48*strike)*recover,0);
-        offset(leftLower,0,0,-.2*recover);
+        const weight = wind*recover;
+        const angle = -1.05+2.1*strike;
+        const across = Math.sin(angle), forward = Math.cos(angle);
+        offset(chest,0,(-.18*wind+.36*strike)*recover,0);
+        // Explicit model-space axes keep Idle, Run and airborne clips on the same horizontal plane.
+        orient(rightUpper,directionRotation(new Vector3(across*.8,-.35,forward*.8)),weight);
+        orient(rightLower,directionRotation(new Vector3(across,-.02,forward)),weight);
+        orient(rightHand,directionRotation(new Vector3(across,0,forward))
+          .multiply(sword.rotationQuaternion!.conjugate()),weight);
+        offset(leftLower,0,0,-.2*weight);
       }
       // Pose edits happen after animation evaluation, which may have cached these world matrices.
       // Refresh sockets now so attached equipment follows the newly posed hands in this same frame.
       sword.computeWorldMatrix(true); shield.computeWorldMatrix(true);
-      const active = !homing && swordSeconds != null && swordSeconds >= SWORD_ACTIVE_START && swordSeconds <= SWORD_ACTIVE_END;
-      arc.setEnabled(active);
-      if (active) { arc.rotation.y = (.22-swordSeconds!)*5; arcMaterial.alpha = .6*Math.sin(Math.PI*(swordSeconds!-SWORD_ACTIVE_START)/(SWORD_ACTIVE_END-SWORD_ACTIVE_START)); }
+      // Runs every frame; scratch vectors keep it allocation-free. The trail clones what it keeps.
+      const bladeMatrix = sword.getWorldMatrix();
+      Vector3.TransformCoordinatesFromFloatsToRef(0, .18, 0, bladeMatrix, bladeHeel);
+      Vector3.TransformCoordinatesFromFloatsToRef(0, .95, 0, bladeMatrix, bladeTip);
+      slashTrail.update(homing ? null : swordSeconds ?? null, bladeHeel, bladeTip);
+      waveOrigin.copyFrom(root.getAbsolutePosition());
+      waveOrigin.y = chest.getAbsolutePosition().y;
+      Vector3.TransformNormalFromFloatsToRef(0, 0, 1, root.computeWorldMatrix(true), waveForward).normalize();
+      slashWave.update(swordSeconds ?? null, waveOrigin, waveForward, deltaSeconds, homing);
     },
     dispose: () => {
       if(disposed) return; disposed=true; restore(); scene.onBeforeAnimationsObservable.remove(before);
       for(const mesh of meshes) shadows?.generator.removeShadowCaster(mesh,false);
-      sword.dispose(); shield.dispose(); arc.dispose();
-      for(const material of [silver,navy,leather,cyan,arcMaterial]) material.dispose();
+      sword.dispose(); shield.dispose(); slashTrail.dispose(); slashWave.dispose();
+      for(const material of [silver,navy,leather,cyan]) material.dispose();
     },
   };
 }

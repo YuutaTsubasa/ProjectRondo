@@ -1,0 +1,65 @@
+name: Windows playtest
+
+on:
+  # Docs-only changes cannot affect the packaged game.
+  pull_request:
+    paths-ignore: ['docs/**', '**/*.md']
+  push:
+    branches: [main]
+    paths-ignore: ['docs/**', '**/*.md']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-playtest-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.25.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+      - name: Verify bundled assets
+        shell: pwsh
+        run: |
+          git lfs fsck
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $pointers = @(git lfs ls-files | Where-Object { $_ -match '^[0-9a-f]+ - ' })
+          if ($pointers.Count) { throw "LFS assets are still pointers: $($pointers -join ', ')" }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm test
+      - name: Build Windows game and installer
+        run: pnpm tauri build --bundles nsis
+      - name: Verify production UI styles
+        run: node tools/verify-build.mjs
+      - name: Upload portable executable
+        uses: actions/upload-artifact@v4
+        with:
+          name: ProjectRondo-Windows-portable-${{ github.sha }}
+          path: src-tauri/target/release/app.exe
+          if-no-files-found: error
+          retention-days: 14
+      - name: Upload installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: ProjectRondo-Windows-setup-${{ github.sha }}
+          path: src-tauri/target/release/bundle/nsis/*-setup.exe
+          if-no-files-found: error
+          retention-days: 14

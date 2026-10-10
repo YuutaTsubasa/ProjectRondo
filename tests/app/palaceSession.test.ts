@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
-import {afterEach,expect,it,vi} from 'vitest';
+import {readStageBest} from '../../src/app/stageRecords';
+import {beforeEach,afterEach,expect,it,vi} from 'vitest';
 import {flushSync,mount,unmount} from 'svelte';
 import PalaceSession from '../../src/app/PalaceSession.svelte';
 import {createPalaceRun} from '../../src/domain/palace/palaceRun';
@@ -8,13 +9,39 @@ vi.mock('../../src/presentation/palace/palaceScene',()=>({createPalaceScene:stub
 vi.mock('@babylonjs/core/Engines/engine',()=>({Engine:class{
  runRenderLoop(fn:()=>void){stub.frame=fn;} resize(){} getDeltaTime(){return 20;} dispose(){stub.disposeEngine();}
 }}));
+beforeEach(()=>{localStorage.clear();vi.stubGlobal('matchMedia',()=>({matches:true,addEventListener:vi.fn(),removeEventListener:vi.fn()}));});
+afterEach(()=>vi.unstubAllGlobals());
 let app:ReturnType<typeof mount>|undefined;
 const settle=async()=>{flushSync();await new Promise(r=>setTimeout(r,0));flushSync();};
 afterEach(async()=>{if(app)await unmount(app);app=undefined;document.body.innerHTML='';vi.clearAllMocks();vi.restoreAllMocks();});
 function level(){
  let state=createPalaceRun();
- return {get state(){return state;},scene:{resetLastAnimationTimeFrame:vi.fn()},advance:vi.fn(()=>state),reset:vi.fn(()=>state=createPalaceRun()),suspendInput:vi.fn(),dispose:vi.fn(),finish(){state={...state,finished:true};}};
+ return {get state(){return state;},scene:{resetLastAnimationTimeFrame:vi.fn()},advance:vi.fn(()=>state),reset:vi.fn(()=>state=createPalaceRun()),suspendInput:vi.fn(),dispose:vi.fn(),finish(){state={...state,elapsed:28.3,finished:true};}};
 }
+it('reports each completed expedition once and prioritizes its return action',async()=>{
+ const palace=level(),onComplete=vi.fn(),onExit=vi.fn();stub.build.mockResolvedValue(palace);
+ app=mount(PalaceSession,{target:document.body,props:{onReady:vi.fn(),onFailure:vi.fn(),onComplete,onExit,exitLabel:'返回白潮原野'}});await settle();
+ palace.finish();stub.frame();await settle();stub.frame();stub.frame();
+ expect(readStageBest('palace')).toBe(28.3);
+ expect(onComplete).toHaveBeenCalledTimes(1);expect(document.body.textContent).toContain('STAGE CLEAR');
+ const buttons=[...document.querySelectorAll<HTMLButtonElement>('[role=dialog] button')];
+ expect(buttons[0]?.textContent).toContain('返回白潮原野');expect(document.activeElement).toBe(buttons[0]);
+ buttons.find(button=>button.textContent?.includes('重新挑戰'))!.click();await settle();
+ expect(onComplete).toHaveBeenCalledTimes(1);stub.frame();
+ palace.finish();stub.frame();await settle();expect(onComplete).toHaveBeenCalledTimes(2);
+ document.querySelector<HTMLButtonElement>('[role=dialog] button')!.click();
+ expect(onExit).toHaveBeenCalledTimes(1);expect(onComplete).toHaveBeenCalledTimes(2);
+});
+it('does not complete an expedition when paused, restarted or abandoned',async()=>{
+ const palace=level(),onComplete=vi.fn(),onExit=vi.fn();stub.build.mockResolvedValue(palace);
+ app=mount(PalaceSession,{target:document.body,props:{onReady:vi.fn(),onFailure:vi.fn(),onComplete,onExit,exitLabel:'返回白潮原野'}});await settle();
+ window.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape'}));await settle();
+ [...document.querySelectorAll('button')].find(button=>button.textContent?.includes('重新開始'))!.click();await settle();
+ window.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape'}));await settle();
+ const exit=[...document.querySelectorAll('button')].find(button=>button.textContent?.includes('返回白潮原野'));
+ expect(exit).toBeDefined();exit!.click();
+ expect(onExit).toHaveBeenCalledTimes(1);expect(onComplete).not.toHaveBeenCalled();
+});
 it('resumes on initial readiness, freezes pause, shows results and resets for replay',async()=>{
  const palace=level();stub.build.mockResolvedValue(palace);
  app=mount(PalaceSession,{target:document.body,props:{onReady:vi.fn(),onFailure:vi.fn()}});await settle();
@@ -27,8 +54,10 @@ it('resumes on initial readiness, freezes pause, shows results and resets for re
  expect(palace.suspendInput).toHaveBeenLastCalledWith(false);
  stub.frame(); // Discard stale resume delta.
  palace.finish();stub.frame();await settle();expect(document.body.textContent).toContain('STAGE CLEAR');
+ expect(document.querySelector('[role=dialog] button')?.textContent).toContain('重新挑戰');
+ expect([...document.querySelectorAll('[role=dialog] button')].at(-1)?.textContent).toContain('返回主選單');
  const calls=palace.advance.mock.calls.length;stub.frame();expect(palace.advance).toHaveBeenCalledTimes(calls);
- [...document.querySelectorAll('button')].find(b=>b.textContent?.includes('再玩一次'))!.click();await settle();
+ [...document.querySelectorAll('button')].find(b=>b.textContent?.includes('重新挑戰'))!.click();await settle();
  expect(palace.reset).toHaveBeenCalledTimes(1);expect(document.body.textContent).not.toContain('STAGE CLEAR');
  expect(document.body.textContent).toContain('00:00');
 });
@@ -46,7 +75,7 @@ it('suspends on hidden page and keeps keyboard focus inside the pause menu',asyn
  vi.spyOn(document,'hidden','get').mockReturnValue(true);document.dispatchEvent(new Event('visibilitychange'));await settle();
  expect(palace.suspendInput).toHaveBeenLastCalledWith(true);stub.frame();expect(palace.advance).not.toHaveBeenCalled();
  window.dispatchEvent(new KeyboardEvent('keydown',{key:'Tab',shiftKey:true,cancelable:true}));await settle();
- expect(document.activeElement?.textContent).toContain('返回主選單');
+ expect(document.activeElement?.textContent).toContain('系統設定');
 });
 
  it.each(['resume','visibility','restart'] as const)('discards the first resumed simulation frame on %s', async action => {

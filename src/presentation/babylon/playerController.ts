@@ -254,7 +254,6 @@ export function createPlayer(
     // A coyote jump temporarily reports grounded to authorize its impulse; that must not steal J.
     const attackContact = stepGroundContact({ ...jumpState.contact, bufferedJumpFor: 0 }, { ...jumpFrame, jumpPressed: false });
 
-    const cam = follow.camera;
     const lockResult = stepHomingLock(homingLock, {
       dashInFlight,
       attackPressed,
@@ -272,7 +271,7 @@ export function createPlayer(
       // (0.4–0.8 u), so a steep dash would never be seen arriving and would always time out instead.
       // Read before this frame's `integrate`, which is the position the frame's velocity starts from.
       from: toVec3(controller.getPosition()),
-      cameraForward: toVec3(cam.getTarget().subtract(cam.position)),
+      facing: player.motion.facing,
       candidates: crystals.positions,
     }, config);
     homingLock = lockResult.lock;

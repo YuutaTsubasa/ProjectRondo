@@ -1,7 +1,7 @@
 import type { SoundCue } from './soundCue';
 
 /** What the game is doing, as far as the music is concerned. */
-export type MusicScene = 'intro' | 'playing';
+export type MusicScene = 'intro' | 'playing' | 'town' | 'meadow' | 'palace' | 'course';
 
 /** How long a track takes to hand over. Long enough to be a fade rather than a cut. */
 export const CROSSFADE_SECONDS = 1.5;
@@ -14,6 +14,10 @@ export interface MusicChange {
 const TRACKS: Record<MusicScene, SoundCue> = {
   intro: 'music.avg',
   playing: 'music.hub',
+  town: 'music.town',
+  meadow: 'music.meadow',
+  palace: 'music.palace',
+  course: 'music.course',
 };
 
 /**

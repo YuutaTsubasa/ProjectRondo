@@ -85,7 +85,7 @@ function scatterMatrices(o: ScatterOpts): ScatterResult {
 
 /** Five broad, curved ribbons avoid dark alpha fringes and noisy cross-card silhouettes.
  *  Each blade has a base pair, a bent middle pair and one tip: only three triangles. */
-function grassMesh(scene: Scene, mat: StandardMaterial): Mesh {
+export function grassMesh(scene: Scene, mat: StandardMaterial): Mesh {
   const positions: number[] = [], normals: number[] = [], colors: number[] = [], indices: number[] = [];
   const rand = rng(99);
   for (let blade = 0; blade < 5; blade++) {
@@ -152,7 +152,7 @@ function alphaCutoutMaterial(scene: Scene, name: string, tex: DynamicTexture): S
   return mat;
 }
 
-function grassMaterial(scene: Scene): StandardMaterial {
+export function grassMaterial(scene: Scene): StandardMaterial {
   const mat = new StandardMaterial('grassScatterMat', scene);
   mat.backFaceCulling = false;
   // Keep the authored upward normals on BOTH sides. Flipping them for backfaces would shade

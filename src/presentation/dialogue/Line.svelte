@@ -17,8 +17,8 @@
 </script>
 
 <script lang="ts">
-  let { text, charMs = 24, onDone, onType }:
-    { text: string; charMs?: number; onDone?: () => void; onType?: () => void } = $props();
+  let { text, charMs = 24, onDone, onType, immediate = false }:
+    { text: string; charMs?: number; onDone?: () => void; onType?: () => void; immediate?: boolean } = $props();
   let shown = $state('');
   let complete = $state(false);
   let timer: ReturnType<typeof setInterval> | undefined;
@@ -26,6 +26,8 @@
   const finish = () => { shown = text; complete = true; clearInterval(timer); onDone?.(); };
 
   $effect(() => {
+    clearInterval(timer);
+    if (immediate) { finish(); return; }
     shown = ''; complete = false;
     let i = 0;
     // Starts at zero, so the first tick lands one throttle window into the line rather than on its
@@ -76,9 +78,10 @@
   .line {
     margin: 0;
     font-family: var(--font-body);
-    font-size: 21px;
+    font-size: clamp(18px, 1.45vw, 25px);
+    letter-spacing: .08em;
     line-height: 1.8;
-    color: var(--c-ink);
+    color: var(--avg-text);
     white-space: pre-line;
     min-height: 76px;
     text-wrap: pretty;
@@ -87,8 +90,7 @@
      what indicates "click to advance" once the line is complete, so a caret that outlived the
      reveal would be a second, contradictory affordance. */
   .caret {
-    /* --c-blue-deep, not --c-blue: the caret is a glyph on the glass, where --c-blue is 2.34:1. */
-    color: var(--c-blue-deep);
+    color: var(--avg-light);
     animation: caret-blink 1s steps(1) infinite;
   }
   @keyframes caret-blink {

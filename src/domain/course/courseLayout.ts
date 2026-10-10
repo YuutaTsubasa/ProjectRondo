@@ -17,7 +17,7 @@ export interface CoursePlatform {
   readonly depth: number;
 }
 
-/** One forward route: meadow, broken bridge, crystal ravine, then mixed ruins. */
+/** White-palace terraces, sky bridges and crystal crossings; stable IDs preserve existing route tools. */
 export const COURSE_PLATFORMS = [
   { id: 'meadow', center: vec3(0, 0, 14), width: 18, depth: 40 },
   { id: 'bridge-a', center: vec3(0, 0, 40.75), width: 9, depth: 8.5 },
@@ -43,10 +43,10 @@ export const COURSE_CRYSTALS: readonly Vec3[] = [
 
 /** Authored capsule centers; layout tests pin these against the presentation capsule dimensions. */
 export const COURSE_GATES = [
-  { label: '草坡起跑', center: vec3(0, 1, 0), halfWidth: 4, halfDepth: 3, spawn: vec3(0, 1.3, 0) },
-  { label: '斷橋彼端', center: vec3(0, 1, 80), halfWidth: 5, halfDepth: 3, spawn: vec3(0, 1.3, 80) },
-  { label: '渡谷成功', center: vec3(0, 1.4, 126.5), halfWidth: 5, halfDepth: 3, spawn: vec3(0, 1.7, 126.5) },
-  { label: '遺跡終點', center: vec3(0, 1.8, 199), halfWidth: 4, halfDepth: 3, spawn: vec3(0, 2.1, 199) },
+  { label: '白石前庭', center: vec3(0, 1, 0), halfWidth: 4, halfDepth: 3, spawn: vec3(0, 1.3, 0) },
+  { label: '拱橋露臺', center: vec3(0, 1, 80), halfWidth: 5, halfDepth: 3, spawn: vec3(0, 1.3, 80) },
+  { label: '天廊中庭', center: vec3(0, 1.4, 126.5), halfWidth: 5, halfDepth: 3, spawn: vec3(0, 1.7, 126.5) },
+  { label: '白塔中繼台', center: vec3(0, 1.8, 199), halfWidth: 4, halfDepth: 3, spawn: vec3(0, 2.1, 199) },
 ] as const satisfies readonly [CourseGate, ...CourseGate[]];
 export const COURSE_SPAWN: Vec3 = COURSE_GATES[0].spawn;
 export const COURSE_KILL_Y = -12;

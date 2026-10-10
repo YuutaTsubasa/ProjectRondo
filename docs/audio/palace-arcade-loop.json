@@ -1,0 +1,35 @@
+{
+  "revision": 1,
+  "source": "Arcade Beat.mp3",
+  "source_sha256": "d70521b4cb1369befb73bb9562e8acf6e2a92b6ea0a42cbc4252844bc1445df1",
+  "sample_rate": 48000,
+  "channels": 2,
+  "samples": 2930544,
+  "decoded_samples": 2930544,
+  "duration_seconds": 61.053,
+  "source_alignment_seconds": [
+    46.99,
+    108.043
+  ],
+  "estimated_bars": 32,
+  "estimated_average_bpm": 125.79234435654269,
+  "harmonic_crossfade_seconds": 0.72,
+  "percussive_crossfade_seconds": 0.06,
+  "incoming_harmonic_gain_db": 1.12420517845131,
+  "gain_release_seconds": 4,
+  "global_gain_db": 0.0,
+  "harmonic_correlation": 0.1668552921580267,
+  "percussive_correlation": 0.0779289626163223,
+  "decoded_true_peak_dbfs": -5.4246919386606685,
+  "decoded_endpoint_step": 0.021657053381204605,
+  "decoded_local_step_p99": 0.05868273979052898,
+  "audition_seconds": 38,
+  "audition_join_positions_seconds": [
+    6,
+    19,
+    32
+  ],
+  "edit_note": "Shared stereo HPSS mask only around splice; beat-aligned short percussion overlap; sustained harmonic bridge. No time stretch or global loudness reduction unless peak headroom demands it. Estimated bars are inferred from repetition, not a score. Audition first two joins are edited musical splice; third is decoded file boundary. One-second silence separates excerpts, with outer 30 ms fades.",
+  "playback": "Loop complete decoded OGG buffer; no runtime crossfade.",
+  "listening_status": "Signal analysis verified; subjective listening not available in this tool environment."
+}

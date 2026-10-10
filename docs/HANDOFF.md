@@ -1,11 +1,249 @@
 # ProjectRondo — Developer Handoff
 
-Last updated: 2026-09-20. Purpose: everything the next machine / developer / Claude session needs to
+Last updated: 2026-10-11. Purpose: everything the next machine / developer / Claude session needs to
 pick this up cold. The repo is the source of truth; this file is the map.
+
+## Review follow-up (2026-10-11)
+
+Retained e01c7da's shared save validator, analog-input cleanup and vertical-chain drift
+allowance. Restricted that allowance to targets whose vertical offset exceeds their
+horizontal spread: otherwise a same-height target 0.3 units behind the character could
+bypass facing, and a nearby forward target could incorrectly lose to a farther target.
+Regression tests cover both cases while preserving the airborne chain tests.
+
+## Production UI and Windows playtest (2026-10-11)
+
+Reproduced missing region HUD/marquees and apparently missing PAUSE on the Netlify
+production build. Both existed in the DOM, but the region/marquee/pause CSS was absent;
+the elements fell into normal flow below the canvas. Vite 8 folded the conditional
+session imports into one preload wrapper with only the final GameSession branch's CSS.
+Separate loaders in loadGameSession.ts preserve each branch's dependency preload.
+`node tools/verify-build.mjs` fails on the old bundle and checks all session/shared HUD
+styles in the generated entry. Verified the rebuilt app via vite preview: NEW GAME,
+opening AVG, visible edge marquees, and visible PAUSE. A controller Start integration
+test exercises region pause/resume after AVG using the real input runtime.
+
+`.github/workflows/windows-playtest.yml` runs on PRs, main pushes, and manual dispatch.
+It checks out LFS content, verifies assets, installs the frozen pnpm lock, typechecks,
+tests, and builds the Tauri Windows NSIS installer. Artifacts (14-day retention):
+`ProjectRondo-Windows-portable-<sha>` contains app.exe; `...-setup-<sha>` contains the
+installer. Download from GitHub Actions > Windows playtest > completed run > Artifacts.
+The executable bundles game assets and requires WebView2 (installer handles runtime
+setup). Test builds are unsigned. Default window is 1280x720 and resizable. Desktop
+continues using the same game renderer; packaging is not a substitute for UI testing.
+
+## Deployment asset retry and BGM readiness (2026-10-11)
+
+Reported Netlify /town/gate.glb HTTP 500 could not be reproduced later: preview returned
+200 with all 5,292,164 bytes and the exact recorded SHA-256. Babylon's default retries
+status 0 only. App startup now installs bounded transport retries for 0/500/502/503/504
+(500/1000/2000 ms); permanent errors retain failure handling. Server-side origin of the
+original 500 is unconfirmed.
+
+Region/town builders now await their audio graph, loading only town/meadow or town BGM.
+Required music failures reject into the existing retry UI instead of silently entering.
+2D/3D stage music has prepare() to fetch/decode while inactive, before returning the scene.
+Preparation is independent of autoplay unlock; waits are bounded to 45 seconds. Menu
+playback retains gesture-based unlock and stage preparation aborts fetch on disposal.
+
+## Integration snapshot (2026-10-10)
+
+Ready for review: 1,026 tests across 164 files pass; TypeScript/Svelte checks report
+zero errors or warnings; production build passes with the existing chunk-size advisory.
+NEW GAME now initially focuses Continue and keeps the primary action focused through
+forward/backward steps, ending on Start Game. Settings return focus stays at its opener.
+
+## Owner-provided sword swing samples (2026-10-10)
+
+`Swipe_the_sword_#2-1791646738806.mp3` contains eight isolated takes. `tools/audio/build-sword-samples.py <source>` produces `public/audio/sfx/sword/swipe-01.wav` through `08.wav`, 48 kHz stereo PCM16, with silence trimmed, 2 ms entry / 10 ms tail fades and approximately -3 dBTP peak headroom. No pitch/time processing. Source hash, trim times and per-take gains are in `docs/audio/sword-samples.json`; local audition in `.superpowers/sword-samples-preview.wav`.
+
+`sword.swing` is an eight-variant SFX cue at .55 gain. `swordSoundCrossed` triggers once when actual slash time crosses .08 s, ahead of the .14 s active blade window. Shared `hubAudio` covers region/town/hub/tower/course; palace simulation uses the same timing rule through `stageAudio`. Samples cycle rather than repeat immediately. No swing on windup cancellation, Homing or a held pause frame. Existing impact sounds remain separate. `stageAudio` now preloads variant arrays and applies mute, pause, reset and disposal to every take.
+
+## Character-facing Homing and expedition default action (2026-10-10)
+
+3D `playerController` now supplies `player.motion.facing` to `stepHomingLock`, shared by the reticle and committed attack. Camera rotation no longer selects a different target. Selection uses horizontal heading with full 3D range; forward elevated targets remain reachable, and directly vertical links are a fallback when no forward target qualifies. This keeps the course chain advancing instead of reselecting the crystal directly beneath a bounce. Dash commitment is unchanged. The palace side-scroller already selects by player facing.
+
+`ExpeditionIntro` marks START EXPEDITION as `data-game-entry`. `regionModal` prefers that control for initial focus, aligning with controller confirm fallback, while other dialogs retain their original first-control default. Both stage introductions have focus/confirm regression coverage; settings return focus remains unchanged.
+
+Checked ProjectAlmost main audio registry and recursive asset tree: it contains hit.wav but no standalone sword swing/whoosh asset. Existing imported hit.wav is not a swing sound; no substitute audio was invented.
+
+Verification: 1,021 tests / 162 files pass; production build passes with its existing chunk-size advisory. Focused tests cover camera-independent preview/attack, turning the character, vertical/forward targets, the existing crystal chains and both expedition defaults.
+
+## Ambient title / result motion and controller interaction (2026-10-10)
+
+FrontDoorArtwork now animates pale blue light directly on the white title sheet and retains it through the menu morph. Scenic drift is 14 s, mist 18/14 s, sunlight 7 s. Logo and controls remain stable. StageResults adds a masked blue-white sweep on the STAGE CLEAR SVG every 6.4 s and a gradient sweep on the actual rank letter every 5.8 s. Both have rest intervals, hidden-tab pause and reduced-motion overrides.
+
+Controller X/Square now first attempts a world interaction; RegionSession consumes E only with a nearby target. If unconsumed, X remains sword/Homing attack. In AVG, X advances the dialogue regardless of toolbar focus, or confirms the active choice; it cannot trigger a generic menu action. A/Cross remains menu confirm, B/Circle remains back. Map X still toggles markers. Hints and Controls settings updated. Automated controller samples cover held-button/context release, consumed interaction vs attack, dialogue focus and choice behavior; physical controller feel is not hardware-verified.
+
+Validation for ambient motion/controller follow-ups and horizontal slash integration: 1,009 tests / 162 suites pass, typecheck has zero errors/warnings, production build passes (existing large-chunk advisory). Browser verified title light transforms, main-menu scenic drift, and repeated result glint positions.
+
+Shared sword equipment now sweeps horizontally in Idle/Run/Jump. `swordSlashWave.ts` leaves a blue-white crescent for .55 s with .28 world-unit thickness so the 2D side camera sees it. Its position/direction stay fixed at attack time; new attacks, Homing or teleports clear it. Original .14–.30 s damage and .5 s attack cycle remain; lingering light does not add repeated damage. ProjectAlmost uses an independent short forward hitbox plus attack animation, not a projectile wave. Real palace/course screenshots verify the shared renderer. Final targeted combat coverage: 50 tests / 5 files, including jump posture, four facing directions, cleanup and no damage during visual afterglow.
+
+## Expedition introduction, navigation markers and edge planting (2026-10-10)
+
+`ExpeditionIntro.svelte` replaces the entrance confirmation with a centered navy rail / diagonal white sheet, actual course screenshots (`public/stages`), real guards/checkpoints/coins, map/settings routes, and 280 ms exit motion. Opening the map from an entrance returns to that introduction, including the same selected stage. `stageRecords.ts` persists fastest completed times under `rondo.stage-records.v1`; legacy clears have no invented history. Target times are the existing S-rank thresholds (course45s, palace30s). Completion writes belong to both stage sessions, including EXTRA.
+
+`InformationDialog.svelte` is the reusable 1–3 button white popup (focus trap, keyboard/controller navigation, optional X/Escape, exit lock and animation). Region load failures now use it; no unsolicited leave confirmation was added.
+
+`REGION_INTERACTION_PLACES` supplies the actual beacon anchors, shifted slightly off road centers. Scenery, interaction radius and HUD/compass distances use the same anchors. `regionObjectiveMarker.ts` shows only the tracked/current target: pulsing blue column plus yellow/black exclamation that faces the camera and gently floats. SVG source + raster output are in public/ui; a single icon plane prevents coplanar fighting through post-processing. RegionWorld sets the target before material readiness and updates it when navigation changes.
+
+At supported platform edges, `plantFeet` now re-evaluates the model offset against the last nearby world support height (limited to one capsule radius). Previously a null center ray froze an old landing offset while visualY continued settling, burying the feet about0.21m below a platform despite supported physics. Browser reproduction now leaves soles within0.003m of the platform; correction fades during takeoff and clears fully airborne. Regression coverage in knightFootPlant.test.ts.
+
+Two owner-supplied stage BGM loops are installed: Arcade Beat → palace_arcade.ogg (61.053s), Cathartic Release → course_cathartic.ogg (116.1171667s). Receipts in docs/audio and reproducible build-stage-loops.py. Decoded-buffer looping avoids stream padding; seam auditions are retained in the task artifact directory for user listening. No subjective listening approval is claimed.
+
+3D checkpoints now accept airborne arrivals inside the next gate footprint and a bounded vertical band (-0.65 to +4.5 m), preserving ordered progression and rejecting passes far above/below. StageResults Continue uses a layered arrow outline instead of clipping a rectangular focus frame; its text remains uncut.
+
+ProjectAlmost SFX imports provide footsteps/jump/landing, impacts, coins, death, checkpoints, clear and UI feedback. Shared stageAudio owns result music independently of the frozen result scene, disposes it on retry/exit and respects audio preferences. The originally imported result track is superseded by the owner-supplied Victoire Éclatante: music.result points to result_victoire.ogg for both stages (29.454333 s, 48 kHz stereo, 1,413,808 decoded frames). Recipe/receipt: tools/audio/build-stage-loops.py --only victoire and docs/audio/result-victoire-loop.json. Seam audition is in the task artifact result-music directory; signal analysis passed, subjective listening remains for the user.
+
+Final automated verification: 1,000 tests across 162 files pass; production build passes with the existing large-chunk advisory.
+
+## Captured minimap and compact HUD (2026-10-09)
+
+User refinement: remove the lower-right keyboard hints and repeated location captions; compact the task block to a bold actionable heading, secondary instruction and distance. `regionHudCopy.ts` supplies short objective instructions and selected landmarks get their own tracking copy. `HudIdentity` places the existing Rondo logo and real local HH:mm time at lower left, updating at minute boundaries and cleaning its timer/listener. No simulated in-game time is claimed.
+
+`tools/maps/bake-region.html` loads the actual region, freezes simulation, hides the avatar/sky/clouds/fog, and captures a 1024px orthographic atlas. North/east orientation is tested, including the right-handed camera's horizontal export mirror. Download PNG + JSON and run `tools/maps/install-region-map.py`; it validates size/bounds, installs public/maps/white-tide-atlas.png plus src/content/regionAtlas.json and computes a cache-busting SHA-256. See tools/maps/README.md. A real capture is installed. RegionMinimap uses it at neighborhood scale with live markers and a vector fallback on load failure; no second render camera runs during gameplay.
+
+Waves now have translucent midnight-blue bodies, blue-white filaments, and softer side masks beneath the white edge glyphs. The lower-right HUD remains hidden for now. Validation: projection/receipt, clock midnight/disposal, region HUD and session tests pass; typecheck and production build pass. No commit/push requested.
+
+## Gameplay navigation HUD (2026-10-09)
+
+RegionHud now follows the supplied transparent white/blue gameplay reference: north-up circular minimap, real camera compass, tracked destination/distance, left mission and right keyboard action hints. RegionWorld reports planar camera bearing at the existing 10 Hz position-report interval through an optional onHeading callback. RegionMinimap uses existing trails/building positions, pins remote targets to its rim and labels the atlas north consistently (+Z). No party, fake HP, cooldowns or mobile virtual controls were introduced.
+
+Shared LocationMarquee renders outward-rotated outlined Chinese location text flush to both edges (+90 left/-90 right, corrected from the initial direction). Identical gapless copies scroll seamlessly, are aria-hidden and pointer-transparent, pause while hidden/inert, and become static under reduced motion. Town districts use 白色王城; other regional areas use their actual label. Frame text now outlines the merged glyph alpha using SVG dilation/subtraction instead of directly stroking overlapping CJK font contours; inherited text shadows are cleared. Shared HudWaves now adds blue line ribbons below and behind both edge captions. Per user follow-up, blue waves breathe in 3/4.2 seconds and carry a 2.6-second flowing highlight; white glyph outlines remain unchanged. Region HUD typography uses clearer Noto Sans TC numbers, larger mission/action labels, lighter shadows, and 1.2/1.4/1.65 desktop scaling at 1600/1900/2500 px; no fictional gameplay data is added. Standalone town, 3D trial and 2D palace share the edge treatment; their existing pause/results stay intact. The full navigation redesign is on the first-region HUD.
+
+Validation: 52 tests in seven related suites pass; typecheck clean and production build passes with existing chunk-size advisory. Browser verified real scene rendering, map target changes, 390x844 no-overflow layout and both tracks paused with modal. Ignored /.superpowers/gameplay-hud-qa.html is an isolated playable preview without save writes. No commit/push.
+
+## Painterly menu/Loading character (2026-10-09)
+
+User requested ProjectVtuber's painterly treatment over the whole live portrait. `portraitPainting.ts` and `portraitPaintShader.ts` port the native Blender study's UV-anchored grain, cool-shadow/warm-light palette, and masked painterly smoothing into Babylon. Source path and SHA-256 are in public/title/painterly-source.json. This is a realtime approximation, not a portable VRM effect or a pixel-identical Blender compositor.
+
+The existing PlayerToon material adapter remains; a portrait-only plugin compresses neutral armor's baked glare and adds the directional treatment. A separate material-weight render target follows skinning/morphs, with body/hair/skin strengths 1/.9/.08 and protected eye/oral details. An edge-directed 36-sample sector filter retains source alpha and excludes HTML/background. Scene-scoped disposal releases postprocess, mask and override materials without deleting source textures. All body surfaces use the treatment; original player geometry, UV, source textures and gameplay materials remain unchanged.
+
+Validation: 856 tests / 135 files pass; typecheck clean; build passes with existing bundle-size advisory. WebGL browser inspection confirmed compiled shaders, whole-body styling, close-up face protection and transparent compositing without console errors. Performance is bounded by fixed taps and existing DPR cap but not benchmarked across hardware. No commit/push.
+
+## Live 3D title portrait and Loading (2026-10-09)
+
+Main menu now displays the actual PLAYER_MODEL through a separate transparent Babylon scene. It reuses player materials, the Idle clip and blink target, without the gameplay rig, physics, weapons or input bindings. FrontDoorArtwork retains one MenuPortrait instance across menu/Loading; Loading switches to a left-side three-quarter face/shoulder camera and the reference-inspired diagonal white/city composition. LoadingScreen provides an indeterminate light rail and accessible status, without fabricated percentages or forced delay.
+
+MenuPortrait lazy-imports its engine behind the white title, suspends rendering when hidden/title, freezes motion when reduced-motion is selected, observes canvas resize, and releases scene/engine on unmount. Async completion after disposal never adds a late model. Illustration remains a fallback if WebGL or model loading fails. Player model updates continue to use the shared import receipt URL.
+
+Validation: 854 tests / 134 files pass, typecheck 0 errors / 0 warnings, production build passes with existing chunk-size advisory. Browser verified actual 3D compositing, Loading portrait, mobile Loading layout, and EXTRA -> trial -> menu without console errors. The ignored .superpowers/title-portrait-qa.html holds Loading for inspection; ?menu previews the menu. No gameplay save changes or commits.
+
+## Five-entry menu and provisional logo (2026-10-09)
+
+Main menu now follows NEW GAME, LOAD GAME, EXTRA, SETTINGS, EXIT. EXTRA contains the 3D trial, 2D palace and town preview. LOAD GAME resumes a validated regional autosave. NEW GAME confirms when a valid save exists, backs up the old slot before loading, and starts a fresh RegionSession; import failure leaves the original slot intact. EXIT offers window.close with manual-close guidance for browsers.
+
+The shared white-panel/logo morph is now 0.65 s with menu entrance at 0.2 s. RondoWordmark uses public/title/project-rondo-logo-v2.png, generated with built-in image_gen: navy high-contrast serif RONDO with blue N and small PROJECT above. User rejected the detached slash; v2 removes it. Transparent PNG and prompt history are in public/title/logo-receipt.json.
+
+Validation: 847 tests across 132 files pass. Stage-route tests now enter through EXTRA; CSS validation recognizes component-local declarations as well as global tokens. Changes remain uncommitted.
+
+## White title reveal / stronger idle (2026-10-09)
+
+Initial title now has an opaque white foreground, centered shared logo and plain PRESS ANY KEY below. After user correction, the SAME white left-paper surface morphs over 1.15 s from an opaque full-screen rectangle into the responsive left menu polygon. Its left edge stays fixed and only its clipping boundary contracts; there is no separate sliding veil or sliding art wrapper. The persistent logo moves from center to the existing menu position. Decorative lettering fades in over the white surface. Menu appears with a 0.5 s entrance delay. Escape reverses to the centered white title. No additional phase or routing changes were introduced.
+
+Artwork receives active=false on title. City plate has slow automatic push/pan, sea mist is faster and more visible, and the character has a restrained 2D breathing/sway transform (not skeletal/Live2D animation). Hidden/title artwork pauses; reduced motion removes transitions/idle animation. Pointer parallax remains independent.
+
+Validation: 9 menu/state tests passed; typecheck 0 errors / 0 warnings; build passed with existing chunk advisory. Browser verified 1280x720 and 390x844 layouts, title paused/menu running idle states and return-to-title focus. For the corrected morph, inspection confirmed one white panel, intermediate polygon coordinates changing from full screen, and transform:none throughout. Viewport override restored. All changes remain uncommitted.
+
+## Illustrated title artwork (2026-10-09)
+
+FrontDoorArtwork now uses three new built-in image_gen assets under public/title: white-palace-city-v1.png (1672x941 scenic plate), yuuta-overlook-v1.png (1024x1536 alpha character, existing protagonist identity reference), and sea-mist-v1.png (1672x941 alpha effect). Source prompts and references are in source-receipt.json. These are aspirational title illustrations, not gameplay captures or new playable town geometry. Existing UI composition and functional menu entries are preserved.
+
+Background and character use separate subtle cursor parallax; two low-opacity mist instances drift slowly. Pointer events are passive and updates are frame-coalesced; all listeners/frame requests are disposed when unmounted. Reduced motion removes movement, coarse pointers do not drive parallax, and hidden documents pause animation. Original generated PNGs are retained (~5.9 MB total); optimizing delivery can be a later pass after artwork approval.
+
+Validation: 9 menu/state tests passed, typecheck 0 errors / 0 warnings, production build passed with existing chunk advisory. Browser verified transparent compositing, loaded image instances, nonzero bounded parallax variables after pointer input, animated mist, and narrow 390x844 layout. No commit/push requested.
+
+## Reference-led title / main menu (2026-10-09)
+
+User supplied a blue/white diagonal title-screen reference and explicitly prioritized matching its UI. FrontDoor now shares a large serif RONDO wordmark between title and menu, with white diagonal masks, unframed portrait, compact left-aligned vertical options and a single animated blue selection ribbon extending from the screen edge. Existing Start/3D trial/2D palace/town/settings routes and phase transitions remain. Selected item details appear below the menu. FrontDoorArtwork and RondoWordmark isolate decoration; existing sky/portrait assets are provisional, not a new key illustration. The previous boxed portrait, MAIN MENU headline, menu row separators and solid ticker strip are removed. Reduced motion disables animation.
+
+Validation: 9 menu/state tests passed; typecheck 0 errors / 0 warnings; production build passed with the existing chunk advisory. Changes remain local and uncommitted.
+
+## First-region Light UI refinement (2026-10-09)
+
+Exploration now uses a compact stepped chapter stamp, narrow mission rail, brief animated area title and custom line icons instead of large rectangular information cards. The AVG chapter tag shares that geometry. The region map fills the screen with cartographic terrain, roads, seven keyboard-selectable landmark markers and one contextual detail plate. Selecting a marker previews it; the separate tracking action closes the map and updates the HUD target. White selection, blue structural accents, focus containment, Escape/M close and reduced-motion support are retained. Chapter progression/save semantics are unchanged. Pause and expedition dialogs remain for a later visual pass.
+
+Validation: **840 tests / 132 files** passed, typecheck **0 errors / 0 warnings**, production build passed (existing chunk-size advisory). Browser inspection verified the actual HUD/AVG/map, Space opening the map, keyboard landmark selection and explicit tracking return. This pass remains uncommitted with the preceding region/town work.
+
+## Playable first region / White-Tide Fields (2026-10-09)
+
+Main menu **START / 開始／繼續第一章・白潮原野** now enters a continuous town/outdoor scene. The standalone town, 3D course and 2D palace previews remain separate menu entries. The town south opening connects to grassland paths, a western ridge, eastern cove, southwest ruins entrance and southern watch shelter. Region bounds are x=-130..85, z=-290..57; the town is the narrow northern section. This is a compact layout/progression prototype, not a finished large open world.
+
+Chapter **潮聲未到的午後** has five authored AVG scenes centered on 悠太翼. An obsolete closure signal has stopped the port waterway; the player investigates the field relay, completes the 3D ruins expedition, clears the ProjectAlmost-derived 2D aqueduct, then returns to the tower plaza. 港務記錄員「澄音」speaks remotely through echo pipes and is a provisional character. Only 悠太翼 uses the existing protagonist portrait. The ending choice converges; it does not change persistent alignment or biography. The two existing stages are reused, with no additional ProjectAlmost import or newly generated external model in this pass.
+
+**Controls and persistence:** WASD move, Shift walk, Space jump/double jump, J sword/air shield attack, click canvas for mouse look, E interact, M region map/journal, Esc pause. Map destinations set a tracked distance; three viewpoints record discoveries automatically on approach. Expeditions explicitly load and retain their results; “返回白潮原野” returns to the entry point and plays the appropriate report. Leaving early never completes a mission. Cleared expeditions remain replayable. LocalStorage `rondo.first-region.v1` contains validated versioned chapter/discoveries/completions and a recent safe ground position, separate from both disposable scenes and AVG playback. Storage denial shows a warning. The pause menu can reset to the town south gate.
+
+**Code:** `domain/region` owns terrain, trails, destinations and progression; `content/dialogue/region` and `content/regionStory.ts` own the authored DSL; `RegionSession` orchestrates persistent chapter/AVG/expeditions; `RegionWorld` owns readiness, engine lifetime, frozen overlays and visibility; `presentation/region` composes shared town assets, procedural terrain/scenery, shadows/audio/character rig and Light UI. Material readiness has a bounded wait and unmount cancellation. Resizing while paused defers backing-buffer resize to preserve the AVG background. HUD Space remains native button activation. Region vegetation reuses the existing curved grass ribbons; rounded boulders use seam-consistent deformation/smoothed normals and existing stone texture generation.
+
+**Validation:** full suite **839 tests / 131 files**, TypeScript/Svelte **0 errors / 0 warnings**, production build passed (existing large-chunk advisory). After final grass balancing, the 6 terrain/scenery/layout checks passed again. Spec and independent quality reviews addressed backdrop readiness/focus, timeout/unmount, paused resize, HUD keyboard activation and safe-save height. Browser QA used isolated `rondo.first-region.qa.v1`: real W input traversed south gate and terrain seam from (0,-35) to (0,-117.88); input-only 3D course clear was 00:28 with no retry; input-only 2D clear was 00:28, 18/25 coins, 8/8 guards, no death; results returned to matching AVG reports; homecoming choice reached `complete`; chapter and discoveries survived reload. QA teleports inspected the distant optional landmarks/entry points rather than claiming every route was walked. All three discoveries recorded; map opened with Space. Browser diagnostics reported no runtime errors during the completed flow. Observed near 60 fps here is not a cross-device performance claim.
+
+**Still provisional:** terrain shaping/material art and scenic boundaries, landmark props, port water restoration visuals, NPC staging, story lore and the small cast. There are no overworld enemies, interiors, inventory, functioning shops or additional new stage layouts. The available Tripo buildings remain as supplied; this prototype does not repair every source model seam. Develop density/landmarks and traversal encounters against this connected layout before expanding its area. Existing sword/town asset changes are preserved, and all current work remains uncommitted. Local server remains at http://127.0.0.1:5173/.
+
+## Coastal White Palace town preview (2026-10-08)
+
+Main menu **白色王城 / WHITE PALACE TOWN** opens a standalone walkable exterior preview.
+Six houses flank an entrance street; two shops and the tower frame a fountain plaza; the east
+promenade overlooks the sea. No interiors, NPCs, quests, shops or hub transition are implemented.
+`domain/town/townLayout.ts` owns placements, spawn and recovery limits. `presentation/town`
+loads shared GLB geometry/materials, builds authored collision/camera bounds, scenery and sea,
+and composes the shared player, atmosphere, shadows and audio. Town-only sun/fill settings keep
+white paving shadows readable. Shift is **walk**, with default running and double jump unchanged.
+
+`TownSession.svelte` owns asynchronous loading/teardown, pause, hidden-tab suspension and focus;
+`TownHud.svelte` follows the project's Light UI. ESC pauses; return-to-entrance and main-menu
+buttons are in that dialog. Falling outside the sample resets to the entrance.
+
+Three Tripo FBX/PBR ZIPs supplied by the user were converted with `tools/town/import.py` to
+`public/town/{house,shop,tower}.glb`, each with embedded maps capped at 2048 pixels. Source and
+output hashes are in `source-receipt.json`. Original ZIPs are untouched. Existing model seams are
+not topology-repaired; oversized visible backing was removed on 2026-10-09, and independent solid collision
+keeps those gaps from affecting walking. Fine props and the sea are provisional scenery.
+
+Validation: full suite **761 tests / 118 files**, typecheck **0 errors / 0 warnings**, production
+build passed (existing large-chunk advisory remains). After the ridge refinement, the scenery
+suite and typecheck/build were rerun. Independent review found only the Shift hint, now fixed.
+Browser QA at 1280x720: normal title/menu entry, 46.7-unit street run into the plaza, planter and
+seafront obstruction, diagnostic plaza/seafront views, forced sea-fall recovery, pause/reset/menu
+return; no browser warnings/errors in that pass. Observed about 60 fps on this machine, not a
+cross-device benchmark. Test controls live only in ignored `.superpowers/town-qa.*`.
+
+## South gateway integration (2026-10-09)
+
+Imported `~/Downloads/arch+gateway+3d+model.zip` as `public/town/gate.glb` with embedded 2K PBR maps,
+7,624 triangles, original/source hashes in the town receipt. `tools/town/import.py` accepts an optional
+asset kind to update one export while keeping others. Existing house/shop/tower hashes were verified
+unchanged. Blender front/back inspection and mesh ray scans confirm the central opening passes through;
+minor rear panel/column seams remain in the source geometry.
+
+The gate faces south at z=-43, height 11 m, width about 12.09 m. Spawn moved to z=-54 on an extended
+entrance apron. `TOWN_BOUNDS` is shared by recovery, support ground and camera ground-height checks.
+`townGate.ts` defines two pier solids plus stepped overhead blocks matching the arch; camera and
+player use the same bounds. Short stone walls attach to the gate sides, leaving the central street open.
+The meadow is not seamlessly connected yet; this remains the standalone town preview.
+
+Validation: 765 tests / 119 files passed, typecheck clean, production build passed with the existing
+large-chunk advisory. Browser walk crossed z=-54 to -38.57 through the gate and returned to -53.99,
+with the follow camera passing through the opening and no console warnings/errors.
+
+## Plaza-to-seafront arcade (2026-10-09)
+
+Imported the user-supplied `classical+arch+3d+model.zip` selectively as `public/town/arcade.glb`, with 8,938 triangles and embedded 2K PBR maps. Existing asset receipts and hashes remain valid. Front/back inspection and mesh-ray scans establish openings along both axes. Decorative irregularities remain in the generated source; no topology repair was performed.
+
+Three shared copies at x=18/24/30, z=24, height=6 m (about 5.597 m wide, 4.844 m deep) extend the plaza cross street toward the sea. `townArcade.ts` defines four pier boxes, a roof and stepped arch shoulders. Player and camera use the same split bounds; no full-building or visible backing box is introduced. The cross-street lamp moved to z=19.5 to clear the route. Axis-aligned placements are required by this measured collision profile.
+
+Validation: 767 tests / 120 files passed; typecheck/Svelte diagnostics 0 errors/warnings; production build passed with the existing chunk-size advisory. Tests first demonstrated the missing arcade registration/module and incorrect full-building collision. An independent read-only review found no blockers. Browser input walked x=12 to 37.87 and back to 7.02 along z=24, crossing all three arcades; perpendicular crossing reached z=32.43 from 17 at x=24. A pier approach at x=26 stopped at z=24.62. Follow camera passes the openings and shortens at pillars. Overview verified material/shadows, separated roofs and clear footings; no browser warnings/errors captured. Preview remains http://127.0.0.1:5173/ -> White Palace Town. Changes remain uncommitted.
+
+## Follow-up priorities (2026-10-09)
+
+- Sword slash VFX now use `swordSlashTrail.ts`: a short world-space ribbon sampled from the posed blade heel/tip, replacing the unrelated horizontal waist arc. History clears between attacks/Homing, time reversal and large jumps; duplicate elapsed time replaces its sample. Real Idle/Run skeleton tests cover transformed/scaled parents and repeated timestamps. Browser attack freeze confirmed the leading edge meets the blade. Validation: 763 tests passed; typecheck clean (2026-10-09).
+- Sword/shield meshes are placeholders; replace with detailed matching equipment later, checking hand grips, sword swing reach and shield-homing orientation against the chosen player version.
+- The authoring source remains ProjectVtuber. Its output is now organized under `projects/vrm-model/output/current`; observed knight outputs include `new-vtuber-v33`, alongside a separate streetwear series. These folders are discovery evidence, not approval that v33 is the desired game release. On a future model update, select the intended VRM explicitly and run the existing importer/verifier and motion/blink/equipment checks. No player asset was replaced during the town facade fix.
+- Building facades: removed the generic solid boxes/cylinder used as visible backing. Whole-model bounds include eaves and colonnades, so those boxes obscured recessed doors/windows. Keep collision separate; repair actual source seams locally instead of filling the whole silhouette.
+- City gate and repeatable arcade are now integrated. Next town expansion assets are a second townhouse silhouette, a low shop building and a designed fountain. Then add palace wings, public buildings and harbor landmarks. Use code-authored paving, stairs, simple wall/railing segments and planting to join them; do not require a separately generated mesh for every repeated piece. Keep ivory stone/pale-blue roofs/restrained gold and exterior-only scope consistent.
 
 ## V20 player update
 
-The active 3D player is now `public/models/player-v20.glb` in both grassland and climbing tower.
+The active 3D player is Knight-New-V33 (2026-10-10), served through the stable `public/models/player-v20.glb` filename across all gameplay and 3D portraits.
 Use `tools/player-model/README.md` to import a future VRM and verify geometry and animation provenance.
 `playerModel.ts` holds the shared asset URL (receipt hash), height, facing and trail size;
 `playerMaterials.ts` / `playerToon.ts` adapt imported material metadata. Old knight PBR/face fixes and
@@ -663,3 +901,98 @@ Validation: 88 files / 632 tests pass, including guarded flow, lazy mount, focus
 - Include the Homing-through-solids, height mist/cloud sea and airborne checkpoint follow-ups in PR #43.
 - Address earlier review feedback: both trial sessions discard the first engine frame after resume/restart and rebase the animation clock on that frame, so hidden-tab time cannot advance simulation or animation. WebP alpha checks now run independently of ffmpeg; WebM checks retain the dependency guard.
 - Final validation: 740 tests across 114 files passed; TypeScript and Svelte diagnostics report zero errors/warnings; production build passed with the existing chunk-size warning. Independent review found no correctness blockers in the gameplay/visual changes or the pause/portrait follow-ups. Prior browser traversal and visual checks are recorded above.
+
+
+## 2026-10-10 — Light stage results and restored ProjectAlmost ranks
+
+Both CourseHud and PalaceHud now mount the shared `StageResults.svelte`: diagonal light surfaces, serif STAGE CLEAR, actual rank/stat/checklist display, animated MenuPortrait, score breakdown, Retry and Continue. Existing gameplay stays frozen under the overlay. Results preserve the preferred region-return focus, Tab/arrow cycling and one-shot 320 ms exit callbacks; reduced motion skips the delay. Preview uses `.superpowers/stage-result-qa.html` (Palace) or `?mode=course`, with illustrative city background and fixture scores; production retains the frozen gameplay scene.
+
+User correctly identified the original rank system in ProjectAlmost. Rules verified from `src/domain/gameplay/stageResult.ts` and first-stage times in `gameplayStageSources.ts` at revision `76b9ca1c680e98e27ac9f51871bf4feffb3f0bbc`. Shared `stageScore.ts` retains base 300, time 300/240/170/100 then decay 3/sec, coins 200, enemies 150, checkpoints 50, damage -80, falls -180; ranks S/A/B/C at 850/700/550/400, otherwise D. Original zero-target categories grant full optional points (the Course breakdown explicitly labels that base credit). Palace times are 30/42/58/78 seconds; Course provisional times 45/65/90/120 remain a playtest tuning item.
+
+PalaceRun now records damageTaken, falls and actually reached beacon indices independently from deaths and latest respawn checkpoint. Counts survive respawn and reset for retry. Inventory rewards and best-record persistence are not implemented; no fabricated NEW RECORD or reward items. ProjectAlmost runtime result UI has ranks/statistics, with older prototype best-record progression but no item grant surface found in the inspected result modules.
+
+Validation: 67 tests across 11 affected domain/UI/session suites passed, production build passed (existing large-chunk warning); desktop and 390 px responsive result previews inspected, retry/return callbacks checked, browser console had no errors. Source typecheck/Svelte diagnostics passed.
+
+
+## 2026-10-10 — Loading design after results
+
+RegionSession now uses `LoadingPage` (existing FrontDoorArtwork loading pose + LoadingScreen composition) when returning from expedition results, entering expeditions, or retrying a failed load. LoadingScreen accepts destination-specific status copy. Initial App startup retains its existing loading page; the region wrapper only appears after the first ready event to avoid duplicate portrait renderers. Readiness/failure callbacks still control removal, and immediate in-memory stage retry remains unchanged.
+
+Validation: 23 region/front-door/portrait tests passed, including deferred world readiness after result return and blocked world interaction while loading. Typecheck/Svelte diagnostics and build passed (existing bundle-size warning). Browser preview `.superpowers/loading-return-qa.html` verified the 3D closeup, city backdrop, white angled panels and loading bar, with no console errors.
+
+
+## 2026-10-10 — Knight-New-V33 player update
+
+Imported ProjectVtuber `projects/vrm-model/output/current/new-vtuber-v33/knight_new_vrm1.vrm`, the latest knight outfit release (streetwear-v06 is a separate costume series). Original source SHA-256 `22b71efb9e8d5955bf492cd5be8f451e48a003f783e9fbcc38c681dc641967bf`; source unmodified. Stable player-v20 filenames remain for compatibility; receipt hash automatically invalidates caches for gameplay, title/loading and results portraits. Full provenance/settings live in the receipt and tools/player-model/README.md.
+
+V33 authored soft-cheek/lip textures supersede the exact-name V20 vertex-color seam correction. Import metadata now marks repaired face, lip, eyelid-skin and jaw-skin patches with suppressOutline, preventing the renderer from drawing dark internal material borders without changing source MToon parameters or recoloring textures. Hair/armor outlines remain. Legacy seam regression now uses a small synthetic boundary fixture; a separate active-asset test protects the V33 authored texture path.
+
+Independent verifier passed neutral geometry, bind transforms, skinning, weighted blink deltas for all 15 participating primitives and checksum. Five donor clips, relaxed stance/fingers and equipment mappings retained. 67 focused tests passed. Browser checked Loading closeup, authored face open/closed eyes and menu; all use the existing portrait painterly treatment. AVG video and HUD static portrait remain separate media.
+
+
+## Stage clear typography refinement (2026-10-10)
+
+User clarified that the STAGE CLEAR lettering felt plain and requested slightly heavier result-screen text. Kept the current layout, portrait, rank and transitions. StageResults uses a local SVG wordmark with optically spaced, slanted serif outlines derived from the existing OFL Rondo Chapter Serif 600, finished in navy with a localized ice-blue highlight. Accessible heading text remains available. Increased body/stat/checklist and number weights to 700; existing serif headings remain 600. No new font dependency.
+
+Validation: 7 result/HUD tests pass; typecheck reports zero errors/warnings; desktop and 390px-wide preview visually checked.
+
+
+## Keyboard/mouse, controller and touch input (2026-10-10)
+
+Owner approved the complete existing game flow on all three input methods, with remapping/custom touch positions deferred. `presentation/input/deviceInput.ts` holds device identity, standard-gamepad sampling, radial dead zones, edge-triggered jump/attack, neutral rearm across gameplay suspension and captured touch state. Existing `createInput` adapters register enabled gameplay owners; shared camera consumes right-stick/touch look, and mouse-left attacks only the owning canvas (3D requires pointer lock first). InputLayer mounts one runtime in App, switches hints and shows touch controls while touch gameplay is active. Controller disconnect pauses active controller play; blur/hidden clears actions and requires neutral. UI navigation works on visible top scopes and real controls, with A/× confirm, B/○ back, shoulders for traversal, directional range/select changes, right-stick map pan/log or settings scrolling, triggers map zoom. Touch retains native clickable menus, map drag and zoom controls. Settings → Controls documents defaults. Standard-mapped controllers only; no remapping or rumble in this change.
+
+Input tests: 94 pass across 19 suites, including real settings modal routing, disconnect, blur, multi-pointer jump while moving, mouse-lock attack and camera look. Typecheck/build passed. Browser checked virtual-stick movement in the real palace, pause/resume and 844x390 landscape UI using ignored `.superpowers/input-qa.html` and `input-landscape.html` fixtures. These previews intentionally force touch presentation, not hardware emulation. Physical controller compatibility and actual mobile multitouch feel are not hardware-verified. Browser autoplay/fullscreen policies remain browser-controlled.
+
+`docs/audio/bgm-prompts.txt` contains 13 standalone House-family prompts: four regional exploration moods, 3D/2D expeditions, three AVG moods, results loop, clear/retry stingers and a future combat variant. Includes priorities, reuse guidance for overlays/loading, and honest loop/reference limitations. No new audio files were generated or wired. Work remains uncommitted.
+
+
+### 2026-10-10 — 潮光街道 BGM
+
+- User-approved Harmonie Douce loop shipped as `public/audio/music/town_tideglow.ogg`.
+- Dedicated `music.town` decoded-buffer cue (76.8205 s), using the existing music volume/settings bus.
+- Town preview starts this cue; the connected region changes between town and existing meadow music
+  at the south gate, with a 4 m hysteresis band and the existing 1.5 s crossfade.
+- Other level tracks and title music are unchanged. Loop provenance: `docs/audio/town-tideglow-loop.json`.
+
+
+### 2026-10-10 — 白潮原野・順風而行 BGM
+
+- `Open Groove.mp3` looped and imported as `public/audio/music/meadow_tailwind.ogg`.
+- 120.009 s / 5,760,432 stereo samples at 48 kHz; 7.5 s phrase overlap baked in.
+- Dedicated `music.meadow` decoded-buffer cue uses the existing music volume bus at 0.5.
+- `regionMusicScene` now returns `meadow` outside town; existing gate hysteresis and 1.5 s
+  crossfades remain. Town, title and expedition cues stay separate.
+- Until additional coastal/ridge BGM arrives, the connected region's non-town areas share this track.
+- Provenance and edit settings: `docs/audio/meadow-tailwind-loop.json`.
+
+
+### 2026-10-10 — 原野循環接點修訂 v2
+
+- Owner reported the Open Groove seam sounded odd. The v1 overlap mixed an intro section
+  with a full-drum later section for 7.5 s, with mismatched local beat timing.
+- Replaced `meadow_tailwind.ogg` with v2: 119.5786667 s / 5,739,776 frames at 48 kHz.
+- Matching kick positions near 36.18 / 155.76 s, with only 160 ms of overlap before the kick.
+  Decoded-loop kick intervals around the seam remain around one beat (0.46–0.48 s).
+- Original v1 remains in the local audio deliverables folder for comparison. Routing and volume unchanged.
+- Updated recipe JSON and credits; final musical preference awaits owner listening.
+
+
+### 2026-10-10 — 原野循環接點修訂 v3
+
+- Owner found v2 close but could still hear the edit. Measured a sustained-instrument
+  level/timbre change around its short splice.
+- Keep beat alignment; separate sustained and transient components locally with a shared
+  stereo HPSS mask. Harmonics overlap 1.88 s; percussion remains 160 ms. Incoming harmonic
+  level compensation is +1.8772 dB, released over 6 s. Rest of the source is untouched.
+- Shipped loop remains 119.5786667 s / 5,739,776 frames, same cue/routing/volume.
+- v3 recipe replaces `docs/audio/meadow-tailwind-loop.json`; v1/v2 kept in local deliverables.
+- Sample count, clipping and file serving verified. Musical acceptance still needs owner listening.
+
+
+## White-palace course and knight guards (2026-10-10)
+
+The existing 3D course is now 白宮天廊: authored collision rectangles, jump gaps and crystal chains stay unchanged, with palace PBR terraces, cornices, side arcades, blue banners, checkpoint monuments, distant towers and a low rolling cloud sea. `courseScenery` exposes an update callback for the cloud shader; merged material batches limit draw calls. `courseCombat.ts` owns ten platform-bounded patrol guards with a 0.65s telegraph, committed strike, recovery, one-hit sword/Homing defeat, shared 2.6m warning radius, player 3-health and invulnerability. `courseGuards.ts` instantiates the existing palace knight GLB and reuses its grounded gait; attack arm rotation is applied in the measured world frame. Stable extra target indices extend the existing crystal target adapter, immediately excluding defeated guards. CourseSession recovers at the last checkpoint on death, preserves defeated/damage totals across recovery, fully resets on retry and freezes simulation while paused. Results show real guard kills and damage and include combat in scoring; bypassing guards remains valid.
+
+The course portal and beacon moved from the outdoor ruin to white tower square west (-20,43), with safe return (-20,1.3,40). Physical white-stone portal, objective/story/menu names, map markers, return action, and narrowly scoped old-entrance save migration agree. The grass signal still unlocks this expedition. Old `course` / dialogue IDs stay stable. Existing atlas raster remains from the earlier bake; dynamic markers are current.
+
+Validation: 100 tests across 13 suites, clean typecheck, production build (only existing chunk-size warning). Browser verified sword/Homing defeat, three-hit checkpoint recovery, patrol/attack poses, full traversal (7 jumps / 8 crystal bounces / zero retries or damage), results/retry, and actual city entrance clearance. Local isolated playable preview: /.superpowers/stage-play-qa.html?mode=course. No save writes in that preview. No commit or PR requested. Existing course BGM retained pending the user's town-theme Hardcore remix.

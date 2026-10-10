@@ -49,3 +49,20 @@ describe('createInput — run/walk modifier', () => {
     expect(input.isWalkHeld()).toBe(false);
   });
 });
+
+import {deviceInput} from '../../src/presentation/input/deviceInput';
+it('accepts touch actions through the same gameplay adapter and drops them on suspension',()=>{
+ const input=createInput();deviceInput.touchAxis(.8,0);deviceInput.touchAction('jump');expect(input.axis().x).toBe(.8);expect(input.consumeJump()).toBe(true);expect(input.consumeJump()).toBe(false);
+ input.setEnabled(false);deviceInput.touchAction('attack');input.setEnabled(true);expect(input.consumeAttack()).toBe(false);input.dispose();
+});
+
+it('only attacks on its own canvas, and 3D requires pointer lock first',()=>{
+ const canvas=document.createElement('canvas');document.body.append(canvas);const input=createInput({canvas,camera:true});
+ const press=()=>{const event=new Event('pointerdown',{bubbles:true});Object.assign(event,{button:0,pointerType:'mouse'});canvas.dispatchEvent(event);};
+ press();expect(input.consumeAttack()).toBe(false);Object.defineProperty(document,'pointerLockElement',{configurable:true,value:canvas});press();expect(input.consumeAttack()).toBe(true);expect(input.consumeAttack()).toBe(false);
+ input.dispose();canvas.remove();Object.defineProperty(document,'pointerLockElement',{configurable:true,value:null});
+});
+
+it('does not treat shared UI commands as keyboard gameplay input',()=>{
+ const input=createInput();deviceInput.claim('touch');window.dispatchEvent(new KeyboardEvent('keydown',{key:'e'}));expect(deviceInput.getState().device).toBe('touch');input.dispose();
+});

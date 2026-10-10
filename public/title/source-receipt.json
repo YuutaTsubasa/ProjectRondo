@@ -1,0 +1,26 @@
+{
+  "generator": "Built-in image_gen",
+  "date": "2026-10-09",
+  "purpose": "Layered title-screen illustration; concept art, not an in-game screenshot.",
+  "assets": [
+    {
+      "file": "white-palace-city-v1.png",
+      "source": "exec-cd6a289b-8f5e-4a0a-86ef-be9c2e13c2ca.png",
+      "prompt": "Use case: stylized-concept. Asset type: production background plate for the Project Rondo fantasy RPG title screen, wide 16:9 landscape, ideally 2048x1152. Paint a premium Japanese RPG key visual of a bright, expansive coastal WHITE PALACE CITY viewed from a high stone terrace. Richly detailed European white limestone royal architecture, tall slender central bell tower at x=52%, arched aqueducts, elegant terraced streets and a harbor following a deep turquoise bay. Small warm muted slate-blue roofs, NOT Chinese or East Asian roofs. Green grassland and distant mountains beyond the city. Huge luminous blue sky with delicate cirrus and distant cumulus, airy afternoon sunshine from upper left, restrained cool silver-blue grading, atmospheric depth, painterly semi-realistic environment with fine architecture and material detail. Compose the skyline across the middle, horizon around 45% of frame; the lower-right corner has a dark blue-gray stone terrace ledge/platform close to camera, empty and reserved for a separate standing character layer. Main palace visible in central 45-65% of image, do not place it behind right foreground. Leftmost 30% softer and quieter because actual HTML title and menu will cover it. The RIGHT side will later receive a character at 73-85% frame width. No people or characters anywhere. No UI, no text, no logo, no borders, no split panels, no watermark. A complete scenic painting all the way to edges; do not paint white UI polygons. Avoid futuristic towers, sci-fi planets, extreme bloom, floating islands, toy-like low-poly shapes. Elegant adventurous expansive mood."
+    },
+    {
+      "file": "yuuta-overlook-v1.png",
+      "source": "exec-e394cb48-ec0e-44b5-bc11-0b3713e7977a.png",
+      "prompt": "Use case: identity-preserve. Create a new isolated foreground illustration of the SAME protagonist 悠太翼 from image 1, for compositing into the coastal city background in image 2. Image 1 is CHARACTER IDENTITY AND COSTUME reference; image 2 is LIGHTING AND ART STYLE reference only, do not include its environment. Change the pose from front-facing to a quiet three-quarter REAR view: body facing away and slightly toward the LEFT, head looking toward the left horizon, just a small side profile visible. Preserve his short tousled chestnut brown hair, single upward cowlick, youthful male anime proportions, subtle blue eye if visible, no beard; preserve polished segmented silver plate armor, rounded silver pauldrons, fitted black high-neck underlayer, brown leather waist belt and straps, silver fauld/skirt plates and armored legs and boots. No cape, no helmet, no long hair. His longsword is sheathed at the left hip, a modest silver kite shield with understated blue trim is carried lowered in one hand at his right side, fully at rest. Full body visible from hair to boots, natural balanced stance on a terrace, anatomically coherent hands, elegant slightly painterly premium Japanese RPG key art matching image 2's cool silver-blue afternoon light from upper left. Crisp sophisticated metal reflections and shadowed rear surfaces, clean silhouette; not chibi, not a photoreal human. Center the one character with generous transparent padding, portrait canvas roughly 2:3. IMPORTANT: output TRUE TRANSPARENT ALPHA background, no city, no floor, no painted checkerboard, no rectangular backdrop, no drop shadow on background, no text or UI. Only the character with attached sword and shield.",
+      "references": [
+        "public/portraits/knight_idle_still.webp",
+        "white-palace-city-v1.png"
+      ]
+    },
+    {
+      "file": "sea-mist-v1.png",
+      "source": "exec-6a714ea3-9cd4-4cd2-8cc4-1008c214a0c8.png",
+      "prompt": "Use case: stylized-concept. Asset type: one transparent atmosphere VFX layer for a layered Japanese fantasy RPG title painting. Wide horizontal canvas, 16:9. Very delicate pale blue-white coastal mist / thin wisps of sea haze, concentrated in two loosely connected horizontal wisps in the LOWER HALF of the canvas. Wisps taper smoothly to completely transparent at every edge, with large clean transparent spaces between them. Painterly natural soft vapor, sunlit from upper left. Subtle low-density vapor, not dense cumulus clouds. Upper half mostly empty transparent. No landscape, no sky fill, no character, no icons, no text, no border, no black or gray solid backdrop, no checkerboard. Output actual transparent alpha. Designed to be composited over a distant blue sea and white coastal city at low opacity."
+    }
+  ]
+}

@@ -8,6 +8,7 @@ const TOKENS = fileURLToPath(new URL('../../src/app/tokens.css', import.meta.url
 const SRC_DIR = fileURLToPath(new URL('../../src/', import.meta.url));
 
 const EXPECTED = [
+  '--avg-navy-rgb', '--avg-text', '--avg-muted', '--avg-light', '--avg-glow',
   '--c-blue', '--c-blue-deep', '--c-blue-soft', '--c-pale', '--c-ink',
   '--c-white-rgb', '--c-blue-soft-rgb', '--rail-dash',
   '--font-headline', '--font-body', '--font-display',
@@ -68,8 +69,8 @@ describe('tokens.css', () => {
   // catches the more common mistake: a component that writes var(--c-blueee) and silently
   // renders nothing, because the browser treats an unresolved custom property as its initial
   // value. Walk every .svelte and .css file under src/ and assert each var(--name) it uses
-  // resolves to a token this file actually declares.
-  it('every var(--name) used in src/ resolves to a token declared in tokens.css', () => {
+  // resolves to a shared token or a property declared by the component itself.
+  it('every var(--name) resolves to a shared token or component-local declaration', () => {
     const declaredSet = new Set(declared);
     const files = collectFiles(SRC_DIR);
     const unresolved: string[] = [];
@@ -78,11 +79,20 @@ describe('tokens.css', () => {
       // Strip block comments first — tokens.css documents the var(--...) syntax itself in prose,
       // and that placeholder is not a real reference.
       const text = readFileSync(file, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+      // Layout/animation properties can be defined in CSS, inline styles, or setProperty.
+      // Only declarations in this same component qualify; unknown token names still fail.
+      const local = new Set([
+        ...Array.from(text.matchAll(/(--[a-z0-9-]+)\s*:/g), match => match[1]),
+        ...Array.from(text.matchAll(/style:(--[a-z0-9-]+)\s*=/g), match => match[1]),
+        ...Array.from(text.matchAll(/\.setProperty\(['"](--[a-z0-9-]+)['"]/g), match => match[1]),
+      ]);
       // Capture the inside of var(...) so a fallback, var(--x, fallback), doesn't get folded
       // into the name — the name is whatever precedes the first ',' or the closing ')'.
       for (const match of text.matchAll(/var\(([^)]*)\)/g)) {
         const name = match[1].split(',')[0].trim();
-        if (!declaredSet.has(name)) {
+        // An explicit fallback also makes an inherited/optional custom property valid.
+        const fallback = match[1].includes(',') && match[1].slice(match[1].indexOf(',') + 1).trim().length > 0;
+        if (!declaredSet.has(name) && !local.has(name) && !fallback) {
           const rel = file.slice(SRC_DIR.length).split('\\').join('/');
           unresolved.push(`${rel}: ${name}`);
         }

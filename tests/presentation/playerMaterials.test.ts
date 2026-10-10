@@ -75,3 +75,9 @@ it('keeps surface-blend weight separate from opacity and preserves the underlyin
   expect(mesh.material!.needAlphaBlendingForMesh(mesh)).toBeFalsy();
   expect(mesh.renderOutline).toBe(false);
 });
+
+it('hides internal skin-patch outlines without forcing vertex recoloring',()=>{
+ scene=new Scene(engine);const source=new PBRMaterial('authored skin',scene);source.metadata=metadata('head');source.metadata.gltf.extras.playerMaterial.suppressOutline=true;
+ const mesh=new Mesh('patch',scene);mesh.material=source;applyPlayerMaterials([mesh],scene);
+ expect(mesh.renderOutline).toBe(false);expect(readPlayerMaterial(mesh.material!.metadata).surfaceColorBlend).toBe(false);
+});

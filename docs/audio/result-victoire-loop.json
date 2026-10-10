@@ -1,0 +1,38 @@
+{
+  "revision": 2,
+  "source": "Victoire \u00c9clatante.mp3",
+  "source_sha256": "82ed1b1c119360ed21b9f79ea97bbc74ae3b11a688c482888b413314039eacc4",
+  "sample_rate": 48000,
+  "channels": 2,
+  "samples": 1413808,
+  "decoded_samples": 1413808,
+  "duration_seconds": 29.454333333333334,
+  "source_alignment_seconds": [
+    27.55,
+    57.004333333333335
+  ],
+  "estimated_bars": 16,
+  "estimated_average_bpm": 130.3713092584,
+  "harmonic_crossfade_seconds": 0.92,
+  "percussive_crossfade_seconds": 0.055,
+  "incoming_harmonic_gain_db": 0.4273226535945274,
+  "gain_release_seconds": 4,
+  "global_gain_db": 0.0,
+  "harmonic_correlation": 0.1949796644429625,
+  "percussive_correlation": 0.3822409983967008,
+  "decoded_true_peak_dbfs": -5.19237856286875,
+  "decoded_endpoint_step": 0.018463656306266785,
+  "decoded_local_step_p99": 0.046101198196411064,
+  "audition_seconds": 58.90866666666667,
+  "audition_join_positions_seconds": [
+    6,
+    35.45433333333334
+  ],
+  "edit_note": "Shared stereo HPSS mask only around splice; beat-aligned short percussion overlap; sustained harmonic bridge. No time stretch or global loudness reduction unless peak headroom demands it. Estimated bars are inferred from repetition, not a score. Audition plays two continuous cycles starting six seconds before the edited splice, including the real decoded file wrap. No separator silence or fades are inserted.",
+  "playback": "Loop complete decoded OGG buffer; no runtime crossfade.",
+  "listening_status": "Signal analysis verified; subjective listening not available in this tool environment.",
+  "audition_file_wrap_positions_seconds": [
+    10,
+    39.45433333333334
+  ]
+}

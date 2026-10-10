@@ -5,9 +5,10 @@
   "orientation": "gltf-positive-z-forward",
   "headMaterialNames": [
     "New full head",
-    "Repaired lower face skin",
-    "Rebuilt lip skin",
-    "Original eyelid skin cleaned",
+    "Repaired lower face skin - soft cheek V33",
+    "Rebuilt lip skin - soft cheek V33",
+    "Original eyelid skin cleaned - soft cheek V33",
+    "Jaw silhouette skin - soft cheek V33",
     "Full head hair",
     "Deep blue iris",
     "Anchored upper eyelid crease",
@@ -44,7 +45,7 @@
       "channels": 53
     }
   ],
-  "sourceSha256": "84f3256ead444b9bdf3045ea93fac08739891ab8b31e4de7ad5494098df01ab4",
+  "sourceSha256": "22b71efb9e8d5955bf492cd5be8f451e48a003f783e9fbcc38c681dc641967bf",
   "donorSha256": "a4c21bc7d118f2d6a7f62b29d2106ad89e0853d8563eb0bea52b62bc132fe732",
   "boneMap": {
     "chest": "Chest",
@@ -107,7 +108,7 @@
     "targetName": "playerBlink",
     "sourcePreset": "blink",
     "sourceBindCount": 14,
-    "primitiveCount": 14,
+    "primitiveCount": 15,
     "nodeNames": [
       "Face",
       "FaceDetail.25",
@@ -123,17 +124,7 @@
       "Sclera.Right"
     ]
   },
-  "lipSeam": {
-    "version": 1,
-    "blendDistance": 0.006,
-    "sampleRadius": 0.006,
-    "colorStorage": "linear-vertex-blend",
-    "materials": [
-      "Repaired lower face skin",
-      "Rebuilt lip skin"
-    ],
-    "boundaryVertices": 148
-  },
+  "lipSeam": null,
   "settings": {
     "maxTextureSize": 2048,
     "textureFormat": "webp",
@@ -168,14 +159,50 @@
     }
   },
   "sourceFile": "knight_new_vrm1.vrm",
-  "outputSha256": "584e33d9060e1cc2ae45560adf292c2ea25eb09b90f254e9204a89fb95a47aba",
-  "outputBytes": 13347872,
+  "outputSha256": "ebd9728afefb6cfb1387ee61466ba0ed8bf510046178f3a09f8e053592d71d78",
+  "outputBytes": 12956108,
   "textures": [
     {
-      "name": "tripo_rgb_3246b6d0-7117-411a-868f-2ac8d3d3de1c.jpg.001",
+      "name": "tripo_image_3770dbe0_0.001",
+      "width": 2048,
+      "height": 2048,
+      "bytes": 587788
+    },
+    {
+      "name": "leather-band-painted.png.001",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 206494
+    },
+    {
+      "name": "tripo_rgb_3246b6d0-7117-411a-868f-2ac8d3d3de1c.jpg.002",
       "width": 2048,
       "height": 2048,
       "bytes": 870452
+    },
+    {
+      "name": "hand-back-painted.png.001",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 45886
+    },
+    {
+      "name": "hand-palm-painted.png.001",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 59178
+    },
+    {
+      "name": "palm-roots-painted.png.001",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 60868
+    },
+    {
+      "name": "abdomen-painted.png.001",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 44822
     },
     {
       "name": "tripo_rgb_d2662412-19cb-4016-a437-45915d3d2ef3.jpg",
@@ -184,34 +211,46 @@
       "bytes": 563806
     },
     {
-      "name": "HeadFix lower skin corrected",
+      "name": "face-softened-0.png",
       "width": 2048,
       "height": 2048,
-      "bytes": 115046
+      "bytes": 97324
     },
     {
-      "name": "Rebuilt lip skin",
+      "name": "face-softened-1.png",
       "width": 256,
       "height": 256,
-      "bytes": 484
+      "bytes": 480
     },
     {
-      "name": "eyelid-skin-projection.png",
+      "name": "face-softened-2.png",
       "width": 1254,
       "height": 1254,
-      "bytes": 57704
+      "bytes": 56352
     },
     {
-      "name": "Rear hair matched dark brown",
+      "name": "face-softened-3.png",
       "width": 2048,
       "height": 2048,
-      "bytes": 495198
+      "bytes": 97486
     },
     {
-      "name": "eyelid-crease-projection.png",
+      "name": "portrait-matched-brown-hair",
+      "width": 2048,
+      "height": 2048,
+      "bytes": 474054
+    },
+    {
+      "name": "portrait-matched-iris-color",
+      "width": 2048,
+      "height": 2048,
+      "bytes": 22312
+    },
+    {
+      "name": "skin-v03-0.png",
       "width": 1254,
       "height": 1254,
-      "bytes": 59574
+      "bytes": 57228
     }
   ]
 }

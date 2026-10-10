@@ -46,7 +46,7 @@ export function applyPlayerMaterials(meshes: readonly AbstractMesh[], scene: Sce
     if (mesh instanceof Mesh) {
       if (info.surfaceColorBlend) mesh.hasVertexAlpha = false;
       // An inverted hull would redraw the internal boundary we just blended.
-      mesh.renderOutline = info.outlineWidthFactor > 0 && !info.surfaceColorBlend;
+      mesh.renderOutline = info.outlineWidthFactor > 0 && !info.surfaceColorBlend && !info.suppressOutline;
       mesh.outlineWidth = info.outlineWidthFactor;
       mesh.outlineColor = Color3.FromArray([...info.outlineColorFactor]).toGammaSpace();
     }

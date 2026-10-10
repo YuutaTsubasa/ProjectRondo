@@ -14,7 +14,7 @@ export interface PalacePlayer extends PalacePoint {
 export interface PalaceGuard extends PalacePoint { id:string; direction:1|-1; defeated:boolean; defeatedFor:number }
 export interface PalaceRun {
   player:PalacePlayer; guards:PalaceGuard[]; collected:number[]; checkpoint:number;
-  elapsed:number; deaths:number; finished:boolean;
+  elapsed:number; deaths:number; damageTaken:number; falls:number; reachedCheckpoints:number[]; finished:boolean;
 }
 export interface PalaceInput { axis:number; jump:boolean; attack:boolean; dt:number }
 function playerAt(point:PalacePoint):PalacePlayer {
@@ -24,7 +24,7 @@ function playerAt(point:PalacePoint):PalacePlayer {
 export function createPalaceRun(layout:PalaceLayout=PALACE_LAYOUT):PalaceRun {
   const player=playerAt(layout.spawn); player.grounded=supported(player,layout); player.coyote=player.grounded?.12:0;
   return {player,guards:layout.guards.map(g=>({id:g.id,x:g.x,y:g.y,direction:1,defeated:false,defeatedFor:0})),
-    collected:[],checkpoint:-1,elapsed:0,deaths:0,finished:false};
+    collected:[],checkpoint:-1,elapsed:0,deaths:0,damageTaken:0,falls:0,reachedCheckpoints:[],finished:false};
 }
 function supported(p:PalacePlayer,l:PalaceLayout):boolean {
   return l.platforms.some(b=>Math.abs(p.y-b.y)<EPS && p.x+HALF>b.x+EPS && p.x-HALF<b.x+b.width-EPS);
@@ -82,7 +82,7 @@ export function stepPalaceRun(state:PalaceRun,input:PalaceInput,layout:PalaceLay
   const dt=Number.isFinite(input.dt)?Math.min(.05,Math.max(0,input.dt)):0;
   if(dt===0 || state.finished)return state;
   const s:PalaceRun={...state,player:{...state.player,swordHits:[...state.player.swordHits],homing:state.player.homing?{...state.player.homing}:null,airJumped:false,bounced:false},
-    guards:state.guards.map(g=>({...g})),collected:[...state.collected]};
+    guards:state.guards.map(g=>({...g})),collected:[...state.collected],reachedCheckpoints:[...state.reachedCheckpoints]};
   const axis=Number.isFinite(input.axis)?Math.max(-1,Math.min(1,input.axis)):0;
   if(s.player.health>0) {
     if(input.jump)s.player.jumpBuffer=.14;
@@ -159,12 +159,15 @@ function simulate(s:PalaceRun,axis:number,dt:number,l:PalaceLayout):void {
   // Allow jumps and shield dashes through the beacon; keep below-floor and high flyovers outside.
   l.checkpoints.forEach((cp,index)=>{
     const height=p.y-cp.y;
-    if(index>s.checkpoint && Math.abs(p.x-cp.x)<1.4 && height>=-.15 && height<=4)s.checkpoint=index;
+    if(Math.abs(p.x-cp.x)<1.4 && height>=-.15 && height<=4) {
+      if(!s.reachedCheckpoints.includes(index))s.reachedCheckpoints.push(index);
+      if(index>s.checkpoint)s.checkpoint=index;
+    }
   });
   if(!p.homing && !p.bounced && p.invulnerable<=0) {
     const contact=s.guards.find(g=>!g.defeated && Math.abs(g.x-p.x)<.8 && Math.abs(g.y-p.y)<PALACE_BODY_HEIGHT);
-    if(contact){p.health--;p.invulnerable=.9;p.hurt=.42;p.vx=(p.x<contact.x?-1:1)*7;p.vy=6;p.grounded=false;p.swordSeconds=null;if(p.health<=0)die(s);}
+    if(contact){s.damageTaken++;p.health--;p.invulnerable=.9;p.hurt=.42;p.vx=(p.x<contact.x?-1:1)*7;p.vy=6;p.grounded=false;p.swordSeconds=null;if(p.health<=0)die(s);}
   }
-  if(p.y< -12 && p.health>0)die(s);
+  if(p.y< -12 && p.health>0){s.falls++;die(s);}
   if(p.health>0 && p.grounded && Math.abs(p.x-l.goal.x)<1.1 && Math.abs(p.y-l.goal.y)<.15)s.finished=true;
 }

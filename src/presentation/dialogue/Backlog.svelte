@@ -48,7 +48,7 @@
          and the one panel whose whole purpose is re-reading what scrolled past should not depend
          on it. Labelled by the same heading as the dialog. -->
     <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
-    <div class="scroll" tabindex="0" role="region" aria-labelledby="backlog-head">
+    <div data-input-scroll class="scroll" tabindex="0" role="region" aria-labelledby="backlog-head">
       <ol>
       {#each entries as e}
         <li>
@@ -71,16 +71,13 @@
     display: flex;
     pointer-events: auto;
   }
-  /* Opaque, not glass. The kit draws this panel on the same 0.62 glass as everything else, but a
-     full-screen log has nothing to gain from showing the scene through it -- and on glass the kit's
-     own blue speaker names fall to 2.34:1 over a dark scene. On solid --c-pale they are 5.60:1, so
-     going opaque is what makes the kit's colour choice work rather than a departure from it. */
+  /* A solid reading surface keeps a long history legible over every scene. */
   .log {
     position: relative;
     flex: 1;
     box-sizing: border-box;
-    padding: 20px 24px;
-    background: var(--c-pale);
+    padding: 5vh 8vw;
+    background: rgb(var(--avg-navy-rgb));
     border: 1px solid var(--c-blue);
     display: flex;
     flex-direction: column;
@@ -92,7 +89,7 @@
     justify-content: space-between;
     font: var(--font-panel-title);
     letter-spacing: var(--panel-title-tracking);
-    color: var(--c-blue);
+    color: var(--avg-light);
   }
   /* UA heading margins and size overridden: the change is semantic only. */
   .head h2 {
@@ -100,6 +97,7 @@
     font: inherit;
     letter-spacing: inherit;
   }
+  .close:focus-visible { outline: 2px solid var(--avg-light); outline-offset: 3px; }
   .close {
     background: none;
     border: none;
@@ -110,13 +108,13 @@
     margin: -14px;
     cursor: pointer;
     display: flex;
-    stroke: var(--c-blue);
+    stroke: var(--avg-light);
     stroke-width: 1.8;
   }
   .stamp {
     position: absolute;
-    left: 150px;
-    top: 24px;
+    left: 22%;
+    top: 5vh;
     font-family: var(--font-display);
     font-size: 120px;
     line-height: 0.9;
@@ -136,7 +134,7 @@
     flex: 1;
   }
   .scroll:focus-visible {
-    outline: var(--focus-ring);
+    outline: 2px solid var(--avg-light);
     outline-offset: calc(var(--focus-ring-offset) * -1);
   }
   ol {
@@ -146,7 +144,7 @@
   }
   li {
     position: relative;
-    padding: 9px 8px 10px 26px;
+    padding: 18px 8px 20px 34px;
     border-bottom: 1px solid rgba(var(--c-blue-soft-rgb), 0.35);
   }
   li::before {
@@ -167,21 +165,21 @@
     box-sizing: border-box;
     border-radius: 50%;
     border: 1px solid var(--c-blue);
-    background: var(--c-pale);
+    background: rgb(var(--avg-navy-rgb));
   }
   .who {
     font-family: var(--font-headline);
     font-weight: 700;
     font-size: 17px;
     letter-spacing: 2px;
-    color: var(--c-blue);
+    color: var(--avg-light);
   }
   .text {
     margin: 3px 0 0;
     font-family: var(--font-body);
-    font-size: 15px;
+    font-size: 18px;
     line-height: 1.6;
-    color: var(--c-ink);
+    color: var(--avg-text);
     white-space: pre-line;
   }
   .rail {

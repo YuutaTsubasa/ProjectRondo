@@ -91,3 +91,13 @@ it('ships a checksummed derivative with the immutable donor key times and all hu
     expect(Math.max(...texture.getSize()!)).toBeLessThanOrEqual(2048);
   }
 });
+
+it('marks authored skin patches as internal surfaces without changing their MToon parameters',()=>{
+ for(const name of ['Repaired lower face skin - soft cheek V33','Rebuilt lip skin - soft cheek V33','Original eyelid skin cleaned - soft cheek V33','Jaw silhouette skin - soft cheek V33']){
+  const input=vrmFixture();input.materials[0].name=name;
+  Object.assign(input.materials[0].extensions.VRMC_materials_mtoon,{outlineWidthFactor:.001});
+  const {json}=prepareVrm(input);
+  expect(json.materials[0].extras.playerMaterial.suppressOutline).toBe(true);
+  expect(json.materials[0].extras.playerMaterial.outlineWidthFactor).toBe(.001);
+ }
+});

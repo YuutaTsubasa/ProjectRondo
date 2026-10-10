@@ -5,6 +5,8 @@ export interface PlayerMaterialSettings {
   readonly role: 'head' | 'body';
   /** COLOR_0 alpha is a local surface blend weight, not transparency. */
   readonly surfaceColorBlend?: boolean;
+  /** Internal skin patch boundaries must not receive inverted-hull outlines. */
+  readonly suppressOutline?: boolean;
   readonly shadeColorFactor: readonly [number, number, number];
   readonly shadingShiftFactor: number;
   readonly shadingToonyFactor: number;
@@ -51,6 +53,7 @@ export function readPlayerMaterial(metadata: unknown): PlayerMaterialSettings {
   return {
     role: data.role,
     surfaceColorBlend: data.surfaceColorBlend === true,
+    suppressOutline: data.suppressOutline === true,
     shadeColorFactor: color('shadeColorFactor'),
     shadingShiftFactor: scalar('shadingShiftFactor', -1, 1),
     shadingToonyFactor: scalar('shadingToonyFactor', 0, 1),

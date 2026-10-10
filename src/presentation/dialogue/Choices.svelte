@@ -185,185 +185,42 @@
     aria-labelledby="choices-head"
     aria-describedby="choices-prompt"
   >
-    <!-- The heading and the question share one glass block for the same reason each option has
-         its own: the scrim is a wash now, so anything sitting straight on it would be read against
-         whatever the camera happens to be pointing at. -->
+    <!-- Accessible modal heading and prompt; the visible line remains in the dialogue dock. -->
     <div class="question">
       <h2 class="head" id="choices-head">SELECT AN ACTION</h2>
-      <!-- The question is repeated here rather than left to the dialogue box behind: the panel is
-           centred over the box at most viewport sizes, so the box is the one thing the player
-           cannot count on seeing while answering. -->
+
       <p class="prompt" id="choices-prompt">{prompt}</p>
     </div>
     {#each choices as choice, i}
-      <!-- Kit: a 1px frame with 4px padding around an inner block, and a caret prefix. -->
+      <!-- The focused option is the single selected row for both pointer and keyboard. -->
       <button
         class="choice"
         onclick={() => onSelect(i)}
         onfocus={(e) => moved(e.currentTarget)}
         onpointermove={(e) => moveSelectionTo(e.currentTarget)}
       >
-        <span class="inner"><span class="caret" aria-hidden="true">❯</span><span>{choice.label}</span></span>
+        <span class="inner"><svg class="diamond" viewBox="0 0 32 32" aria-hidden="true"><path d="m16 2 14 14-14 14L2 16Z"/><path class="core" d="m16 10 6 6-6 6-6-6Z"/></svg><span class="label">{choice.label}</span><svg class="caret" viewBox="0 0 16 24" aria-hidden="true"><path d="m4 4 8 8-8 8"/></svg></span>
       </button>
     {/each}
   </div>
 </div>
 
 <style>
-  /* A wash, not the opaque ground this used to be. Opaque was the right answer while .head and
-     .prompt sat straight on it -- at 0.55 over the live scene the floor was rgb(67,88,140) and the
-     heading fell to 2.54:1, so the camera decided whether it was readable. That is fixed at the
-     source instead: every element this panel asks the player to READ or to READ A BOUNDARY FROM
-     sits on the kit's glass, which is white at 0.62 and so composites no darker than rgb(158)
-     whatever the camera is pointing at. --c-ink is 6.61:1 on it and --c-blue-deep 5.52:1
-     (tokens.css). Nothing carrying meaning is left on the wash itself.
-
-     What the wash still decides is the outline of the panel: the glass blocks against the gaps
-     between them run from 4.87:1 over a black scene down to 1.26:1 over a white one. Both ends are
-     the composite, not the token -- over white the gap is rgb(199,215,255) and the block
-     rgb(234,240,255) -- and they are pure black and pure white on purpose, the same two extremes
-     the frame's 1.5:1 / 4.4:1 pair further down is measured against: stopping the bright end at a
-     mid-grey scene of about rgb(150) would both read 1.98:1 -- more than half again the contrast
-     the panel actually has at its worst -- and measure it against extremes the other range in
-     this file does not use. That is the modal's silhouette, not a boundary anything is read from --
-     each option is framed on its own glass -- and it is the cost of showing the scene at all.
-
-     Which matters because of what is behind it: the standing portrait, the dialogue box and the
-     live hub. In an AVG the moment of choosing is a moment you are meant to still see the scene.
-
-     0.42 is the one number here that is taste rather than measurement -- enough lavender to read as
-     a takeover, little enough to leave the scene legible. */
-  .scrim {
-    position: fixed;
-    inset: 0;
-    z-index: 12;
-    display: flex;
-    /* Scrolls, and centres with auto margins rather than align-items: a flex item centred by
-       align-items is clipped at the START edge once it overflows, which here would put the heading
-       and the first lines of the question permanently out of reach. The prompt is an authored
-       dialogue line and the option list an authored list, so neither has a bound -- and this modal
-       is deliberately undismissable, so an unreachable option is a dead end with no way out. */
-    overflow-y: auto;
-    padding: 24px 0;
-    box-sizing: border-box;
-    background: rgba(var(--c-blue-soft-rgb), 0.42);
-    pointer-events: auto;
-  }
-  .panel {
-    margin: auto;
-    width: min(560px, 84vw);
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-  }
-  /* Same glass as an option, for the same reason. Not applied to .panel as a whole: each option
-     would then be glass over glass, which washes them out against the ground they are supposed to
-     stand on. One layer per block keeps every reading the kit measured. */
-  .question {
-    padding: 14px 16px;
-    background: var(--surface-glass);
-    backdrop-filter: var(--surface-blur);
-    -webkit-backdrop-filter: var(--surface-blur);
-  }
-  .head {
-    /* An h2 so browse-mode has something to land on; its UA margins and size are overridden here so
-       the change is semantic only. */
-    margin: 0 0 6px;
-    font: var(--font-panel-title);
-    letter-spacing: var(--panel-title-tracking);
-    color: var(--c-ink);
-  }
-  .prompt {
-    margin: 0;
-    font-family: var(--font-body);
-    font-size: 18px;
-    line-height: 1.7;
-    color: var(--c-ink);
-  }
-  /* The glass is on the whole option, not on .inner as it was: the 1px frame is the only mark of
-     where one option ends and the next begins, and on the wash it had no floor -- about 1.5:1 over a
-     dark scene, 4.4:1 over a bright one, so mid-tone backdrops erased it. Now its inner neighbour is
-     the glass, which is bounded, and the frame carries its own contrast the way the focus ring
-     carries its halo.
-     --c-blue-deep, not the kit's --c-blue, for the same reason .caret uses it: on the glass
-     --c-blue is 2.34:1 at the worst backdrop, under the 3:1 a boundary needs; --c-blue-deep is
-     5.52:1 (tokens.css). One glass layer per option either way -- .inner would be glass over glass. */
-  .choice {
-    display: block;
-    width: 100%;
-    text-align: left;
-    padding: 4px;
-    border: 1px solid var(--c-blue-deep);
-    background: var(--surface-glass);
-    backdrop-filter: var(--surface-blur);
-    -webkit-backdrop-filter: var(--surface-blur);
-    cursor: pointer;
-    font: inherit;
-  }
-  .inner {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 8px 12px;
-    color: var(--c-ink);
-    font-family: var(--font-body);
-    font-size: 14px;
-    transition: background 0.12s ease, color 0.12s ease;
-  }
-  /* --c-blue-deep, not --c-blue: this is a glyph, so it wants the 4.5:1 text wants, and on the
-     option's glass --c-blue is 2.34:1. It read 4.52:1 -- a hair over the line -- only because that
-     was measured on glass over the opaque ground this panel no longer has. --c-blue-deep is 5.52:1
-     (tokens.css). Both figures are against the glass floor rgb(158) the comments above use, which is
-     the glass over a black scene: the 0.42 wash sits under it too and only lightens the ground
-     (rgb(178,184,199), where the two are 3.14:1 and 7.41:1), so the floor is what to hold to. */
-  .caret { color: var(--c-blue-deep); }
-  /* The selected option fills its inner block and cuts its bottom-right corner. White on a solid
-     --c-blue block is 6.26:1; blue text on the glass would be 2.34:1, so the fill carries the colour.
-
-     :focus, not :hover and :focus-visible. The selection is the focused option and the pointer moves
-     focus to the row it moves over, so :focus alone paints the row the pointer chose AND the row the
-     keyboard walked to -- one filled row, and always the one Enter confirms. The pair it replaces
-     could not promise either: :hover paints on its own wherever the pointer happens to rest, so
-     Shift+Tab away from a hovered row filled two rows at once; and :focus-visible does not match a
-     pointer's focus, so after a click on a chained question the only filled row was the hovered one,
-     which is not the option focus was moved to. */
-  .choice:focus .inner {
-    background: var(--c-blue);
-    color: rgb(var(--c-white-rgb));
-    font-weight: 700;
-    clip-path: polygon(0 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%);
-  }
-  .choice:focus .caret { color: rgb(var(--c-white-rgb)); }
-  /* The fill above marks the focused option in colour; this marks it in geometry, which is what
-     survives where the colour is not this file's to choose. Forced-colors mode overrides every
-     colour set here -- .inner's background, .choice's frame, the white text -- while still honouring
-     outline: none, so an outline is the one mark that can be left standing there and a panel that
-     declined one would have had nothing.
-     :focus-visible, because outside that mode the fill IS the mark: a 2px ring inside a 7px halo
-     tracking the mouse row to row is noise over a row that is already filled. What that reasoning
-     needs, and did not have, is the block below -- otherwise it withholds the ring on the grounds
-     that the fill covers the pointer, in the one mode where the fill is gone. */
-  .choice:focus-visible {
-    outline: var(--focus-ring);
-    outline-offset: var(--focus-ring-offset);
-    box-shadow: var(--focus-halo);
-  }
-  /* Forced colors is that mode, and in it the ring cannot stay the keyboard's alone. The fill is
-     erased -- background-color and border-color are forced to system colours on every row alike, and
-     the clip-path corner then cuts one system colour out of the same one -- which leaves .inner's
-     font-weight as the whole of the difference on the selected row, and a bolder line is not an
-     indicator. Nor does pointer focus reach the rule above: a click on an option does not match
-     :focus-visible, and neither does moveSelectionTo's programmatic focus(), which inherits the
-     non-visible state of whatever the pointer last touched. A mouse user in this mode would see no
-     option marked as selected at all. :focus here, so the ring marks the selection however focus
-     arrived; the noise it costs elsewhere is not a cost when it is the only mark.
-     No --focus-halo: box-shadow is forced to none, and what the halo buys is the ring's contrast
-     against a backdrop this panel cannot bound (tokens.css) -- which is not a problem the system
-     palette has. tests/presentation/dialogueTokens.test.ts is what holds this to :focus. */
-  @media (forced-colors: active) {
-    .choice:focus {
-      outline: var(--focus-ring);
-      outline-offset: var(--focus-ring-offset);
-    }
-  }
+  .scrim{position:fixed;inset:0;z-index:12;display:flex;box-sizing:border-box;padding:90px 0;overflow-y:auto;background:rgba(var(--avg-navy-rgb),.08);pointer-events:auto}
+  .panel{margin:auto;width:min(520px,72vw);display:flex;flex-direction:column;gap:14px;padding:12px 24px}
+  /* The line remains visible in the dock; retain its full copy as the modal description. */
+  .question{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+  .choice{position:relative;display:block;flex-shrink:0;width:100%;border:0;padding:1px;background:transparent;color:var(--avg-text);font:inherit;text-align:center;cursor:pointer;transition:transform .2s,filter .2s;isolation:isolate}
+  .choice:before,.choice:after{content:'';position:absolute;inset:0;z-index:-1;clip-path:polygon(24px 0,calc(100% - 24px) 0,100% 50%,calc(100% - 24px) 100%,24px 100%,0 50%)}
+  .choice:before{background:rgba(var(--c-blue-soft-rgb),.7)}
+  .choice:after{inset:1px 2px;background:rgba(var(--avg-navy-rgb),.87)}
+  .inner{display:flex;align-items:center;gap:18px;min-height:55px;padding:5px 24px;box-sizing:border-box;font:400 clamp(17px,1.3vw,22px)/1.55 var(--font-body);letter-spacing:.06em}
+  .label{flex:1;overflow-wrap:anywhere}.diamond{flex:none;width:30px;height:30px;fill:none;stroke:var(--avg-muted);stroke-width:1}.core{fill:transparent}.caret{flex:none;width:13px;height:24px;stroke:var(--avg-light);stroke-width:1.6;fill:none;opacity:0}
+  .choice:focus{outline:none;transform:scale(1.06);filter:drop-shadow(0 0 5px var(--avg-glow)) drop-shadow(0 0 12px rgba(var(--c-blue-soft-rgb),.45))}
+  .choice:focus:before{background:var(--avg-light)}.choice:focus:after{background:linear-gradient(90deg,rgba(var(--avg-navy-rgb),.95),rgba(var(--avg-navy-rgb),.8));box-shadow:inset 0 0 18px var(--avg-glow)}
+  .choice:focus .diamond{stroke:var(--avg-light);stroke-width:2;filter:drop-shadow(0 0 5px var(--avg-glow))}.choice:focus .core{fill:var(--avg-light)}.choice:focus .caret{opacity:1}
+  @media(max-width:700px){.scrim{padding:90px 0 39vh}.panel{width:80vw;padding:12px 16px;gap:12px}.inner{padding:5px 19px;min-height:50px;gap:10px;font-size:16px}.diamond{width:24px;height:24px}}
+  @media(max-height:540px) and (min-width:701px){.scrim{padding:65px 0 175px}.panel{gap:8px}.inner{min-height:40px;font-size:16px}.diamond{width:24px;height:24px}}
+  @media(prefers-reduced-motion:reduce){.choice{transition:none}}
+  @media(forced-colors:active){.choice{border:1px solid ButtonText}.choice:focus{outline:var(--focus-ring);outline-offset:var(--focus-ring-offset)}.choice:before,.choice:after{display:none}.choice:focus .caret{stroke:ButtonText}}
 </style>

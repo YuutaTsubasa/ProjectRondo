@@ -2,6 +2,8 @@ import { retainBlink, PLAYER_BLINK } from './blink.mjs';
 export { bakePlayerBlink } from './blink.mjs';
 export const CLIPS = Object.freeze(['Idle', 'Walk', 'Run', 'Jump', 'FlyingKick']);
 const IDENTITY = [0, 0, 0, 1];
+// These authored skin patches have internal edges, not character silhouettes.
+const INTERNAL_FACE_SKIN = /^(Repaired lower face skin|Rebuilt lip skin|Original eyelid skin cleaned|Jaw silhouette skin)(?:$| -)/;
 const BODY_MESH = /^Armor$/i;
 const HEAD_MESH = /^(Brow|Face|FaceDetail|Glint|Hair|Iris|Lash|MouthCavity|NeckCap|Sclera|Teeth|Tongue)(\.|$)/i;
 const MTOON_DEFAULTS = { shadeColorFactor: [1, 1, 1], shadingShiftFactor: 0, shadingToonyFactor: 0.9, giEqualizationFactor: 0.9, outlineWidthFactor: 0, outlineColorFactor: [0, 0, 0] };
@@ -63,7 +65,7 @@ export function prepareVrm(input) {
       || !['none', 'worldCoordinates'].includes(mtoon.outlineWidthMode ?? 'none')
       || (material.alphaMode ?? 'OPAQUE') !== 'OPAQUE';
     if (unsupported) throw Error(`Unsupported MToon effect in ${material.name}`);
-    material.extras = { ...material.extras, playerMaterial: { role: roles.get(i), ...Object.fromEntries(Object.entries(MTOON_DEFAULTS).map(([k, fallback]) => [k, mtoon[k] ?? fallback])) } };
+    material.extras = { ...material.extras, playerMaterial: { role: roles.get(i), ...(INTERNAL_FACE_SKIN.test(material.name) ? { suppressOutline: true } : {}), ...Object.fromEntries(Object.entries(MTOON_DEFAULTS).map(([k, fallback]) => [k, mtoon[k] ?? fallback])) } };
   }
   const blink = retainBlink(json);
   const strip = object => {

@@ -22,3 +22,25 @@ describe('musicChange', () => {
     expect(musicChange('music.hub', 'playing')).toBeNull();
   });
 });
+
+// The town loop must not replace the meadow or expedition music.
+it('uses a dedicated town cue and keeps it running on repeated requests', () => {
+  expect(musicChange(null, 'town')).toEqual({ track: 'music.town', fadeSeconds: CROSSFADE_SECONDS });
+  expect(musicChange('music.town', 'town')).toBeNull();
+  expect(musicChange('music.town', 'playing')?.track).toBe('music.hub');
+});
+
+it('uses the meadow cue for exploration without replacing expedition music', () => {
+  expect(musicChange('music.town', 'meadow')?.track).toBe('music.meadow');
+  expect(musicChange('music.meadow', 'meadow')).toBeNull();
+  expect(musicChange('music.meadow', 'town')?.track).toBe('music.town');
+  expect(musicChange('music.meadow', 'playing')?.track).toBe('music.hub');
+});
+
+for (const scene of ['palace', 'course'] as const) {
+  it(`uses a dedicated ${scene} cue and does not restart it`, () => {
+    expect(musicChange(null, scene)?.track).toBe(`music.${scene}`);
+    expect(musicChange(`music.${scene}`, scene)).toBeNull();
+    expect(musicChange(`music.${scene}`, 'town')?.track).toBe('music.town');
+  });
+}

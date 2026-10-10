@@ -55,24 +55,53 @@ describe('selectHomingTarget', () => {
   it('still rejects a coincident candidate when the cone is opened past 90 degrees', () => {
     const WIDE: HomingSelectionConfig = { ...C, homingConeHalfAngle: Math.PI };
     expect(selectHomingTarget(AT_ORIGIN, FORWARD, [AT_ORIGIN], WIDE)).toBeNull();
-    // Sanity: the wide cone is genuinely wide — a candidate behind the camera is accepted.
+    // Sanity: the wide cone is genuinely wide — a candidate behind the character is accepted.
     expect(selectHomingTarget(AT_ORIGIN, FORWARD, [vec3(0, 0, 5)], WIDE)).toBe(0);
   });
 
-  // A non-unit `cameraForward` must not widen the cone. This candidate is 60 degrees off axis at
+  // A non-unit `characterForward` must not widen the cone. This candidate is 60 degrees off axis at
   // distance 6, so normalized it dots to 0.5 — below cos(35 deg) = 0.819, correctly rejected. Left
   // un-normalized against a length-100 forward it would dot to 50, clearing any threshold and being
   // wrongly selected, which is the bug this pins.
-  it('normalizes cameraForward rather than assuming it is unit length', () => {
+  it('normalizes characterForward rather than assuming it is unit length', () => {
     const sixtyDegreesOff = vec3(5.196, 0, -3); // (sin60, 0, -cos60) * 6
     expect(selectHomingTarget(AT_ORIGIN, vec3(0, 0, -100), [sixtyDegreesOff], C)).toBeNull();
     expect(selectHomingTarget(AT_ORIGIN, vec3(0, 0, -1), [sixtyDegreesOff], C)).toBeNull();
     expect(selectHomingTarget(AT_ORIGIN, vec3(0, 0, -100), [vec3(0, 0, -5)], C)).toBe(0);
   });
 
-  // Vertical aim is the whole point for a climb: a crystal straight above must be selectable when
-  // the camera looks up at it.
-  it('selects a candidate above the player when the camera looks up', () => {
-    expect(selectHomingTarget(AT_ORIGIN, vec3(0, 1, 0), [vec3(0, 6, 0)], C)).toBe(0);
+  it('rejects a missing planar character heading', () => {
+    expect(selectHomingTarget(AT_ORIGIN, ZERO3, [vec3(0,6,0)], C)).toBeNull();
   });
+});
+
+it('selects elevated forward targets and vertical chain links without aiming the camera',()=>{
+ expect(selectHomingTarget(AT_ORIGIN,FORWARD,[vec3(0,8,-3)],C)).toBe(0);
+ expect(selectHomingTarget(AT_ORIGIN,FORWARD,[vec3(0,6,0)],C)).toBe(0);
+ expect(selectHomingTarget(AT_ORIGIN,FORWARD,[vec3(0,-6,0)],C)).toBe(0);
+ expect(selectHomingTarget(AT_ORIGIN,FORWARD,[vec3(0,8,3)],C)).toBeNull();
+ expect(selectHomingTarget(AT_ORIGIN,FORWARD,[vec3(0,13,-1)],C)).toBeNull();
+});
+
+it('keeps vertical chain links selectable when a bounce leaves the player slightly off-axis',()=>{
+ // Above but 0.3 u behind the facing: a planar direction is meaningless at this spread.
+ expect(selectHomingTarget(AT_ORIGIN,FORWARD,[vec3(0,6,.3)],C)).toBe(0);
+ expect(selectHomingTarget(AT_ORIGIN,FORWARD,[vec3(.4,6,0)],C)).toBe(0);
+});
+
+it('prefers the next forward crystal over a near-vertical crystal below, whichever way the bounce drifted',()=>{
+ expect(selectHomingTarget(AT_ORIGIN,FORWARD,[vec3(0,-1,-.3),vec3(0,2,-5)],C)).toBe(1);
+ expect(selectHomingTarget(AT_ORIGIN,FORWARD,[vec3(.2,-1,.1),vec3(0,2,-5)],C)).toBe(1);
+});
+
+it('prefers the next forward crystal over the crystal directly below after a bounce',()=>{
+ expect(selectHomingTarget(AT_ORIGIN,FORWARD,[vec3(0,-1,0),vec3(0,2,-5)],C)).toBe(1);
+ expect(selectHomingTarget(AT_ORIGIN,FORWARD,[vec3(0,2,-5),vec3(0,-1,0)],C)).toBe(0);
+});
+
+it('does not treat nearby horizontal targets as vertical bounce links',()=>{
+ expect(selectHomingTarget(AT_ORIGIN,FORWARD,[vec3(0,0,.3)],C)).toBeNull();
+ expect(selectHomingTarget(AT_ORIGIN,FORWARD,[vec3(0,.1,.3)],C)).toBeNull();
+ // A nearby forward target still outranks a farther forward one.
+ expect(selectHomingTarget(AT_ORIGIN,FORWARD,[vec3(0,0,-.3),vec3(0,0,-5)],C)).toBe(0);
 });

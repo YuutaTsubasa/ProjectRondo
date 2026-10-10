@@ -10,7 +10,7 @@ import { PhysicsRaycastResult } from '@babylonjs/core/Physics/physicsRaycastResu
 import type { PhysicsEngine as PhysicsEngineV2 } from '@babylonjs/core/Physics/v2/physicsEngine';
 // Side-effect: registers the glTF loader plugin (with KHR_mesh_quantization / webp support).
 import '@babylonjs/loaders/glTF';
-import { CAPSULE_HALF } from './capsule';
+import { CAPSULE_HALF, CAPSULE_RADIUS } from './capsule';
 import { measureSkinnedSole } from './skinnedSole';
 import { PLAYER_MODEL } from './playerModel';
 import { createKnightEquipment, type KnightEquipment } from './knightEquipment';
@@ -187,20 +187,12 @@ function createGroundProbe(
  * exported so a test can drive it against a bare scene — the seating this runs after needs the GLB,
  * the correction itself does not, and the rule worth pinning is about the correction.
  *
- * **What a frame does when the probe has no answer: nothing.** The probe answers `null` when nothing
- * is under the foot *and* the world cannot say where its ground is (see {@link createGroundProbe} and
- * {@link GroundHeight}), and this leaves the root exactly where the last answered frame put it. The
- * correction is small — the capsule rests 0.109-0.142 u above what it stands on, per
- * {@link GROUND_PROBE_ABOVE} — so the previous frame's is a good answer, and it is the only honest
- * one available: the alternative is the one this replaced, where a world's floor stood in for "the
- * surface under this foot" and a sole reaching past the edge of a platform drew the knight down at
- * the floor, tens of units below the capsule it is parented to.
- *
- * **Holding rather than clearing to `seatedLocalY`.** At a platform's edge the character is still
- * standing: `planted` is 1 and stays 1, so there is no fade to ride the correction out on, and
- * dropping it outright would step the knight by that tenth of a unit every time a sole crossed an
- * edge. Once the character does leave the ground, `planted` fades and the first branch below returns
- * the root to `seatedLocalY` on its own.
+ * If the center ray misses at a supported edge, keep the last nearby WORLD surface height.
+ * Holding a local offset instead retains the landing correction even as the smoothed parent
+ * settles, burying the model below the slab. Reuse is limited to one capsule radius of the
+ * last answered sample, so distant platforms cannot inherit that surface.
+ * Beyond that footprint only the previous correction fades out with `planted`; no new surface
+ * is invented. Becoming fully airborne clears both, before the next landing can replant.
  *
  * Returns the unsubscribe for the observer it adds. Nothing needs it today — a level owns its whole
  * `Scene`, and disposing that clears the observable — but a subscription whose only way out is the
@@ -216,16 +208,25 @@ export function plantFeet(
   groundHeight: GroundHeight,
 ): () => void {
   const groundUnder = createGroundProbe(scene, groundHeight);
+  let lastSurface: { x: number; z: number; y: number } | null = null;
+  let correction = 0;
   const observer = scene.onBeforeRenderObservable.add(() => {
     if (knight.planted <= 0) {
+      lastSurface = null;
+      correction = 0;
       root.position.y = seatedLocalY;
       return;
     }
     const p = parent.getAbsolutePosition();
     const footY = p.y - CAPSULE_HALF;
     const surface = groundUnder(p.x, footY, p.z);
-    if (surface === null) return;
-    root.position.y = seatedLocalY - knight.planted * (footY - surface);
+    if (surface !== null) lastSurface = { x: p.x, z: p.z, y: surface };
+    if (lastSurface && Math.hypot(p.x - lastSurface.x, p.z - lastSurface.z) <= CAPSULE_RADIUS) {
+      correction = footY - lastSurface.y;
+    } else {
+      lastSurface = null;
+    }
+    root.position.y = seatedLocalY - knight.planted * correction;
   });
   return () => { scene.onBeforeRenderObservable.remove(observer); };
 }
@@ -710,7 +711,7 @@ export function driveKnightAnimation(
       else if (!want && playing.get(group)) { group.stop(); playing.set(group, false); }
       if (want) group.setWeightForAllAnimatables(weights[i]);
     }
-    knight.equipment?.apply(sample);
+    knight.equipment?.apply({ ...sample, deltaSeconds: dt });
   });
 
   // Handed back for {@link plantFeet}'s reason: this observer is the only live reference to the

@@ -2,6 +2,15 @@
 
 The authoring VRM stays outside this repository. The game loads `public/models/player-v20.glb`; its matching JSON receipt records the input/output checksums and all conversion settings.
 
+## Current release
+
+The stable runtime filename `player-v20.glb` now contains **Knight-New-V33**, imported from
+`ProjectVtuber/projects/vrm-model/output/current/new-vtuber-v33/knight_new_vrm1.vrm` on 2026-10-10.
+Source SHA-256: `22b71efb9e8d5955bf492cd5be8f451e48a003f783e9fbcc38c681dc641967bf`.
+The receipt hash changes the runtime URL automatically for every gameplay and menu portrait consumer.
+V33 has authored soft-cheek/lip textures; the exact-name V20 seam correction intentionally does not apply.
+AVG video portraits and the HUD's static portrait are independent assets.
+
 ## Update the player
 
 From the project root, with dependencies installed:

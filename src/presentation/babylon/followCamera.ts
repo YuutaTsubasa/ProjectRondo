@@ -1,3 +1,4 @@
+import {deviceInput} from '../input/deviceInput';
 import type { Scene } from '@babylonjs/core/scene';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { TargetCamera } from '@babylonjs/core/Cameras/targetCamera';
@@ -226,7 +227,7 @@ export function createFollowCamera(
   let pitch = config.initialPitch;
   let enabled = true;
 
-  const onClick = () => { if (enabled) canvas.requestPointerLock(); };
+  const onClick = () => { if (enabled && deviceInput.getState().device==='keyboard') canvas.requestPointerLock(); };
   const onMouseMove = (e: MouseEvent) => {
     if (!enabled) return;
     if (document.pointerLockElement !== canvas) return;
@@ -249,6 +250,7 @@ export function createFollowCamera(
    * teleport-sized step — is what `lastTargetY` carries into the next frame.
    */
   const place = (dt: number) => {
+    if(enabled){const look=deviceInput.look(dt);yaw-=look.x;pitch=Math.min(config.maxPitch,Math.max(config.minPitch,pitch-look.y));}
     camera.minZ = config.nearPlane;
     const t = target.getAbsolutePosition();
     // Follow X/Z tightly, but ease the vertical follow: the capsule's Y micro-steps as it crosses the

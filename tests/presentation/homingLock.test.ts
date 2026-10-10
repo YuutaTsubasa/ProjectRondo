@@ -1,3 +1,4 @@
+import {vec2} from '../../src/domain/math/vec2';
 import { describe, it, expect } from 'vitest';
 import {
   stepHomingLock, NO_HOMING_LOCK,
@@ -28,7 +29,7 @@ const frame = (overrides: Partial<HomingLockInput> = {}): HomingLockInput => ({
   attackPressed: false,
   pressWouldDash: true,
   from: ZERO3,
-  cameraForward: FORWARD,
+  facing: vec2(FORWARD.x, FORWARD.z),
   candidates: [NEAR, FAR, BEHIND],
   ...overrides,
 });
@@ -92,11 +93,11 @@ describe('stepHomingLock', () => {
   it('lets the next press re-lock the crystal just bounced off, which nothing excludes (spec §6)', () => {
     const locked = stepHomingLock(NO_HOMING_LOCK, frame({ attackPressed: true, candidates: [NEAR] }), C).lock;
     // Where the bounce leaves the player: the arrival puts them AT the crystal and sends them straight
-    // up, so `homingBounceSpeed²/(2*gravity)` = 1.6875 u above it, looking back down. Pinned because the
+    // up, so `homingBounceSpeed²/(2*gravity)` = 1.6875 u above it; vertical links do not require a camera pitch. Pinned because the
     // spec's rule is that this is allowed and gains no height — the dash goes back down to the crystal —
     // so a later exclusion would be a behaviour change, not a tidy-up.
     const relocked = stepHomingLock(locked, frame({
-      attackPressed: true, candidates: [NEAR], from: vec3(0, 1.6875, -6), cameraForward: vec3(0, -1, 0),
+      attackPressed: true, candidates: [NEAR], from: vec3(0, 1.6875, -6), facing: vec2(0, -1),
     }), C);
     expect(committed(relocked.lock)).toBe(0);
     expect(relocked.consumedPress).toBe(true);

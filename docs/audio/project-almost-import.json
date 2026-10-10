@@ -1,0 +1,68 @@
+{
+  "repository": "https://github.com/YuutaTsubasa/ProjectAlmost",
+  "revision": "76b9ca1c680e98e27ac9f51871bf4feffb3f0bbc",
+  "registry": "src/domain/audio/audioAssets.ts",
+  "processing": "Verbatim copies; no transcoding or modification.",
+  "files": [
+    {
+      "source": "public/assets/audio/game_result.mp3",
+      "output": "public/audio/music/result_original.mp3",
+      "bytes": 373920,
+      "sha256": "d28e66d7e2a0517ab7f04fcffdf46fe1399857e477943829771d57f8996aef79"
+    },
+    {
+      "source": "public/assets/audio/sfx/armor-step.wav",
+      "output": "public/audio/sfx/armor-step.wav",
+      "bytes": 12868,
+      "sha256": "20be7bb96f5afc30e169d8611d23d9b39e6d05efef90c3b69c66f7a30fd4e21c"
+    },
+    {
+      "source": "public/assets/audio/sfx/checkpoint.wav",
+      "output": "public/audio/sfx/checkpoint.wav",
+      "bytes": 44144,
+      "sha256": "677970196bb5d2972d66aa0ce0a36f2b37250d592f5cd106d66db2d570acbcca"
+    },
+    {
+      "source": "public/assets/audio/sfx/coin.wav",
+      "output": "public/audio/sfx/coin.wav",
+      "bytes": 21212,
+      "sha256": "21ed1d5c9326159519756213b27a5080b539fbfa624fb74da1e03d3cd3ccc1bf"
+    },
+    {
+      "source": "public/assets/audio/sfx/death.wav",
+      "output": "public/audio/sfx/death.wav",
+      "bytes": 57374,
+      "sha256": "e5fdc9d45c41d147c754008cd712a27adfb3f662d458b646042c7908da7ba811"
+    },
+    {
+      "source": "public/assets/audio/sfx/goal.wav",
+      "output": "public/audio/sfx/goal.wav",
+      "bytes": 576078,
+      "sha256": "85ae4e7399509c6850936be8b1c14977199b081c1ac741eddd16fedd74a65a87"
+    },
+    {
+      "source": "public/assets/audio/sfx/hit.wav",
+      "output": "public/audio/sfx/hit.wav",
+      "bytes": 384078,
+      "sha256": "c15957fbb49afa9f261e3142ca60022e5c7e5c97bd9347193c1163f883b30097"
+    },
+    {
+      "source": "public/assets/audio/sfx/ui-back.wav",
+      "output": "public/audio/sfx/ui-back.wav",
+      "bytes": 12392,
+      "sha256": "19e4ee3c2d73adcda73d12cad90514908c59b1b535849a208f4f2cc400f6877e"
+    },
+    {
+      "source": "public/assets/audio/sfx/ui-confirm.wav",
+      "output": "public/audio/sfx/ui-confirm.wav",
+      "bytes": 15920,
+      "sha256": "5340b743e183794f6377721f1d7eeb6242101340cd8f88490cce3b5dc7f98a33"
+    },
+    {
+      "source": "public/assets/audio/sfx/ui-move.wav",
+      "output": "public/audio/sfx/ui-move.wav",
+      "bytes": 7100,
+      "sha256": "3af1317568a37176c501704b67666c4e54ef1a2c2b8311525fd14e0eee0506c3"
+    }
+  ]
+}

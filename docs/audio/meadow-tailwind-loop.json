@@ -1,0 +1,23 @@
+{
+  "revision": 3,
+  "source": "Open Groove.mp3",
+  "source_sha256": "9de25626d963b15db6e75aeddf762b057bbc4440bdd80cb10d0f7fd71df98169",
+  "sample_rate": 48000,
+  "channels": 2,
+  "samples": 5739776,
+  "duration_seconds": 119.57866666666666,
+  "source_alignment_seconds": [
+    36.14,
+    155.71866666666668
+  ],
+  "harmonic_crossfade_seconds": 1.88,
+  "percussive_crossfade_seconds": 0.16,
+  "incoming_harmonic_gain_db": 1.8772074625738595,
+  "gain_release_seconds": 6,
+  "harmonic_correlation": 0.027782988984066156,
+  "percussive_correlation": -0.02424766942979377,
+  "true_peak_dbfs": -4.036628719343954,
+  "seam_preview_transition_center_seconds": 8,
+  "edit_note": "Shared stereo HPSS mask separates sustained harmonics from transients only at the splice. Preserve the v2 beat alignment; extend harmonic tails, match their level, and release compensation to unity over 6s. The unmodified source resumes outside this neighbourhood.",
+  "playback": "Loop full decoded buffer, no runtime crossfade."
+}

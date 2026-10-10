@@ -110,3 +110,12 @@ describe('Homing passage through palace solids', () => {
   expect(s.guards[0].defeated).toBe(false);
  });
 });
+
+ it('counts damage, falls and actual beacons once and retains them through respawn',()=>{
+  const l=layout({guards:[guard(0)],checkpoints:[{id:'skip',x:-10,y:0,spawnX:-10,spawnY:0},{id:'cp',x:0,y:0,spawnX:5,spawnY:0}]});
+  let s=tick(createPalaceRun(l),l);expect(s.damageTaken).toBe(1);expect(s.reachedCheckpoints).toEqual([1]);
+  s=tick({...s,player:{...s.player,x:0,y:0}},l);expect(s.damageTaken).toBe(1);expect(s.reachedCheckpoints).toEqual([1]);
+  s=tick({...s,player:{...s.player,y:-13}},l);expect(s.falls).toBe(1);
+  s=advance(s,l,60);expect(s.falls).toBe(1);expect(s.damageTaken).toBe(1);expect(s.reachedCheckpoints).toEqual([1]);
+  expect(createPalaceRun(l)).toMatchObject({damageTaken:0,falls:0,reachedCheckpoints:[]});
+ });

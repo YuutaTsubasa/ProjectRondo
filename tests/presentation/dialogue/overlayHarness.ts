@@ -56,13 +56,13 @@ const mounted: ReturnType<typeof mount>[] = [];
  * prop is optional and every call site inside the component is `playCue?.(...)`, so supplying one
  * changes nothing but whether the call is recorded.
  */
-export function renderOverlay(script: string) {
+export function renderOverlay(script: string, onFinished?: () => void) {
   const { graph } = parse(script);
   const session = createDialogueSession(graph!);
   const playCue = vi.fn();
   const target = document.createElement('div');
   document.body.appendChild(target);
-  mounted.push(mount(DialogueOverlay, { target, props: { session, playCue } }));
+  mounted.push(mount(DialogueOverlay, { target, props: { session, playCue, onFinished } }));
   flushSync();
   return { session, playCue };
 }
