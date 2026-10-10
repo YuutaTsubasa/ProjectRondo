@@ -12,9 +12,9 @@ function create():Shared{
  const canvas=document.createElement('canvas');canvas.dataset.menuPortrait='';
  const renderer=import('./menuPortraitRuntime').then(runtime=>runtime.mountMenuPortrait(canvas));
  const created:Shared={canvas,renderer,owner:null,loaded:false,keepers:0,idle:undefined};
- renderer.then(async view=>{await view.ready;return view;}).then(view=>{
+ renderer.then(async view=>{await view.ready;return view;}).then(async view=>{
   // Warmed with no screen showing it: compile shaders now, not on the results screen's first frame.
-  if(created.owner===null)view.prime();
+  if(created.owner===null)await view.prime();
   created.loaded=true;
  }).catch(error=>{
   // A failed engine, model or warm-up render is not kept: the next screen retries from scratch.
@@ -64,9 +64,11 @@ export function retainMenuPortrait():()=>void{
  return()=>{if(released)return;released=true;current.keepers--;scheduleIdleRelease(current);};
 }
 
-/** Retain once the stage has been built and shown, at the first idle moment: the stage has already
- * read the player model (a cache hit, no second download), and loading is not stretched by a second
- * parse. A run's timer clamps frame time, so an idle-time hitch costs at most one clamped step. */
+/** Retain once the stage has been built and shown, so its loading is not stretched by a second model
+ * parse, and the stage has already read the player model (a cache hit, not a second download).
+ * Only the kick-off waits for an idle moment: the engine creation and model setup it starts still
+ * land on ordinary frames during play, as short stalls the run's clamped timer and physics step
+ * absorb. Shader compilation is asynchronous (see prime). */
 export function retainMenuPortraitAfter(stageShown:Promise<unknown>):()=>void{
  let release:(()=>void)|undefined,cancelled=false,idle:number|undefined;
  const start=()=>{idle=undefined;if(!cancelled)release=retainMenuPortrait();};

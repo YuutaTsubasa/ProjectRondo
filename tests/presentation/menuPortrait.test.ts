@@ -61,7 +61,9 @@ it('snaps to a new screen pose in one frame and primes shaders while hidden',asy
  engine=new NullEngine();stub.load.mockImplementation((_url,scene)=>Promise.resolve(model(scene)));
  const view=createMenuPortraitScene(engine);await view.ready;
  const render=vi.spyOn(view.scene,'render').mockImplementation(()=>{});
- view.prime();expect(render).toHaveBeenCalledOnce();
+ // Priming compiles asynchronously instead of blocking on a render during play.
+ const ready=vi.spyOn(view.scene,'whenReadyAsync');
+ await view.prime();expect(ready).toHaveBeenCalledWith(true);expect(render).not.toHaveBeenCalled();
  const camera=view.scene.activeCamera!;
  // With motion on, a normal frame only eases toward the pose; a takeover frames it at once.
  view.setPresentation('loading',true,false);view.snapToPose();view.render();

@@ -68,8 +68,9 @@ export function createMenuPortraitScene(engine:AbstractEngine){
   hide(){if(disposed)return;active=false;},
   /** A new screen took the portrait over: frame its pose at once instead of gliding from the last screen's. */
   snapToPose(){snap=true;dirty=true;},
-  /** Render one frame while hidden so model and post-process shaders compile before a screen shows it. */
-  prime(){if(disposed||!loaded)return;scene.render();dirty=true;},
+  /** Compile the portrait's effects while hidden, before a screen shows it. Asynchronous (parallel
+   * shader compile where available) rather than a blocking render, since a warm-up runs during play. */
+  async prime(){if(disposed||!loaded)return;await scene.whenReadyAsync(true);dirty=true;},
   render(){
    if(disposed||!loaded||!active||reduced&&!dirty)return;
    const blend=reduced||snap?1:1-Math.exp(-Math.min(.05,engine.getDeltaTime()/1000)*9);snap=false;
