@@ -37,9 +37,9 @@
  {/each}
 </div>
 <style>
- .location-marquee{position:fixed;inset:0;overflow:hidden;pointer-events:none;user-select:none;text-shadow:none;--edge-size:clamp(80px,10vw,180px);z-index:0}
+ .location-marquee{position:fixed;inset:0;overflow:hidden;pointer-events:none;user-select:none;text-shadow:none;--edge-size:clamp(80px,10cqw,180px);z-index:0}
  .outline-defs{position:absolute;width:0;height:0;overflow:hidden}
- .edge{position:absolute;width:100vh;height:var(--edge-size);overflow:hidden;transform-origin:0 0;font-family:var(--font-body);font-weight:700;font-size:var(--edge-size);line-height:1;letter-spacing:0;white-space:nowrap;color:#fff;-webkit-text-fill-color:currentColor;-webkit-text-stroke:0;text-shadow:none;opacity:.6;translate:0 0;transition:translate 650ms cubic-bezier(.22,1,.36,1)}
+ .edge{position:absolute;width:100cqh;height:var(--edge-size);overflow:hidden;transform-origin:0 0;font-family:var(--font-body);font-weight:700;font-size:var(--edge-size);line-height:1;letter-spacing:0;white-space:nowrap;color:#fff;-webkit-text-fill-color:currentColor;-webkit-text-stroke:0;text-shadow:none;opacity:.6;translate:0 0;transition:translate 650ms cubic-bezier(.22,1,.36,1)}
  .left{left:var(--edge-size);top:0;transform:rotate(90deg)}.right{left:calc(100% - var(--edge-size));top:100%;transform:rotate(-90deg)}
  .leaving .edge{transition-duration:450ms;transition-timing-function:cubic-bezier(.4,0,1,1)}.leaving .left{translate:calc(-1 * var(--edge-size) - 8px) 0}.leaving .right{translate:calc(var(--edge-size) + 8px) 0}
  .track{display:flex;width:max-content;animation:flow var(--duration) linear infinite;will-change:transform}.track span{display:block;flex:none}.right .track{animation-direction:reverse}

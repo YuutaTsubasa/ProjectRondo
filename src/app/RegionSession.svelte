@@ -1,4 +1,5 @@
 <script lang="ts">
+ import UiViewport from '../presentation/layout/UiViewport.svelte';
  import {onDestroy,onMount,tick,untrack} from 'svelte';
  import ExpeditionIntro from '../presentation/region/ExpeditionIntro.svelte';
  import LoadingPage from '../presentation/menu/LoadingPage.svelte';
@@ -101,6 +102,7 @@
   {:else}<PalaceSession onReady={stageReady} onFailure={fail} onExit={returnToWorld} onComplete={()=>stageComplete('palace')} exitLabel="返回白潮原野"/>{/if}
  {/key}
 {/if}
+<UiViewport layer={20}>
 {#if mode==='world'&&!loading&&!error}
  <div inert={paused} hidden={modal==='paused'}><RegionHud subdued={!!dialogue} {progress} {position} {heading} {playerHeading} {locationLabel} {navigationId} prompt={paused?'':prompt} {notice} {saveWarning} onInteract={interact} onMap={openMap} onPause={pause}/></div>
 {/if}
@@ -123,3 +125,4 @@
   {label:'返回主選單',english:'MAIN MENU',run:leave}
  ]}/>
 {/if}
+</UiViewport>

@@ -1,4 +1,5 @@
 <script lang="ts">
+ import UiViewport from '../presentation/layout/UiViewport.svelte';
   import {recordStageClear} from './stageRecords';
   import { onMount } from 'svelte';
   import {retainMenuPortraitAfter} from '../presentation/menu/sharedMenuPortrait';
@@ -65,6 +66,8 @@
 </script>
 <svelte:window onkeydown={keydown}/>
 <canvas bind:this={canvas} tabindex="-1" data-game-entry aria-label="白色宮殿遊戲畫面" style="width:100vw;height:100vh;display:block"></canvas>
+<UiViewport>
 <div bind:this={dialogHost}>
 {#if status!=='loading'}<PalaceHud {run} {status} onPause={pause} onResume={resume} onRestart={restart} onExit={leave} {exitLabel}/>{/if}
 </div>
+</UiViewport>

@@ -24,7 +24,12 @@
   const own=lease=acquireMenuPortrait(host);
   // A portrait loaded by an earlier screen or a warm-up shows at once rather than fading in again.
   ready=own.loaded;own.canvas.dataset.ready=String(own.loaded);
-  const resize=new ResizeObserver(()=>{if(own.owns())renderer?.resize();});resize.observe(host);
+  const resizeView=()=>{if(own.owns())renderer?.resize();};
+  const resize=new ResizeObserver(resizeView);resize.observe(host);
+  // A CSS transform can change visible size without changing the observed layout box.
+  let resizeFrame=0;
+  const afterLayout=()=>{if(resizeFrame)cancelAnimationFrame(resizeFrame);resizeFrame=requestAnimationFrame(()=>{resizeFrame=0;resizeView();});};
+  window.addEventListener('resize',afterLayout);
   void own.renderer.then(async view=>{
    if(cancelled)return;
    if(own.owns())view.snapToPose();
@@ -36,7 +41,7 @@
    if(!cancelled){console.warn('3D title portrait unavailable; keeping the scene background.',error);ready=false;}
    renderer=undefined;
   });
-  return()=>{cancelled=true;renderer=undefined;own.release();lease=undefined;resize.disconnect();document.removeEventListener('visibilitychange',visibility);preference.removeEventListener('change',visibility);};
+  return()=>{cancelled=true;renderer=undefined;own.release();lease=undefined;resize.disconnect();window.removeEventListener('resize',afterLayout);if(resizeFrame)cancelAnimationFrame(resizeFrame);document.removeEventListener('visibilitychange',visibility);preference.removeEventListener('change',visibility);};
  });
 </script>
 <!-- The shared portrait canvas is appended here while this screen owns it. -->

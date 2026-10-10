@@ -76,7 +76,7 @@
     position: relative;
     flex: 1;
     box-sizing: border-box;
-    padding: 5vh 8vw;
+    padding: 5cqh 8cqw;
     background: rgb(var(--avg-navy-rgb));
     border: 1px solid var(--c-blue);
     display: flex;
@@ -114,7 +114,7 @@
   .stamp {
     position: absolute;
     left: 22%;
-    top: 5vh;
+    top: 5cqh;
     font-family: var(--font-display);
     font-size: 120px;
     line-height: 0.9;

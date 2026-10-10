@@ -1,4 +1,5 @@
 <script lang="ts">
+ import UiViewport from '../presentation/layout/UiViewport.svelte';
   import {recordStageClear} from './stageRecords';
   import { onMount } from 'svelte';
   import { retainMenuPortraitAfter } from '../presentation/menu/sharedMenuPortrait';
@@ -116,7 +117,9 @@
 
 <svelte:window onkeydown={keydown} />
 <canvas bind:this={canvas} tabindex="-1" data-game-entry aria-label="白宮天廊遊戲畫面" style="width:100vw;height:100vh;display:block"></canvas>
+<UiViewport>
 {#if status !== 'loading'}
   <CourseHud {run} {status} {defeated} {damage} player={hudPlayer} facing={hudFacing} checkpointLabel={COURSE_GATES[run.checkpoint]!.label}
     onPause={pause} onResume={resume} onRestart={restart} onExit={leave} {exitLabel} />
 {/if}
+</UiViewport>

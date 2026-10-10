@@ -1,8 +1,10 @@
+import {startPwa} from './pwa';
 import './tokens.css';
 import './fonts.css';
 import App from './App.svelte';
 import { mount } from 'svelte';
 import { configureAssetRetries } from '../presentation/babylon/assetRetry';
 configureAssetRetries();
+startPwa();
 const app = mount(App, { target: document.getElementById('app')! });
 export default app;

@@ -25,11 +25,11 @@
  <div class="bottom">{@render waveLines('bottom')}</div>
 </div>
 <style>
- .hud-waves{position:fixed;inset:0;overflow:hidden;pointer-events:none;user-select:none;color:#8cc2ff;z-index:0;--wave-edge:clamp(48px,5.8vw,96px)}
- .bottom{position:absolute;left:0;right:0;bottom:-8px;height:clamp(105px,24vh,260px);background:transparent}
- .cinematic .bottom{height:clamp(150px,32vh,320px);filter:drop-shadow(0 0 4px #4e8eff88)}
+ .hud-waves{position:fixed;inset:0;overflow:hidden;pointer-events:none;user-select:none;color:#8cc2ff;z-index:0;--wave-edge:clamp(48px,5.8cqw,96px)}
+ .bottom{position:absolute;left:0;right:0;bottom:-8px;height:clamp(105px,24cqh,260px);background:transparent}
+ .cinematic .bottom{height:clamp(150px,32cqh,320px);filter:drop-shadow(0 0 4px #4e8eff88)}
  .cinematic{color:#b5d8ff}.cinematic .front{stroke-width:1.1}
- .wave-edge{position:absolute;width:100vh;height:var(--wave-edge);transform-origin:0 0;opacity:.8;background:transparent;overflow:hidden;mask-image:linear-gradient(to bottom,#000 0%,#000 82%,transparent 100%)}
+ .wave-edge{position:absolute;width:100cqh;height:var(--wave-edge);transform-origin:0 0;opacity:.8;background:transparent;overflow:hidden;mask-image:linear-gradient(to bottom,#000 0%,#000 82%,transparent 100%)}
  /* Side surfaces keep the filled side against the screen edge, fading toward the scene. */
  .wave-edge svg{transform:scaleY(-1)}
  .left{left:0;top:100%;transform:rotate(-90deg)}.right{left:100%;top:0;transform:rotate(90deg)}
@@ -41,9 +41,9 @@
  .stopped .ribbon,.stopped .current,:global([inert]) .ribbon,:global([inert]) .current{animation-play-state:paused}
  @keyframes wave-breathe{from{transform:translate(-18px,7px) scaleY(.9)}to{transform:translate(18px,-7px) scaleY(1.055)}}
  @keyframes wave-flow{to{stroke-dashoffset:-780}}
- @media(max-width:700px){.bottom{height:100px}.bottom svg{width:150%;margin-left:-25%}}
+ @container game-ui (max-width:700px){.bottom{height:100px}.bottom svg{width:150%;margin-left:-25%}}
  .subtle{position:absolute;color:#6999c8;z-index:1}
- .subtle .bottom{height:clamp(48px,10vh,86px);bottom:-10px}
+ .subtle .bottom{height:clamp(48px,10cqh,86px);bottom:-10px}
  .subtle .ribbon{animation-duration:7s;stroke-width:.8}
  .subtle .back{animation-duration:10s;opacity:.5}
  .subtle .current{animation-duration:9s;stroke:#76a8d6;stroke-width:1;opacity:.25}

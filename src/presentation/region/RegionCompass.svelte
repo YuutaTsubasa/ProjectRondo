@@ -24,7 +24,7 @@
  </svg>
 </div>
 <style>
- .compass{position:absolute;left:50%;top:calc(21px * var(--hud-scale,1));transform:translateX(-50%);width:min(34vw,calc(450px * var(--hud-scale,1)));color:white;filter:drop-shadow(0 1px 1px #18314b99)}svg{width:100%;overflow:visible}.line{stroke:#e2efff77;stroke-width:.6}.tick{stroke:#fff;stroke-width:.8}text{fill:#f7faff;font:400 13px var(--font-body);letter-spacing:1px;text-anchor:middle}.center{fill:white}.target{fill:#4377ff;stroke:#c4e6ff;stroke-width:1.5}
- @media(max-width:850px){.compass{width:35vw;left:55%;top:25px}}
- @media(max-width:540px){text{font-size:24px}.compass{width:37vw;left:auto;right:42px;top:91px;transform:none}}
+ .compass{position:absolute;left:50%;top:calc(21px * var(--hud-scale,1));transform:translateX(-50%);width:min(34cqw,calc(450px * var(--hud-scale,1)));color:white;filter:drop-shadow(0 1px 1px #18314b99)}svg{width:100%;overflow:visible}.line{stroke:#e2efff77;stroke-width:.6}.tick{stroke:#fff;stroke-width:.8}text{fill:#f7faff;font:400 13px var(--font-body);letter-spacing:1px;text-anchor:middle}.center{fill:white}.target{fill:#4377ff;stroke:#c4e6ff;stroke-width:1.5}
+ @container game-ui (max-width:850px){.compass{width:35cqw;left:55%;top:25px}}
+ @container game-ui (max-width:540px){text{font-size:24px}.compass{width:37cqw;left:auto;right:42px;top:91px;transform:none}}
 </style>

@@ -215,11 +215,11 @@
   .overlay{position:fixed;inset:0;z-index:10;pointer-events:none;font-family:var(--font-body);color:var(--avg-text);isolation:isolate;animation:avg-in .36s ease-out both}
   .atmosphere{position:absolute;inset:0;background:linear-gradient(180deg,rgba(var(--avg-navy-rgb),.48),transparent 18%,transparent 55%,rgba(var(--avg-navy-rgb),.35)),linear-gradient(90deg,rgba(var(--avg-navy-rgb),.22),transparent 30%,transparent 80%,rgba(var(--avg-navy-rgb),.23))}
   .scene-ui{position:absolute;inset:0;pointer-events:none}
-  .edge-mark{position:absolute;bottom:29%;height:80px;width:1px;background:linear-gradient(transparent,var(--avg-light),transparent);color:var(--avg-light);font-size:15px;line-height:80px;text-indent:-6px;opacity:.6}.edge-mark.left{left:1.2vw}.edge-mark.right{right:1.2vw}
+  .edge-mark{position:absolute;bottom:29%;height:80px;width:1px;background:linear-gradient(transparent,var(--avg-light),transparent);color:var(--avg-light);font-size:15px;line-height:80px;text-indent:-6px;opacity:.6}.edge-mark.left{left:1.2cqw}.edge-mark.right{right:1.2cqw}
   .avg-identity{position:absolute;inset:0;z-index:5;pointer-events:none}
   .avg-waves{position:absolute;inset:0;z-index:4;pointer-events:none}
-  .dock{position:absolute;z-index:3;left:8%;right:8%;bottom:max(66px,7.5vh);display:flex;flex-direction:column;align-items:flex-start;pointer-events:none;animation:dock-in .42s .06s ease-out both}
-  .box{align-self:stretch;position:relative;box-sizing:border-box;min-height:clamp(155px,20vh,225px);padding:clamp(25px,3.7vh,40px) 12.7% 48px;pointer-events:auto}
+  .dock{position:absolute;z-index:3;left:8%;right:8%;bottom:max(66px,7.5cqh);display:flex;flex-direction:column;align-items:flex-start;pointer-events:none;animation:dock-in .42s .06s ease-out both}
+  .box{align-self:stretch;position:relative;box-sizing:border-box;min-height:clamp(155px,20cqh,225px);padding:clamp(25px,3.7cqh,40px) 12.7% 48px;pointer-events:auto}
   .pane{position:absolute;inset:0;pointer-events:none;clip-path:polygon(28px 0,calc(100% - 28px) 0,100% 30px,100% calc(100% - 28px),calc(100% - 28px) 100%,28px 100%,0 calc(100% - 28px),0 30px);background:linear-gradient(110deg,rgba(var(--avg-navy-rgb),.93),rgba(var(--avg-navy-rgb),.83) 60%,rgba(var(--avg-navy-rgb),.78));mask-image:linear-gradient(to bottom,black 55%,rgba(0,0,0,.4));backdrop-filter:blur(8px)}
   .ring{position:absolute;inset:0;pointer-events:none;border-top:1px solid rgba(var(--c-blue-soft-rgb),.7);clip-path:polygon(var(--octagon-chamfer) 0,calc(100% - var(--octagon-chamfer)) 0,100% var(--octagon-chamfer),100% 100%,0 100%,0 var(--octagon-chamfer));box-shadow:inset 0 var(--octagon-ring) 20px rgba(var(--c-blue-soft-rgb),.07)}
   .box:before,.box:after{content:'✧';position:absolute;top:35%;font:36px Georgia,serif;color:var(--avg-light);text-shadow:0 0 12px var(--avg-glow)}.box:before{left:-14px}.box:after{right:-14px}
@@ -236,10 +236,10 @@
   @keyframes portrait-in{from{opacity:0;translate:24px 0}to{opacity:1;translate:0 0}}
   @keyframes portrait-out{to{opacity:0;translate:24px 0}}@keyframes dock-out{to{opacity:0;transform:translateY(22px)}}
   @keyframes advance-pulse{50%{transform:translateY(4px);filter:drop-shadow(0 0 12px var(--avg-glow))}}@keyframes dock-in{from{opacity:0;transform:translateY(15px)}to{opacity:1;transform:translateY(0)}}
-  @media(max-width:700px){.with-chapter :global(.portrait){left:2vw;height:82vh}.edge-mark{display:none}.dock{left:5%;right:5%;bottom:65px}.box{padding:24px 24px 44px;min-height:165px}.advance{width:28px;height:28px;bottom:12px;right:7%}}
-  @media(max-height:540px) and (min-width:701px){.dock{bottom:60px}.box{min-height:130px;padding-top:18px;padding-bottom:35px}.advance{bottom:8px;width:28px;height:28px}}
-  @media(min-width:1600px){.avg-identity{--hud-scale:1.2}}
-  @media(min-width:1900px){.avg-identity{--hud-scale:1.4}}
-  @media(min-width:2500px){.avg-identity{--hud-scale:1.65}}
+  @container game-ui (max-width:700px){.with-chapter :global(.portrait){left:2cqw;height:82cqh}.edge-mark{display:none}.dock{left:5%;right:5%;bottom:65px}.box{padding:24px 24px 44px;min-height:165px}.advance{width:28px;height:28px;bottom:12px;right:7%}}
+  @container game-ui (max-height:540px) and (min-width:701px){.dock{bottom:60px}.box{min-height:130px;padding-top:18px;padding-bottom:35px}.advance{bottom:8px;width:28px;height:28px}}
+  @container game-ui (min-width:1600px){.avg-identity{--hud-scale:1.2}}
+  @container game-ui (min-width:1900px){.avg-identity{--hud-scale:1.4}}
+  @container game-ui (min-width:2500px){.avg-identity{--hud-scale:1.65}}
   @media(prefers-reduced-motion:reduce){.overlay,.overlay.leaving,.dock,.leaving .dock,.advance.ready,.overlay :global(.portrait){animation:none}.advance{transition:none}}
 </style>
