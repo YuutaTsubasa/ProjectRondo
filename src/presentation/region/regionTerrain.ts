@@ -20,7 +20,7 @@ export function createRegionTerrain(scene: Scene) {
   const grass = new Color3(.31, .44, .25), fresh = new Color3(.45, .53, .30), earth = new Color3(.55, .47, .34), sand = new Color3(.66, .61, .47);
   for (let i = 0; i < positions.length; i += 3) {
     const x = positions[i] += (REGION_BOUNDS.minX + REGION_BOUNDS.maxX) / 2;
-    const z = positions[i + 2] += (REGION_BOUNDS.minZ - 63) / 2;
+    const z = positions[i + 2] += (REGION_BOUNDS.minZ + REGION_TOWN_EDGE_Z) / 2;
     positions[i + 1] = regionHeight(x, z);
     const patch = (Math.sin(x * .09 + Math.sin(z * .034) * 2) * Math.cos(z * .067) + 1) / 2;
     let color = Color3.Lerp(grass, fresh, patch);

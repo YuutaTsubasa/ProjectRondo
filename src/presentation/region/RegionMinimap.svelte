@@ -1,6 +1,6 @@
 <script lang="ts">
  import {REGION_TRAILS,REGION_PLACES,REGION_INTERACTION_PLACES} from '../../domain/region/regionLayout';
- import {TOWN_BUILDINGS} from '../../domain/town/townLayout';
+ import {TOWN_BOUNDS,TOWN_BUILDINGS} from '../../domain/town/townLayout';
  import type {RegionPoint} from '../../domain/region/regionObjectives';
  import {minimapOffset} from '../hud/hudNavigation';
  import atlas from '../../content/regionAtlas.json';
@@ -23,8 +23,8 @@
      <image class="atlas-photo" href={`${atlas.image}?v=${atlas.sha256.slice(0,12)}`} x={atlas.bounds.minX} y={-atlas.bounds.maxZ} width={atlas.bounds.maxX-atlas.bounds.minX} height={atlas.bounds.maxZ-atlas.bounds.minZ} onerror={()=>atlasFailed=true}/>
     {:else}<g transform="scale(1 -1)">
     <path d="M-180 100H42V-70L55-100 73-166 83-225 67-275 20-300H-180Z" class="land"/>
-    <path d="M-40 57H40V-63H-40Z" class="town"/>
-    <path d="M0 52V-63M-35 24H36M-32-32H32" class="road"/>
+    <path d={`M${TOWN_BOUNDS.minX} ${TOWN_BOUNDS.maxZ}H${TOWN_BOUNDS.maxX}V${TOWN_BOUNDS.minZ}H${TOWN_BOUNDS.minX}Z`} class="town"/>
+    <path d={`M0 52V${TOWN_BOUNDS.minZ}M-35 24H36M-32-32H32`} class="road"/>
     {#each REGION_TRAILS as trail}<polyline points={trail.map(([x,z])=>`${x},${z}`).join(' ')} class="road"/>{/each}
     {#each TOWN_BUILDINGS as b}<rect x={b.x-4} y={b.z-4} width="8" height="8" rx="1" class="building"/>{/each}
    </g>{/if}
