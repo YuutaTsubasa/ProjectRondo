@@ -72,7 +72,7 @@ it('resets to the town gate even when the region was loaded at an expedition ret
       follow: { camera: {}, snap: vi.fn() }, shadows: { cast: vi.fn(), receive: vi.fn() },
       dispose: vi.fn(), suspendInput: vi.fn(),
     });
-    state.audio.mockReturnValue({ setMusicScene: vi.fn(), dispose: vi.fn() });
+    state.audio.mockReturnValue({ whenReady:vi.fn().mockResolvedValue(undefined), setMusicScene: vi.fn(), dispose: vi.fn() });
     const region = await createRegionScene(engine, document.createElement('canvas'), { x: 0, y: 1.3, z: -110 });
     region.reset();
     expect(teleport.mock.calls[0][0].asArray()).toEqual([REGION_SPAWN.x, REGION_SPAWN.y, REGION_SPAWN.z]);
@@ -89,7 +89,7 @@ it('switches town and meadow music at the gate without restarting inside a zone'
       follow: { camera: { position: new Vector3(0, 4, -40), getTarget: () => position, setTarget: vi.fn() } },
       shadows: { cast: vi.fn(), receive: vi.fn() }, dispose: vi.fn(), suspendInput: vi.fn(),
     });
-    state.audio.mockReturnValue({ setMusicScene, dispose: vi.fn() });
+    state.audio.mockReturnValue({ whenReady:vi.fn().mockResolvedValue(undefined), setMusicScene, dispose: vi.fn() });
     const region = await createRegionScene(engine, document.createElement('canvas'));
     const step = (z: number) => { position.z = z; region.scene.onBeforeRenderObservable.notifyObservers(region.scene); };
     expect(setMusicScene.mock.calls).toEqual([['town']]);
@@ -99,4 +99,17 @@ it('switches town and meadow music at the gate without restarting inside a zone'
     expect(setMusicScene.mock.calls).toEqual([['town'], ['meadow'], ['town']]);
     region.dispose();
   } finally { engine.dispose(); }
+});
+
+it('keeps the region builder pending until the required music is decoded',async()=>{
+ const engine=new NullEngine();let ready!:()=>void;
+ const whenReady=vi.fn(()=>new Promise<void>(resolve=>ready=resolve));
+ try {
+  state.rig.mockResolvedValue({player:{motion:{},root:{position:Vector3.Zero(),rotation:Vector3.Zero()}},follow:{camera:{}},shadows:{cast:vi.fn(),receive:vi.fn()},dispose:vi.fn(),suspendInput:vi.fn()});
+  state.audio.mockReturnValue({whenReady,setMusicScene:vi.fn(),dispose:vi.fn()});
+  const shown=vi.fn();const building=createRegionScene(engine,document.createElement('canvas')).then(region=>{shown();return region;});
+  await vi.waitFor(()=>expect(whenReady).toHaveBeenCalledOnce());expect(shown).not.toHaveBeenCalled();
+  expect(state.audio.mock.calls.at(-1)?.[3]).toEqual({musicCues:['music.town','music.meadow']});
+  ready();const region=await building;expect(shown).toHaveBeenCalledOnce();region.dispose();
+ }finally{engine.dispose();}
 });

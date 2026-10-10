@@ -43,12 +43,16 @@ export interface DeferredAudio {
  * no arguments so nothing here needs a `Scene`, a loaded knight or an `AudioContext`: what the build
  * closes over is the caller's business. Pinned by `tests/presentation/deferredAudio.test.ts`.
  *
- * A rejecting build is logged and swallowed: a failure here means a silent game, not a broken one.
+ * A rejecting build is logged without an unhandled rejection. Scenes that require music call
+ * whenReady(), which reports that failure to their loading/retry UI.
  */
-export function createDeferredAudio(build: () => Promise<DeferredAudio>): DeferredAudio {
+export interface ReadyAudio extends DeferredAudio { whenReady(): Promise<void> }
+
+export function createDeferredAudio(build: () => Promise<DeferredAudio>): ReadyAudio {
   let live: DeferredAudio | null = null;
   let disposed = false;
   let pending: MusicScene | null = null;
+  let failed = false, failure: unknown;
 
   const start = async () => {
     try {
@@ -62,12 +66,18 @@ export function createDeferredAudio(build: () => Promise<DeferredAudio>): Deferr
       live = audio;
       if (pending !== null) audio.setMusicScene(pending);
     } catch (error) {
-      console.warn('[audio] could not start; the game will be silent:', error);
+      failed = true; failure = error;
+      console.warn('[audio] could not prepare:', error);
     }
   };
-  void start();
+  const preparation = start();
 
   return {
+    async whenReady() {
+      await preparation;
+      if (failed) throw failure;
+      if (disposed) throw new Error('Audio disposed during preparation');
+    },
     // Held rather than dropped: `App.svelte` asks for the intro track the moment the scene resolves,
     // which is now normally *before* the graph is ready.
     setMusicScene(next) {

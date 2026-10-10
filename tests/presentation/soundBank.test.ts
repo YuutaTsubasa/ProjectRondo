@@ -300,3 +300,16 @@ it('does not fetch or decode music when the stage owns its music separately', as
  expect(made.has(MANIFEST['jump.takeoff'].files[0])).toBe(true);
  expect(bank.startLoop('music.course')).toBeNull();bank.dispose();
 });
+
+it('loads only the region music and requires it before returning',async()=>{
+ const bank=await loadSoundBank(audio,{musicCues:['music.town','music.meadow']});
+ expect(made.has(MANIFEST['music.town'].files[0])).toBe(true);
+ expect(made.has(MANIFEST['music.meadow'].files[0])).toBe(true);
+ expect(made.has(MANIFEST['music.avg'].files[0])).toBe(false);
+ expect(made.has(MANIFEST['music.course'].files[0])).toBe(false);bank.dispose();
+});
+it('rejects and releases the bank when a required region track fails',async()=>{
+ failing.add(MANIFEST['music.town'].files[0]);
+ await expect(loadSoundBank(audio,{musicCues:['music.town','music.meadow']})).rejects.toThrow('music.town');
+ expect([...made.values()].every(sound=>sound.disposed)).toBe(true);
+});

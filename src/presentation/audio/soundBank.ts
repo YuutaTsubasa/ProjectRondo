@@ -144,13 +144,12 @@ const load = async (audio: GameAudio, cue: SoundCue, spec: CueSpec): Promise<Loa
 };
 
 /**
- * Loads every cue in the manifest.
- *
- * Resolves once all of them have either loaded or failed. It never rejects: a caller that has to
- * remember to `.catch` is the failure mode this is avoiding.
+ * Loads effects plus the selected music (all music by default for legacy scenes).
+ * Optional effects may fail silently. Explicitly requested music is required: failed BGM
+ * releases the bank and rejects so the scene stays on its loading/error screen.
  */
-export async function loadSoundBank(audio: GameAudio, options: {music?: boolean} = {}): Promise<SoundBank> {
-  const cues = (Object.keys(MANIFEST) as SoundCue[]).filter(cue => options.music !== false || MANIFEST[cue].bus !== 'music');
+export async function loadSoundBank(audio: GameAudio, options: {music?: boolean; musicCues?: readonly SoundCue[]} = {}): Promise<SoundBank> {
+  const cues = (Object.keys(MANIFEST) as SoundCue[]).filter(cue => MANIFEST[cue].bus !== 'music' || (options.music !== false && (!options.musicCues || options.musicCues.includes(cue))));
   const loaded = new Map<SoundCue, Loaded>();
   await Promise.all(
     cues.map(async (cue) => {
@@ -159,6 +158,11 @@ export async function loadSoundBank(audio: GameAudio, options: {music?: boolean}
     }),
   );
 
+  const missingMusic = options.music === false ? [] : (options.musicCues ?? []).filter(cue => !loaded.has(cue));
+  if (missingMusic.length) {
+    for (const sounds of loaded.values()) for (const sound of sounds) sound.dispose();
+    throw new Error(`Required music unavailable: ${missingMusic.join(', ')}`);
+  }
   const pick = (cue: SoundCue, variant = 0) => {
     const sounds = loaded.get(cue);
     return sounds ? sounds[variant % sounds.length] : null;

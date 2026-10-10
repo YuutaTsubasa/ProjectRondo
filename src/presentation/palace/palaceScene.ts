@@ -1,3 +1,4 @@
+import {waitForAudioReadiness} from '../audio/audioReadiness';
 import type { Engine } from '@babylonjs/core/Engines/engine';
 import { Scene } from '@babylonjs/core/scene';
 import { FreeCamera } from '@babylonjs/core/Cameras/freeCamera';
@@ -116,6 +117,7 @@ export async function createPalaceScene(engine:Engine):Promise<PalaceScene> {
     };
     update(true);
     exposeDevHandle(scene,'palace',api);
+    await waitForAudioReadiness(()=>audio!.prepare());
     return api;
   }catch(error){
     input.dispose();audio?.dispose();stopAnimation?.();knight?.release();guards?.dispose();scene.dispose();throw error;

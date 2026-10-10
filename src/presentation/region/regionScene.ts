@@ -1,3 +1,4 @@
+import {waitForAudioReadiness} from '../audio/audioReadiness';
 import {createRegionObjectiveMarker} from './regionObjectiveMarker';
 import type { Engine } from '@babylonjs/core/Engines/engine';
 import { Scene } from '@babylonjs/core/scene';
@@ -78,7 +79,7 @@ export async function createRegionScene(
     createClouds(scene);
     createAtmosphere(scene, rig.follow.camera);
     scene.fogDensity = .0028;
-    const audio = createHubAudio(scene, rig.readMotion, rig.knight);
+    const audio = createHubAudio(scene, rig.readMotion, rig.knight, {musicCues:['music.town','music.meadow']});
     parts.audio = audio;
     let musicScene = regionMusicScene(initial.z);
     audio.setMusicScene(musicScene);
@@ -111,6 +112,7 @@ export async function createRegionScene(
     };
     exposeDevHandle(scene, 'region', region); exposeDevHandle(scene, 'regionAssets', assets);
     exposeDevHandle(scene, 'shadows', rig.shadows);
+    await waitForAudioReadiness(()=>audio.whenReady());
     return region;
   } catch (error) { disposeLevel(scene, parts); throw error; }
 }

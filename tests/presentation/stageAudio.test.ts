@@ -6,7 +6,7 @@ import {createMenuMusic} from '../../src/presentation/audio/menuMusic';
 vi.mock('../../src/presentation/audio/menuMusic',()=>({createMenuMusic:vi.fn()}));
 afterEach(()=>{audioPreferences.reset();vi.unstubAllGlobals();vi.clearAllMocks();document.body.innerHTML='';});
 function fixture(scene:'course'|'palace'='course'){
- const music:any[]=[];vi.mocked(createMenuMusic).mockImplementation(()=>{const m={unlock:vi.fn().mockResolvedValue(undefined),setActive:vi.fn(),setTitleScreen:vi.fn(),dispose:vi.fn()};music.push(m);return m;});
+ const music:any[]=[];vi.mocked(createMenuMusic).mockImplementation(()=>{const m={prepare:vi.fn().mockResolvedValue(undefined),unlock:vi.fn().mockResolvedValue(undefined),setActive:vi.fn(),setTitleScreen:vi.fn(),dispose:vi.fn()};music.push(m);return m;});
  const media:any[]=[];vi.stubGlobal('Audio',class{src:string;paused=true;volume=1;currentTime=0;playbackRate=1;preload='';constructor(src:string){this.src=src;media.push(this);}play=vi.fn(()=>{this.paused=false;return Promise.resolve();});pause=vi.fn(()=>{this.paused=true;});removeAttribute(){}load(){}});
  const stage=createStageAudio(scene);return {stage,music,media};
 }
@@ -39,4 +39,13 @@ it('keeps UI feedback audible while entering pause and applies master/SFX/mute',
  audioPreferences.setLevel('master',.5);audioPreferences.setLevel('sfx',.4);
  expect(f.media.find(x=>x.src.endsWith('/coin.wav')).volume).toBeCloseTo(.14);
  audioPreferences.setMuted(true);expect(f.media.every(x=>x.volume===0)).toBe(true);f.stage.dispose();
+});
+
+it('prepares stage BGM during Loading without activating playback',async()=>{
+ const f=fixture('palace');let decode!:()=>void;
+ f.music[0].prepare.mockImplementation(()=>new Promise<void>(r=>decode=r));
+ const done=vi.fn();const loading=f.stage.prepare().then(done);
+ await Promise.resolve();expect(done).not.toHaveBeenCalled();expect(f.music[0].unlock).not.toHaveBeenCalled();
+ expect(f.music[0].setActive).toHaveBeenLastCalledWith(false);
+ decode();await loading;expect(done).toHaveBeenCalledOnce();f.stage.dispose();
 });

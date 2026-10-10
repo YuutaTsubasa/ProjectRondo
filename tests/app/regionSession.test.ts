@@ -2,6 +2,8 @@
 import {afterEach,beforeEach,expect,it,vi} from 'vitest';
 import {mount,unmount,flushSync} from 'svelte';
 import RegionSession from '../../src/app/RegionSession.svelte';
+import {deviceInput} from '../../src/presentation/input/deviceInput';
+import {startInputRuntime} from '../../src/presentation/input/runtime';
 import {regionHeight} from '../../src/domain/region/regionLayout';
 import {REGION_SAVE_KEY} from '../../src/app/regionSave';
 vi.mock('../../src/app/RegionWorld.svelte',async()=>({default:(await import('./RegionWorldFixture.svelte')).default}));
@@ -119,4 +121,20 @@ it('returns from a mission map to the same introduction and keeps the world paus
  button('關閉區域地圖').click();await settle();expect(document.querySelector('[aria-label="關卡介紹"]')).not.toBeNull();expect(document.querySelector('[data-world-paused=true]')).not.toBeNull();
  expect(document.querySelector('[aria-label="最佳紀錄"]')?.textContent).toBe('—');expect(document.querySelector('[aria-label="建議時間"]')?.textContent).toBe('00:45.00');
  button('稍後再來').click();await settle();expect(document.querySelector('[data-world-paused=false]')).not.toBeNull();
+});
+
+// Exercise the actual controller -> synthetic Escape -> region session route.
+it('opens and closes the region pause menu with controller Start after the opening AVG',async()=>{
+ vi.stubGlobal('requestAnimationFrame',()=>1);vi.stubGlobal('cancelAnimationFrame',()=>{});
+ const stop=startInputRuntime(),owner=deviceInput.registerGameplay(true,true);
+ const pad=(start=false)=>({id:'Xbox',index:0,mapping:'standard',axes:[0,0,0,0],buttons:Array.from({length:17},(_,i)=>({pressed:start&&i===9,value:start&&i===9?1:0}))});
+ try {
+  await start();await skip();owner.setEnabled(true);
+  deviceInput.poll(pad(),0);deviceInput.poll(pad(true),16);await settle();
+  expect(document.querySelector('[aria-label="暫停選單"]')).not.toBeNull();
+  expect(document.querySelector('[data-world-paused=true]')).not.toBeNull();
+  owner.setEnabled(false);deviceInput.poll(pad(),32);deviceInput.poll(pad(true),48);await settle();
+  expect(document.querySelector('[aria-label="暫停選單"]')).toBeNull();
+  expect(document.querySelector('[data-world-paused=false]')).not.toBeNull();
+ } finally {stop();owner.dispose();deviceInput.poll(null,64);deviceInput.claim('keyboard');}
 });

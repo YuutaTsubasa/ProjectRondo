@@ -1,7 +1,42 @@
 # ProjectRondo — Developer Handoff
 
-Last updated: 2026-10-10. Purpose: everything the next machine / developer / Claude session needs to
+Last updated: 2026-10-11. Purpose: everything the next machine / developer / Claude session needs to
 pick this up cold. The repo is the source of truth; this file is the map.
+
+## Production UI and Windows playtest (2026-10-11)
+
+Reproduced missing region HUD/marquees and apparently missing PAUSE on the Netlify
+production build. Both existed in the DOM, but the region/marquee/pause CSS was absent;
+the elements fell into normal flow below the canvas. Vite 8 folded the conditional
+session imports into one preload wrapper with only the final GameSession branch's CSS.
+Separate loaders in loadGameSession.ts preserve each branch's dependency preload.
+`node tools/verify-build.mjs` fails on the old bundle and checks all session/shared HUD
+styles in the generated entry. Verified the rebuilt app via vite preview: NEW GAME,
+opening AVG, visible edge marquees, and visible PAUSE. A controller Start integration
+test exercises region pause/resume after AVG using the real input runtime.
+
+`.github/workflows/windows-playtest.yml` runs on PRs, main pushes, and manual dispatch.
+It checks out LFS content, verifies assets, installs the frozen pnpm lock, typechecks,
+tests, and builds the Tauri Windows NSIS installer. Artifacts (14-day retention):
+`ProjectRondo-Windows-portable-<sha>` contains app.exe; `...-setup-<sha>` contains the
+installer. Download from GitHub Actions > Windows playtest > completed run > Artifacts.
+The executable bundles game assets and requires WebView2 (installer handles runtime
+setup). Test builds are unsigned. Default window is 1280x720 and resizable. Desktop
+continues using the same game renderer; packaging is not a substitute for UI testing.
+
+## Deployment asset retry and BGM readiness (2026-10-11)
+
+Reported Netlify /town/gate.glb HTTP 500 could not be reproduced later: preview returned
+200 with all 5,292,164 bytes and the exact recorded SHA-256. Babylon's default retries
+status 0 only. App startup now installs bounded transport retries for 0/500/502/503/504
+(500/1000/2000 ms); permanent errors retain failure handling. Server-side origin of the
+original 500 is unconfirmed.
+
+Region/town builders now await their audio graph, loading only town/meadow or town BGM.
+Required music failures reject into the existing retry UI instead of silently entering.
+2D/3D stage music has prepare() to fetch/decode while inactive, before returning the scene.
+Preparation is independent of autoplay unlock; waits are bounded to 45 seconds. Menu
+playback retains gesture-based unlock and stage preparation aborts fetch on disposal.
 
 ## Integration snapshot (2026-10-10)
 

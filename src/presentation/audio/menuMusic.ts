@@ -3,6 +3,8 @@ import { audioPreferences, type AudioPreferences } from './audioPreferences';
 
 export const MENU_MUSIC_URL = '/audio/music/title_theme.ogg';
 export interface MenuMusic {
+  /** Download and decode without waiting for autoplay permission or starting playback. */
+  prepare(): Promise<void>;
   unlock(): Promise<void>;
   setActive(active: boolean): void;
   setTitleScreen(title: boolean): void;
@@ -66,40 +68,50 @@ export function createMenuMusic(options: Options = {}): MenuMusic {
     source.stop(context.currentTime + .35);
     playing = undefined;
   }
+  const downloadAbort = new AbortController();
+  function ensureContext() {
+    if (disposed) throw new Error('Music player disposed');
+    if (context) return context;
+    if (!options.createContext && typeof AudioContext === 'undefined') throw new Error('Audio is unavailable');
+    context = options.createContext ? options.createContext() : new AudioContext();
+    mix = context.createGain();
+    mix.gain.value = busGain(levels, 'music');
+    mix.connect(context.destination);
+    titleGain = context.createGain();
+    titleGain.gain.value = (titleScreen ? .25 : 1) * (options.volume ?? 1);
+    titleGain.connect(mix);
+    return context;
+  }
+  async function prepare() {
+    const decoder = ensureContext();
+    if (buffer) return;
+    if (!loading) {
+      loading = (async () => {
+        const data = options.fetchAudio ? await options.fetchAudio() : await fetch(options.url ?? MENU_MUSIC_URL, {signal:downloadAbort.signal}).then(response => {
+          if (!response.ok) throw new Error(`Music: HTTP ${response.status}`);
+          return response.arrayBuffer();
+        });
+        if (disposed) throw new Error('Music player disposed');
+        const decoded = await decoder.decodeAudioData(data);
+        if (disposed) throw new Error('Music player disposed');
+        buffer = decoded;
+      })().finally(() => { loading = undefined; });
+    }
+    await loading;
+  }
   async function unlock() {
     if (disposed || !active) return;
     try {
-      if (!context) {
-        if (!options.createContext && typeof AudioContext === 'undefined') return;
-        context = options.createContext ? options.createContext() : new AudioContext();
-        mix = context.createGain();
-        mix.gain.value = busGain(levels, 'music');
-        mix.connect(context.destination);
-        titleGain = context.createGain();
-        titleGain.gain.value = (titleScreen ? .25 : 1) * (options.volume ?? 1);
-        titleGain.connect(mix);
-      }
-      // Called directly in the input handler, before the first await, for autoplay policy.
-      await context.resume();
+      // Resume remains in the gesture handler; preparation does not depend on this permission.
+      await ensureContext().resume();
       if (disposed) return;
       unlocked = true;
-      if (!buffer && !loading) {
-        const decoder = context;
-        loading = (async () => {
-          const data = options.fetchAudio ? await options.fetchAudio() : await fetch(options.url ?? MENU_MUSIC_URL).then(response => {
-            if (!response.ok) throw new Error(`Menu music: HTTP ${response.status}`);
-            return response.arrayBuffer();
-          });
-          if (disposed) return;
-          const decoded = await decoder.decodeAudioData(data);
-          if (!disposed) buffer = decoded;
-        })().finally(() => { loading = undefined; });
-      }
-      await loading;
+      await prepare();
       start();
-    } catch { /* A later menu action retries; unavailable audio never blocks navigation. */ }
+    } catch { /* Later gestures retry playback; prepare() reports loading failures separately. */ }
   }
   return {
+    prepare,
     unlock,
     setTitleScreen(value) {
       if (disposed || titleScreen === value) return;
@@ -113,6 +125,7 @@ export function createMenuMusic(options: Options = {}): MenuMusic {
     dispose() {
       if (disposed) return;
       disposed = true;
+      downloadAbort.abort();
       unsubscribe();
       playing = undefined;
       buffer = undefined;

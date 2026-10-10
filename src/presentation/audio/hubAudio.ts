@@ -5,12 +5,12 @@ import type { Nullable } from '@babylonjs/core/types';
 import { swordSoundCrossed } from './swordSound';
 import { createFootstepCadence } from '../../domain/audio/footstepCadence';
 import { cadenceSample } from '../../domain/audio/locomotionGait';
-import { surfaceCue } from '../../domain/audio/soundCue';
+import { surfaceCue, type SoundCue } from '../../domain/audio/soundCue';
 import { createVariantRotation } from '../../domain/audio/variantRotation';
 import { WALK_THRESHOLD, type Knight, type KnightMotionSample } from '../babylon/knight';
 import { createGameAudio } from './audioEngine';
 import { phaseOf, weightOf } from './clipSample';
-import { createDeferredAudio, type DeferredAudio } from './deferredAudio';
+import { createDeferredAudio, type DeferredAudio, type ReadyAudio } from './deferredAudio';
 import { jumpSoundFrom, stepJumpSound, type JumpSoundState } from './jumpSound';
 import { createMusicCrossfade } from './musicCrossfade';
 import { loadSoundBank, type SoundBank } from './soundBank';
@@ -35,7 +35,7 @@ const GESTURE_EVENTS = ['pointerdown', 'keydown', 'touchend'] as const;
  * What `hubScene` holds. The same shape the deferral speaks, named here so the scene keeps importing
  * the handle from the module that builds it.
  */
-export type HubAudio = DeferredAudio;
+export type HubAudio = ReadyAudio;
 
 /**
  * Connects the scene to the audio.
@@ -77,9 +77,9 @@ export function createHubAudio(
   scene: Scene,
   motion: () => KnightMotionSample,
   knight: Knight,
-  options?: { readonly music?: boolean },
+  options?: { readonly music?: boolean; readonly musicCues?: readonly SoundCue[] },
 ): HubAudio {
-  return createDeferredAudio(() => buildHubAudio(scene, motion, knight, options?.music ?? true));
+  return createDeferredAudio(() => buildHubAudio(scene, motion, knight, options?.music ?? true, options?.musicCues));
 }
 
 async function buildHubAudio(
@@ -87,7 +87,8 @@ async function buildHubAudio(
   motion: () => KnightMotionSample,
   knight: Knight,
   music: boolean,
-): Promise<HubAudio> {
+  musicCues?: readonly SoundCue[],
+): Promise<DeferredAudio> {
   const audio = await createGameAudio();
 
   // Everything built below this point has to be torn down if a later step throws — otherwise a
@@ -104,7 +105,7 @@ async function buildHubAudio(
     // A `const` alias, taken right after the assignment above: `bank` itself stays `| undefined` so
     // the `catch` below can tell whether it needs disposing, but every use inside this closure below
     // wants the narrowed, definitely-assigned type.
-    const soundBank = (bank = await loadSoundBank(audio, {music}));
+    const soundBank = (bank = await loadSoundBank(audio, {music, musicCues}));
 
     // Music is deferred until the audio engine actually unlocks. The tracks are *streaming* sounds
     // — HTMLMediaElements — and a browser rejects their playback outright before a user gesture,

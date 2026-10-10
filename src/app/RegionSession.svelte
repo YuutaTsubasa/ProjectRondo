@@ -50,7 +50,7 @@
  function automaticStory(){if(progress.chapter==='arrival')openStory('town_arrival');else if(progress.chapter==='relay-report')openStory('ruin_relay');else if(progress.chapter==='aqueduct-report')openStory('aqueduct_open');}
  function worldReady(){if(!live)return;loading=false;automaticStory();if(document.hidden&&!dialogue)modal='paused';if(!readySent){readySent=true;onReady();}}
  function stageReady(){if(live)loading=false;}
- function fail(cause:unknown){if(!live)return;console.error('First region loading failed:',cause);loading=false;error='地圖或角色資源未能載入。你的章節進度已保留，可以重試或返回原野。';if(!readySent){readySent=true;onReady();}}
+ function fail(cause:unknown){if(!live)return;console.error('First region loading failed:',cause);loading=false;error='地圖、角色或音樂未能載入。你的章節進度已保留，可以重試或返回原野。';if(!readySent){readySent=true;onReady();}}
  function updatePosition(next:RegionPoint,label:string){
   if(mode!=='world'||error)return;position=next;locationLabel=label;
   const onGround=Math.abs(next.y-regionHeight(next.x,next.z)-1.2)<.3;

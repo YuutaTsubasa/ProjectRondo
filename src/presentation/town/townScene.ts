@@ -1,3 +1,4 @@
+import {waitForAudioReadiness} from '../audio/audioReadiness';
 import type {Engine} from '@babylonjs/core/Engines/engine';
 import {Scene} from '@babylonjs/core/scene';
 import {Vector3} from '@babylonjs/core/Maths/math.vector';
@@ -38,7 +39,7 @@ export async function createTownScene(engine:Engine,canvas:HTMLCanvasElement):Pr
   rig.player.motion={...rig.player.motion,facing:{x:0,y:1}};rig.player.root.rotation.y=Math.PI;
   rig.shadows.cast(...scenery.casters,...assets.flatMap(a=>a.meshes));rig.shadows.receive(...scenery.receivers,...assets.flatMap(a=>a.meshes));
   createClouds(scene);createAtmosphere(scene,rig.follow.camera);scene.fogDensity=.0025;
-  const audio=createHubAudio(scene,rig.readMotion,rig.knight);parts.audio=audio;audio.setMusicScene('town');
+  const audio=createHubAudio(scene,rig.readMotion,rig.knight,{musicCues:['music.town']});parts.audio=audio;audio.setMusicScene('town');
   let disposed=false;
   const reset=()=>{if(disposed)return;rig.player.teleport(new Vector3(TOWN_SPAWN.x,TOWN_SPAWN.y,TOWN_SPAWN.z));rig.player.motion={...rig.player.motion,facing:{x:0,y:1}};rig.player.root.rotation.y=Math.PI;rig.follow.snap();scene.resetLastAnimationTimeFrame();};
   scene.onBeforeRenderObservable.add(()=>{
@@ -47,6 +48,7 @@ export async function createTownScene(engine:Engine,canvas:HTMLCanvasElement):Pr
   });
   const town:TownScene={scene,player:rig.player,follow:rig.follow,reset,getLocationLabel:()=>townLocation(rig.player.root.position.x,rig.player.root.position.z),suspendInput:on=>{if(!disposed)rig.suspendInput(on);},dispose:()=>{if(disposed)return;disposed=true;disposeLevel(scene,parts);}};
   exposeDevHandle(scene,'town',town);exposeDevHandle(scene,'townAssets',assets);exposeDevHandle(scene,'shadows',rig.shadows);
+  await waitForAudioReadiness(()=>audio.whenReady());
   return town;
  }catch(error){disposeLevel(scene,parts);throw error;}
 }

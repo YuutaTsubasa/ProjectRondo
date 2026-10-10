@@ -41,6 +41,7 @@ export function createStageAudio(stage:'palace'|'course') {
   window.addEventListener('keydown',key);window.addEventListener('pointerdown',unlock);
   window.addEventListener('focusin',focus);
   return {
+    prepare:()=>music.prepare(),
     play:(key:StageEffect)=>play(key),
     ui:(key:'move'|'confirm'|'back')=>play(key,true),
     pause(value:boolean){

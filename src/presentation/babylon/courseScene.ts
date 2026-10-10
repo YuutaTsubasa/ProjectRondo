@@ -1,3 +1,4 @@
+import {waitForAudioReadiness} from '../audio/audioReadiness';
 import type { Engine } from '@babylonjs/core/Engines/engine';
 import { Scene } from '@babylonjs/core/scene';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
@@ -123,6 +124,7 @@ export async function createCourseScene(engine: Engine, canvas: HTMLCanvasElemen
     };
     exposeDevHandle(scene, 'course', course);
     exposeDevHandle(scene, 'shadows', rig.shadows);
+    await waitForAudioReadiness(()=>stageAudio.prepare());
     return course;
   } catch (error) {
     // Includes failed model loads: createCharacterRig releases its own partial DOM/Havok state.

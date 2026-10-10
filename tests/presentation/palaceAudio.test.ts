@@ -6,8 +6,8 @@ import {createMenuMusic} from '../../src/presentation/audio/menuMusic';
 vi.mock('../../src/presentation/audio/menuMusic',()=>({createMenuMusic:vi.fn()}));
 afterEach(()=>{vi.unstubAllGlobals();vi.clearAllMocks();});
 function fixture(){
- const music={unlock:vi.fn().mockResolvedValue(undefined),setActive:vi.fn(),setTitleScreen:vi.fn(),dispose:vi.fn()};
- const result={unlock:vi.fn().mockResolvedValue(undefined),setActive:vi.fn(),setTitleScreen:vi.fn(),dispose:vi.fn()};
+ const music={prepare:vi.fn().mockResolvedValue(undefined),unlock:vi.fn().mockResolvedValue(undefined),setActive:vi.fn(),setTitleScreen:vi.fn(),dispose:vi.fn()};
+ const result={prepare:vi.fn().mockResolvedValue(undefined),unlock:vi.fn().mockResolvedValue(undefined),setActive:vi.fn(),setTitleScreen:vi.fn(),dispose:vi.fn()};
  vi.mocked(createMenuMusic).mockReturnValueOnce(music).mockReturnValue(result);
  const media:{src:string;paused:boolean;play:ReturnType<typeof vi.fn>;pause:ReturnType<typeof vi.fn>}[]=[];
  vi.stubGlobal('Audio',class{src:string;paused=true;volume=1;loop=false;preload='';currentTime=0;

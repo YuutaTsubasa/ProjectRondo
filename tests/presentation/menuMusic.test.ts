@@ -98,7 +98,7 @@ it('fetches the requested decoded stage URL', async () => {
   const music = createMenuMusic({ url: '/audio/music/palace_arcade.ogg', createContext: () => f.context as unknown as AudioContext });
   try {
     await music.unlock();
-    expect(fetchAudio).toHaveBeenCalledWith('/audio/music/palace_arcade.ogg');
+    expect(fetchAudio).toHaveBeenCalledWith('/audio/music/palace_arcade.ogg', {signal:expect.any(AbortSignal)});
     expect(f.sources[0].loop).toBe(true);
   } finally { music.dispose(); f.music.dispose(); vi.unstubAllGlobals(); }
 });
@@ -110,4 +110,21 @@ it('resumes a paused stage loop from the same decoded position', async () => {
   expect(f.sources[1].start).toHaveBeenCalledWith(0, 20);
   expect(f.fetchAudio).toHaveBeenCalledOnce();
   f.music.dispose();
+});
+
+it('prepares decoded BGM while inactive without waiting for autoplay or starting playback',async()=>{
+ const f=fixture();f.music.setActive(false);
+ let decode!:(buffer:unknown)=>void;
+ f.context.decodeAudioData.mockImplementation(()=>new Promise(r=>{decode=r;}));
+ const ready=vi.fn();const loading=f.music.prepare().then(ready);
+ await vi.waitFor(()=>expect(decode).toBeDefined());expect(ready).not.toHaveBeenCalled();
+ expect(f.context.resume).not.toHaveBeenCalled();expect(f.sources).toHaveLength(0);
+ decode({duration:100});await loading;expect(ready).toHaveBeenCalledOnce();
+ f.music.setActive(true);await f.music.unlock();expect(f.sources).toHaveLength(1);
+ expect(f.fetchAudio).toHaveBeenCalledOnce();f.music.dispose();
+});
+it('reports preparation failures so Loading can offer retry',async()=>{
+ const f=fixture();f.fetchAudio.mockRejectedValueOnce(new Error('HTTP 500'));
+ await expect(f.music.prepare()).rejects.toThrow('HTTP 500');
+ await f.music.prepare();expect(f.fetchAudio).toHaveBeenCalledTimes(2);f.music.dispose();
 });
