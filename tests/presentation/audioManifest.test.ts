@@ -50,6 +50,6 @@ it('decodes both stage loops instead of streaming media with seek gaps', () => {
 
 it('uses imported ProjectAlmost effects and the requested result loop', () => {
   expect(MANIFEST['music.result'].files).toEqual(['/audio/music/result_victoire.ogg']);
-  expect(MANIFEST['ui.back'].files).toEqual(['/audio/project-almost/ui-back.wav']);
-  expect(MANIFEST['jump.takeoff'].files).toEqual(['/audio/project-almost/armor-step.wav']);
+  expect(MANIFEST['ui.back'].files).toEqual(['/audio/sfx/ui-back.wav']);
+  expect(MANIFEST['jump.takeoff'].files).toEqual(['/audio/sfx/armor-step.wav']);
 });

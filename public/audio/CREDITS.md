@@ -95,13 +95,14 @@ These assets are independent of `preprocess.mjs`.
 Imported verbatim from `YuutaTsubasa/ProjectAlmost` revision
 `76b9ca1c680e98e27ac9f51871bf4feffb3f0bbc`, following its runtime registry
 `src/domain/audio/audioAssets.ts`. Original files and SHA-256 receipts are in
-`public/audio/project-almost/`; rebuild with `node tools/audio/import-project-almost.mjs`.
+`public/audio/sfx/` (effects) and `public/audio/music/` (music). Provenance:
+`docs/audio/project-almost-import.json`; rebuild with `node tools/audio/import-project-almost.mjs`.
 The earlier palace imports remain preserved. This import does not replace any approved
 ProjectRondo title, town, meadow or stage BGM.
 
 | Original file | Active use |
 | --- | --- |
-| `game_result.mp3` | Preserved original import; superseded by the requested Victoire result loop below |
+| `music/result_original.mp3` | Preserved original import; superseded by the requested Victoire result loop below |
 | `armor-step.wav` | Armour footfalls and existing takeoff/landing cues; palace jump/landing added |
 | `coin.wav` | Palace coin collection |
 | `hit.wav` | Player damage and actual sword/Homing guard impacts in both stages; course crystal impacts |
@@ -142,7 +143,7 @@ Signal analysis was verified; no subjective listening approval is claimed.
 
 ## Sword swing variants (2026-10-10)
 
-`audio/sword/swipe-01.wav` through `swipe-08.wav` are extracted from the owner-supplied
+`sfx/sword/swipe-01.wav` through `swipe-08.wav` are extracted from the owner-supplied
 `Swipe_the_sword_#2-1791646738806.mp3`. Author/licence details remain to be recorded.
 Eight isolated takes, 48 kHz stereo PCM16, silence-trimmed with 2 ms entry and 10 ms
 tail fades and approximately -3 dBTP peak headroom. No pitch or time stretching.

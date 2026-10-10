@@ -35,7 +35,7 @@ const AUDIO = '/audio';
 export const MANIFEST = {
   // The armour layer plays on every footfall, on take-off and on landing: it is the only armour
   // sample there is, and playback-rate jitter is what stops that reading as a machine gun.
-  'footstep.armour': { files: [`${AUDIO}/project-almost/armor-step.wav`], bus: 'sfx', volume: 0.45 },
+  'footstep.armour': { files: [`${AUDIO}/sfx/armor-step.wav`], bus: 'sfx', volume: 0.45 },
   // Two variants, one per foot. Soft and long rather than percussive — the source was continuous
   // grass rustle, not discrete steps (spec §5.1).
   'footstep.grass': {
@@ -43,8 +43,8 @@ export const MANIFEST = {
     bus: 'sfx',
     volume: 0.25,
   },
-  'jump.takeoff': { files: [`${AUDIO}/project-almost/armor-step.wav`], bus: 'sfx', volume: 0.5 },
-  'jump.land': { files: [`${AUDIO}/project-almost/armor-step.wav`], bus: 'sfx', volume: 0.6 },
+  'jump.takeoff': { files: [`${AUDIO}/sfx/armor-step.wav`], bus: 'sfx', volume: 0.5 },
+  'jump.land': { files: [`${AUDIO}/sfx/armor-step.wav`], bus: 'sfx', volume: 0.6 },
 
   // Lowest of all the one-shots: this is the most frequently repeated sound in the game.
   'ui.type': {
@@ -57,16 +57,16 @@ export const MANIFEST = {
     bus: 'sfx',
     volume: 0.3,
   },
-  'ui.move': { files: [`${AUDIO}/project-almost/ui-move.wav`], bus: 'sfx', volume: 0.5 },
-  'ui.confirm': { files: [`${AUDIO}/project-almost/ui-confirm.wav`], bus: 'sfx', volume: 0.6 },
+  'ui.move': { files: [`${AUDIO}/sfx/ui-move.wav`], bus: 'sfx', volume: 0.5 },
+  'ui.confirm': { files: [`${AUDIO}/sfx/ui-confirm.wav`], bus: 'sfx', volume: 0.6 },
 
-  'sword.swing': { files: Array.from({length:8},(_,i)=>`${AUDIO}/sword/swipe-${String(i+1).padStart(2,'0')}.wav`), bus: 'sfx', volume: .55 },
-  'ui.back': { files: [`${AUDIO}/project-almost/ui-back.wav`], bus: 'sfx', volume: .6 },
-  'stage.coin': { files: [`${AUDIO}/project-almost/coin.wav`], bus: 'sfx', volume: .7 },
-  'stage.hit': { files: [`${AUDIO}/project-almost/hit.wav`], bus: 'sfx', volume: .7 },
-  'stage.death': { files: [`${AUDIO}/project-almost/death.wav`], bus: 'sfx', volume: .7 },
-  'stage.checkpoint': { files: [`${AUDIO}/project-almost/checkpoint.wav`], bus: 'sfx', volume: .7 },
-  'stage.goal': { files: [`${AUDIO}/project-almost/goal.wav`], bus: 'sfx', volume: .7 },
+  'sword.swing': { files: Array.from({length:8},(_,i)=>`${AUDIO}/sfx/sword/swipe-${String(i+1).padStart(2,'0')}.wav`), bus: 'sfx', volume: .55 },
+  'ui.back': { files: [`${AUDIO}/sfx/ui-back.wav`], bus: 'sfx', volume: .6 },
+  'stage.coin': { files: [`${AUDIO}/sfx/coin.wav`], bus: 'sfx', volume: .7 },
+  'stage.hit': { files: [`${AUDIO}/sfx/hit.wav`], bus: 'sfx', volume: .7 },
+  'stage.death': { files: [`${AUDIO}/sfx/death.wav`], bus: 'sfx', volume: .7 },
+  'stage.checkpoint': { files: [`${AUDIO}/sfx/checkpoint.wav`], bus: 'sfx', volume: .7 },
+  'stage.goal': { files: [`${AUDIO}/sfx/goal.wav`], bus: 'sfx', volume: .7 },
   'music.result': { files: [`${AUDIO}/music/result_victoire.ogg`], bus: 'music', volume: .5 },
 
   // Decode phrase loops once for gapless full-buffer playback.

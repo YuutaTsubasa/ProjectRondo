@@ -12,7 +12,7 @@ forward/backward steps, ending on Start Game. Settings return focus stays at its
 
 ## Owner-provided sword swing samples (2026-10-10)
 
-`Swipe_the_sword_#2-1791646738806.mp3` contains eight isolated takes. `tools/audio/build-sword-samples.py <source>` produces `public/audio/sword/swipe-01.wav` through `08.wav`, 48 kHz stereo PCM16, with silence trimmed, 2 ms entry / 10 ms tail fades and approximately -3 dBTP peak headroom. No pitch/time processing. Source hash, trim times and per-take gains are in `docs/audio/sword-samples.json`; local audition in `.superpowers/sword-samples-preview.wav`.
+`Swipe_the_sword_#2-1791646738806.mp3` contains eight isolated takes. `tools/audio/build-sword-samples.py <source>` produces `public/audio/sfx/sword/swipe-01.wav` through `08.wav`, 48 kHz stereo PCM16, with silence trimmed, 2 ms entry / 10 ms tail fades and approximately -3 dBTP peak headroom. No pitch/time processing. Source hash, trim times and per-take gains are in `docs/audio/sword-samples.json`; local audition in `.superpowers/sword-samples-preview.wav`.
 
 `sword.swing` is an eight-variant SFX cue at .55 gain. `swordSoundCrossed` triggers once when actual slash time crosses .08 s, ahead of the .14 s active blade window. Shared `hubAudio` covers region/town/hub/tower/course; palace simulation uses the same timing rule through `stageAudio`. Samples cycle rather than repeat immediately. No swing on windup cancellation, Homing or a held pause frame. Existing impact sounds remain separate. `stageAudio` now preloads variant arrays and applies mute, pause, reset and disposal to every take.
 
