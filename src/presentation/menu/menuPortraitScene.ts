@@ -10,7 +10,7 @@ import {LoadAssetContainerAsync} from '@babylonjs/core/Loading/sceneLoader';
 import type {AssetContainer} from '@babylonjs/core/assetContainer';
 import '@babylonjs/loaders/glTF';
 import {PLAYER_MODEL} from '../babylon/playerModel';
-import {waitForRegionReadiness} from '../../app/regionReadiness';
+import {waitForSceneReadiness} from '../babylon/sceneReadiness';
 import {applyPlayerMaterials} from '../babylon/playerMaterials';
 import {applyPortraitPainting} from './portraitPainting';
 import {attachPlayerBlink} from '../babylon/playerBlink';
@@ -18,6 +18,8 @@ import {measureSkinnedSole} from '../babylon/skinnedSole';
 
 export type PortraitPose='menu'|'loading';
 /** A presentation-only scene: no physics, gameplay input or camera controls. */
+/** A warm-up that has not compiled by then is dropped and retried by the next portrait screen. */
+const PRIME_TIMEOUT_MS=30_000;
 export function createMenuPortraitScene(engine:AbstractEngine){
  const scene=new Scene(engine);scene.useRightHandedSystem=true;
  scene.clearColor=new Color4(0,0,0,0);
@@ -76,7 +78,7 @@ export function createMenuPortraitScene(engine:AbstractEngine){
    // Babylon's own wait never settles once the scene is disposed or never becomes ready; this one
    // resolves on dispose and rejects after its timeout, so a warm-up always finishes.
    const released=new AbortController(),watch=scene.onDisposeObservable.addOnce(()=>released.abort());
-   try{await waitForRegionReadiness(scene,released.signal);}
+   try{await waitForSceneReadiness(scene,released.signal,'3D portrait shaders were not ready before the warm-up timeout.',PRIME_TIMEOUT_MS);}
    finally{scene.onDisposeObservable.remove(watch);}
    dirty=true;
   },
