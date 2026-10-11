@@ -8,13 +8,15 @@ const { load } = vi.hoisted(() => ({ load: vi.fn() }));
 vi.mock('../../src/app/loadGameSession', () => ({ loadGameSession: load }));
 const music = vi.hoisted(() => ({ unlock: vi.fn().mockResolvedValue(undefined), setActive: vi.fn(), setTitleScreen: vi.fn(), dispose: vi.fn() }));
 vi.mock('../../src/presentation/audio/menuMusic', () => ({ createMenuMusic: () => music }));
+const platform = vi.hoisted(() => ({ isTauri: vi.fn(() => false), invoke: vi.fn().mockResolvedValue(undefined) }));
+vi.mock('@tauri-apps/api/core', () => platform);
 let app: ReturnType<typeof mount> | undefined;
 const settle = async () => { flushSync(); await new Promise(r => setTimeout(r, 0)); flushSync(); };
 const button = (name: string) => [...document.querySelectorAll('button')].find(b => b.getAttribute('aria-label') === name || b.textContent?.trim() === name)!;
 const key = (value: string, repeat = false) => window.dispatchEvent(new KeyboardEvent('keydown', { key: value, repeat, bubbles: true, cancelable: true }));
 async function confirmNew(){button('繼續至遊戲設定').click();await settle();button('前往開始確認').click();await settle();button('確認開始新旅程').click();await settle();}
 async function render() { app = mount(App, { target: document.body }); await settle(); }
-afterEach(async () => { if (app) await unmount(app); app = undefined; document.body.innerHTML = ''; load.mockReset(); localStorage.clear(); vi.restoreAllMocks(); });
+afterEach(async () => { if (app) await unmount(app); app = undefined; document.body.innerHTML = ''; load.mockReset(); localStorage.clear(); platform.isTauri.mockReturnValue(false); platform.invoke.mockReset().mockResolvedValue(undefined); vi.restoreAllMocks(); });
 
 describe('title and main menu', () => {
   it('keeps the game unloaded until Start and ignores a held title key', async () => {
@@ -122,17 +124,34 @@ it('continues saved progress through LOAD GAME',async()=>{
  expect(button('繼續旅程').disabled).toBe(false);button('繼續旅程').click();await settle();
  expect(load).toHaveBeenCalledWith('region');expect(localStorage.getItem(REGION_SAVE_KEY)).toBe(saved);
 });
-it('offers an explicit browser exit and a visible close fallback',async()=>{
+it('confirms browser exit, preserves saves, lowers music and returns to PRESS ANY KEY',async()=>{
  const close=vi.spyOn(window,'close').mockImplementation(()=>{});
+ localStorage.setItem('exit-preservation','saved');
  await render();button('進入主選單').click();await settle();button('離開遊戲').click();await settle();
- expect(close).not.toHaveBeenCalled();button('關閉遊戲').click();await settle();expect(close).toHaveBeenCalledOnce();
- expect(document.body.textContent).toContain('請手動關閉');key('Escape');await settle();expect(document.activeElement).toBe(button('離開遊戲'));
+ expect(document.querySelector('[aria-label="離開遊戲確認"]')).not.toBeNull();
+ expect(document.activeElement).toBe(button('取消'));
+ expect(platform.invoke).not.toHaveBeenCalled();
+ button('取消').click();await settle();expect(document.activeElement).toBe(button('離開遊戲'));
+ button('離開遊戲').click();await settle();button('確定').click();await settle();
+ expect(document.activeElement).toBe(button('進入主選單'));
+ expect(music.setTitleScreen).toHaveBeenLastCalledWith(true);
+ expect(close).not.toHaveBeenCalled();expect(platform.invoke).not.toHaveBeenCalled();
+ expect(localStorage.getItem('exit-preservation')).toBe('saved');
 });
-
-it('keeps the new-game review usable when backing up storage fails',async()=>{
- const saved=JSON.stringify({version:1,progress:{version:1,chapter:'signal',discoveries:[],completedExpeditions:[]},position:{x:0,y:1.3,z:-35}});
- localStorage.setItem(REGION_SAVE_KEY,saved);await render();button('進入主選單').click();await settle();button('開始遊戲').click();await settle();
- const write=vi.spyOn(Storage.prototype,'setItem').mockImplementation(()=>{throw Error('full');});await confirmNew();
- expect(load).not.toHaveBeenCalled();expect(document.querySelector('[role=alert]')?.textContent).toContain('無法保留');expect(document.querySelector('.inner-page')?.hasAttribute('inert')).toBe(false);
- write.mockRestore();load.mockResolvedValue({default:GameFixture});button('確認開始新旅程').click();await settle();expect(load).toHaveBeenCalledWith('region');
+it('closes the native app only after confirmation',async()=>{
+ platform.isTauri.mockReturnValue(true);
+ await render();button('進入主選單').click();await settle();button('離開遊戲').click();await settle();
+ expect(platform.invoke).not.toHaveBeenCalled();
+ document.activeElement?.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true,cancelable:true}));await settle();
+ expect(document.activeElement).toBe(button('離開遊戲'));expect(platform.invoke).not.toHaveBeenCalled();
+ button('離開遊戲').click();await settle();button('確定').click();await settle();
+ expect(platform.invoke).toHaveBeenCalledExactlyOnceWith('exit_game');
+ expect(button('進入主選單')).toBeUndefined();
+});
+it('keeps native exit errors recoverable',async()=>{
+ platform.isTauri.mockReturnValue(true);platform.invoke.mockRejectedValueOnce(new Error('denied'));
+ await render();button('進入主選單').click();await settle();button('離開遊戲').click();await settle();button('確定').click();await settle();
+ expect(document.body.textContent).toContain('無法關閉遊戲');
+ expect(button('確定').disabled).toBe(false);button('確定').click();await settle();
+ expect(platform.invoke).toHaveBeenCalledTimes(2);
 });

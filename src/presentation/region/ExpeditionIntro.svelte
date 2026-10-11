@@ -1,4 +1,5 @@
 <script lang="ts">
+ import {duckMusic} from '../audio/musicDucking';
  import {readStageBest,stageTime} from '../../app/stageRecords';
  import {COURSE_RANK_TIMES,PALACE_RANK_TIMES} from '../../domain/course/stageScore';
  import {navigateUi} from '../input/uiNavigation';
@@ -32,7 +33,7 @@
 </script>
 <svelte:window onkeydown={keys}/>
 {#if settings}<SettingsScreen onClose={closeSettings} chapterTitle={title} chapterNumber="01" subtitle="白色王城"/>{/if}
-<div class="expedition-intro" class:leaving={exit.leaving} class:covered={settings} inert={settings} role="dialog" aria-modal="true" aria-label="關卡介紹" aria-labelledby="region-dialog-title" aria-busy={exit.leaving} tabindex="-1" bind:this={dialog} use:regionModal>
+<div use:duckMusic class="expedition-intro" class:leaving={exit.leaving} class:covered={settings} inert={settings} role="dialog" aria-modal="true" aria-label="關卡介紹" aria-labelledby="region-dialog-title" aria-busy={exit.leaving} tabindex="-1" bind:this={dialog} use:regionModal>
  <div class="veil" aria-hidden="true"></div>
  <div class="shell">
   <aside class="rail">

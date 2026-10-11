@@ -18,13 +18,13 @@ export function createStageAudio(stage:'palace'|'course') {
   })) as Record<StageEffect,HTMLAudioElement[]>;
   bank.takeoff[0].playbackRate=1.12;bank.land[0].playbackRate=.88;
   const variants=new Map<StageEffect,number>();
-  let paused=true,finished=false,disposed=false;
+  let paused=true,finished=false,disposed=false,started=false;
   let lastFocus:Element|null=null;
   const unsubscribe=audioPreferences.subscribe(levels=>{
     const gain=levels.muted?0:levels.master*levels.sfx;
     for(const [key,cue] of Object.entries(EFFECTS))for(const sound of bank[key as StageEffect])sound.volume=gain*MANIFEST[cue].volume;
   });
-  const unlock=()=>{if(disposed)return;if(finished)void result?.unlock();else if(!paused)void music.unlock();};
+  const unlock=()=>{if(disposed)return;if(finished)void result?.unlock();else if(started)void music.unlock();};
   const play=(key:StageEffect,ui=false)=>{
     if(disposed||!ui&&(paused||finished))return;
     const index=variants.get(key)??0;variants.set(key,index+1);
@@ -45,7 +45,7 @@ export function createStageAudio(stage:'palace'|'course') {
     play:(key:StageEffect)=>play(key),
     ui:(key:'move'|'confirm'|'back')=>play(key,true),
     pause(value:boolean){
-      if(disposed)return;paused=value;lastFocus=null;music.setActive(!paused&&!finished);
+      if(disposed)return;paused=value;if(!paused)started=true;lastFocus=null;music.setActive(started&&!finished);
       if(value)for(const [key,sounds] of Object.entries(bank))if(!['goal','move','confirm','back'].includes(key))for(const sound of sounds)sound.pause();
       unlock();
     },
@@ -59,7 +59,7 @@ export function createStageAudio(stage:'palace'|'course') {
     reset(){
       if(disposed)return;finished=false;lastFocus=null;result?.dispose();result=undefined;
       for(const [key,sounds] of Object.entries(bank))if(!['move','confirm','back'].includes(key))for(const media of sounds){media.pause();media.currentTime=0;}
-      music.setActive(!paused);unlock();
+      music.setActive(started);unlock();
     },
     dispose(){
       if(disposed)return;disposed=true;unsubscribe();music.dispose();result?.dispose();

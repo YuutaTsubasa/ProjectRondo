@@ -1,3 +1,5 @@
+import {derived} from 'svelte/store';
+import {musicDuckGain} from './musicDucking';
 import { CreateAudioEngineAsync } from '@babylonjs/core/AudioV2/webAudio/webAudioEngine';
 // The Create*Async factories all live in audioEngineV2, not beside the types they return.
 import { CreateAudioBusAsync } from '@babylonjs/core/AudioV2/abstractAudio/audioEngineV2';
@@ -94,8 +96,14 @@ export async function createGameAudio(): Promise<GameAudio> {
     }),
   ) as Record<AudioBusId, AudioBus>;
 
-  const unsubscribe = audioPreferences.subscribe((levels) => {
-    for (const id of BUS_IDS) buses[id].volume = busGain(levels, id);
+  let initialMix=true;
+  const unsubscribe = derived([audioPreferences,musicDuckGain],([levels,duck])=>({levels,duck})).subscribe(({levels,duck}) => {
+    for (const id of BUS_IDS){
+      const gain=busGain(levels,id)*(id==='music'?duck:1);
+      if(id==='music'&&!initialMix)buses[id].setVolume(gain,{duration:.3});
+      else buses[id].volume=gain;
+    }
+    initialMix=false;
   });
   let disposed = false;
 

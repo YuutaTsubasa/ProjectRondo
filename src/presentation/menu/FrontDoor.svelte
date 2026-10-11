@@ -1,4 +1,6 @@
 <script lang="ts">
+  import InformationDialog from './InformationDialog.svelte';
+  import {exitGame} from '../../app/exitGame';
   import {inputStatus} from '../input/deviceInput';
   import {inputHint} from '../input/hints';
   import type { FrontDoorAction, FrontDoorPhase } from '../../app/frontDoor';
@@ -19,8 +21,13 @@
     {action:'exit', label:'離開遊戲', text:'EXIT', detail:'離開遊戲'},
   ] as const;
   const innerPage=$derived(phase==='new-game'||phase==='load-game'||phase==='extras');
-  let closeAttempted = $state(false);
-  function quit(){closeAttempted=true;window.close();}
+  let exitError = $state('');
+  let exitAttempt = $state(0);
+  $effect(()=>{if(phase!=='exit')exitError='';});
+  async function quit(){
+    try{await exitGame(()=>onAction('title'));}
+    catch{exitError='無法關閉遊戲，請再試一次，或取消返回選單。';exitAttempt++;}
+  }
   let menuIndex = $state(0);
   let panel: HTMLElement;
   let previous: FrontDoorPhase | undefined;
@@ -29,13 +36,14 @@
     const returnAction = phase==='menu'?({settings:'settings',extras:'extras','load-game':'load-game','new-game':'start',exit:'exit'} as Partial<Record<FrontDoorPhase,string>>)[previous!]:undefined;
     revealMenu = previous === 'title' && phase === 'menu';
     previous = phase;
+    if(phase==='exit')return; // The confirmation dialog owns focus.
     const target = returnAction ? `[data-action="${returnAction}"]` : '[data-initial]:not([disabled])';
     const timer = setTimeout(() => panel?.querySelector<HTMLElement>(target)?.focus({preventScroll:true}), 0);
     return () => clearTimeout(timer);
   });
 
   function keydown(event: KeyboardEvent) {
-    if (innerPage || phase === 'settings' || event.defaultPrevented || event.repeat || event.ctrlKey || event.altKey || event.metaKey) return;
+    if (innerPage || phase === 'exit' || phase === 'settings' || event.defaultPrevented || event.repeat || event.ctrlKey || event.altKey || event.metaKey) return;
     if (phase === 'title' && !['Tab', 'Escape', 'Shift', 'Control', 'Alt', 'Meta'].includes(event.key)) {
       event.preventDefault();
       onAction('activate');
@@ -51,19 +59,19 @@
 </script>
 
 <svelte:window onkeydown={keydown} />
-<main data-input-scope class="front-door" class:is-loading={phase === 'loading'} class:is-settings={phase === 'settings'} class:is-inner={innerPage} class:is-title={phase === 'title'} class:is-panel={phase !== 'title' && phase !== 'menu' && phase !== 'loading'} class:reveal-menu={revealMenu} bind:this={panel}>
+<main data-input-scope class="front-door" class:is-loading={phase === 'loading'} class:is-settings={phase === 'settings'} class:is-inner={innerPage} class:is-title={phase === 'title'} class:is-panel={phase !== 'title' && phase !== 'menu' && phase !== 'exit' && phase !== 'loading'} class:reveal-menu={revealMenu} bind:this={panel}>
   <div class="art-reveal"><FrontDoorArtwork active={phase !== 'title'} loading={phase === 'loading'} settings={phase === 'settings'} inner={innerPage} /></div>
-  {#if phase === 'title' || phase === 'menu'}
+  {#if phase === 'title' || phase === 'menu' || phase === 'exit'}
     <div class="logo-lockup"><RondoWordmark /></div>
   {/if}
   {#key phase}
-    <section class="content" aria-label={phase === 'title' ? '標題畫面' : phase === 'settings' ? '遊戲設定' : phase === 'loading' ? '載入畫面' : '主選單'}>
+    <section class="content" inert={phase==='exit'} aria-label={phase === 'title' ? '標題畫面' : phase === 'settings' ? '遊戲設定' : phase === 'loading' ? '載入畫面' : '主選單'}>
       {#if phase === 'title'}
         <button class="begin" data-initial onclick={() => onAction('activate')} aria-label="進入主選單">
           <span class="begin-diamond" aria-hidden="true">✦</span>
           <span>{$inputStatus.device==='touch'?'TOUCH TO START':$inputStatus.device==='gamepad'?'PRESS ANY BUTTON':'PRESS ANY KEY'}<small>{$inputStatus.device==='touch'?'輕觸開始':$inputStatus.device==='gamepad'?'按任意按鈕開始':'按任意鍵開始'}</small></span>
         </button>
-      {:else if phase === 'menu'}
+      {:else if phase === 'menu' || phase === 'exit'}
         <nav aria-label="主選單選項" style={`--selection:${menuIndex}`}>
           <div class="selection-ribbon" aria-hidden="true"></div>
           {#each menuEntries as entry, index}
@@ -80,13 +88,6 @@
         <button class="back" onclick={() => onAction('back')}>← 返回標題</button>
       {:else if phase === 'extras' || phase === 'new-game' || phase === 'load-game'}
         <MenuSubpages {phase} {onAction} {saveAvailable} {saveProgress} {menuError}/>
-      {:else if phase === 'exit'}
-        <div class="eyebrow">UNTIL WE MEET AGAIN</div><h1 class="settings-title">EXIT</h1>
-        <p class="panel-copy">離開遊戲？已儲存的進度會保留。</p>
-        <button class="panel-action" onclick={quit}>關閉遊戲</button>
-        {#if closeAttempted}<p class="panel-copy" role="status">若此頁仍開啟，請手動關閉瀏覽器分頁。</p>{/if}
-        <button class="back" onclick={()=>onAction('title')}>返回標題</button>
-        <button class="back" data-initial onclick={()=>onAction('back')}>← 返回主選單</button>
       {:else if phase === 'settings'}
         <SettingsScreen onClose={() => onAction('back')}/>
       {:else if phase === 'loading'}
@@ -106,6 +107,14 @@
     <div class="footer-message"><span>A SMALL STEP.</span><span>FOR A WIDER WORLD.</span><i></i></div>
     <div class="footer-right"><span>{phase === 'menu' ? $inputStatus.device==='touch'?'輕觸選項 · 使用返回按鈕返回':`${inputHint('↑ ↓',$inputStatus)} 選擇　 ${inputHint('Enter',$inputStatus)} 確認　 ${inputHint('Esc',$inputStatus)} 返回` : phase === 'title' ? 'PROJECT RONDO' : phase === 'loading' ? '正在載入，請稍候' : `${inputHint('Esc',$inputStatus)} 返回`}</span><small>PROJECT RONDO · DEVELOPMENT BUILD</small></div>
   </footer>
+  {#if phase==='exit'}
+    {#key exitAttempt}
+      <InformationDialog ariaLabel="離開遊戲確認" title="是否離開遊戲？"
+        body={exitError||'已儲存的進度會保留。確認後將關閉 APP；網頁版會返回開始畫面。'}
+        onClose={()=>onAction('back')}
+        actions={[{label:'取消',english:'CANCEL',run:()=>onAction('back')},{label:'確定',english:'CONFIRM',run:()=>{void quit();},primary:true}]}/>
+    {/key}
+  {/if}
 </main>
 
 <style>
@@ -141,10 +150,10 @@
   .is-panel .content{top:20%;left:6%;width:360px;max-width:85cqw}
   .is-panel .back{margin-left:0;margin-top:18px}
   .panel-copy{font-size:13px;line-height:1.9;margin:20px 0;color:#39567b}
-  .panel-action{display:block;padding:12px 22px;min-width:190px;background:#2863ed;color:white;font-size:13px;letter-spacing:1px}.panel-action:disabled{background:#d7dfec;color:#708097;cursor:default}.is-panel .back{display:block}
+  .is-panel .back{display:block}
   .eyebrow{font:10px var(--font-body);letter-spacing:3px;margin-bottom:14px}
   .settings-title{font:400 clamp(30px,4cqw,60px)/1.1 Georgia,serif;letter-spacing:-.03em;margin:0 0 15px}
-  [role=status],[role=alert]{font-size:13px;line-height:1.8;margin-bottom:22px}
+  [role=alert]{font-size:13px;line-height:1.8;margin-bottom:22px}
   .primary{color:white;background:#2863ed;padding-left:20px;font-size:14px;letter-spacing:1px}
   @keyframes breathe{50%{opacity:.35}}
   @keyframes menu-enter{from{opacity:0;translate:-14px 0}to{opacity:1;translate:0 0}}

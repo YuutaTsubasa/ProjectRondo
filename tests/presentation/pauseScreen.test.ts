@@ -53,3 +53,9 @@ it('opens settings while keeping gameplay paused and returns focus to Settings',
 it('puts Settings after Continue and before departure actions',async()=>{
  const {buttons}=await render();expect(buttons.map(b=>b.getAttribute('aria-label'))).toEqual(['繼續遊戲','系統設定','重新開始','返回主選單']);
 });
+
+it('holds BGM duck until the overlay is removed',async()=>{
+ const {get}=await import('svelte/store');const {musicDuckGain}=await import('../../src/presentation/audio/musicDucking');
+ expect(get(musicDuckGain)).toBe(1);await render();expect(get(musicDuckGain)).toBe(.35);
+ await unmount(app!);app=undefined;expect(get(musicDuckGain)).toBe(1);
+});

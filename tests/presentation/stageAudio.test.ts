@@ -49,3 +49,9 @@ it('prepares stage BGM during Loading without activating playback',async()=>{
  expect(f.music[0].setActive).toHaveBeenLastCalledWith(false);
  decode();await loading;expect(done).toHaveBeenCalledOnce();f.stage.dispose();
 });
+
+it('keeps a started stage loop running underneath the pause menu',()=>{
+ const f=fixture();f.stage.pause(false);f.stage.pause(true);
+ expect(f.music[0].setActive).toHaveBeenLastCalledWith(true);
+ f.stage.pause(false);expect(f.music[0].setActive).toHaveBeenLastCalledWith(true);f.stage.dispose();
+});

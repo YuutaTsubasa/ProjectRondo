@@ -2,6 +2,7 @@
  export interface PauseAction { label:string; english:string; run:()=>void; }
 </script>
 <script lang="ts">
+ import {duckMusic} from '../audio/musicDucking';
  import InputHint from '../input/InputHint.svelte';
  import {onMount,tick} from 'svelte';
  import SettingsScreen from '../settings/SettingsScreen.svelte';
@@ -30,7 +31,7 @@
  }
 </script>
 {#if settingsOpen}<SettingsScreen onClose={closeSettings} {chapterTitle} {chapterNumber} {subtitle}/>{/if}
-<div class="pause-screen" class:settings-open={settingsOpen} inert={settingsOpen} class:leaving={exit.leaving} aria-busy={exit.leaving} role="dialog" aria-modal="true" aria-label="暫停選單" aria-labelledby={titleId} tabindex="-1" bind:this={dialog} onkeydown={keys}>
+<div use:duckMusic class="pause-screen" class:settings-open={settingsOpen} inert={settingsOpen} class:leaving={exit.leaving} aria-busy={exit.leaving} role="dialog" aria-modal="true" aria-label="暫停選單" aria-labelledby={titleId} tabindex="-1" bind:this={dialog} onkeydown={keys}>
  <div class="veil" aria-hidden="true"></div>
  <div class="frame" aria-hidden="true"><i></i><i></i><span>✦</span></div>
  <div class="brand" aria-hidden="true"><img src="/title/project-rondo-logo-v2.png" alt=""/><small>BEYOND THE FAMILIAR SKY.</small></div>
