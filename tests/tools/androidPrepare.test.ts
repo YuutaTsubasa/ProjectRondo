@@ -22,3 +22,14 @@ describe('Android playtest preparation',()=>{
   expect(prepareGradle(output)).toBe(output);
  });
 });
+import {prepareActivity} from '../../tools/android/prepare.mjs';
+import {readFileSync} from 'node:fs';
+it('installs the immersive activity in the generated package and is repeatable',()=>{
+ const template=readFileSync(new URL('../../tools/android/MainActivity.kt',import.meta.url),'utf8');
+ const original='package com.yuutatsubasa.projectrondo\nclass MainActivity : TauriActivity() {}';
+ const output=prepareActivity(original,template);
+ expect(output).toContain('package com.yuutatsubasa.projectrondo');
+ expect(output).not.toContain('__PACKAGE__');
+ expect(prepareActivity(output,template)).toBe(output);
+ expect(()=>prepareActivity('package other\nclass OtherActivity {}',template)).toThrow('MainActivity');
+});
