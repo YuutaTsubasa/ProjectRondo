@@ -29,10 +29,10 @@
   <div class="divider" aria-hidden="true"><span></span><i></i><span></span></div>
   <div class="actions" class:three={visibleActions.length===3}>
    {#each visibleActions as action,i}
-    <button class="action" class:primary={i===(primaryIndex<0?visibleActions.length-1:primaryIndex)} aria-label={action.label} disabled={exit.leaving} onclick={()=>exit.run(action.run)}><span class="caption"><strong>{action.label}</strong><small>{action.english}</small></span><i aria-hidden="true"></i></button>
+    <button class="action" data-ui-sound={action.english==='CANCEL'||action.english==='BACK'?'back':'confirm'} class:primary={i===(primaryIndex<0?visibleActions.length-1:primaryIndex)} aria-label={action.label} disabled={exit.leaving} onclick={()=>exit.run(action.run)}><span class="caption"><strong>{action.label}</strong><small>{action.english}</small></span><i aria-hidden="true"></i></button>
    {/each}
   </div>
-  {#if onClose}<button class="close" aria-label="關閉提示訊息" disabled={exit.leaving} onclick={()=>{if(onClose)exit.run(onClose);}}><span aria-hidden="true"></span></button>{/if}
+  {#if onClose}<button class="close" data-ui-sound="back" aria-label="關閉提示訊息" disabled={exit.leaving} onclick={()=>{if(onClose)exit.run(onClose);}}><span aria-hidden="true"></span></button>{/if}
   <footer aria-hidden="true"><span class="brand"><i>✦</i>PROJECT<br/>RONDO</span><span class="tagline">A BRIGHTER<br/>TOMORROW.</span></footer>
  </section>
 </div>

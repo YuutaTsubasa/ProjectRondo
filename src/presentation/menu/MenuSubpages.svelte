@@ -79,7 +79,7 @@
    {:else}<button class="primary" aria-label="進入選擇內容" onclick={()=>navigate(selection.id)}><span aria-hidden="true">✧</span><span>{selected==='town'?'前往王城':'開始試煉'}<small>{selected==='town'?'ENTER THE CITY':'START TRIAL'}</small></span><b aria-hidden="true">›</b></button>{/if}
   </section>
  </div>
- <button class="page-back" aria-label={phase==='new-game'&&step>0?'返回上一步':'返回主選單'} onclick={back}><kbd><InputHint label="Esc"/></kbd><span>{phase==='new-game'&&step>0?'上一步':'返回'}<small>BACK</small></span></button>
+ <button class="page-back" data-ui-sound="back" aria-label={phase==='new-game'&&step>0?'返回上一步':'返回主選單'} onclick={back}><kbd><InputHint label="Esc"/></kbd><span>{phase==='new-game'&&step>0?'上一步':'返回'}<small>BACK</small></span></button>
 </div>
 {#if settingsOpen}<SettingsScreen onClose={closeSettings}/>{/if}
 <style>

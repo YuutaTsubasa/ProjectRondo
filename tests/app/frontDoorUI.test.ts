@@ -6,6 +6,7 @@ import {REGION_SAVE_KEY, readRegionSave} from '../../src/app/regionSave';
 import GameFixture from './GameSessionFixture.svelte';
 const { load } = vi.hoisted(() => ({ load: vi.fn() }));
 vi.mock('../../src/app/loadGameSession', () => ({ loadGameSession: load }));
+vi.mock('../../src/presentation/audio/menuUiAudio',()=>({mountMenuUiAudio:()=>()=>{}}));
 const music = vi.hoisted(() => ({ unlock: vi.fn().mockResolvedValue(undefined), setActive: vi.fn(), setTitleScreen: vi.fn(), dispose: vi.fn() }));
 vi.mock('../../src/presentation/audio/menuMusic', () => ({ createMenuMusic: () => music }));
 const platform = vi.hoisted(() => ({ isTauri: vi.fn(() => false), invoke: vi.fn().mockResolvedValue(undefined) }));

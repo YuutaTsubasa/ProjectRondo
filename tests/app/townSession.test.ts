@@ -11,6 +11,7 @@ import { AnimationGroup } from '@babylonjs/core/Animations/animationGroup';
 import { PrecisionDate } from '@babylonjs/core/Misc/precisionDate';
 import TownSession from '../../src/app/TownSession.svelte';
 import App from '../../src/app/App.svelte';
+vi.mock('../../src/presentation/audio/menuUiAudio',()=>({mountMenuUiAudio:()=>()=>{}}));
 const stub = vi.hoisted(() => ({ build: vi.fn(), load: vi.fn(), disposeEngine: vi.fn(), frame: (() => {}) as () => void }));
 vi.mock('../../src/app/loadGameSession', () => ({ loadGameSession: stub.load }));
 vi.mock('../../src/presentation/town/townScene', () => ({ createTownScene: stub.build }));

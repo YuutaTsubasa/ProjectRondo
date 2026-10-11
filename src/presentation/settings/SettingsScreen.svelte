@@ -47,7 +47,7 @@
   <aside class="rail">
    <header class="page-title"><span aria-hidden="true">✦</span><div><h1>SETTINGS</h1><p>設定 <i></i></p></div></header>
    <nav aria-label="設定分類">{#each categories as item,index}<button class="category" class:selected={category===item.id} aria-current={category===item.id?'page':undefined} data-initial={index===0?'':undefined} onclick={()=>selectCategory(item.id)} onkeydown={event=>navKeys(event,index)}><span class="icon"><SettingsIcon kind={item.id}/></span><span>{item.label}<small>{item.en}</small></span>{#if item.id!=='display'&&item.id!=='audio'&&item.id!=='controls'}<em>準備中</em>{:else}<b aria-hidden="true">›</b>{/if}</button>{/each}</nav>
-   <button class="back" onclick={()=>exit.run(onClose)}><span>←</span><span>返回<small>BACK</small></span></button>
+   <button class="back" data-ui-sound="back" onclick={()=>exit.run(onClose)}><span>←</span><span>返回<small>BACK</small></span></button>
   </aside>
   <section class="settings-panel" aria-label={active.label+'設定'}>
    <header class="panel-heading"><SettingsIcon kind={category}/><h2>{active.label}設定 <small>{active.en}</small></h2></header>
@@ -86,7 +86,7 @@
   </aside>
  </div>
  <div class="waves" aria-hidden="true"><HudWaves edges={false}/></div>
- <footer>{#if ready}<button onclick={reset}><kbd><InputHint label="F"/></kbd> 恢復預設</button><span class="automatic">即時儲存</span>{/if}<button onclick={()=>exit.run(onClose)}><kbd><InputHint label="Esc"/></kbd> 返回</button></footer>
+ <footer>{#if ready}<button onclick={reset}><kbd><InputHint label="F"/></kbd> 恢復預設</button><span class="automatic">即時儲存</span>{/if}<button data-ui-sound="back" onclick={()=>exit.run(onClose)}><kbd><InputHint label="Esc"/></kbd> 返回</button></footer>
 </div>
 <style>
  .rows{min-height:0;flex:1;overflow:auto;overscroll-behavior:contain;padding:0 10px;margin:0 -10px;scrollbar-width:thin}.panel-heading,.intro,.save-note{flex-shrink:0}

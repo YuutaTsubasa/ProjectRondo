@@ -1,4 +1,6 @@
 <script lang="ts">
+  import {onMount} from 'svelte';
+  import {mountMenuUiAudio} from '../audio/menuUiAudio';
   import InformationDialog from './InformationDialog.svelte';
   import {exitGame} from '../../app/exitGame';
   import {inputStatus} from '../input/deviceInput';
@@ -30,6 +32,7 @@
   }
   let menuIndex = $state(0);
   let panel: HTMLElement;
+  onMount(()=>mountMenuUiAudio(panel));
   let previous: FrontDoorPhase | undefined;
   let revealMenu = $state(false);
   $effect(() => {
@@ -85,7 +88,7 @@
           {/each}
         </nav>
         <p class="menu-caption">{menuEntries[menuIndex].detail}</p>
-        <button class="back" onclick={() => onAction('back')}>← 返回標題</button>
+        <button class="back" data-ui-sound="back" onclick={() => onAction('back')}>← 返回標題</button>
       {:else if phase === 'extras' || phase === 'new-game' || phase === 'load-game'}
         <MenuSubpages {phase} {onAction} {saveAvailable} {saveProgress} {menuError}/>
       {:else if phase === 'settings'}
@@ -97,7 +100,7 @@
         <h1 class="settings-title">稍等一下</h1>
         <p role="alert">遊戲載入失敗，請確認連線後再試一次。</p>
         <button class="menu-button primary" data-initial onclick={() => onAction('retry')}>重新載入 <span aria-hidden="true">↗</span></button>
-        <button class="back" onclick={() => onAction('back')}>← 返回主選單</button>
+        <button class="back" data-ui-sound="back" onclick={() => onAction('back')}>← 返回主選單</button>
       {/if}
       {#if menuError&&!innerPage}<p class="panel-copy" role="alert">{menuError}</p>{/if}
     </section>
