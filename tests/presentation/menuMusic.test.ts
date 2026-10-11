@@ -41,7 +41,7 @@ describe('menu music', () => {
     f.music.setTitleScreen(true);
     expect(f.gains[1].gain.linearRampToValueAtTime).toHaveBeenLastCalledWith(.25, 12.8);
     f.preferences.setLevel('music', .4);
-    expect(f.gains[0].gain.setTargetAtTime).toHaveBeenLastCalledWith(.4, 12, .1);
+    expect(f.gains[0].gain.setTargetAtTime).toHaveBeenLastCalledWith(.4, 12, .02);
     f.music.setTitleScreen(false);
     expect(f.gains[1].gain.cancelAndHoldAtTime).toHaveBeenCalledTimes(2);
     expect(f.gains[1].gain.linearRampToValueAtTime).toHaveBeenLastCalledWith(1, 12.8);
@@ -52,9 +52,9 @@ describe('menu music', () => {
   it('applies master, music and mute separately from the fade envelope', async () => {
     const f = fixture(); await f.music.unlock();
     f.preferences.setLevel('master', .5); f.preferences.setLevel('music', .4);
-    expect(f.gains[0].gain.setTargetAtTime).toHaveBeenLastCalledWith(.2, 12, .1);
+    expect(f.gains[0].gain.setTargetAtTime).toHaveBeenLastCalledWith(.2, 12, .02);
     f.preferences.setMuted(true);
-    expect(f.gains[0].gain.setTargetAtTime).toHaveBeenLastCalledWith(0, 12, .1);
+    expect(f.gains[0].gain.setTargetAtTime).toHaveBeenLastCalledWith(0, 12, .02);
     f.music.dispose();
   });
   it('does not start late audio after entering the game or disposing during decoding', async () => {
@@ -86,7 +86,7 @@ it('can play a stage loop at the cue volume without changing title defaults', as
   await f.music.unlock();
   expect(f.gains[1].gain.value).toBe(.5);
   f.preferences.setLevel('music', .4);
-  expect(f.gains[0].gain.setTargetAtTime).toHaveBeenLastCalledWith(.4, 12, .1);
+  expect(f.gains[0].gain.setTargetAtTime).toHaveBeenLastCalledWith(.4, 12, .02);
   f.music.dispose();
 });
 
@@ -135,8 +135,10 @@ it('ducks BGM through nested overlays without restarting the loop or overriding 
  try{
   expect(f.gains[0].gain.setTargetAtTime).toHaveBeenLastCalledWith(.35,12,.1);
   first();expect(f.gains[0].gain.setTargetAtTime).toHaveBeenLastCalledWith(.35,12,.1);
-  f.preferences.setMuted(true);expect(f.gains[0].gain.setTargetAtTime).toHaveBeenLastCalledWith(0,12,.1);
-  second();f.preferences.setMuted(false);expect(f.gains[0].gain.setTargetAtTime).toHaveBeenLastCalledWith(1,12,.1);
+  f.preferences.setMuted(true);expect(f.gains[0].gain.setTargetAtTime).toHaveBeenLastCalledWith(0,12,.02);
+  // Releasing the last duck glides back up; the player's unmute then applies at once.
+  second();expect(f.gains[0].gain.setTargetAtTime).toHaveBeenLastCalledWith(0,12,.1);
+  f.preferences.setMuted(false);expect(f.gains[0].gain.setTargetAtTime).toHaveBeenLastCalledWith(1,12,.02);
   expect(f.sources).toHaveLength(1);expect(f.sources[0].stop).not.toHaveBeenCalled();
  }finally{first();second();f.music.dispose();}
 });

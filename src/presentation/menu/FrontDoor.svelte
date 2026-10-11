@@ -160,13 +160,8 @@
   .primary{color:white;background:#2863ed;padding-left:20px;font-size:14px;letter-spacing:1px}
   @keyframes breathe{50%{opacity:.35}}
   @keyframes menu-enter{from{opacity:0;translate:-14px 0}to{opacity:1;translate:0 0}}
-  @container game-ui (max-width:900px){.logo-lockup{width:42%;top:28%}.content{width:36%;min-width:270px}.menu-caption{font-size:9px}.menu-button{font-size:13px}.is-panel .content{top:17%}}
-  @container game-ui (max-width:650px){.front-door{--menu-indent:12cqw;--menu-row:42px}.logo-lockup{left:6%;width:68%;top:22%}.content{top:46%;width:65%;min-width:255px}.menu-button{font-size:13px}.menu-caption{font-size:9px;max-width:80%;white-space:normal}.is-panel .content{left:8%;top:18%}.footer-message{display:none}footer{justify-content:flex-end;right:6%;bottom:3%}.footer-right span{font-size:8px}}
-  @container game-ui (max-height:650px) and (min-width:651px){.logo-lockup{top:19%;width:30%}.content{top:50%;--menu-row:30px}.menu-button{font-size:12px}.menu-caption{margin-top:8px}.back{margin-top:6px}.is-panel .content{top:8%}}
-  @container game-ui (max-height:500px){.front-door{min-height:0}.content{position:relative;padding-bottom:90px}.is-panel .content{padding-top:30px;top:0}footer{position:fixed}.logo-lockup{top:12%}}
   .is-title .content{position:absolute;left:50%;top:65%;width:340px;max-width:90%;min-width:0;transform:translateX(-50%);padding:0;animation:none}
   .is-title .logo-lockup{left:50%;top:43%;transform:translate(-50%,-50%)}
-  @container game-ui (max-height:500px){.is-title .logo-lockup{top:38%}.is-title .content{top:72%}}
   @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
   .front-door.is-loading .content{inset:0;width:100%;max-width:none;min-width:0}
   .front-door.is-settings .content{position:static;inset:auto;width:auto;max-width:none;min-width:0;padding:0;animation:none}.is-settings:after,.is-settings footer{display:none}

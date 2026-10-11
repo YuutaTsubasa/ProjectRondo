@@ -219,8 +219,6 @@
   .choice:focus{outline:none;transform:scale(1.06);filter:drop-shadow(0 0 5px var(--avg-glow)) drop-shadow(0 0 12px rgba(var(--c-blue-soft-rgb),.45))}
   .choice:focus:before{background:var(--avg-light)}.choice:focus:after{background:linear-gradient(90deg,rgba(var(--avg-navy-rgb),.95),rgba(var(--avg-navy-rgb),.8));box-shadow:inset 0 0 18px var(--avg-glow)}
   .choice:focus .diamond{stroke:var(--avg-light);stroke-width:2;filter:drop-shadow(0 0 5px var(--avg-glow))}.choice:focus .core{fill:var(--avg-light)}.choice:focus .caret{opacity:1}
-  @container game-ui (max-width:700px){.scrim{padding:90px 0 39cqh}.panel{width:80cqw;padding:12px 16px;gap:12px}.inner{padding:5px 19px;min-height:50px;gap:10px;font-size:16px}.diamond{width:24px;height:24px}}
-  @container game-ui (max-height:540px) and (min-width:701px){.scrim{padding:65px 0 175px}.panel{gap:8px}.inner{min-height:40px;font-size:16px}.diamond{width:24px;height:24px}}
   @media(prefers-reduced-motion:reduce){.choice{transition:none}}
   @media(forced-colors:active){.choice{border:1px solid ButtonText}.choice:focus{outline:var(--focus-ring);outline-offset:var(--focus-ring-offset)}.choice:before,.choice:after{display:none}.choice:focus .caret{stroke:ButtonText}}
 </style>

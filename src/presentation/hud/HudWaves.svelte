@@ -41,7 +41,6 @@
  .stopped .ribbon,.stopped .current,:global([inert]) .ribbon,:global([inert]) .current{animation-play-state:paused}
  @keyframes wave-breathe{from{transform:translate(-18px,7px) scaleY(.9)}to{transform:translate(18px,-7px) scaleY(1.055)}}
  @keyframes wave-flow{to{stroke-dashoffset:-780}}
- @container game-ui (max-width:700px){.bottom{height:100px}.bottom svg{width:150%;margin-left:-25%}}
  .subtle{position:absolute;color:#6999c8;z-index:1}
  .subtle .bottom{height:clamp(48px,10cqh,86px);bottom:-10px}
  .subtle .ribbon{animation-duration:7s;stroke-width:.8}

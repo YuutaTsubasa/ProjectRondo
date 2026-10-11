@@ -40,8 +40,10 @@ export function createMenuMusic(options: Options = {}): MenuMusic {
   let disposed = false;
   let duck=1;
   const unsubscribe = derived([options.preferences ?? audioPreferences,musicDuckGain],([levels,duck])=>({levels,duck})).subscribe(value => {
+    // Only an overlay duck glides; the player's own volume and mute changes stay immediate.
+    const ducking=value.duck!==duck;
     levels = value.levels;duck=value.duck;
-    if (mix && context) mix.gain.setTargetAtTime(busGain(levels, 'music')*duck, context.currentTime, .1);
+    if (mix && context) mix.gain.setTargetAtTime(busGain(levels, 'music')*duck, context.currentTime, ducking?.1:.02);
   });
 
   function start() {

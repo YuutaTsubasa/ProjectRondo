@@ -197,3 +197,13 @@ it('ducks only world music and preserves the user mix',async()=>{
   release();expect(audio.buses.music.volume).toBeCloseTo(.5);
  }finally{release();}
 });
+
+it('fades music only for an overlay duck, never for the player volume or mute',async()=>{
+ const {acquireMusicDuck}=await import('../../src/presentation/audio/musicDucking');
+ const audio=await createGameAudio();const fade=vi.spyOn(audio.buses.music as unknown as FakeBus,'setVolume');
+ try{
+  audioPreferences.setLevel('music',.6);expect(fade).not.toHaveBeenCalled();expect(audio.buses.music.volume).toBeCloseTo(.6);
+  const release=acquireMusicDuck();expect(fade).toHaveBeenCalledTimes(1);
+  release();expect(fade).toHaveBeenCalledTimes(2);
+ }finally{fade.mockRestore();}
+});

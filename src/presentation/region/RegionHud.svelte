@@ -97,10 +97,8 @@
  .save-warning{position:absolute;bottom:130px;left:var(--inset);max-width:240px;font-size:11px;background:#20314dda;padding:9px 12px;border-left:2px solid #a7d7ff}
 
  @keyframes area-title{0%{opacity:0;translate:0 7px}15%,65%{opacity:1;translate:0 0}100%{opacity:0;translate:0 -4px}}@keyframes interact-in{from{opacity:0;translate:10px 0}to{opacity:1;translate:0 0}}
- @container game-ui (min-width:1600px){.hud{--hud-scale:1.2}}
- @container game-ui (min-width:1900px){.hud{--hud-scale:1.4}}
+ .hud{--hud-scale:1.2}
+ .hud{--hud-scale:1.4}
  @container game-ui (min-width:2500px){.hud{--hud-scale:1.65}}
- @container game-ui (max-width:700px){.hud{--inset:42px}.atlas{top:18px}.mission{top:149px;max-width:225px;gap:9px}.mission h1{font-size:17px}.mission small{font-size:8px}.destination{font-size:12px}.mission-details{padding-left:0}.mission-rule{margin:6px 0}.distance{font-size:14px;padding-left:15px}.mission-star{width:20px;height:20px;margin-top:0}nav{top:20px;gap:15px}.hud-button svg{width:24px}.area-arrival{top:40%}.area-arrival strong{font-size:23px;letter-spacing:6px}.notice{top:auto;bottom:calc(24% + 115px);width:calc(100cqw - 76px);gap:6px;padding-right:25px}.notice-icon{width:51px;height:58px}.notice-copy{font-size:12px}.interact{top:auto;bottom:24%;left:50%;transform:translateX(-50%);width:272px;max-width:calc(100cqw - 84px);gap:10px}.interact-action{font-size:18px}}
- @container game-ui (max-width:450px){.mission{max-width:195px}.save-warning{bottom:150px;max-width:190px}}
  @media(prefers-reduced-motion:reduce){.hud{transition:none}.area-arrival{animation:none;opacity:0}.notice,.interact,.diamond-halo,.diamond-frame{animation:none}.interact-panel{transition:none}}
 </style>

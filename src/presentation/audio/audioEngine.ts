@@ -96,14 +96,15 @@ export async function createGameAudio(): Promise<GameAudio> {
     }),
   ) as Record<AudioBusId, AudioBus>;
 
-  let initialMix=true;
+  // Only an overlay duck fades; the player's own volume and mute changes apply at once.
+  let lastDuck:number|undefined;
   const unsubscribe = derived([audioPreferences,musicDuckGain],([levels,duck])=>({levels,duck})).subscribe(({levels,duck}) => {
+    const ducking=lastDuck!==undefined&&duck!==lastDuck;lastDuck=duck;
     for (const id of BUS_IDS){
       const gain=busGain(levels,id)*(id==='music'?duck:1);
-      if(id==='music'&&!initialMix)buses[id].setVolume(gain,{duration:.3});
+      if(id==='music'&&ducking)buses[id].setVolume(gain,{duration:.3});
       else buses[id].volume=gain;
     }
-    initialMix=false;
   });
   let disposed = false;
 

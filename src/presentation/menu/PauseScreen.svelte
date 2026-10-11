@@ -79,9 +79,6 @@
  .leaving .menu-column{animation:menu-out .32s ease-in both}.leaving aside{animation:info-out .32s ease-in both}
  @keyframes pause-out{to{opacity:0}}@keyframes menu-out{to{transform:translateX(-22px)}}@keyframes info-out{to{transform:translateX(22px)}}
  @keyframes pause-in{from{opacity:0}to{opacity:1}}
- @container game-ui (max-width:850px){.layout{gap:15px;padding-left:3cqw;padding-right:4cqw}.menu-column{width:50%}header{gap:15px;margin-bottom:25px}header>svg{width:55px;height:55px}button{gap:15px;font-size:16px}.selection,.selection svg{width:44px;height:44px}aside{min-width:180px;width:29cqw}dl{padding-left:10px}.chapter h2{font-size:17px}.tips{padding:12px}.brand{width:125px}}
- @container game-ui (max-width:600px){.layout{display:block;padding:100px 22px 30px}.menu-column{width:100%;padding-top:0}header{margin-bottom:20px}header>svg{width:48px;height:48px}h1{font-size:30px}button{min-height:60px}nav{gap:6px}aside{width:100%;margin-top:24px;min-width:0}.chapter{text-align:left;margin-bottom:20px}.chapter>p{justify-content:flex-start}.chapter b{font-size:26px}dl{padding:0}.tips{margin-top:0}.brand{left:24px;top:20px;width:120px}footer{position:relative;bottom:auto;left:auto;right:auto;padding:0 24px 30px;justify-content:flex-end;gap:15px;font-size:10px}}
- @container game-ui (max-height:600px) and (min-width:601px){.layout{padding-top:100px;padding-bottom:75px}.menu-column{padding-top:0}header{margin-bottom:12px}header>svg{width:45px;height:45px}h1{font-size:28px}nav{gap:4px}button{min-height:50px}aside{margin-top:-80px}.chapter{margin-bottom:18px}dl>div{margin-bottom:12px}.tips{margin-top:5px}footer{bottom:20px}}
  @media(prefers-reduced-motion:reduce){.pause-screen{animation:none}button:before{transition:none}}
  @media(forced-colors:active){button:focus{outline:2px solid Highlight}.veil{background:Canvas}button:before{display:none}}
 .pause-screen.settings-open{opacity:0;animation:none;pointer-events:none}

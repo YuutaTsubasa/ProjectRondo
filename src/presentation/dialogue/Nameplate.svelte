@@ -8,5 +8,4 @@
   .nameplate:before{background:rgba(var(--c-blue-soft-rgb),.75)}
   .nameplate:after{inset:1px 1px 0;background:rgba(var(--avg-navy-rgb),.94)}
   .star{position:absolute;left:-14px;bottom:-11px;font:38px Georgia,serif;color:var(--avg-light);text-shadow:0 0 9px var(--avg-glow),0 0 18px var(--avg-glow)}
-  @container game-ui (max-width:600px){.nameplate{font-size:18px;padding:6px 26px 6px 24px}}
 </style>

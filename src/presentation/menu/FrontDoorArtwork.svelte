@@ -105,19 +105,14 @@
   @keyframes mist-drift{from{transform:translateX(-4%) translateY(0)}to{transform:translateX(4%) translateY(-10px)}}
   @keyframes scenic-idle{from{transform:scale(1.025) translate(.3%,-.2%)}to{transform:scale(1.055) translate(-.9%,.5%)}}
   @keyframes sun-idle{from{opacity:.45}to{opacity:1}}
-  @container game-ui (max-width:900px){.world-note{display:none}.left-paper{clip-path:polygon(0 0,20% 0,30% 0,40% 0,55% 0,25% 100%,0 100%)}.foreground{left:45%;width:65%;top:13%;height:105%}.paper-sliver{opacity:.5}}
-  @container game-ui (max-width:650px){.landscape img{object-position:62% 50%}.foreground{left:40%;width:95%;top:25%;height:85%}.mist.near{display:none}.left-paper{clip-path:polygon(0 0,30% 0,50% 0,70% 0,90% 0,37% 100%,0 100%)}.intro-note,.vertical-note,.world-note,.paper-sliver{display:none}.crest{right:5%;top:4%}.crest svg{width:30px;height:30px}.crest span{display:none}.top-note{left:6%;top:4%}.right-paper{opacity:.7}.crosshair{left:5%}}
   .loading .foreground{left:-4%;top:7%;width:68%;height:104%;z-index:1;clip-path:polygon(28% 0,100% 0,100% 100%,0 100%);transform:none}
   .loading .landscape{inset:-8% -8% 10% 27%;transform:rotate(-7deg) scale(1.08)}
   .loading .atmosphere{background:#f6f9ff;clip-path:polygon(42% 0,64% 0,47% 64%,24% 74%)}
   .loading .ornaments{opacity:0}.loading .left-paper{clip-path:polygon(0 0,28% 0,30% 0,33% 0,39% 0,9% 100%,0 100%);background:#f7faff}
   .loading .mist.near{z-index:2;opacity:.1}
-  @container game-ui (max-width:650px){.loading .foreground{left:-30%;top:8%;width:123%;height:88%}.loading .landscape{inset:0 -50% 8% 0}.loading .left-paper{clip-path:polygon(0 0,20% 0,22% 0,25% 0,32% 0,0 100%,0 100%)}}
   .artwork:not(.active) .left-paper{clip-path:polygon(0 0,60% 0,70% 0,80% 0,100% 0,100% 100%,0 100%)}
   @media(prefers-reduced-motion:reduce){.left-paper,.ornaments{transition:none}.mist img,.landscape img,.sun-haze{animation:none;will-change:auto}.landscape,.foreground{transform:none;transition:none}}
 .settings .left-paper,.settings .paper-sliver,.settings .ornaments{opacity:0}.settings .foreground{left:46%;width:55%}
  .inner .left-paper{clip-path:polygon(0 0,47% 0,45% 20%,52% 0,66% 0,45% 100%,0 100%);background:linear-gradient(90deg,#f8fbff,#f5f9fff2 55%,#eaf4ffe0)}
  .inner .foreground{left:62%;width:43%;top:10%;height:108%}.inner .intro-note,.inner .world-note,.inner .top-note{opacity:0}.inner .paper-sliver{left:45%;opacity:.35}.inner .landscape:after{content:'';position:absolute;inset:0;background:linear-gradient(90deg,#f5f9fffc 9%,#f5f9ffed 35%,#f3f8ffba 49%,#eff7ff44 61%,transparent 73%)}
- @container game-ui (max-width:1050px){.inner .foreground{left:64%;width:50%}.inner .landscape:after{background:linear-gradient(90deg,#f5f9fffa 25%,#f5f9ffe6 48%,#f3f8ffad 67%,transparent 90%)}}
- @container game-ui (max-width:700px){.inner .left-paper{clip-path:none;background:#f6faffce}.inner .foreground{left:30%;width:90%;opacity:.22}.inner .ornaments{opacity:0}}
 </style>

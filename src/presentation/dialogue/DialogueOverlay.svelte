@@ -236,10 +236,8 @@
   @keyframes portrait-in{from{opacity:0;translate:24px 0}to{opacity:1;translate:0 0}}
   @keyframes portrait-out{to{opacity:0;translate:24px 0}}@keyframes dock-out{to{opacity:0;transform:translateY(22px)}}
   @keyframes advance-pulse{50%{transform:translateY(4px);filter:drop-shadow(0 0 12px var(--avg-glow))}}@keyframes dock-in{from{opacity:0;transform:translateY(15px)}to{opacity:1;transform:translateY(0)}}
-  @container game-ui (max-width:700px){.with-chapter :global(.portrait){left:2cqw;height:82cqh}.edge-mark{display:none}.dock{left:5%;right:5%;bottom:65px}.box{padding:24px 24px 44px;min-height:165px}.advance{width:28px;height:28px;bottom:12px;right:7%}}
-  @container game-ui (max-height:540px) and (min-width:701px){.dock{bottom:60px}.box{min-height:130px;padding-top:18px;padding-bottom:35px}.advance{bottom:8px;width:28px;height:28px}}
-  @container game-ui (min-width:1600px){.avg-identity{--hud-scale:1.2}}
-  @container game-ui (min-width:1900px){.avg-identity{--hud-scale:1.4}}
+  .avg-identity{--hud-scale:1.2}
+  .avg-identity{--hud-scale:1.4}
   @container game-ui (min-width:2500px){.avg-identity{--hud-scale:1.65}}
   @media(prefers-reduced-motion:reduce){.overlay,.overlay.leaving,.dock,.leaving .dock,.advance.ready,.overlay :global(.portrait){animation:none}.advance{transition:none}}
 </style>
