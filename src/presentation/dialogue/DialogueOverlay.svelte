@@ -236,7 +236,6 @@
   @keyframes portrait-in{from{opacity:0;translate:24px 0}to{opacity:1;translate:0 0}}
   @keyframes portrait-out{to{opacity:0;translate:24px 0}}@keyframes dock-out{to{opacity:0;transform:translateY(22px)}}
   @keyframes advance-pulse{50%{transform:translateY(4px);filter:drop-shadow(0 0 12px var(--avg-glow))}}@keyframes dock-in{from{opacity:0;transform:translateY(15px)}to{opacity:1;transform:translateY(0)}}
-  .avg-identity{--hud-scale:1.2}
   .avg-identity{--hud-scale:1.4}
   @container game-ui (min-width:2500px){.avg-identity{--hud-scale:1.65}}
   @media(prefers-reduced-motion:reduce){.overlay,.overlay.leaving,.dock,.leaving .dock,.advance.ready,.overlay :global(.portrait){animation:none}.advance{transition:none}}

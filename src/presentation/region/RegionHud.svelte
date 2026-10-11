@@ -97,7 +97,6 @@
  .save-warning{position:absolute;bottom:130px;left:var(--inset);max-width:240px;font-size:11px;background:#20314dda;padding:9px 12px;border-left:2px solid #a7d7ff}
 
  @keyframes area-title{0%{opacity:0;translate:0 7px}15%,65%{opacity:1;translate:0 0}100%{opacity:0;translate:0 -4px}}@keyframes interact-in{from{opacity:0;translate:10px 0}to{opacity:1;translate:0 0}}
- .hud{--hud-scale:1.2}
  .hud{--hud-scale:1.4}
  @container game-ui (min-width:2500px){.hud{--hud-scale:1.65}}
  @media(prefers-reduced-motion:reduce){.hud{transition:none}.area-arrival{animation:none;opacity:0}.notice,.interact,.diamond-halo,.diamond-frame{animation:none}.interact-panel{transition:none}}
