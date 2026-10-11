@@ -178,7 +178,7 @@
      than adding an interaction; there is nothing here for a keyboard to reach it with. -->
 <div class="scrim" onpointerdown={keepFocus}>
   <div
-    class="panel"
+    class="panel" data-input-scroll
     bind:this={panel}
     role="dialog"
     aria-modal="true"
@@ -206,8 +206,8 @@
 </div>
 
 <style>
-  .scrim{position:fixed;inset:0;z-index:12;display:flex;box-sizing:border-box;padding:90px 0;overflow-y:auto;background:rgba(var(--avg-navy-rgb),.08);pointer-events:auto}
-  .panel{margin:auto;width:min(520px,72cqw);display:flex;flex-direction:column;gap:14px;padding:12px 24px}
+  .scrim{position:fixed;inset:0;z-index:12;display:flex;box-sizing:border-box;padding:90px 0;overflow:clip;background:rgba(var(--avg-navy-rgb),.08);pointer-events:auto}
+  .panel{max-height:100%;box-sizing:border-box;overflow:auto;overscroll-behavior:contain;scrollbar-width:thin;margin:auto;width:min(520px,72cqw);display:flex;flex-direction:column;gap:14px;padding:12px 24px}
   /* The line remains visible in the dock; retain its full copy as the modal description. */
   .question{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
   .choice{position:relative;display:block;flex-shrink:0;width:100%;border:0;padding:1px;background:transparent;color:var(--avg-text);font:inherit;text-align:center;cursor:pointer;transition:transform .2s,filter .2s;isolation:isolate}

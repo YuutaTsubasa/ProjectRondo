@@ -73,7 +73,7 @@ it('traps pause dialog focus, clears input when leaving and disposes scene befor
   const dialog = document.querySelector('[role=dialog]')!;
   expect(document.activeElement).toBe(button('繼續漫遊'));
   document.activeElement!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, bubbles: true, cancelable: true }));
-  expect(document.activeElement).toBe(button('系統設定'));
+  expect(document.activeElement).toBe(button('返回主選單'));
   document.activeElement!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true }));
   expect(document.activeElement).toBe(dialog.querySelector('button'));
   button('返回主選單').click();

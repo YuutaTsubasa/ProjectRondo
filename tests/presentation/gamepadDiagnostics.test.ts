@@ -7,3 +7,9 @@ it('distinguishes blocked access, no controller and unmapped controllers',()=>{
  const pad={connected:true,id:'Android controller',mapping:'',axes:[0,0],buttons:[{pressed:true,value:1}]} as unknown as Gamepad;
  const result=inspectGamepads(true,()=>[null,pad]);expect(result.pads[0].pressed).toBe('0');expect(result.message).toContain('未提供標準');
 });
+
+it('reports the same Android fallback that gameplay uses',()=>{
+ const pad={connected:true,id:'AYANEO Controller',index:0,mapping:'',axes:[0,0,0,0,-1],buttons:Array.from({length:16},()=>({pressed:false,value:0}))} as unknown as Gamepad;
+ const result=inspectGamepads(true,()=>[pad],'Linux Android Chrome/130.0');
+ expect(result.pads[0].mapping).toContain('Android 相容配置');expect(result.message).toContain('可用');
+});

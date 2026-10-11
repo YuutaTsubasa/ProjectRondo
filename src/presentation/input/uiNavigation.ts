@@ -28,18 +28,18 @@ export function navigateUi(action:UiAction){
  if(action==='interact'){
   if(!scope.closest('[data-dialogue]'))return;
   const advance=scope.querySelector<HTMLElement>('[aria-label="advance dialogue"]');
-  if(advance&&!advance.closest('[inert]')){advance.focus();click(advance);return;}
+  if(advance&&!advance.closest('[inert]')){advance.focus({preventScroll:true});click(advance);return;}
   // Dialogue choices/backlog own the top modal; X confirms its focused control.
   if(scope.matches('[role="dialog"]'))navigateUi('confirm');
   return;
  }
  if(action.startsWith('pan')){
-  const scroll=scope.querySelector<HTMLElement>('[data-input-scroll]')??(scope instanceof HTMLElement?scope:null);if(scroll){scroll.scrollTop+=action==='panUp'?-90:action==='panDown'?90:0;}return;
+  const scroll=current?.closest<HTMLElement>('[data-input-scroll]')??scope.querySelector<HTMLElement>('[data-input-scroll]');if(scroll){scroll.scrollTop+=action==='panUp'?-90:action==='panDown'?90:0;}return;
  }
  if(!items.length)return;
  if(action==='confirm'){
   const target=current&&items.includes(current)?current:items.find(el=>el.matches('[data-game-entry]'))??items[0];
-  target.focus();if(!target.matches('input,select'))click(target);return;
+  target.focus({preventScroll:true});if(!target.matches('input,select'))click(target);return;
  }
  if((action==='left'||action==='right')&&current?.matches('input[type="range"],select')){
   const direction=action==='right'?1:-1;
@@ -55,5 +55,5 @@ export function navigateUi(action:UiAction){
   let best=Infinity;
   for(const candidate of items){if(candidate===current)continue;const r=candidate.getBoundingClientRect(),dx=r.x+r.width/2-cx,dy=r.y+r.height/2-cy;const primary=(horizontal?dx:dy)*(back?-1:1),cross=Math.abs(horizontal?dy:dx);if(primary>4){const score=primary+cross*3;if(score<best){best=score;next=candidate;}}}
  }
- next?.focus();next?.scrollIntoView?.({block:'nearest',inline:'nearest'});
+ next?.focus({preventScroll:true});if(next?.closest('[data-input-scroll]'))next.scrollIntoView?.({block:'nearest',inline:'nearest'});
 }

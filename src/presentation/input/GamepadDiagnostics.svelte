@@ -3,7 +3,7 @@
  import {inspectGamepads,type GamepadDiagnostic} from './gamepadDiagnostics';
  let diagnostics=$state<GamepadDiagnostic>({available:false,message:'正在偵測手把…',pads:[]});
  onMount(()=>{
-  const inspect=()=>diagnostics=inspectGamepads(window.isSecureContext,navigator.getGamepads?.bind(navigator));
+  const inspect=()=>diagnostics=inspectGamepads(window.isSecureContext,navigator.getGamepads?.bind(navigator),navigator.userAgent);
   inspect();const timer=setInterval(inspect,150);return()=>clearInterval(timer);
  });
 </script>

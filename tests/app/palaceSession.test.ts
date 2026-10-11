@@ -75,7 +75,7 @@ it('suspends on hidden page and keeps keyboard focus inside the pause menu',asyn
  vi.spyOn(document,'hidden','get').mockReturnValue(true);document.dispatchEvent(new Event('visibilitychange'));await settle();
  expect(palace.suspendInput).toHaveBeenLastCalledWith(true);stub.frame();expect(palace.advance).not.toHaveBeenCalled();
  window.dispatchEvent(new KeyboardEvent('keydown',{key:'Tab',shiftKey:true,cancelable:true}));await settle();
- expect(document.activeElement?.textContent).toContain('系統設定');
+ expect(document.activeElement?.textContent).toContain('返回主選單');
 });
 
  it.each(['resume','visibility','restart'] as const)('discards the first resumed simulation frame on %s', async action => {

@@ -1,4 +1,5 @@
-import {deviceInput,type UiAction} from './deviceInput';
+import {normalizeGamepad} from './gamepadProfile';
+import {deviceInput,type PadSample,type UiAction} from './deviceInput';
 import {navigateUi,sendKey} from './uiNavigation';
 /** One poller for the whole application; scenes only register their current input ownership. */
 export function startInputRuntime(){
@@ -20,7 +21,7 @@ export function startInputRuntime(){
   if(disposed)return;
   if(focused&&!document.hidden){
    let pads:readonly (Gamepad|null)[]=[];try{pads=navigator.getGamepads?.()??[];}catch{/* unsupported embedding */}
-   const standard=pads.filter((p):p is Gamepad=>!!p&&p.connected&&p.mapping==='standard');
+   const standard=pads.filter((p):p is Gamepad=>!!p&&p.connected).map(p=>normalizeGamepad(p,navigator.userAgent)).filter((p):p is PadSample=>p!==null);
    const active=standard.find(p=>p.buttons.some(b=>b.pressed)||p.axes.some(a=>Math.abs(a)>.25))??standard[0]??null;
    const before=deviceInput.getState();deviceInput.poll(active,now);
    if(before.connected&&!active&&before.playing&&before.device==='gamepad')sendKey('Escape',window);

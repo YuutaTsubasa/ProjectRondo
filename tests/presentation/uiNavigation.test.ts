@@ -27,3 +27,11 @@ it('uses X for the selected dialogue choice, but not generic menu controls',()=>
  const choice=vi.fn();document.querySelector('#choice')!.addEventListener('click',choice);navigateUi('interact');expect(choice).toHaveBeenCalledOnce();
  document.body.innerHTML='<div data-input-scope><button id="quit">quit</button></div>';const quit=vi.fn();document.querySelector('#quit')!.addEventListener('click',quit);navigateUi('interact');expect(quit).not.toHaveBeenCalled();
 });
+it('never pans the page frame and scrolls only a designated content pane',()=>{
+ document.body.innerHTML='<div data-input-scope><button>pause action</button></div>';
+ const frame=document.querySelector<HTMLElement>('[data-input-scope]')!;
+ navigateUi('panDown');expect(frame.scrollTop).toBe(0);
+ frame.innerHTML='<section data-input-scroll><button>setting</button></section>';
+ const pane=frame.querySelector<HTMLElement>('section')!;navigateUi('panDown');expect(pane.scrollTop).toBe(90);expect(frame.scrollTop).toBe(0);
+ navigateUi('panUp');expect(pane.scrollTop).toBe(0);
+});

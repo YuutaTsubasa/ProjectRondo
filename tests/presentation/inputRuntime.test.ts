@@ -36,3 +36,19 @@ it('consumes X at a world interaction and attacks only when the world declines i
  nearby=false;deviceInput.poll(pad([]),20);deviceInput.poll(pad([2]),30);expect(attack).toHaveBeenCalledExactlyOnceWith('attack');
  stop();off();rig.dispose();window.removeEventListener('keydown',interact);
 });
+
+it('routes unmapped Chromium Android pads through the real poller without extra idle axes blocking input',()=>{
+ let callback:FrameRequestCallback=()=>{};
+ vi.stubGlobal('requestAnimationFrame',(fn:FrameRequestCallback)=>{callback=fn;return 1;});vi.stubGlobal('cancelAnimationFrame',()=>{});
+ vi.spyOn(navigator,'userAgent','get').mockReturnValue('Mozilla/5.0 (Linux; Android 14) Chrome/130.0.0.0');
+ let pressed:number[]=[],axes=[0,0,0,0,-1];
+ vi.spyOn(navigator,'getGamepads').mockImplementation(()=>[{...pad(pressed),id:'AYANEO Controller',mapping:'',axes} as unknown as Gamepad]);
+ document.body.innerHTML='<div data-input-scope><button>continue</button></div>';
+ const confirm=vi.fn();document.querySelector('button')!.addEventListener('click',confirm);
+ const stop=startInputRuntime();callback(0);pressed=[0];callback(16);expect(confirm).toHaveBeenCalledOnce();
+ const rig=deviceInput.registerGameplay(true);rig.setEnabled(true);pressed=[];callback(32);
+ axes=[1,0,.5,0,-1];callback(48);expect(deviceInput.axis().x).toBe(1);expect(deviceInput.look(.016).x).toBeGreaterThan(0);
+ const pause=vi.fn((e:KeyboardEvent)=>{if(e.key==='Escape')rig.setEnabled(false);});window.addEventListener('keydown',pause);
+ pressed=[9];callback(64);expect(pause).toHaveBeenCalledOnce();expect(deviceInput.getState().playing).toBe(false);
+ window.removeEventListener('keydown',pause);stop();rig.dispose();vi.restoreAllMocks();
+});

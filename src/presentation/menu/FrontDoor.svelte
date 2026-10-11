@@ -30,7 +30,7 @@
     revealMenu = previous === 'title' && phase === 'menu';
     previous = phase;
     const target = returnAction ? `[data-action="${returnAction}"]` : '[data-initial]:not([disabled])';
-    const timer = setTimeout(() => panel?.querySelector<HTMLElement>(target)?.focus(), 0);
+    const timer = setTimeout(() => panel?.querySelector<HTMLElement>(target)?.focus({preventScroll:true}), 0);
     return () => clearTimeout(timer);
   });
 
@@ -45,7 +45,7 @@
       event.preventDefault();
       const buttons = [...panel.querySelectorAll<HTMLButtonElement>('nav button')];
       const current = buttons.indexOf(document.activeElement as HTMLButtonElement);
-      buttons[(current + (event.key === 'ArrowDown' ? 1 : buttons.length - 1) + buttons.length) % buttons.length]?.focus();
+      buttons[(current + (event.key === 'ArrowDown' ? 1 : buttons.length - 1) + buttons.length) % buttons.length]?.focus({preventScroll:true});
     }
   }
 </script>
@@ -110,7 +110,7 @@
 
 <style>
   .is-loading .content{inset:0;width:100%;max-width:none;min-width:0;animation:none}.is-loading footer{display:none}
-  .front-door{--menu-row:clamp(34px,4.15cqh,48px);--menu-indent:8.3cqw;position:fixed;inset:0;z-index:10;overflow:auto;overflow-x:hidden;background:#d5e6fb;color:#173457;font-family:var(--font-body)}
+  .front-door{--menu-row:clamp(34px,4.15cqh,48px);--menu-indent:8.3cqw;position:fixed;inset:0;z-index:10;overflow:clip;overscroll-behavior:none;background:#d5e6fb;color:#173457;font-family:var(--font-body)}
   .logo-lockup{position:absolute;top:25%;left:3.5%;width:31.5%;z-index:3;transition:left .65s cubic-bezier(.65,0,.2,1),top .65s cubic-bezier(.65,0,.2,1),transform .65s cubic-bezier(.65,0,.2,1)}
   .art-reveal{position:absolute;inset:0}
   .reveal-menu .content{animation:menu-enter .3s .2s both}

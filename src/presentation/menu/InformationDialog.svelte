@@ -25,7 +25,7 @@
   <svg class="emblem" viewBox="0 0 48 48" aria-hidden="true"><path d="M24 0 27 17 35 9 31 21 48 24 31 27 39 39 27 31 24 48 21 31 9 39 17 27 0 24 17 21 13 9 21 17Z"/><path class="emblem-core" d="m24 15 3 6 6 3-6 3-3 6-3-6-6-3 6-3Z"/></svg>
   <p class="eyebrow">INFORMATION</p>
   <h1 id={titleId}>{title}</h1>
-  <p class="body" id={titleId+'-body'}>{body}</p>
+  <p class="body" data-input-scroll id={titleId+'-body'}>{body}</p>
   <div class="divider" aria-hidden="true"><span></span><i></i><span></span></div>
   <div class="actions" class:three={visibleActions.length===3}>
    {#each visibleActions as action,i}
@@ -38,7 +38,8 @@
 </div>
 
 <style>
- .information-dialog{position:fixed;inset:0;z-index:40;display:grid;place-items:center;padding:24px 16px;box-sizing:border-box;overflow:auto;isolation:isolate;outline:none;color:#122552;font-family:var(--font-body);animation:veil-in .28s ease-out both}
+ .card{max-height:100%;display:flex;flex-direction:column;box-sizing:border-box}.card>*{flex-shrink:0}.card .body{min-height:0;flex-shrink:1;overflow:auto;overscroll-behavior:contain;scrollbar-width:thin}
+ .information-dialog{position:fixed;inset:0;z-index:40;display:grid;place-items:center;padding:24px 16px;box-sizing:border-box;overflow:clip;isolation:isolate;outline:none;color:#122552;font-family:var(--font-body);animation:veil-in .28s ease-out both}
  .veil{position:fixed;inset:0;z-index:-1;background:linear-gradient(110deg,#08142d55,#1427462b 52%,#09162e55)}
  .card{position:relative;isolation:isolate;box-sizing:border-box;width:min(800px,max(48cqw,640px),100%);padding:30px 62px 56px;text-align:center;border:1px solid #eff6ffcf;background:linear-gradient(115deg,#eaf2ffdb,#f8fafff5 47%,#e9f2ffdc);box-shadow:0 0 0 1px #99baff57,inset 0 0 24px #ffffff8c,0 22px 70px #07163133;animation:card-in .32s cubic-bezier(.2,.7,.3,1) both}
  .card:before,.card:after{content:'';position:absolute;pointer-events:none;width:28px;height:28px;border-color:#b6cffa;border-style:solid}.card:before{left:-2px;top:-2px;border-width:1px 0 0 1px}.card:after{right:-2px;bottom:-2px;border-width:0 1px 1px 0}

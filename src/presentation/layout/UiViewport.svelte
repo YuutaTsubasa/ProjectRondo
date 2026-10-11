@@ -12,13 +12,14 @@
  });
 </script>
 <div class="ui-screen" bind:this={host} style:z-index={layer}>
- <div class="ui-viewport" style:width={`${size.width}px`} style:height={`${size.height}px`} style:transform={`scale(${size.scale})`}>
+ <div class="ui-viewport" style={`--ui-scale:${size.scale}`}>
   {@render children()}
  </div>
 </div>
 <style>
- .ui-screen{position:fixed;inset:0;overflow:hidden;pointer-events:none}
- .ui-viewport{position:absolute;top:0;left:0;transform-origin:top left;container:game-ui / size;pointer-events:none}
+ .ui-screen{position:fixed;inset:0;overflow:clip;pointer-events:none}
+ /* Derive coverage from the host in CSS, so native viewport resizing cannot leave a stale-height strip before ResizeObserver runs. */
+ .ui-viewport{position:absolute;top:0;left:0;width:calc(100% / var(--ui-scale));height:calc(100% / var(--ui-scale));transform:scale(var(--ui-scale));transform-origin:top left;container:game-ui / size;pointer-events:none}
  /* Re-enable ordinary menu roots; explicit HUD/decorative pointer-events:none still wins. */
  :global(:where(.ui-viewport > *)){pointer-events:auto}
 </style>
