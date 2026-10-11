@@ -72,7 +72,8 @@
   </div>
 </div>
 <style>
-  .artwork{position:absolute;inset:0;overflow:hidden;pointer-events:none;background:#91b8e6}
+  /* Decorative layers must never scroll when Android moves focus to a canvas behind the title. */
+  .artwork{position:absolute;inset:0;overflow:clip;pointer-events:none;background:#91b8e6}
   .landscape{position:absolute;inset:-28px;transform:translate(calc(var(--look-x,0px) * -.35),calc(var(--look-y,0px) * -.35));transition:transform .8s ease-out}
   .landscape img{width:100%;height:100%;object-fit:cover;object-position:54% 50%;animation:scenic-idle 14s ease-in-out infinite alternate;transform-origin:57% 48%}
   .atmosphere{position:absolute;inset:0;background:linear-gradient(180deg,#284c7710,transparent 55%,#081c391c);pointer-events:none}
