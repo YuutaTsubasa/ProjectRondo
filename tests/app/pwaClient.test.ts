@@ -25,6 +25,13 @@ describe('PWA update consent',()=>{
   await client.ready;expect(get(pwaStatus).updateAvailable).toBe(true);
   client.update();expect(waiting.postMessage).toHaveBeenCalledWith({type:'ACTIVATE_UPDATE'});client.dispose();
  });
+ it('offers a reload when an update from another tab claims a hard-refreshed page',async()=>{
+  const registration=Object.assign(new EventTarget(),{waiting:null,active:{},installing:null,update:vi.fn()});
+  const worker=Object.assign(new EventTarget(),{controller:null,register:vi.fn().mockResolvedValue(registration)});
+  const reload=vi.fn(),client=createPwaClient(new EventTarget() as Window,worker as unknown as ServiceWorkerContainer,reload);
+  await client.ready;worker.dispatchEvent(new Event('controllerchange'));
+  expect(reload).not.toHaveBeenCalled();expect(get(pwaStatus).updateAvailable).toBe(true);client.dispose();
+ });
  it('does not offer a reload when first installation takes control',async()=>{
   const s=setup(true);await s.client.ready;s.worker.dispatchEvent(new Event('controllerchange'));
   expect(s.reload).not.toHaveBeenCalled();expect(get(pwaStatus).updateAvailable).toBe(false);s.client.dispose();

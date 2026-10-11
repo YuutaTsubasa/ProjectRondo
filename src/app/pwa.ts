@@ -8,7 +8,9 @@ export function createPwaClient(host:Window, serviceWorker:ServiceWorkerContaine
  let prompt:InstallPrompt|undefined;
  let registration:ServiceWorkerRegistration|undefined;
  let requestedUpdate=false;
- let controlled=!!serviceWorker.controller;
+ // An earlier worker was already serving this origin; a later controller change is then an update,
+ // not the first install. A hard refresh leaves the page uncontrolled, hence the active check below.
+ let existing=!!serviceWorker.controller;
  let reloadAvailable=false;
  let disposed=false;
  let timer:ReturnType<typeof setTimeout>|undefined;
@@ -24,11 +26,11 @@ export function createPwaClient(host:Window, serviceWorker:ServiceWorkerContaine
  listen(serviceWorker,'controllerchange',()=>{
   // Another tab may activate an update. Never reload this game without its player's consent.
   if(requestedUpdate){clearTimeout(timer);reload();}
-  else {reloadAvailable=controlled;controlled=true;status({updateAvailable:reloadAvailable});}
+  else {reloadAvailable=existing;existing=true;status({updateAvailable:reloadAvailable});}
  });
  const ready=serviceWorker.register('/sw.js',{updateViaCache:'none'}).then(result=>{
   if(disposed)return;
-  registration=result;
+  registration=result;existing||=!!result.active;
   // A first install also passes through `waiting` on its way to active; only a worker waiting behind
   // an active one is an update. (Not `controller`: a hard refresh loads the page uncontrolled.)
   const check=()=>status({updateAvailable:reloadAvailable||!!result.active&&!!result.waiting});
