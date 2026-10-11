@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import {describe,it,expect,vi} from 'vitest';
 import {get} from 'svelte/store';
-import {createPwaClient,pwaStatus} from '../src/app/pwa';
+import {createPwaClient,pwaStatus} from '../../src/app/pwa';
 function setup(firstInstall=false){
  const waiting={postMessage:vi.fn()};
  const registration=Object.assign(new EventTarget(),{waiting,installing:null,update:vi.fn()});
@@ -11,6 +11,12 @@ function setup(firstInstall=false){
  return {client,worker,host,reload,waiting};
 }
 describe('PWA update consent',()=>{
+ it('does not flash an update while the first install passes through waiting',async()=>{
+  const s=setup(true);await s.client.ready;
+  // setup() leaves a waiting worker; with no prior controller it is the first install, not an update.
+  expect(get(pwaStatus).updateAvailable).toBe(false);
+  s.client.update();expect(s.waiting.postMessage).not.toHaveBeenCalled();s.client.dispose();
+ });
  it('does not offer a reload when first installation takes control',async()=>{
   const s=setup(true);await s.client.ready;s.worker.dispatchEvent(new Event('controllerchange'));
   expect(s.reload).not.toHaveBeenCalled();expect(get(pwaStatus).updateAvailable).toBe(false);s.client.dispose();

@@ -1,5 +1,5 @@
 import {it,expect} from 'vitest';
-import {inspectGamepads} from '../src/presentation/input/gamepadDiagnostics';
+import {inspectGamepads} from '../../src/presentation/input/gamepadDiagnostics';
 it('explains why LAN HTTP cannot provide gamepads',()=>{expect(inspectGamepads(false,undefined).message).toContain('HTTPS');});
 it('distinguishes blocked access, no controller and unmapped controllers',()=>{
  expect(inspectGamepads(true,()=>{throw new Error('SecurityError');}).available).toBe(false);

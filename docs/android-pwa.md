@@ -14,7 +14,7 @@ Use HTTPS: opening a LAN URL such as `http://192.168.x.x:5173` is not a secure c
 
 ## Development
 
-Service workers register only in production builds in secure web contexts, not Vite dev or Tauri. Run `npm run build` and `npx vite preview` to test. `sw.js` is generated with a digest of bundle/offline-shell contents. Netlify `_headers` disables stale HTTP caching for the worker and manifest. Real Android installation, controller hardware and iiSU still need device testing.
+Service workers register only in production builds in secure web contexts, not Vite dev or Tauri. Run `pnpm build` and `pnpm exec vite preview` to test. `sw.js` is generated with a digest of bundle/offline-shell contents. Netlify `_headers` disables stale HTTP caching for the worker and manifest. Real Android installation, controller hardware and iiSU still need device testing.
 
 ## Verification for this change
 
