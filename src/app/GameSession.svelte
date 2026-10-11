@@ -1,4 +1,5 @@
 <script lang="ts">
+ import UiViewport from '../presentation/layout/UiViewport.svelte';
   import { onMount } from 'svelte';
   import { Engine } from '@babylonjs/core/Engines/engine';
   import type { Scene } from '@babylonjs/core/scene';
@@ -162,6 +163,8 @@
      element that paints no focus indicator -- unseen behind the opaque backlog, and seen through the
      choices' wash but not usable. -->
 <canvas bind:this={canvas} tabindex="-1" style="width:100vw;height:100vh;display:block"></canvas>
+<UiViewport>
 {#if ready && session && !gameMode.isPlaying}
   <DialogueOverlay {session} {playCue} onFinished={finishIntro} />
 {/if}
+</UiViewport>

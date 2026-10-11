@@ -1,4 +1,5 @@
 <script lang="ts">
+ import UiViewport from '../presentation/layout/UiViewport.svelte';
   import { onDestroy, onMount, type Component } from 'svelte';
   import {backupRegionSave,regionStorage,inspectRegionSave} from './regionSave';
   import InputLayer from '../presentation/input/InputLayer.svelte';
@@ -87,7 +88,7 @@
   </div>
 {/if}
 {#if phase !== 'game'}
-  <FrontDoor {phase} {saveAvailable} {saveProgress} {menuError} onAction={act} />
+  <UiViewport layer={100}><FrontDoor {phase} {saveAvailable} {saveProgress} {menuError} onAction={act} /></UiViewport>
 {/if}
 
 <style>

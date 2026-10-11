@@ -78,7 +78,7 @@
   .line {
     margin: 0;
     font-family: var(--font-body);
-    font-size: clamp(18px, 1.45vw, 25px);
+    font-size: clamp(18px, 1.45cqw, 25px);
     letter-spacing: .08em;
     line-height: 1.8;
     color: var(--avg-text);

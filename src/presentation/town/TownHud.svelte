@@ -38,5 +38,5 @@
   button { font:inherit; cursor:pointer; }.pause { pointer-events:auto; border:1px solid #ffffff80; padding:12px 16px; color:var(--c-ink); background:#f4f7ffe8; border-radius:2px; }.pause span { font-size:12px; margin-left:8px; }
   footer { position:absolute; bottom:24px; left:32px; right:32px; display:flex; justify-content:center; flex-wrap:wrap; gap:12px 28px; color:white; font-size:12px; text-shadow:0 1px 5px #00192e; }kbd { font-family:var(--font-headline); border:1px solid #ffffff60; border-radius:3px; padding:3px 6px; margin:0 3px; background:#10204460; }
   button:focus-visible{outline:2px solid var(--c-ink);outline-offset:3px}
-  @media(max-width:650px){.town-hud{padding:16px}.location{padding:12px}.location strong{font-size:18px}.location p{font-size:10px}small{font-size:8px}.pause span{display:none}footer{left:16px;right:16px;bottom:12px;font-size:10px;gap:10px}}
+  @container game-ui (max-width:650px){.town-hud{padding:16px}.location{padding:12px}.location strong{font-size:18px}.location p{font-size:10px}small{font-size:8px}.pause span{display:none}footer{left:16px;right:16px;bottom:12px;font-size:10px;gap:10px}}
 </style>

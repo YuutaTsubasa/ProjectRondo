@@ -85,8 +85,8 @@
   .portrait {
     position: absolute;
     bottom: 0;
-    left: 2vw;
-    height: 92vh;
+    left: 2cqw;
+    height: 92cqh;
     width: auto;
     max-width: none;
     object-fit: contain;

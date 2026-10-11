@@ -1,5 +1,6 @@
 /// <reference types="vitest/config" />
 import { defineConfig } from 'vite';
+import {pwaBuild} from './tools/pwa/buildPlugin.ts';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
 
 // The babylon scene is built once in createHubScene and cannot be hot-patched — HMR would leave the
@@ -15,7 +16,7 @@ const forceFullReload = {
 };
 
 export default defineConfig(({ mode }) => ({
-  plugins: [svelte(), forceFullReload],
+  plugins: [svelte(), forceFullReload, pwaBuild()],
   // Honor the port assigned via PORT (preview autoPort); fall back to Vite's default in plain dev.
   server: { port: process.env.PORT ? Number(process.env.PORT) : undefined },
   optimizeDeps: { exclude: ['@babylonjs/havok'] },

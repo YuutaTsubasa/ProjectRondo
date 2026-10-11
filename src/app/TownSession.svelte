@@ -1,4 +1,5 @@
 <script lang="ts">
+ import UiViewport from '../presentation/layout/UiViewport.svelte';
   import { onMount } from 'svelte';
   import { Engine } from '@babylonjs/core/Engines/engine';
   import { createLevelSwap } from './levelSwap';
@@ -86,6 +87,8 @@
 
 <svelte:window onkeydown={keydown} />
 <canvas bind:this={canvas} tabindex="-1" data-game-entry aria-label="白色王城遊戲畫面" style="width:100vw;height:100vh;display:block"></canvas>
+<UiViewport>
 {#if status !== 'loading'}
   <TownHud {status} {locationLabel} onPause={pause} onResume={resume} onReset={reset} onExit={leave} />
 {/if}
+</UiViewport>

@@ -207,20 +207,20 @@
 
 <style>
   .scrim{position:fixed;inset:0;z-index:12;display:flex;box-sizing:border-box;padding:90px 0;overflow-y:auto;background:rgba(var(--avg-navy-rgb),.08);pointer-events:auto}
-  .panel{margin:auto;width:min(520px,72vw);display:flex;flex-direction:column;gap:14px;padding:12px 24px}
+  .panel{margin:auto;width:min(520px,72cqw);display:flex;flex-direction:column;gap:14px;padding:12px 24px}
   /* The line remains visible in the dock; retain its full copy as the modal description. */
   .question{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
   .choice{position:relative;display:block;flex-shrink:0;width:100%;border:0;padding:1px;background:transparent;color:var(--avg-text);font:inherit;text-align:center;cursor:pointer;transition:transform .2s,filter .2s;isolation:isolate}
   .choice:before,.choice:after{content:'';position:absolute;inset:0;z-index:-1;clip-path:polygon(24px 0,calc(100% - 24px) 0,100% 50%,calc(100% - 24px) 100%,24px 100%,0 50%)}
   .choice:before{background:rgba(var(--c-blue-soft-rgb),.7)}
   .choice:after{inset:1px 2px;background:rgba(var(--avg-navy-rgb),.87)}
-  .inner{display:flex;align-items:center;gap:18px;min-height:55px;padding:5px 24px;box-sizing:border-box;font:400 clamp(17px,1.3vw,22px)/1.55 var(--font-body);letter-spacing:.06em}
+  .inner{display:flex;align-items:center;gap:18px;min-height:55px;padding:5px 24px;box-sizing:border-box;font:400 clamp(17px,1.3cqw,22px)/1.55 var(--font-body);letter-spacing:.06em}
   .label{flex:1;overflow-wrap:anywhere}.diamond{flex:none;width:30px;height:30px;fill:none;stroke:var(--avg-muted);stroke-width:1}.core{fill:transparent}.caret{flex:none;width:13px;height:24px;stroke:var(--avg-light);stroke-width:1.6;fill:none;opacity:0}
   .choice:focus{outline:none;transform:scale(1.06);filter:drop-shadow(0 0 5px var(--avg-glow)) drop-shadow(0 0 12px rgba(var(--c-blue-soft-rgb),.45))}
   .choice:focus:before{background:var(--avg-light)}.choice:focus:after{background:linear-gradient(90deg,rgba(var(--avg-navy-rgb),.95),rgba(var(--avg-navy-rgb),.8));box-shadow:inset 0 0 18px var(--avg-glow)}
   .choice:focus .diamond{stroke:var(--avg-light);stroke-width:2;filter:drop-shadow(0 0 5px var(--avg-glow))}.choice:focus .core{fill:var(--avg-light)}.choice:focus .caret{opacity:1}
-  @media(max-width:700px){.scrim{padding:90px 0 39vh}.panel{width:80vw;padding:12px 16px;gap:12px}.inner{padding:5px 19px;min-height:50px;gap:10px;font-size:16px}.diamond{width:24px;height:24px}}
-  @media(max-height:540px) and (min-width:701px){.scrim{padding:65px 0 175px}.panel{gap:8px}.inner{min-height:40px;font-size:16px}.diamond{width:24px;height:24px}}
+  @container game-ui (max-width:700px){.scrim{padding:90px 0 39cqh}.panel{width:80cqw;padding:12px 16px;gap:12px}.inner{padding:5px 19px;min-height:50px;gap:10px;font-size:16px}.diamond{width:24px;height:24px}}
+  @container game-ui (max-height:540px) and (min-width:701px){.scrim{padding:65px 0 175px}.panel{gap:8px}.inner{min-height:40px;font-size:16px}.diamond{width:24px;height:24px}}
   @media(prefers-reduced-motion:reduce){.choice{transition:none}}
   @media(forced-colors:active){.choice{border:1px solid ButtonText}.choice:focus{outline:var(--focus-ring);outline-offset:var(--focus-ring-offset)}.choice:before,.choice:after{display:none}.choice:focus .caret{stroke:ButtonText}}
 </style>
