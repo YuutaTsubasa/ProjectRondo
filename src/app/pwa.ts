@@ -30,8 +30,8 @@ export function createPwaClient(host:Window, serviceWorker:ServiceWorkerContaine
   if(disposed)return;
   registration=result;
   // A first install also passes through `waiting` on its way to active; only a worker waiting behind
-  // an existing controller is an update.
-  const check=()=>status({updateAvailable:reloadAvailable||controlled&&!!result.waiting});
+  // an active one is an update. (Not `controller`: a hard refresh loads the page uncontrolled.)
+  const check=()=>status({updateAvailable:reloadAvailable||!!result.active&&!!result.waiting});
   check();
   const watch=()=>{
    const installing=result.installing;
@@ -52,7 +52,7 @@ export function createPwaClient(host:Window, serviceWorker:ServiceWorkerContaine
   async checkUpdate(){try{await registration?.update();}catch{/* Offline checks must not interrupt the menu. */}},
   update() {
    if(reloadAvailable){reload();return;}
-   const waiting=controlled?registration?.waiting:undefined;
+   const waiting=registration?.active?registration.waiting:undefined;
    if(!waiting){status({updateAvailable:false});return;}
    requestedUpdate=true;status({busy:true,error:''});
    timer=setTimeout(()=>{requestedUpdate=false;status({busy:false,error:'更新尚未完成，請稍後再試。'});},15000);
