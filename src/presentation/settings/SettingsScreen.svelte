@@ -70,7 +70,7 @@
     <p class="panel-note">音量會即時套用。各音軌會依照遊戲內容播放。</p>
    {:else if category==='controls'}
     <div class="control-guide"><table><thead><tr><th>操作</th><th>鍵盤／滑鼠</th><th>控制器</th><th>觸控</th></tr></thead><tbody>
-    {#each [['移動','WASD','左搖桿','左側搖桿'],['視角','滑鼠（點畫面捕捉）','右搖桿','右側滑動'],['跳躍／二段跳','Space','A / ×','跳躍鍵'],['揮劍／空中 Homing','J / 滑鼠左鍵','X / □','揮劍鍵'],['互動','E','X / □（靠近對象）','互動鍵'],['對話推進','Enter / 點擊對話框','X / □','點擊對話框'],['步行','Shift','LB / L1 或輕推','按住步行'],['地圖','M','Y / △','地圖圖示'],['暫停','Esc','Menu / Options','暫停鍵'],['選取／確認','方向鍵 / Tab / Enter','十字鍵 / LB RB / A','點選'],['返回','Esc','B / ○','返回按鈕'],['地圖移動／縮放','拖曳／滾輪','右搖桿／LT RT','拖曳／＋ −'],['回顧捲動','滾輪','右搖桿','滑動']] as row}<tr>{#each row as cell}<td>{cell}</td>{/each}</tr>{/each}
+    {#each [['移動','WASD','左搖桿','左側搖桿'],['視角','滑鼠（點畫面捕捉）','右搖桿','右側滑動'],['視角遠近','滑鼠滾輪','LT 拉遠 / RT 拉近','＋ 拉近／− 拉遠'],['跳躍／二段跳','Space','A / ×','跳躍鍵'],['揮劍／空中 Homing','J / 滑鼠左鍵','X / □','揮劍鍵'],['互動','E','X / □（靠近對象）','互動鍵'],['對話推進','Enter / 點擊對話框','X / □','點擊對話框'],['步行','Shift','LB / L1 或輕推','按住步行'],['地圖','M','Y / △','地圖圖示'],['暫停','Esc','Menu / Options','暫停鍵'],['選取／確認','方向鍵 / Tab / Enter','十字鍵 / LB RB / A','點選'],['返回','Esc','B / ○','返回按鈕'],['地圖移動／縮放','拖曳／滾輪','右搖桿／LT RT','拖曳／＋ −'],['回顧捲動','滾輪','右搖桿','滑動']] as row}<tr>{#each row as cell}<td>{cell}</td>{/each}</tr>{/each}
     </tbody></table></div><p class="panel-note">A / B / X / Y 對應 Xbox；× / ○ / □ / △ 對應 PlayStation。2D 關卡使用固定視角。此版提供預設配置，暫不提供自訂改鍵。</p>
    <GamepadDiagnostics/>
    {:else}<div class="coming"><SettingsIcon kind={category}/><h3>準備中</h3><p>此分類的設定尚未開放。</p><button onclick={()=>selectCategory('display')}>返回顯示設定</button></div>{/if}

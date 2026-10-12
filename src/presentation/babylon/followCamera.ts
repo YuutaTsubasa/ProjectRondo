@@ -15,6 +15,10 @@ export const GROUNDED_BAND = 0.5;
 
 /** Minimum gap the camera keeps above the terrain beneath it, so it never dips through the ground. */
 const CAMERA_GROUND_CLEARANCE = 0.6;
+const MIN_ZOOM_DISTANCE = 3;
+const MAX_ZOOM_DISTANCE = 14;
+const ZOOM_SMOOTHING = 12;
+const clampZoom = (distance:number) => Math.max(MIN_ZOOM_DISTANCE,Math.min(MAX_ZOOM_DISTANCE,distance));
 
 /**
  * Where the descent-aware vertical follow starts and finishes engaging, in world units per second of
@@ -226,6 +230,15 @@ export function createFollowCamera(
   let yaw = initialYaw;
   let pitch = config.initialPitch;
   let enabled = true;
+  let smoothDistance = config.distance;
+  const onWheel = (event:WheelEvent) => {
+    const input=deviceInput.getState();
+    if(!enabled||!input.playing||!input.camera||event.ctrlKey||event.metaKey||!Number.isFinite(event.deltaY))return;
+    event.preventDefault();deviceInput.claim('keyboard');
+    const pixels=event.deltaY*(event.deltaMode===1?16:event.deltaMode===2?canvas.clientHeight||800:1);
+    config.distance=clampZoom(config.distance*Math.exp(Math.max(-240,Math.min(240,pixels))*.0015));
+  };
+  canvas.addEventListener('wheel',onWheel,{passive:false});
 
   const onClick = () => { if (enabled && deviceInput.getState().device==='keyboard') canvas.requestPointerLock(); };
   const onMouseMove = (e: MouseEvent) => {
@@ -251,6 +264,11 @@ export function createFollowCamera(
    */
   const place = (dt: number) => {
     if(enabled){const look=deviceInput.look(dt);yaw-=look.x;pitch=Math.min(config.maxPitch,Math.max(config.minPitch,pitch-look.y));}
+    if(enabled){
+      const zoom=deviceInput.cameraZoom(dt);
+      if(zoom!==0)config.distance=clampZoom(config.distance+zoom);
+      smoothDistance=dt<=0?config.distance:smoothDistance+(config.distance-smoothDistance)*(1-Math.exp(-ZOOM_SMOOTHING*dt));
+    }
     camera.minZ = config.nearPlane;
     const t = target.getAbsolutePosition();
     // Follow X/Z tightly, but ease the vertical follow: the capsule's Y micro-steps as it crosses the
@@ -286,7 +304,7 @@ export function createFollowCamera(
       Math.sin(yaw) * Math.cos(pitch),
       Math.sin(-pitch),
       Math.cos(yaw) * Math.cos(pitch),
-    ).scaleInPlace(config.distance);
+    ).scaleInPlace(smoothDistance);
     const position = anchor.add(offset).add(new Vector3(0, config.height, 0));
     // Keep the camera above the terrain directly under it — otherwise a downward pitch or a slope
     // rising behind the player pushes it below the one-sided ground and you see straight through it.
@@ -335,6 +353,7 @@ export function createFollowCamera(
     },
     setEnabled: (value: boolean) => {
       enabled = value;
+      if(!value)config.distance=smoothDistance;
       // Releasing on the way down is deliberate: an AVG overlay needs the cursor back, and a level
       // being swapped out must not keep the pointer captured for a camera about to be disposed.
       //
@@ -349,6 +368,7 @@ export function createFollowCamera(
       scene.onBeforeRenderObservable.remove(onFrame);
       canvas.removeEventListener('click', onClick);
       canvas.removeEventListener('mousemove', onMouseMove);
+      canvas.removeEventListener('wheel',onWheel);
     },
   };
 }

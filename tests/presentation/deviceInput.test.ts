@@ -52,3 +52,15 @@ it('labels interaction X or Square, while menu confirm and cancel retain their o
  expect(inputHint('Enter',{device:'gamepad',family:'xbox'})).toBe('A');
  expect(inputHint('Esc',{device:'gamepad',family:'xbox'})).toBe('B');
 });
+
+it('uses held triggers for camera zoom but preserves trigger actions in menus',()=>{
+ const h=createDeviceHub(),rig=h.registerGameplay(true),ui:string[]=[];h.onUi(a=>ui.push(a));rig.setEnabled(true);
+ h.poll(pad(),0);h.poll(pad([6]),10);expect(h.cameraZoom(.05)).toBeGreaterThan(0);
+ h.poll(pad([7]),20);expect(h.cameraZoom(.05)).toBeLessThan(0);
+ rig.setEnabled(false);expect(h.cameraZoom(.05)).toBe(0);h.poll(pad(),30);h.poll(pad([7]),40);expect(ui).toEqual(['zoomIn']);rig.dispose();
+});
+it('consumes touch zoom once and drops it when leaving camera gameplay',()=>{
+ const h=createDeviceHub(),rig=h.registerGameplay(true);rig.setEnabled(true);h.touchZoom(-1);expect(h.cameraZoom(.016)).toBe(-1);expect(h.cameraZoom(.016)).toBe(0);
+ h.touchZoom(1);rig.setEnabled(false);rig.setEnabled(true);expect(h.cameraZoom(.016)).toBe(0);rig.dispose();
+ const fixed=h.registerGameplay(false);fixed.setEnabled(true);h.touchZoom(1);expect(h.cameraZoom(.016)).toBe(0);fixed.dispose();
+});

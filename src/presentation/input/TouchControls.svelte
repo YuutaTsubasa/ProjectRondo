@@ -27,7 +27,7 @@
   <button class="attack" aria-label="揮劍／Homing" onpointerdown={e=>press(e,'attack')} onclick={e=>{if(e.detail===0)deviceInput.touchAction('attack');}}><span>⚔</span><small>揮劍／盾衝</small></button>
   <button class="jump" aria-label="跳躍／二段跳" onpointerdown={e=>press(e,'jump')} onclick={e=>{if(e.detail===0)deviceInput.touchAction('jump');}}><span>↟</span><small>跳躍</small></button>
  </div>
- <div class="utility"><button aria-label="觸控暫停" onclick={()=>deviceInput.touchAction('pause')}>Ⅱ 暫停</button></div>
+ <div class="utility">{#if camera}<button aria-label="拉近視角" onclick={()=>deviceInput.touchZoom(-1)}>＋</button><button aria-label="拉遠視角" onclick={()=>deviceInput.touchZoom(1)}>−</button>{/if}<button aria-label="觸控暫停" onclick={()=>deviceInput.touchAction('pause')}>Ⅱ 暫停</button></div>
 </div>
 <style>
  .touch-controls{position:fixed;inset:0;z-index:12;pointer-events:none;color:#f1f7ff;font-family:var(--font-body);user-select:none;-webkit-user-select:none}

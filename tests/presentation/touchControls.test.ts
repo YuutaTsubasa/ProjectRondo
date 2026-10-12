@@ -11,3 +11,12 @@ it('keeps movement while another finger jumps, then clears a cancelled pointer',
  const jump=target.querySelector('[aria-label="跳躍／二段跳"]')!;pointer(jump,'pointerdown',2,0,0);expect(actions).toEqual(['jump']);expect(deviceInput.axis().x).toBeGreaterThan(0);
  pointer(stick,'pointercancel',1,100,60);expect(deviceInput.axis()).toEqual({x:0,y:0});stop();await unmount(app);target.remove();rig.dispose();
 });
+
+it('shows working zoom buttons only for the controllable 3D camera',async()=>{
+ const rig=deviceInput.registerGameplay(true);rig.setEnabled(true);const target=document.createElement('div');document.body.append(target);
+ const app=mount(TouchControls,{target,props:{camera:true}});await tick();
+ (target.querySelector('[aria-label="拉近視角"]') as HTMLButtonElement).click();expect(deviceInput.cameraZoom(.016)).toBe(-1);
+ (target.querySelector('[aria-label="拉遠視角"]') as HTMLButtonElement).click();expect(deviceInput.cameraZoom(.016)).toBe(1);
+ await unmount(app);rig.dispose();
+ const fixed=mount(TouchControls,{target,props:{camera:false}});await tick();expect(target.querySelector('[aria-label="拉近視角"]')).toBeNull();await unmount(fixed);target.remove();
+});
