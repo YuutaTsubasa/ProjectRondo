@@ -50,3 +50,9 @@ export const COURSE_GATES = [
 ] as const satisfies readonly [CourseGate, ...CourseGate[]];
 export const COURSE_SPAWN: Vec3 = COURSE_GATES[0].spawn;
 export const COURSE_KILL_Y = -12;
+
+export interface CourseGuardSpawn { readonly id:number; readonly platform:number; readonly x:number; readonly y:number; readonly z:number }
+export const COURSE_GUARD_SPAWNS: readonly CourseGuardSpawn[] = [
+  [0,-3,20],[0,3,27],[4,-4,74],[4,4,86],[5,-4,120],[5,4,132],
+  [7,3,153],[8,-5,188],[8,5,191],[8,0,196],
+].map(([platform,x,z],id)=>({id,platform,x,z,y:COURSE_PLATFORMS[platform]!.center.y}));

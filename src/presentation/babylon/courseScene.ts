@@ -4,7 +4,8 @@ import { Scene } from '@babylonjs/core/scene';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { HavokPlugin } from '@babylonjs/core/Physics/v2/Plugins/havokPlugin';
 import '@babylonjs/core/Physics/joinedPhysicsEngineComponent';
-import { COURSE_SPAWN, COURSE_PLATFORMS, COURSE_CRYSTALS } from '../../domain/course/courseLayout';
+import {getCourseStage,type CourseDefinition} from '../../domain/course/courseStages';
+import {createCourseCoins} from '../course/courseCoins';
 import { COURSE_MOVEMENT } from '../../domain/course/courseMovement';
 import { createCharacterRig } from './characterRig';
 import type { Player } from './playerController';
@@ -38,7 +39,7 @@ export interface CourseScene {
 }
 
 /** Course progress belongs to CourseSession; this module owns only the world and its resource lifetime. */
-export async function createCourseScene(engine: Engine, canvas: HTMLCanvasElement): Promise<CourseScene> {
+export async function createCourseScene(engine: Engine, canvas: HTMLCanvasElement, stage:CourseDefinition=getCourseStage()): Promise<CourseScene> {
   const scene = new Scene(engine);
   const parts: LevelParts = {};
   let guards: Awaited<ReturnType<typeof loadCourseGuards>> | undefined;
@@ -50,9 +51,10 @@ export async function createCourseScene(engine: Engine, canvas: HTMLCanvasElemen
     scene.environmentIntensity = .5;
     const havok = await loadHavok();
     scene.enablePhysics(Vector3.Zero(), new HavokPlugin(true, havok));
-    const scenery = createCourseScenery(scene);
-    const crystals = createCrystals(scene, COURSE_CRYSTALS);
-    let combat = createCourseCombat();
+    const scenery = createCourseScenery(scene,stage);
+    const crystals = createCrystals(scene, stage.crystals);
+    const coins=createCourseCoins(scene,stage.coins);
+    let combat = createCourseCombat(stage);
     const stageAudio=createCourseAudio();parts.audio=stageAudio;
     // Fetch the stage loop alongside the scene build; a failure is reported at the readiness wait below.
     const music=stageAudio.prepare();music.catch(()=>{});
@@ -69,10 +71,10 @@ export async function createCourseScene(engine: Engine, canvas: HTMLCanvasElemen
       canvas,
       makeShadows: (camera) => createShadows(sun, camera, { maxZ: 65, cascades: 2 }),
       groundHeight: (x, z) => {
-        const support = COURSE_PLATFORMS.find((p) => Math.abs(x - p.center.x) <= p.width / 2 && Math.abs(z - p.center.z) <= p.depth / 2);
+        const support = stage.platforms.find((p) => Math.abs(x - p.center.x) <= p.width / 2 && Math.abs(z - p.center.z) <= p.depth / 2);
         return support?.center.y ?? null;
       },
-      spawn: new Vector3(COURSE_SPAWN.x, COURSE_SPAWN.y, COURSE_SPAWN.z),
+      spawn: new Vector3(stage.spawn.x, stage.spawn.y, stage.spawn.z),
       crystals: targets,
       initialYaw: Math.PI,
       movement: COURSE_MOVEMENT,
@@ -82,7 +84,7 @@ export async function createCourseScene(engine: Engine, canvas: HTMLCanvasElemen
     parts.rig = rig;
     rig.shadows.generator.forceBackFacesOnly = true;
     rig.shadows.generator.bias = .0001;
-    guards = await loadCourseGuards(scene, rig.shadows);
+    guards = await loadCourseGuards(scene, rig.shadows,stage.guards);
     guards.update(combat);
     let suspended = true, elapsed = 0;
     scene.onBeforeRenderObservable.add(() => {
@@ -91,7 +93,7 @@ export async function createCourseScene(engine: Engine, canvas: HTMLCanvasElemen
       elapsed += dt; scenery.update(elapsed);
       const beforeCombat=combat;
       combat = stepCourseCombat(combat, rig.player.capsulePosition(), dt,
-        rig.player.motion.homing !== null || rig.player.homingBounced);
+        rig.player.motion.homing !== null || rig.player.homingBounced,stage);
       stageAudio.updateCombat(beforeCombat,combat);
       guards!.update(combat);
       for (const mesh of rig.player.root.getChildMeshes())
@@ -114,8 +116,8 @@ export async function createCourseScene(engine: Engine, canvas: HTMLCanvasElemen
       player: rig.player,
       follow: rig.follow,
       get combat() { return combat; },
-      updateAudio(before,after){stageAudio.updateProgress(before,after);},
-      resetCombat(full) { if(full)stageAudio.reset();combat = full ? createCourseCombat() : recoverCourseCombat(combat); guards!.update(combat); },
+      updateAudio(before,after){coins.update(after.collected,after.elapsed);stageAudio.updateProgress(before,after);},
+      resetCombat(full) { if(full){stageAudio.reset();coins.update([],0);}combat = full ? createCourseCombat(stage) : recoverCourseCombat(combat); guards!.update(combat); },
       suspendInput: (on) => { if (!disposed) { suspended = on; rig.suspendInput(on);stageAudio.pause(on); } },
       dispose: () => {
         if (disposed) return;

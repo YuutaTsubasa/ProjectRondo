@@ -16,3 +16,9 @@ it('announces real enemy impacts and damage, not unchanged combat',()=>{
  const audio=createCourseAudio(),a=createCourseCombat(),b={...a,defeated:1};audio.updateCombat(a,b);audio.updateCombat(b,b);expect(player.play).toHaveBeenCalledExactlyOnceWith('hit');
  audio.updateCombat(b,{...b,health:2,damage:1});expect(player.play).toHaveBeenCalledTimes(2);
 });
+
+it('plays a coin cue once when the collected count increases',()=>{
+ const player={play:vi.fn(),finish:vi.fn()};vi.mocked(createStageAudio).mockReturnValue(player as any);
+ const audio=createCourseAudio(),before=createCourseRun(),after={...before,collected:[0]};
+ audio.updateProgress(before,after);audio.updateProgress(after,after);expect(player.play).toHaveBeenCalledExactlyOnceWith('coin');
+});

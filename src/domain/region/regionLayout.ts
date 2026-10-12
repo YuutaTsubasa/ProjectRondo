@@ -1,9 +1,12 @@
+import {CITY_STOPS,type CityStopId} from './cityJourney';
+import type {ExtraStageId} from '../stage/stageIds';
+import {townSurfaceHeight} from '../town/townTerraces';
 import { TOWN_BOUNDS, townLocation } from '../town/townLayout';
 
-/** The town's southern gate: north of it is flat town, south of it is the meadow. */
+/** The town's southern gate: north of it is the terraced town, south of it is the meadow. */
 export const REGION_TOWN_EDGE_Z = TOWN_BOUNDS.minZ;
 
-export type RegionPlaceId = 'signal' | 'course' | 'palace' | 'homecoming' | 'ridge' | 'cove' | 'watch';
+export type RegionPlaceId = 'signal' | 'course' | 'palace' | 'homecoming' | 'ridge' | 'cove' | 'watch' | ExtraStageId | CityStopId;
 export interface RegionPlace {
   readonly id: RegionPlaceId;
   readonly name: string;
@@ -12,12 +15,21 @@ export interface RegionPlace {
   readonly kind: 'story' | 'expedition' | 'vista';
   readonly description: string;
 }
-export const REGION_BOUNDS = { minX: -130, maxX: 85, minZ: -290, maxZ: 57 } as const;
+export const REGION_BOUNDS = { minX: -130, maxX: 85, minZ: -290, maxZ: TOWN_BOUNDS.maxZ } as const;
 export const REGION_SPAWN = { x: 0, y: 1.3, z: -35 } as const;
 export const COURSE_ENTRANCE = { x: -20, z: 43 } as const;
 /** South of the arch, inside the interaction radius and clear of its piers. */
 export const COURSE_RETURN = { x: COURSE_ENTRANCE.x, y: 1.3, z: COURSE_ENTRANCE.z - 3 } as const;
 export const REGION_PLACES: readonly RegionPlace[] = [
+  ...CITY_STOPS.map(stop=>({id:stop.id,name:stop.name,x:stop.x,z:stop.z,kind:'story' as const,description:stop.detail})),
+  {id:'course-2',name:'白柱迴廊',x:-70,z:76,kind:'expedition',description:'商店街西側的巡檢入口，練習錯列石橋與空中接力。'},
+  {id:'course-3',name:'晨光階庭',x:50,z:130,kind:'expedition',description:'白石巷東側，沿高低露臺逐步登上晨光階庭。'},
+  {id:'course-4',name:'水晶星廊',x:-60,z:188,kind:'expedition',description:'前庭西側的空中通道，以連續盾衝串接水晶。'},
+  {id:'course-5',name:'王冠巡禮',x:30,z:188,kind:'expedition',description:'前庭東侧的綜合試煉，穿越窄橋、守衛與天廊。'},
+  {id:'palace-1-2',name:'蒼藍中庭',x:0,z:76,kind:'expedition',description:'商店街的內廊入口，借助懸浮核心穿越中庭。'},
+  {id:'palace-1-3',name:'天空露台',x:-50,z:130,kind:'expedition',description:'白石巷西側通往高處露臺的維修路線。'},
+  {id:'palace-1-4',name:'拱橋',x:50,z:154,kind:'expedition',description:'東側登城坡道旁，連通王宮的長拱橋。'},
+  {id:'palace-1-5',name:'空中花園',x:0,z:192,kind:'expedition',description:'王宮前庭北側，通往空中花園的長程巡檢路線。'},
   { id: 'signal', name: '風原訊標', x: 0, z: -118, kind: 'story', description: '南門外的古老訊標，連結草原與海岸的道路。' },
   { id: 'course', name: '白宮天廊', ...COURSE_ENTRANCE, kind: 'expedition', description: '白塔廣場西北側的白石拱門，通往王宮高塔間的空中迴廊。' },
   { id: 'palace', name: '白宮引水道', x: 33, z: -20, kind: 'expedition', description: '海風步道下方，通向白色宮殿的古代引水道。' },
@@ -30,7 +42,8 @@ export const REGION_PLACES: readonly RegionPlace[] = [
 export const REGION_INTERACTION_PLACES: readonly RegionPlace[] = REGION_PLACES.map(place => ({
   ...place,
   x: place.x + (place.id === 'ridge' ? 0 : place.id === 'course' ? -1.4 : 1.4),
-  z: place.z + (place.id === 'ridge' || place.id === 'signal' ? 1.4 : 0),
+  // New city streets run east/west: place their poles behind the promenade as well.
+  z: place.z + (place.id.startsWith('city-')||place.id.startsWith('course-')||place.id.startsWith('palace-') ? 2 : place.id === 'ridge' || place.id === 'signal' ? 1.4 : 0),
 }));
 /** Every branch connects to the main southern road. Town routes follow existing streets. */
 export const REGION_TRAILS: readonly (readonly (readonly [number, number])[])[] = [
@@ -49,7 +62,7 @@ function relief(x: number, z: number): number {
 }
 /** Single source for rendered ground, Havok support, camera probes and scenery placement. */
 export function regionHeight(x: number, z: number): number {
-  if (z >= REGION_TOWN_EDGE_Z) return 0;
+  if (z >= REGION_TOWN_EDGE_Z) return townSurfaceHeight(x,z) ?? 0;
   let y = relief(x, z);
   for (const place of REGION_PLACES) {
     if (place.z >= REGION_TOWN_EDGE_Z) continue;
@@ -72,7 +85,7 @@ export function isRegionPositionSafe(point: { x: number; y: number; z: number })
   const { x, y, z } = point;
   return [x, y, z].every(Number.isFinite) && y >= -3 && y <= 120
     && x >= REGION_BOUNDS.minX && x <= REGION_BOUNDS.maxX && z >= REGION_BOUNDS.minZ && z <= REGION_BOUNDS.maxZ
-    && (z <= REGION_TOWN_EDGE_Z || x >= TOWN_BOUNDS.minX && x <= TOWN_BOUNDS.maxX);
+    && (z <= REGION_TOWN_EDGE_Z || townSurfaceHeight(x,z) !== null);
 }
 export function regionLocation(x: number, z: number): string {
   if (z >= REGION_TOWN_EDGE_Z) return townLocation(x, z);

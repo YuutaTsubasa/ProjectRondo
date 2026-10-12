@@ -8,6 +8,8 @@ import { Texture } from '@babylonjs/core/Materials/Textures/texture';
 import { Color3 } from '@babylonjs/core/Maths/math.color';
 import { PhysicsAggregate } from '@babylonjs/core/Physics/v2/physicsAggregate';
 import { PhysicsShapeType } from '@babylonjs/core/Physics/v2/IPhysicsEnginePlugin';
+import {townSurfaceHeight} from '../../domain/town/townTerraces';
+import {TOWN_BOUNDS} from '../../domain/town/townLayout';
 import { REGION_BOUNDS, REGION_TOWN_EDGE_Z, regionHeight, regionPathDistance } from '../../domain/region/regionLayout';
 import { createTownSea } from '../town/townSea';
 
@@ -64,7 +66,7 @@ function createRegionalBackdrop(scene: Scene): void {
       const peak = 31 + layer * 18 + 13 * Math.sin(a * 6 + layer) + 7 * Math.sin(a * 13);
       for (let row = 0; row < 3; row++) {
         const t = row / 2, r = radius + t * 35;
-        positions.push(Math.cos(a) * r - 35, -8 + (peak + 8) * t, Math.sin(a) * r - 150);
+        positions.push(Math.cos(a) * r - 35, -8 + (peak + 8) * t, Math.sin(a) * r - 150 + Math.max(0, Math.sin(a) * r - 150) * 1.8);
       }
     }
     for (let i = 0; i < segments; i++) for (let row = 0; row < 2; row++) {
@@ -90,6 +92,10 @@ function createTownHeadland(scene:Scene,material:StandardMaterial):void{
   const west=Math.max(0,Math.min(1,(-x-48)/85)),north=Math.max(0,Math.min(1,(z-64)/75));
   const coast=Math.max(0,Math.min(1,(x-28)/12));
   positions[i]=x;positions[i+2]=z;positions[i+1]=-2+west*west*(16+5*Math.sin(z*.026))+north*north*(22+5*Math.sin(x*.03))-coast*5;
+  // Lower a buffer wider than a grid cell: neighboring high vertices must not
+  // interpolate decorative terrain back through the playable stone terraces.
+  if(x>=TOWN_BOUNDS.minX-4&&x<=TOWN_BOUNDS.maxX+4&&z>=53&&z<=TOWN_BOUNDS.maxZ+4)positions[i+1]=Math.min(positions[i+1],-2);
+  const supported=townSurfaceHeight(x,z);if(supported!==null)positions[i+1]=Math.min(positions[i+1],supported-.6);
   const patch=.5+.5*Math.sin(x*.08)*Math.cos(z*.06);colors.push(.29+patch*.09,.40+patch*.10,.24+patch*.05,1);
  }
  const normals:number[]=[];VertexData.ComputeNormals(positions,land.getIndices()!,normals);

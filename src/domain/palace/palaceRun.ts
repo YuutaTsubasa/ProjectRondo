@@ -11,7 +11,7 @@ export interface PalacePlayer extends PalacePoint {
   swordSeconds:number|null; swordHits:string[];
   homing:{targetId:string;seconds:number;lastClear:PalacePoint}|null; airJumped:boolean; bounced:boolean;
 }
-export interface PalaceGuard extends PalacePoint { id:string; direction:1|-1; defeated:boolean; defeatedFor:number }
+export interface PalaceGuard extends PalacePoint { id:string; kind?:'guard'|'azure-core'; direction:1|-1; defeated:boolean; defeatedFor:number }
 export interface PalaceRun {
   player:PalacePlayer; guards:PalaceGuard[]; collected:number[]; checkpoint:number;
   elapsed:number; deaths:number; damageTaken:number; falls:number; reachedCheckpoints:number[]; finished:boolean;
@@ -23,7 +23,7 @@ function playerAt(point:PalacePoint):PalacePlayer {
 }
 export function createPalaceRun(layout:PalaceLayout=PALACE_LAYOUT):PalaceRun {
   const player=playerAt(layout.spawn); player.grounded=supported(player,layout); player.coyote=player.grounded?.12:0;
-  return {player,guards:layout.guards.map(g=>({id:g.id,x:g.x,y:g.y,direction:1,defeated:false,defeatedFor:0})),
+  return {player,guards:layout.guards.map(g=>({id:g.id,kind:g.kind,x:g.x,y:g.y,direction:1,defeated:false,defeatedFor:0})),
     collected:[],checkpoint:-1,elapsed:0,deaths:0,damageTaken:0,falls:0,reachedCheckpoints:[],finished:false};
 }
 function supported(p:PalacePlayer,l:PalaceLayout):boolean {
@@ -41,9 +41,15 @@ function clearLine(a:PalacePoint,b:PalacePoint,l:PalaceLayout):boolean {
   });
 }
 function center(p:PalacePoint):PalacePoint {return {x:p.x,y:p.y+PALACE_BODY_HEIGHT/2};}
+/** Enemy storage uses feet for guards, centers for floating cores. */
+export function palaceTargetPoint(g:PalaceGuard):PalacePoint {return {x:g.x,y:g.kind==='azure-core'?g.y-PALACE_BODY_HEIGHT/2:g.y};}
+export function palaceEnemyScore(state:PalaceRun,layout:PalaceLayout=PALACE_LAYOUT):{defeated:number;target:number} {
+ const scored=layout.guards.filter(g=>g.countsForScore!==false);
+ return {target:scored.length,defeated:scored.filter(g=>state.guards.some(s=>s.id===g.id&&s.defeated)).length};
+}
 function targetFor(p:PalacePlayer,guards:PalaceGuard[]):PalaceGuard|undefined {
-  return guards.filter(g=>!g.defeated && (g.x-p.x)*p.facing>0 && Math.hypot(g.x-p.x,g.y-p.y)<=12)
-    .sort((a,b)=>Math.hypot(a.x-p.x,a.y-p.y)-Math.hypot(b.x-p.x,b.y-p.y))[0];
+  return guards.filter(g=>!g.defeated && (g.x-p.x)*p.facing>0 && Math.hypot(g.x-p.x,palaceTargetPoint(g).y-p.y)<=12)
+    .sort((a,b)=>Math.hypot(a.x-p.x,palaceTargetPoint(a).y-p.y)-Math.hypot(b.x-p.x,palaceTargetPoint(b).y-p.y))[0];
 }
 /** The reticle and attack input share this exact eligibility decision. */
 export function selectPalaceTarget(state:PalaceRun,_layout:PalaceLayout=PALACE_LAYOUT):string|null {
@@ -101,8 +107,14 @@ export function stepPalaceRun(state:PalaceRun,input:PalaceInput,layout:PalaceLay
 function simulate(s:PalaceRun,axis:number,dt:number,l:PalaceLayout):void {
   const p=s.player;s.elapsed+=dt;
   for(const g of s.guards) {
-    if(g.defeated) {g.defeatedFor+=dt;continue;}
     const patrol=l.guards.find(spawn=>spawn.id===g.id);if(!patrol)continue;
+    if(g.defeated) {
+      g.defeatedFor+=dt;
+      if(patrol.respawnSeconds!==undefined&&g.defeatedFor>=patrol.respawnSeconds&&p.health>0
+        &&Math.hypot(p.x-g.x,p.y+PALACE_BODY_HEIGHT/2-g.y)>=2.8){g.defeated=false;g.defeatedFor=0;}
+      continue;
+    }
+    if(g.kind==='azure-core')continue;
     g.x+=g.direction*1.6*dt;
     if(g.x>=patrol.maxX){g.x=patrol.maxX;g.direction=-1;}
     if(g.x<=patrol.minX){g.x=patrol.minX;g.direction=1;}
@@ -127,14 +139,16 @@ function simulate(s:PalaceRun,axis:number,dt:number,l:PalaceLayout):void {
   }
   if(p.homing && dashTarget) {
     p.homing.seconds+=dt;
-    const dx=dashTarget.x-p.x,dy=dashTarget.y-p.y,distance=Math.hypot(dx,dy);
+    const destination=palaceTargetPoint(dashTarget);
+    const dx=destination.x-p.x,dy=destination.y-p.y,distance=Math.hypot(dx,dy);
     p.vx=distance>EPS?dx/distance*24:0;p.vy=distance>EPS?dy/distance*24:0;
     // Homing alone bypasses solid movement; retain a safe cancellation point.
     p.x+=p.vx*dt;p.y+=p.vy*dt;p.grounded=false;p.coyote=0;
     if(!insideSolid(p,l))p.homing.lastClear={x:p.x,y:p.y};
-    if(Math.hypot(dashTarget.x-p.x,dashTarget.y-p.y)<.8) {
+    if(Math.hypot(destination.x-p.x,destination.y-p.y)<.8) {
       // Approaching from below can reach hit radius while still inside the target's platform.
-      p.x=dashTarget.x;p.y=dashTarget.y;
+      p.x=destination.x;p.y=destination.y;
+      if(dashTarget.kind==='azure-core')p.airJumpSpent=false;
       defeat(dashTarget);p.homing=null;p.vy=12.8;p.vx=p.facing*10;p.grounded=false;p.coyote=0;p.bounced=true;
     }
   } else {
@@ -148,7 +162,7 @@ function simulate(s:PalaceRun,axis:number,dt:number,l:PalaceLayout):void {
     else if(p.swordSeconds>=SWORD_ACTIVE_START && p.swordSeconds<=SWORD_ACTIVE_END) {
       for(const g of s.guards) {
         const dx=(g.x-p.x)*p.facing;
-        if(!g.defeated && !p.swordHits.includes(g.id) && dx>=0 && dx<=2.2 && Math.abs(g.y-p.y)<=1.5 && clearLine(center(p),center(g),l)) {defeat(g);p.swordHits.push(g.id);}
+        if(!g.defeated && !p.swordHits.includes(g.id) && dx>=0 && dx<=2.2 && Math.abs(palaceTargetPoint(g).y-p.y)<=1.5 && clearLine(center(p),center(palaceTargetPoint(g)),l)) {defeat(g);p.swordHits.push(g.id);}
       }
     }
   }
@@ -165,7 +179,7 @@ function simulate(s:PalaceRun,axis:number,dt:number,l:PalaceLayout):void {
     }
   });
   if(!p.homing && !p.bounced && p.invulnerable<=0) {
-    const contact=s.guards.find(g=>!g.defeated && Math.abs(g.x-p.x)<.8 && Math.abs(g.y-p.y)<PALACE_BODY_HEIGHT);
+    const contact=s.guards.find(g=>!g.defeated && Math.abs(g.x-p.x)<.8 && Math.abs(palaceTargetPoint(g).y-p.y)<(g.kind==='azure-core'?PALACE_BODY_HEIGHT/2+.58:PALACE_BODY_HEIGHT));
     if(contact){s.damageTaken++;p.health--;p.invulnerable=.9;p.hurt=.42;p.vx=(p.x<contact.x?-1:1)*7;p.vy=6;p.grounded=false;p.swordSeconds=null;if(p.health<=0)die(s);}
   }
   if(p.y< -12 && p.health>0){s.falls++;die(s);}

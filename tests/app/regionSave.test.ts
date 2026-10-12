@@ -26,3 +26,12 @@ it('rejects corrupted progress as a loadable save and leaves the current slot un
  const blocked={getItem:()=>current,setItem:()=>{throw new Error('quota');}};
  expect(backupRegionSave(blocked)).toBe(false);expect(current).toBe(old);
 });
+
+it('backs up the optional city journey together with the chapter before NEW GAME',()=>{
+ const memory=new Map([['rondo.first-region.v1','chapter'],['rondo.city-journey.v1','city']]);
+ const storage={getItem:(key:string)=>memory.get(key)??null,setItem:(key:string,value:string)=>{memory.set(key,value);}};
+ expect(backupRegionSave(storage)).toBe(true);
+ expect(memory.get('rondo.first-region.v1.backup')).toBe('chapter');
+ expect(memory.get('rondo.city-journey.v1.backup')).toBe('city');
+ expect(memory.get('rondo.city-journey.v1')).toBe('city');
+});

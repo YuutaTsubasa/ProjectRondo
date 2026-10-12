@@ -78,7 +78,7 @@ export async function createRegionScene(
     rig.shadows.receive(terrain.ground, ...town.receivers, ...scenery.receivers, ...buildings);
     createClouds(scene);
     createAtmosphere(scene, rig.follow.camera);
-    scene.fogDensity = .0028;
+    scene.fogDensity = .0016;
     const audio = createHubAudio(scene, rig.readMotion, rig.knight, {musicCues:['music.town','music.meadow']});
     parts.audio = audio;
     let musicScene = regionMusicScene(initial.z);

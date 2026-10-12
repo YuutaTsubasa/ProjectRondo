@@ -1,6 +1,7 @@
+import {townSurfaceHeight} from './townTerraces';
 export type TownBuildingKind = 'house' | 'shop' | 'tower' | 'gate' | 'arcade';
-export interface TownBuilding { readonly id:string; readonly kind:TownBuildingKind; readonly x:number; readonly z:number; readonly yaw:number; readonly height:number }
-export const TOWN_BOUNDS={minX:-40,maxX:40,minZ:-63,maxZ:57} as const;
+export interface TownBuilding { readonly id:string; readonly kind:TownBuildingKind; readonly x:number; readonly z:number; readonly yaw:number; readonly height:number; readonly baseY?:number }
+export const TOWN_BOUNDS={minX:-84,maxX:64,minZ:-63,maxZ:209} as const;
 export const TOWN_SPAWN = {x:0,y:1.2,z:-54} as const;
 export const TOWN_BUILDINGS:readonly TownBuilding[] = [
  ...[-25,-10,5].flatMap((z,i)=>[
@@ -11,11 +12,16 @@ export const TOWN_BUILDINGS:readonly TownBuilding[] = [
  {id:'plaza-shop-north',kind:'shop',x:15,z:40,yaw:Math.PI,height:9.5},
  {id:'city-gate',kind:'gate',x:0,z:-43,yaw:Math.PI,height:11},
  ...[18,24,30].map((x,i)=>({id:'sea-arcade-'+i,kind:'arcade' as const,x,z:24,yaw:0,height:6})),
+ ...[-56,-50,-44].map((x,i)=>({id:'upper-arcade-'+i,kind:'arcade' as const,x,z:52,yaw:0,height:5.6,baseY:12})),
  {id:'royal-tower',kind:'tower',x:0,z:43,yaw:Math.PI,height:23},
 ];
 export function outsideTown(x:number,y:number,z:number):boolean {
- return ![x,y,z].every(Number.isFinite)||y < -3||y>100||x<TOWN_BOUNDS.minX||x>TOWN_BOUNDS.maxX||z<TOWN_BOUNDS.minZ||z>TOWN_BOUNDS.maxZ;
+ return ![x,y,z].every(Number.isFinite)||y < -3||y>100||townSurfaceHeight(x,z)===null;
 }
 export function townLocation(x:number,z:number):string {
- return z < -38 ? '王城入口 · CITY GATE' : x>27 ? '海風步道 · SEAFRONT' : z>13 ? '白塔廣場 · TOWER SQUARE' : '白石街 · IVORY STREET';
+ if(z>=169)return '王宮前庭 · ROYAL FORECOURT';
+ if(z>=115)return '白石居住區 · IVORY QUARTER';
+ if(z>=91)return '階庭花園 · TERRACE GARDENS';
+ if(z>=57)return '潮光商店街 · TIDELIGHT MARKET';
+ return x < -41 ? (z > 44 ? '潮光眺望廊 · SEA OVERLOOK' : '王城階庭 · TERRACE GARDEN') : z < -38 ? '王城入口 · CITY GATE' : x>27 ? '海風步道 · SEAFRONT' : z>13 ? '白塔廣場 · TOWER SQUARE' : '白石街 · IVORY STREET';
 }

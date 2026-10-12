@@ -1,3 +1,5 @@
+import {STAGE_IDS} from '../../src/domain/stage/stageIds';
+import {CITY_STOPS} from '../../src/domain/region/cityJourney';
 import {NodeIO} from '@gltf-transform/core';
 import {getBounds} from '@gltf-transform/functions';
 import {TOWN_BUILDINGS} from '../../src/domain/town/townLayout';
@@ -26,8 +28,8 @@ describe('first region traversal', () => {
       }
     }
   });
-  it('provides seven distinct destinations with safe, gently sloped interaction clearings', () => {
-    expect(REGION_PLACES.map(p => p.id).sort()).toEqual(['course', 'cove', 'homecoming', 'palace', 'ridge', 'signal', 'watch']);
+  it('provides every stage and city stop with safe, gently sloped interaction clearings', () => {
+    expect(REGION_PLACES.map(p => p.id).sort()).toEqual([...STAGE_IDS,...CITY_STOPS.map(s=>s.id),'cove','homecoming','ridge','signal','watch'].sort());
     for (const place of REGION_PLACES) {
       const y = regionHeight(place.x, place.z);
       expect(isRegionPositionSafe({ ...place, y: y + 1.3 })).toBe(true);

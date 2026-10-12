@@ -1,3 +1,4 @@
+import {getPalaceStage} from '../../src/domain/palace/palaceStages';
 // @vitest-environment jsdom
 import { expect, it } from 'vitest';
 import { NullEngine } from '@babylonjs/core/Engines/nullEngine';
@@ -72,4 +73,18 @@ it('renders solid collectible coins and checkpoint feedback once per newly reach
     run.elapsed = 1; scenery.update(run, 50);
     expect(pulse.isEnabled()).toBe(true);
   } finally { scene.dispose(); engine.dispose(); }
+});
+
+it('extends the district, collectibles and last checkpoint to the selected long course',()=>{
+ const engine=new NullEngine(),scene=new Scene(engine),layout=getPalaceStage('palace-1-5').layout;
+ try{
+  const scenery=createPalaceScenery(scene,{cast(){},receive(){}} as unknown as Shadows,layout);
+  expect(scene.meshes.filter(m=>m.name.startsWith('palaceWalkable'))).toHaveLength(40);
+  expect(scene.meshes.filter(m=>/^palaceCoin[0-9]+$/.test(m.name))).toHaveLength(57);
+  expect(scene.getMeshByName('palaceGoal')!.position.x).toBe(576);
+  const foundation=scene.meshes.find(mesh=>mesh.name.startsWith('palaceFoundation:'))!;foundation.computeWorldMatrix(true);
+  expect(foundation.getBoundingInfo().boundingBox.maximumWorld.x).toBeGreaterThan(layout.width);
+  const run=createPalaceRun(layout);run.checkpoint=3;run.elapsed=1;scenery.update(run,450);
+  expect(scene.getMeshByName('palaceCheckpointPulse')!.position.x).toBe(layout.checkpoints[3].x);
+ }finally{scene.dispose();engine.dispose();}
 });

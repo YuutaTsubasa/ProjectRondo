@@ -11,16 +11,16 @@
  import RegionMinimap from './RegionMinimap.svelte';
  import RegionCompass from './RegionCompass.svelte';
  import {regionHudCopy} from './regionHudCopy';
- let {subdued=false,progress,position,heading=0,playerHeading=180,locationLabel,navigationId,prompt,notice,saveWarning,onInteract,onMap,onPause}:{subdued?:boolean;progress:RegionProgress;position:RegionPoint;heading?:number;playerHeading?:number;locationLabel:string;navigationId:string|null;prompt:string;notice:string;saveWarning:boolean;onInteract:()=>void;onMap:()=>void;onPause:()=>void}=$props();
+ let {objectiveOverride,subdued=false,progress,position,heading=0,playerHeading=180,locationLabel,navigationId,prompt,notice,saveWarning,onInteract,onMap,onPause}:{objectiveOverride?:{title:string;detail:string;placeId:string|null};subdued?:boolean;progress:RegionProgress;position:RegionPoint;heading?:number;playerHeading?:number;locationLabel:string;navigationId:string|null;prompt:string;notice:string;saveWarning:boolean;onInteract:()=>void;onMap:()=>void;onPause:()=>void}=$props();
  // Keep the final message readable until its outro finishes.
  let displayedNotice=$state('');
  $effect(()=>{if(notice)displayedNotice=notice;});
  function noticeFade(node:HTMLElement){
   return fade(node,{duration:globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches?0:350});
  }
- const objective=$derived(regionObjective(progress.chapter));
+ const objective=$derived(objectiveOverride??regionObjective(progress.chapter));
  const target=$derived(REGION_INTERACTION_PLACES.find(p=>p.id===navigationId));
- const copy=$derived(target&&target.id!==objective.placeId?{title:`前往${target.name}`,instruction:target.kind==='expedition'?'查看遠征入口':target.kind==='vista'?'探索這處風景':'調查回聲管'}:regionHudCopy[progress.chapter]);
+ const copy=$derived(target&&target.id!==objective.placeId?{title:`前往${target.name}`,instruction:target.kind==='expedition'?'查看遠征入口':target.kind==='vista'?'探索這處風景':'調查回聲管'}:objectiveOverride?{title:objectiveOverride.title,instruction:objectiveOverride.detail}:regionHudCopy[progress.chapter]);
  const distance=$derived(target?Math.round(Math.hypot(target.x-position.x,target.z-position.z)):0);
  const location=$derived(locationLabel.split('·')[0].trim());
  const area=$derived(position.z>=REGION_TOWN_EDGE_Z?'白色王城':location);
