@@ -25,6 +25,7 @@ const disposed: string[] = [];
 
 class FakeBus {
   volume = Number.NaN;
+  setVolume(value:number){this.volume=value;}
   constructor(readonly name: string) {}
   dispose(): void {
     disposed.push(`bus:${this.name}`);
@@ -185,4 +186,24 @@ describe('the audio graph, when a bus will not build', () => {
 
     expect(disposed).toEqual(['engine']);
   });
+});
+
+it('ducks only world music and preserves the user mix',async()=>{
+ const {acquireMusicDuck}=await import('../../src/presentation/audio/musicDucking');
+ const audio=await createGameAudio();const release=acquireMusicDuck();
+ try{
+  expect(audio.buses.music.volume).toBeCloseTo(.35);expect(audio.buses.sfx.volume).toBe(1);
+  audioPreferences.setLevel('music',.5);expect(audio.buses.music.volume).toBeCloseTo(.175);
+  release();expect(audio.buses.music.volume).toBeCloseTo(.5);
+ }finally{release();}
+});
+
+it('fades music only for an overlay duck, never for the player volume or mute',async()=>{
+ const {acquireMusicDuck}=await import('../../src/presentation/audio/musicDucking');
+ const audio=await createGameAudio();const fade=vi.spyOn(audio.buses.music as unknown as FakeBus,'setVolume');
+ try{
+  audioPreferences.setLevel('music',.6);expect(fade).not.toHaveBeenCalled();expect(audio.buses.music.volume).toBeCloseTo(.6);
+  const release=acquireMusicDuck();expect(fade).toHaveBeenCalledTimes(1);
+  release();expect(fade).toHaveBeenCalledTimes(2);
+ }finally{fade.mockRestore();}
 });

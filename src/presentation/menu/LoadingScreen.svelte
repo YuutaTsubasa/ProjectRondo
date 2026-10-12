@@ -29,6 +29,5 @@
  .loading-footer{position:absolute;bottom:0;left:0;right:0;height:9.5%;padding:0 3%;display:flex;align-items:center;justify-content:space-between;border-top:1px solid #8cb4f066;background:#f1f6ffc9;font:11px/1.8 var(--font-body);letter-spacing:.2em}.loading-footer small{font-size:6px}
  @keyframes load-scan{from{transform:translateX(-110%)}to{transform:translateX(370%)}}
  @keyframes loading-enter{from{opacity:0}to{opacity:1}}
- @container game-ui (max-width:650px){.loading-logo{width:53%;left:5%;top:3%}.loading-message{display:none}.loading-edition{font-size:6px;right:4%}.loading-progress{left:18%;right:8%;bottom:13%}.loading-paper{clip-path:polygon(0 77%,100% 67%,100% 100%,0 100%)}.loading-footer{font-size:8px;padding:0 6%}}
  @media(prefers-reduced-motion:reduce){.loading-composition,.loading-track span{animation:none}.loading-track span{width:100%;background:#7da7ed}}
 </style>

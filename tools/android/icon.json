@@ -1,0 +1,6 @@
+{
+  "default": "../../public/icons/player-512.png",
+  "android_fg": "../../public/icons/player-maskable-512.png",
+  "android_fg_scale": 100,
+  "bg_color": "#101d3a"
+}

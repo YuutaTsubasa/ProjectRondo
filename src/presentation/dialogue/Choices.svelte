@@ -178,7 +178,7 @@
      than adding an interaction; there is nothing here for a keyboard to reach it with. -->
 <div class="scrim" onpointerdown={keepFocus}>
   <div
-    class="panel"
+    class="panel" data-input-scroll
     bind:this={panel}
     role="dialog"
     aria-modal="true"
@@ -206,8 +206,8 @@
 </div>
 
 <style>
-  .scrim{position:fixed;inset:0;z-index:12;display:flex;box-sizing:border-box;padding:90px 0;overflow-y:auto;background:rgba(var(--avg-navy-rgb),.08);pointer-events:auto}
-  .panel{margin:auto;width:min(520px,72cqw);display:flex;flex-direction:column;gap:14px;padding:12px 24px}
+  .scrim{position:fixed;inset:0;z-index:12;display:flex;box-sizing:border-box;padding:90px 0;overflow:clip;background:rgba(var(--avg-navy-rgb),.08);pointer-events:auto}
+  .panel{max-height:100%;box-sizing:border-box;overflow:auto;overscroll-behavior:contain;scrollbar-width:thin;margin:auto;width:min(520px,72cqw);display:flex;flex-direction:column;gap:14px;padding:12px 24px}
   /* The line remains visible in the dock; retain its full copy as the modal description. */
   .question{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
   .choice{position:relative;display:block;flex-shrink:0;width:100%;border:0;padding:1px;background:transparent;color:var(--avg-text);font:inherit;text-align:center;cursor:pointer;transition:transform .2s,filter .2s;isolation:isolate}
@@ -219,8 +219,6 @@
   .choice:focus{outline:none;transform:scale(1.06);filter:drop-shadow(0 0 5px var(--avg-glow)) drop-shadow(0 0 12px rgba(var(--c-blue-soft-rgb),.45))}
   .choice:focus:before{background:var(--avg-light)}.choice:focus:after{background:linear-gradient(90deg,rgba(var(--avg-navy-rgb),.95),rgba(var(--avg-navy-rgb),.8));box-shadow:inset 0 0 18px var(--avg-glow)}
   .choice:focus .diamond{stroke:var(--avg-light);stroke-width:2;filter:drop-shadow(0 0 5px var(--avg-glow))}.choice:focus .core{fill:var(--avg-light)}.choice:focus .caret{opacity:1}
-  @container game-ui (max-width:700px){.scrim{padding:90px 0 39cqh}.panel{width:80cqw;padding:12px 16px;gap:12px}.inner{padding:5px 19px;min-height:50px;gap:10px;font-size:16px}.diamond{width:24px;height:24px}}
-  @container game-ui (max-height:540px) and (min-width:701px){.scrim{padding:65px 0 175px}.panel{gap:8px}.inner{min-height:40px;font-size:16px}.diamond{width:24px;height:24px}}
   @media(prefers-reduced-motion:reduce){.choice{transition:none}}
   @media(forced-colors:active){.choice{border:1px solid ButtonText}.choice:focus{outline:var(--focus-ring);outline-offset:var(--focus-ring-offset)}.choice:before,.choice:after{display:none}.choice:focus .caret{stroke:ButtonText}}
 </style>

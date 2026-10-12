@@ -26,7 +26,7 @@ it('consumes Escape and Tab so the session does not handle them a second time',a
  finally{window.removeEventListener('keydown',parent);}
 });
 it('connects real actions and omits play time when no timing data is supplied',async()=>{
- const {restart,leave,buttons}=await render();buttons[1].click();buttons[2].click();
+ const {restart,leave,buttons}=await render();buttons[2].click();buttons[3].click();
  expect(restart).toHaveBeenCalledTimes(1);expect(leave).not.toHaveBeenCalled();
  expect(document.body.textContent).not.toContain('RUN TIME');expect(document.body.textContent).toContain('白色王城');
 });
@@ -34,7 +34,7 @@ it('connects real actions and omits play time when no timing data is supplied',a
 it('keeps the pause visible until exit finishes and accepts only one action',async()=>{
  const {resume,leave,buttons}=await render();
  vi.stubGlobal('matchMedia',()=>({matches:false}));vi.useFakeTimers();
- buttons[0].click();flushSync();buttons[2].click();key('Escape');
+ buttons[0].click();flushSync();buttons[3].click();key('Escape');
  expect(document.querySelector('.pause-screen.leaving')).not.toBeNull();
  expect(resume).not.toHaveBeenCalled();expect(leave).not.toHaveBeenCalled();
  vi.advanceTimersByTime(319);expect(resume).not.toHaveBeenCalled();
@@ -42,10 +42,20 @@ it('keeps the pause visible until exit finishes and accepts only one action',asy
 });
 it('cancels an outstanding navigation when the pause owner is destroyed',async()=>{
  const {leave,buttons}=await render();vi.stubGlobal('matchMedia',()=>({matches:false}));vi.useFakeTimers();
- buttons[2].click();await unmount(app!);app=undefined;vi.advanceTimersByTime(1000);
+ buttons[3].click();await unmount(app!);app=undefined;vi.advanceTimersByTime(1000);
  expect(leave).not.toHaveBeenCalled();
 });
 
 it('opens settings while keeping gameplay paused and returns focus to Settings',async()=>{
- const {resume,buttons}=await render();buttons[3].click();await settle();expect(document.querySelector('.settings-screen')).not.toBeNull();expect(resume).not.toHaveBeenCalled();key('Escape');await settle();expect(document.querySelector('.settings-screen')).toBeNull();expect(document.activeElement).toBe(buttons[3]);expect(resume).not.toHaveBeenCalled();
+ const {resume,buttons}=await render();buttons[1].click();await settle();expect(document.querySelector('.settings-screen')).not.toBeNull();expect(resume).not.toHaveBeenCalled();key('Escape');await settle();expect(document.querySelector('.settings-screen')).toBeNull();expect(document.activeElement).toBe(buttons[1]);expect(resume).not.toHaveBeenCalled();
+});
+
+it('puts Settings after Continue and before departure actions',async()=>{
+ const {buttons}=await render();expect(buttons.map(b=>b.getAttribute('aria-label'))).toEqual(['繼續遊戲','系統設定','重新開始','返回主選單']);
+});
+
+it('holds BGM duck until the overlay is removed',async()=>{
+ const {get}=await import('svelte/store');const {musicDuckGain}=await import('../../src/presentation/audio/musicDucking');
+ expect(get(musicDuckGain)).toBe(1);await render();expect(get(musicDuckGain)).toBe(.35);
+ await unmount(app!);app=undefined;expect(get(musicDuckGain)).toBe(1);
 });

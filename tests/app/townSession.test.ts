@@ -11,6 +11,7 @@ import { AnimationGroup } from '@babylonjs/core/Animations/animationGroup';
 import { PrecisionDate } from '@babylonjs/core/Misc/precisionDate';
 import TownSession from '../../src/app/TownSession.svelte';
 import App from '../../src/app/App.svelte';
+vi.mock('../../src/presentation/audio/menuUiAudio',()=>({mountMenuUiAudio:()=>()=>{}}));
 const stub = vi.hoisted(() => ({ build: vi.fn(), load: vi.fn(), disposeEngine: vi.fn(), frame: (() => {}) as () => void }));
 vi.mock('../../src/app/loadGameSession', () => ({ loadGameSession: stub.load }));
 vi.mock('../../src/presentation/town/townScene', () => ({ createTownScene: stub.build }));
@@ -73,7 +74,7 @@ it('traps pause dialog focus, clears input when leaving and disposes scene befor
   const dialog = document.querySelector('[role=dialog]')!;
   expect(document.activeElement).toBe(button('繼續漫遊'));
   document.activeElement!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, bubbles: true, cancelable: true }));
-  expect(document.activeElement).toBe(button('系統設定'));
+  expect(document.activeElement).toBe(button('返回主選單'));
   document.activeElement!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true }));
   expect(document.activeElement).toBe(dialog.querySelector('button'));
   button('返回主選單').click();

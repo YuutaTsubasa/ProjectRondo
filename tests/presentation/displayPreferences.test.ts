@@ -18,3 +18,12 @@ it('survives blocked storage and rejects invalid enums/types',()=>{
  expect(get(prefs)).toEqual(DEFAULT_DISPLAY);
  prefs.set('contrast',80);expect(get(prefs).contrast).toBe(80);
 });
+it('starts Android on balanced graphics but preserves explicit saved choices',()=>{
+ const android='Mozilla/5.0 (Linux; Android 14) Chrome/130.0';
+ const prefs=createDisplayPreferences(undefined,android);
+ expect(get(prefs)).toMatchObject({renderScale:.75,samples:2,bloom:false,shadows:true});
+ prefs.set('renderScale',1);prefs.reset();expect(get(prefs).renderScale).toBe(.75);
+ const saved=createDisplayPreferences({getItem:()=>JSON.stringify({renderScale:1,samples:4,bloom:true}),setItem:()=>{}},android);
+ expect(get(saved)).toMatchObject({renderScale:1,samples:4,bloom:true});
+ expect(get(createDisplayPreferences(undefined,'Windows'))).toEqual(DEFAULT_DISPLAY);
+});

@@ -20,5 +20,4 @@
   button:hover,button.active{color:var(--avg-light);filter:drop-shadow(0 0 7px var(--avg-glow))}
   button.active:after{content:'';position:absolute;left:7px;right:7px;bottom:2px;height:1px;background:var(--avg-light);box-shadow:0 0 7px var(--avg-glow)}
   button:focus-visible{outline:2px solid var(--avg-light);outline-offset:3px;background:rgba(var(--avg-navy-rgb),.8)}
-  @container game-ui (max-width:600px){.controls{gap:6px;top:10px;right:12px}button{font-size:10px;gap:7px;padding:4px}svg{width:18px;height:18px}}
 </style>

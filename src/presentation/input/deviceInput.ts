@@ -5,6 +5,7 @@ export type UiAction='confirm'|'back'|'up'|'down'|'left'|'right'|'next'|'previou
 export interface PadSample {id:string;index:number;mapping:string;buttons:readonly {pressed:boolean;value:number}[];axes:readonly number[];}
 export interface DeviceStatus {device:Device;family:'xbox'|'playstation';playing:boolean;camera:boolean;interact:boolean;connected:boolean;}
 const zero=()=>({x:0,y:0});
+const TRIGGER_DEADZONE=.12;
 export function deadzone(x:number,y:number,threshold=.2){
  const length=Math.hypot(x,y);if(!Number.isFinite(length)||length<=threshold)return zero();
  const magnitude=Math.min(1,(length-threshold)/(1-threshold));return{x:x/length*magnitude,y:y/length*magnitude};
@@ -15,10 +16,11 @@ export function createDeviceHub(){
  const status=writable(state),actions=new Set<(a:GameAction)=>void>(),ui=new Set<(a:UiAction)=>unknown>();
  const owners=new Map<symbol,{enabled:boolean;camera:boolean;interact:boolean}>();
  let move=zero(),lookAxis=zero(),touch=zero(),touchDelta=zero(),walk=false;
+ let zoomAxis=0,touchZoomDelta=0;
  let previous:boolean[]=[],padId:string|undefined,armed=false,repeat='',nextRepeat=0;
  function patch(value:Partial<DeviceStatus>){const next={...state,...value};if(Object.keys(next).some(k=>next[k as keyof DeviceStatus]!==state[k as keyof DeviceStatus])){state=next;status.set(state);}}
  function claim(device:Device){patch({device});}
- function clear(){move=zero();lookAxis=zero();touch=zero();touchDelta=zero();walk=false;armed=false;repeat='';}
+ function clear(){move=zero();lookAxis=zero();touch=zero();touchDelta=zero();walk=false;zoomAxis=0;touchZoomDelta=0;armed=false;repeat='';}
  function context(){const active=[...owners.values()].filter(o=>o.enabled);const playing=active.length>0,camera=active.some(o=>o.camera);if(playing!==state.playing||camera!==state.camera)clear();patch({playing,camera,interact:active.some(o=>o.interact)});}
  function emitUi(a:UiAction){let consumed=false;for(const fn of ui)if(fn(a)===true)consumed=true;return consumed;}
  function action(a:GameAction){if(state.playing)for(const fn of actions)fn(a);}
@@ -36,6 +38,9 @@ export function createDeviceHub(){
   if(!armed){if(active){previous=held;return;}armed=true;}
   const edges=held.map((v,i)=>v&&!previous[i]);previous=held;
   move=state.playing?{x:left.x,y:-left.y}:zero();lookAxis=state.playing&&state.camera?right:zero();walk=state.playing&&!!held[4];
+  // Triggers can rest slightly above zero (worn pads, Android's remapped trigger axes): ignore that drift.
+  const trigger=(i:number)=>{const b=pad.buttons[i];const v=b?.pressed?1:Math.max(0,Math.min(1,Number.isFinite(b?.value)?b.value:0));return v<=TRIGGER_DEADZONE?0:(v-TRIGGER_DEADZONE)/(1-TRIGGER_DEADZONE);};
+  zoomAxis=state.playing&&state.camera?trigger(6)-trigger(7):0;
   if(state.playing){
    if(edges[9]){emitUi('pause');return;}
    if(edges[3]||edges[8]){emitUi('map');return;}
@@ -59,8 +64,14 @@ export function createDeviceHub(){
   axis(){return state.playing?(state.device==='touch'?touch:state.device==='gamepad'?move:zero()):zero();},
   walkHeld:()=>state.playing&&walk,
   look(dt:number){if(!state.playing||!state.camera)return zero();const d=state.device==='touch'?{x:touchDelta.x*.004,y:touchDelta.y*.004}:state.device==='gamepad'?{x:lookAxis.x*Math.min(dt,.05)*2.2,y:lookAxis.y*Math.min(dt,.05)*1.6}:zero();touchDelta=zero();return d;},
+  cameraZoom(dt:number){
+   if(!state.playing||!state.camera)return 0;
+   const delta=state.device==='gamepad'?zoomAxis*Math.max(0,Math.min(dt,.05))*6:state.device==='touch'?touchZoomDelta:0;
+   touchZoomDelta=0;return delta;
+  },
+  touchZoom(delta:number){if(state.playing&&state.camera&&Number.isFinite(delta)){claim('touch');touchZoomDelta+=Math.max(-1,Math.min(1,delta));}},
   touchAxis(x:number,y:number){if(x!==0||y!==0)claim('touch');if(state.playing){const m=Math.max(1,Math.hypot(x,y));touch={x:x/m,y:y/m};}},
-  releaseTouch(){touch=zero();touchDelta=zero();walk=false;},
+  releaseTouch(){touch=zero();touchDelta=zero();touchZoomDelta=0;walk=false;},
   touchLook(x:number,y:number){claim('touch');if(state.playing&&state.camera){touchDelta.x+=x;touchDelta.y+=y;}},
   touchWalk(value:boolean){if(value)claim('touch');walk=state.playing&&value;},
   touchAction(a:GameAction|UiAction){claim('touch');if(a==='jump'||a==='attack')action(a);else emitUi(a);},

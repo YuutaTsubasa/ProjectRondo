@@ -153,7 +153,7 @@ const KNIGHT_FACING = Quaternion.FromEulerAngles(0, PLAYER_MODEL.facingYaw, 0);
  * `collider` is undefined), and a ray started inside the capsule still reports the pedestal at
  * 1.717. If that ever changes, the fix is an `ignoreBody` in the query.
  *
- * On a miss it defers to the world's ground query — and that query may itself have no answer, in
+ * On a miss it samples the capsule footprint, then accepts only a nearby world ground query — and that query may itself have no answer, in
  * which case this has none either. A miss means "nothing under this foot within the ray's reach",
  * which is not the same as "the ground is wherever this world's floor is": in a level of stacked
  * platforms the two differ by the whole height of the climb, and the ray misses at every platform's
@@ -171,13 +171,24 @@ function createGroundProbe(
   const result = new PhysicsRaycastResult();
   const from = new Vector3();
   const to = new Vector3();
+  const offsets=Array.from({length:8},(_,i)=>({x:Math.cos(i*Math.PI/4)*CAPSULE_RADIUS,z:Math.sin(i*Math.PI/4)*CAPSULE_RADIUS}));
   return (x, footY, z) => {
+    // The terrain field is not support: town platforms/buildings may be metres above it.
+    const fallback=()=>{const y=groundHeight(x,z);return y!==null&&Math.abs(footY-y)<=.35?y:null;};
     const engine = scene.getPhysicsEngine() as PhysicsEngineV2 | null;
-    if (!engine) return groundHeight(x, z);
-    from.set(x, footY + GROUND_PROBE_ABOVE, z);
-    to.set(x, footY - GROUND_PROBE_BELOW, z);
-    engine.raycastToRef(from, to, result);
-    return result.hasHit ? result.hitPointWorld.y : groundHeight(x, z);
+    if (!engine) return fallback();
+    const cast=(dx:number,dz:number)=>{
+      from.set(x+dx, footY+GROUND_PROBE_ABOVE, z+dz);
+      to.set(x+dx, footY-GROUND_PROBE_BELOW, z+dz);
+      engine.raycastToRef(from,to,result);
+      return result.hasHit?result.hitPointWorld.y:null;
+    };
+    let surface=cast(0,0);
+    // Normal floor needs only one ray. At a ledge, look across the capsule's support footprint
+    // before accepting the lower terrain beneath its center. This also works along a long edge.
+    if(surface!==null&&Math.abs(footY-surface)<=.2)return surface;
+    for(const offset of offsets){const y=cast(offset.x,offset.z);if(y!==null&&(surface===null||y>surface))surface=y;}
+    return surface??fallback();
   };
 }
 

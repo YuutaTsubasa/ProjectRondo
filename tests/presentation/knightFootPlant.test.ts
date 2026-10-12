@@ -215,3 +215,28 @@ describe('a supported platform edge after landing', () => {
     }
   });
 });
+
+it('does not replace an elevated support with the town terrain when the center ray misses',()=>{
+ const rig=mount(()=>0,3.12);rig.hit=3;rig.frame();
+ rig.hit=null;rig.capsule.position.x+=.2;rig.frame();rig.frame();
+ expect(rig.drift()).toBeCloseTo(-.12,5);
+});
+it('finds support across the capsule footprint while walking along an edge',()=>{
+ const rig=mount(()=>0,3.12);
+ rig.scene.getPhysicsEngine=()=>({raycastToRef:(from:Vector3,_to:Vector3,result:PhysicsRaycastResult)=>{
+  result.reset();if(from.x<=3.1)result.setHitData(new Vector3(0,1,0),new Vector3(from.x,3,from.z));
+ }}) as never;
+ rig.capsule.position.x=3.3;
+ for(const z of [-7,-6.5,-6,-5.5]){rig.capsule.position.z=z;rig.frame();rig.frame();expect(rig.drift()).toBeCloseTo(-.12,5);}
+});
+it('does not drag a first-frame edge spawn down to distant terrain',()=>{
+ const rig=mount(()=>0,4.12);rig.frame();expect(rig.drift()).toBe(0);
+});
+
+it('prefers lateral support over lower terrain hit by the center ray',()=>{
+ const rig=mount(()=>0,.72);rig.capsule.position.x=3.3;
+ rig.scene.getPhysicsEngine=()=>({raycastToRef:(from:Vector3,_to:Vector3,result:PhysicsRaycastResult)=>{
+  result.reset();result.setHitData(new Vector3(0,1,0),new Vector3(from.x,from.x<=3.1?.6:0,from.z));
+ }}) as never;
+ rig.frame();rig.frame();expect(rig.drift()).toBeCloseTo(-.12,5);
+});

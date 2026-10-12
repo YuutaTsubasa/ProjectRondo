@@ -1,0 +1,98 @@
+name: Android playtest
+
+on:
+  pull_request:
+    paths-ignore: ['docs/**', '**/*.md']
+  push:
+    branches: [main]
+    paths-ignore: ['docs/**', '**/*.md']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-playtest-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  NDK_VERSION: 28.2.13676358
+  BUILD_TOOLS_VERSION: 36.0.0
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.25.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+          log-accepted-android-sdk-licenses: false
+      - name: Install Android toolchain
+        run: |
+          sdkmanager "platforms;android-36" "build-tools;$BUILD_TOOLS_VERSION" "ndk;$NDK_VERSION"
+          echo "NDK_HOME=$ANDROID_HOME/ndk/$NDK_VERSION" >> "$GITHUB_ENV"
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+          key: android-arm64
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Verify bundled assets
+        run: |
+          git lfs fsck
+          if git lfs ls-files | grep -E '^[0-9a-f]+ - '; then
+            echo 'LFS assets are still pointers' >&2
+            exit 1
+          fi
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm test
+      - name: Prepare Android test shell
+        run: |
+          pnpm tauri android init --ci --skip-targets-install
+          pnpm tauri icon tools/android/icon.json --output .superpowers/android-icons
+          node tools/android/prepare.mjs
+      # Test signing is intentionally public and configured ONLY for the debug build type.
+      # Official release builds and their signing keys remain on the developer's local computer.
+      - name: Build ARM64 test APK
+        run: pnpm tauri android build --ci --debug --apk --target aarch64
+      - name: Verify game assets and installable APK
+        run: |
+          node tools/verify-build.mjs
+          mapfile -t apks < <(find src-tauri/gen/android/app/build/outputs/apk -name '*-debug.apk' -type f)
+          test "${#apks[@]}" -eq 1
+          apk="${apks[0]}"
+          "$ANDROID_HOME/build-tools/$BUILD_TOOLS_VERSION/apksigner" verify --verbose --print-certs "$apk"
+          "$ANDROID_HOME/build-tools/$BUILD_TOOLS_VERSION/aapt" dump badging "$apk" > .superpowers/android-apk-info.txt
+          cat .superpowers/android-apk-info.txt
+          grep -F "package: name='com.yuutatsubasa.projectrondo.debug'" .superpowers/android-apk-info.txt
+          grep -F "native-code: 'arm64-v8a'" .superpowers/android-apk-info.txt
+          grep -F 'application-debuggable' .superpowers/android-apk-info.txt
+          mkdir -p .superpowers/android-artifact
+          cp "$apk" .superpowers/android-artifact/ProjectRondo-Android-arm64-test.apk
+          cp .superpowers/android-apk-info.txt .superpowers/android-artifact/
+      - name: Upload Android test APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: ProjectRondo-Android-arm64-test-${{ github.sha }}
+          path: .superpowers/android-artifact/*
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14

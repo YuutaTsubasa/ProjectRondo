@@ -128,3 +128,17 @@ it('reports preparation failures so Loading can offer retry',async()=>{
  await expect(f.music.prepare()).rejects.toThrow('HTTP 500');
  await f.music.prepare();expect(f.fetchAudio).toHaveBeenCalledTimes(2);f.music.dispose();
 });
+
+it('ducks BGM through nested overlays without restarting the loop or overriding mute',async()=>{
+ const {acquireMusicDuck}=await import('../../src/presentation/audio/musicDucking');
+ const f=fixture();await f.music.unlock();const first=acquireMusicDuck();const second=acquireMusicDuck();
+ try{
+  expect(f.gains[0].gain.setTargetAtTime).toHaveBeenLastCalledWith(.35,12,.1);
+  first();expect(f.gains[0].gain.setTargetAtTime).toHaveBeenLastCalledWith(.35,12,.1);
+  f.preferences.setMuted(true);expect(f.gains[0].gain.setTargetAtTime).toHaveBeenLastCalledWith(0,12,.02);
+  // Releasing the last duck glides back up; the player's unmute then applies at once.
+  second();expect(f.gains[0].gain.setTargetAtTime).toHaveBeenLastCalledWith(0,12,.1);
+  f.preferences.setMuted(false);expect(f.gains[0].gain.setTargetAtTime).toHaveBeenLastCalledWith(1,12,.02);
+  expect(f.sources).toHaveLength(1);expect(f.sources[0].stop).not.toHaveBeenCalled();
+ }finally{first();second();f.music.dispose();}
+});

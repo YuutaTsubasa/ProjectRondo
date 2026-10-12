@@ -13,5 +13,4 @@
   p{position:relative;margin:0;padding:0 1.2em;white-space:nowrap;text-align:center;font:clamp(11px,1cqw,17px)/1.7 Georgia,serif;letter-spacing:.22em}
   p:before,p:after{content:'—';position:absolute;top:0;color:#7c8ea7}p:before{left:0}p:after{right:0}
   small{display:block;font:500 clamp(7px,.66cqw,11px) var(--font-body);letter-spacing:.27em;margin-top:4px}
-  @container game-ui (max-width:650px){p{font-size:11px}.signature{margin-top:10px}}
 </style>

@@ -44,8 +44,8 @@
   return()=>{cancelled=true;renderer=undefined;own.release();lease=undefined;resize.disconnect();window.removeEventListener('resize',afterLayout);if(resizeFrame)cancelAnimationFrame(resizeFrame);document.removeEventListener('visibilitychange',visibility);preference.removeEventListener('change',visibility);};
  });
 </script>
-<!-- The shared portrait canvas is appended here while this screen owns it. -->
-<div class="portrait" class:ready aria-hidden="true" bind:this={host}></div>
+<!-- Decorative canvas: inert also blocks the tabindex Babylon adds, including Android initial focus. -->
+<div class="portrait" class:ready inert aria-hidden="true" bind:this={host}></div>
 <style>
  .portrait{position:absolute;inset:0;pointer-events:none}
  .portrait :global(canvas){display:block;width:100%;height:100%;opacity:0;transition:opacity .3s}

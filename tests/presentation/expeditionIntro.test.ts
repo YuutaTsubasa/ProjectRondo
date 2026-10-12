@@ -33,3 +33,9 @@ it.each(['course','palace'] as const)('defaults %s to starting the expedition, n
  navigateUi('confirm');
  expect(start).toHaveBeenCalledTimes(1);expect(map).not.toHaveBeenCalled();
 });
+
+it('holds BGM duck until the overlay is removed',async()=>{
+ const {get}=await import('svelte/store');const {musicDuckGain}=await import('../../src/presentation/audio/musicDucking');
+ expect(get(musicDuckGain)).toBe(1);await render();expect(get(musicDuckGain)).toBe(.35);
+ await unmount(app!);app=undefined;expect(get(musicDuckGain)).toBe(1);
+});

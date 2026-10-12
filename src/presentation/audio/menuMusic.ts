@@ -1,3 +1,5 @@
+import {derived} from 'svelte/store';
+import {musicDuckGain} from './musicDucking';
 import { busGain, DEFAULT_LEVELS } from '../../domain/audio/audioMixer';
 import { audioPreferences, type AudioPreferences } from './audioPreferences';
 
@@ -36,9 +38,12 @@ export function createMenuMusic(options: Options = {}): MenuMusic {
   let active = true;
   let unlocked = false;
   let disposed = false;
-  const unsubscribe = (options.preferences ?? audioPreferences).subscribe(value => {
-    levels = value;
-    if (mix && context) mix.gain.setTargetAtTime(busGain(levels, 'music'), context.currentTime, .02);
+  let duck=1;
+  const unsubscribe = derived([options.preferences ?? audioPreferences,musicDuckGain],([levels,duck])=>({levels,duck})).subscribe(value => {
+    // Only an overlay duck glides; the player's own volume and mute changes stay immediate.
+    const ducking=value.duck!==duck;
+    levels = value.levels;duck=value.duck;
+    if (mix && context) mix.gain.setTargetAtTime(busGain(levels, 'music')*duck, context.currentTime, ducking?.1:.02);
   });
 
   function start() {
@@ -75,7 +80,7 @@ export function createMenuMusic(options: Options = {}): MenuMusic {
     if (!options.createContext && typeof AudioContext === 'undefined') throw new Error('Audio is unavailable');
     context = options.createContext ? options.createContext() : new AudioContext();
     mix = context.createGain();
-    mix.gain.value = busGain(levels, 'music');
+    mix.gain.value = busGain(levels, 'music')*duck;
     mix.connect(context.destination);
     titleGain = context.createGain();
     titleGain.gain.value = (titleScreen ? .25 : 1) * (options.volume ?? 1);

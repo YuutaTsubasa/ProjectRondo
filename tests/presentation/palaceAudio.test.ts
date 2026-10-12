@@ -23,15 +23,15 @@ it('lets the goal cue finish while completed scene music freezes',()=>{
  expect(music.setActive).toHaveBeenLastCalledWith(false);
  audio.dispose();expect(media.every(m=>m.paused)).toBe(true);expect(music.dispose).toHaveBeenCalledOnce();
 });
-it('uses the dedicated decoded palace cue and retries unlock only while active',()=>{
+it('uses the dedicated decoded palace cue and keeps unlock available under pause after playback starts',()=>{
  const {audio,music,media}=fixture();
  expect(createMenuMusic).toHaveBeenCalledWith({url:'/audio/music/palace_arcade.ogg',volume:.5,preservePosition:true});
  expect(media).toHaveLength(18);
  window.dispatchEvent(new Event('pointerdown'));expect(music.unlock).not.toHaveBeenCalled();
  audio.pause(false);expect(music.unlock).toHaveBeenCalledOnce();
  window.dispatchEvent(new Event('keydown'));expect(music.unlock).toHaveBeenCalledTimes(2);
- audio.pause(true);window.dispatchEvent(new Event('pointerdown'));expect(music.unlock).toHaveBeenCalledTimes(2);
- audio.dispose();window.dispatchEvent(new Event('keydown'));expect(music.unlock).toHaveBeenCalledTimes(2);
+ audio.pause(true);window.dispatchEvent(new Event('pointerdown'));expect(music.unlock).toHaveBeenCalledTimes(4);
+ audio.dispose();window.dispatchEvent(new Event('keydown'));expect(music.unlock).toHaveBeenCalledTimes(4);
 });
 
 it('plays actual jump, impact, death and collection edges only once',()=>{

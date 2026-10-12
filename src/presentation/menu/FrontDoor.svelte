@@ -1,4 +1,8 @@
 <script lang="ts">
+  import {onMount} from 'svelte';
+  import {mountMenuUiAudio} from '../audio/menuUiAudio';
+  import InformationDialog from './InformationDialog.svelte';
+  import {exitGame} from '../../app/exitGame';
   import {inputStatus} from '../input/deviceInput';
   import {inputHint} from '../input/hints';
   import type { FrontDoorAction, FrontDoorPhase } from '../../app/frontDoor';
@@ -19,23 +23,30 @@
     {action:'exit', label:'離開遊戲', text:'EXIT', detail:'離開遊戲'},
   ] as const;
   const innerPage=$derived(phase==='new-game'||phase==='load-game'||phase==='extras');
-  let closeAttempted = $state(false);
-  function quit(){closeAttempted=true;window.close();}
+  let exitError = $state('');
+  let exitAttempt = $state(0);
+  $effect(()=>{if(phase!=='exit')exitError='';});
+  async function quit(){
+    try{await exitGame(()=>onAction('title'));}
+    catch{exitError='無法關閉遊戲，請再試一次，或取消返回選單。';exitAttempt++;}
+  }
   let menuIndex = $state(0);
   let panel: HTMLElement;
+  onMount(()=>mountMenuUiAudio(panel));
   let previous: FrontDoorPhase | undefined;
   let revealMenu = $state(false);
   $effect(() => {
     const returnAction = phase==='menu'?({settings:'settings',extras:'extras','load-game':'load-game','new-game':'start',exit:'exit'} as Partial<Record<FrontDoorPhase,string>>)[previous!]:undefined;
     revealMenu = previous === 'title' && phase === 'menu';
     previous = phase;
+    if(phase==='exit')return; // The confirmation dialog owns focus.
     const target = returnAction ? `[data-action="${returnAction}"]` : '[data-initial]:not([disabled])';
-    const timer = setTimeout(() => panel?.querySelector<HTMLElement>(target)?.focus(), 0);
+    const timer = setTimeout(() => panel?.querySelector<HTMLElement>(target)?.focus({preventScroll:true}), 0);
     return () => clearTimeout(timer);
   });
 
   function keydown(event: KeyboardEvent) {
-    if (innerPage || phase === 'settings' || event.defaultPrevented || event.repeat || event.ctrlKey || event.altKey || event.metaKey) return;
+    if (innerPage || phase === 'exit' || phase === 'settings' || event.defaultPrevented || event.repeat || event.ctrlKey || event.altKey || event.metaKey) return;
     if (phase === 'title' && !['Tab', 'Escape', 'Shift', 'Control', 'Alt', 'Meta'].includes(event.key)) {
       event.preventDefault();
       onAction('activate');
@@ -45,25 +56,25 @@
       event.preventDefault();
       const buttons = [...panel.querySelectorAll<HTMLButtonElement>('nav button')];
       const current = buttons.indexOf(document.activeElement as HTMLButtonElement);
-      buttons[(current + (event.key === 'ArrowDown' ? 1 : buttons.length - 1) + buttons.length) % buttons.length]?.focus();
+      buttons[(current + (event.key === 'ArrowDown' ? 1 : buttons.length - 1) + buttons.length) % buttons.length]?.focus({preventScroll:true});
     }
   }
 </script>
 
 <svelte:window onkeydown={keydown} />
-<main data-input-scope class="front-door" class:is-loading={phase === 'loading'} class:is-settings={phase === 'settings'} class:is-inner={innerPage} class:is-title={phase === 'title'} class:is-panel={phase !== 'title' && phase !== 'menu' && phase !== 'loading'} class:reveal-menu={revealMenu} bind:this={panel}>
+<main data-input-scope class="front-door" class:is-loading={phase === 'loading'} class:is-settings={phase === 'settings'} class:is-inner={innerPage} class:is-title={phase === 'title'} class:is-panel={phase !== 'title' && phase !== 'menu' && phase !== 'exit' && phase !== 'loading'} class:reveal-menu={revealMenu} bind:this={panel}>
   <div class="art-reveal"><FrontDoorArtwork active={phase !== 'title'} loading={phase === 'loading'} settings={phase === 'settings'} inner={innerPage} /></div>
-  {#if phase === 'title' || phase === 'menu'}
+  {#if phase === 'title' || phase === 'menu' || phase === 'exit'}
     <div class="logo-lockup"><RondoWordmark /></div>
   {/if}
   {#key phase}
-    <section class="content" aria-label={phase === 'title' ? '標題畫面' : phase === 'settings' ? '遊戲設定' : phase === 'loading' ? '載入畫面' : '主選單'}>
+    <section class="content" inert={phase==='exit'} aria-label={phase === 'title' ? '標題畫面' : phase === 'settings' ? '遊戲設定' : phase === 'loading' ? '載入畫面' : '主選單'}>
       {#if phase === 'title'}
         <button class="begin" data-initial onclick={() => onAction('activate')} aria-label="進入主選單">
           <span class="begin-diamond" aria-hidden="true">✦</span>
           <span>{$inputStatus.device==='touch'?'TOUCH TO START':$inputStatus.device==='gamepad'?'PRESS ANY BUTTON':'PRESS ANY KEY'}<small>{$inputStatus.device==='touch'?'輕觸開始':$inputStatus.device==='gamepad'?'按任意按鈕開始':'按任意鍵開始'}</small></span>
         </button>
-      {:else if phase === 'menu'}
+      {:else if phase === 'menu' || phase === 'exit'}
         <nav aria-label="主選單選項" style={`--selection:${menuIndex}`}>
           <div class="selection-ribbon" aria-hidden="true"></div>
           {#each menuEntries as entry, index}
@@ -77,16 +88,9 @@
           {/each}
         </nav>
         <p class="menu-caption">{menuEntries[menuIndex].detail}</p>
-        <button class="back" onclick={() => onAction('back')}>← 返回標題</button>
+        <button class="back" data-ui-sound="back" onclick={() => onAction('back')}>← 返回標題</button>
       {:else if phase === 'extras' || phase === 'new-game' || phase === 'load-game'}
         <MenuSubpages {phase} {onAction} {saveAvailable} {saveProgress} {menuError}/>
-      {:else if phase === 'exit'}
-        <div class="eyebrow">UNTIL WE MEET AGAIN</div><h1 class="settings-title">EXIT</h1>
-        <p class="panel-copy">離開遊戲？已儲存的進度會保留。</p>
-        <button class="panel-action" onclick={quit}>關閉遊戲</button>
-        {#if closeAttempted}<p class="panel-copy" role="status">若此頁仍開啟，請手動關閉瀏覽器分頁。</p>{/if}
-        <button class="back" onclick={()=>onAction('title')}>返回標題</button>
-        <button class="back" data-initial onclick={()=>onAction('back')}>← 返回主選單</button>
       {:else if phase === 'settings'}
         <SettingsScreen onClose={() => onAction('back')}/>
       {:else if phase === 'loading'}
@@ -96,7 +100,7 @@
         <h1 class="settings-title">稍等一下</h1>
         <p role="alert">遊戲載入失敗，請確認連線後再試一次。</p>
         <button class="menu-button primary" data-initial onclick={() => onAction('retry')}>重新載入 <span aria-hidden="true">↗</span></button>
-        <button class="back" onclick={() => onAction('back')}>← 返回主選單</button>
+        <button class="back" data-ui-sound="back" onclick={() => onAction('back')}>← 返回主選單</button>
       {/if}
       {#if menuError&&!innerPage}<p class="panel-copy" role="alert">{menuError}</p>{/if}
     </section>
@@ -106,11 +110,19 @@
     <div class="footer-message"><span>A SMALL STEP.</span><span>FOR A WIDER WORLD.</span><i></i></div>
     <div class="footer-right"><span>{phase === 'menu' ? $inputStatus.device==='touch'?'輕觸選項 · 使用返回按鈕返回':`${inputHint('↑ ↓',$inputStatus)} 選擇　 ${inputHint('Enter',$inputStatus)} 確認　 ${inputHint('Esc',$inputStatus)} 返回` : phase === 'title' ? 'PROJECT RONDO' : phase === 'loading' ? '正在載入，請稍候' : `${inputHint('Esc',$inputStatus)} 返回`}</span><small>PROJECT RONDO · DEVELOPMENT BUILD</small></div>
   </footer>
+  {#if phase==='exit'}
+    {#key exitAttempt}
+      <InformationDialog ariaLabel="離開遊戲確認" title="是否離開遊戲？"
+        body={exitError||'已儲存的進度會保留。確認後將關閉 APP；網頁版會返回開始畫面。'}
+        onClose={()=>onAction('back')}
+        actions={[{label:'取消',english:'CANCEL',run:()=>onAction('back')},{label:'確定',english:'CONFIRM',run:()=>{void quit();},primary:true}]}/>
+    {/key}
+  {/if}
 </main>
 
 <style>
   .is-loading .content{inset:0;width:100%;max-width:none;min-width:0;animation:none}.is-loading footer{display:none}
-  .front-door{--menu-row:clamp(34px,4.15cqh,48px);--menu-indent:8.3cqw;position:fixed;inset:0;z-index:10;overflow:auto;overflow-x:hidden;background:#d5e6fb;color:#173457;font-family:var(--font-body)}
+  .front-door{--menu-row:clamp(34px,4.15cqh,48px);--menu-indent:8.3cqw;position:fixed;inset:0;z-index:10;overflow:clip;overscroll-behavior:none;background:#d5e6fb;color:#173457;font-family:var(--font-body)}
   .logo-lockup{position:absolute;top:25%;left:3.5%;width:31.5%;z-index:3;transition:left .65s cubic-bezier(.65,0,.2,1),top .65s cubic-bezier(.65,0,.2,1),transform .65s cubic-bezier(.65,0,.2,1)}
   .art-reveal{position:absolute;inset:0}
   .reveal-menu .content{animation:menu-enter .3s .2s both}
@@ -141,20 +153,15 @@
   .is-panel .content{top:20%;left:6%;width:360px;max-width:85cqw}
   .is-panel .back{margin-left:0;margin-top:18px}
   .panel-copy{font-size:13px;line-height:1.9;margin:20px 0;color:#39567b}
-  .panel-action{display:block;padding:12px 22px;min-width:190px;background:#2863ed;color:white;font-size:13px;letter-spacing:1px}.panel-action:disabled{background:#d7dfec;color:#708097;cursor:default}.is-panel .back{display:block}
+  .is-panel .back{display:block}
   .eyebrow{font:10px var(--font-body);letter-spacing:3px;margin-bottom:14px}
   .settings-title{font:400 clamp(30px,4cqw,60px)/1.1 Georgia,serif;letter-spacing:-.03em;margin:0 0 15px}
-  [role=status],[role=alert]{font-size:13px;line-height:1.8;margin-bottom:22px}
+  [role=alert]{font-size:13px;line-height:1.8;margin-bottom:22px}
   .primary{color:white;background:#2863ed;padding-left:20px;font-size:14px;letter-spacing:1px}
   @keyframes breathe{50%{opacity:.35}}
   @keyframes menu-enter{from{opacity:0;translate:-14px 0}to{opacity:1;translate:0 0}}
-  @container game-ui (max-width:900px){.logo-lockup{width:42%;top:28%}.content{width:36%;min-width:270px}.menu-caption{font-size:9px}.menu-button{font-size:13px}.is-panel .content{top:17%}}
-  @container game-ui (max-width:650px){.front-door{--menu-indent:12cqw;--menu-row:42px}.logo-lockup{left:6%;width:68%;top:22%}.content{top:46%;width:65%;min-width:255px}.menu-button{font-size:13px}.menu-caption{font-size:9px;max-width:80%;white-space:normal}.is-panel .content{left:8%;top:18%}.footer-message{display:none}footer{justify-content:flex-end;right:6%;bottom:3%}.footer-right span{font-size:8px}}
-  @container game-ui (max-height:650px) and (min-width:651px){.logo-lockup{top:19%;width:30%}.content{top:50%;--menu-row:30px}.menu-button{font-size:12px}.menu-caption{margin-top:8px}.back{margin-top:6px}.is-panel .content{top:8%}}
-  @container game-ui (max-height:500px){.front-door{min-height:0}.content{position:relative;padding-bottom:90px}.is-panel .content{padding-top:30px;top:0}footer{position:fixed}.logo-lockup{top:12%}}
   .is-title .content{position:absolute;left:50%;top:65%;width:340px;max-width:90%;min-width:0;transform:translateX(-50%);padding:0;animation:none}
   .is-title .logo-lockup{left:50%;top:43%;transform:translate(-50%,-50%)}
-  @container game-ui (max-height:500px){.is-title .logo-lockup{top:38%}.is-title .content{top:72%}}
   @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
   .front-door.is-loading .content{inset:0;width:100%;max-width:none;min-width:0}
   .front-door.is-settings .content{position:static;inset:auto;width:auto;max-width:none;min-width:0;padding:0;animation:none}.is-settings:after,.is-settings footer{display:none}
