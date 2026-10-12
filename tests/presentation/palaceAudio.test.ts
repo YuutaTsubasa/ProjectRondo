@@ -58,3 +58,11 @@ it('rotates the eight sword takes once per actual swing and suppresses them whil
  audio.pause(true);audio.update(winding,slashing);
  expect(swings[1].play).toHaveBeenCalledOnce();audio.dispose();
 });
+
+it('plays a new impact when another core regenerates in the same simulation frame',()=>{
+ const {audio,media}=fixture();audio.pause(false);
+ const before=createPalaceRun();before.guards[0].defeated=true;
+ const after={...before,guards:before.guards.map((g,i)=>({...g,defeated:i===1}))};
+ audio.update(before,after);audio.update(after,after);
+ expect(media.find(m=>m.src.endsWith('/hit.wav'))!.play).toHaveBeenCalledOnce();audio.dispose();
+});

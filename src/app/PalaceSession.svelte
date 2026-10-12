@@ -1,16 +1,19 @@
 <script lang="ts">
  import UiViewport from '../presentation/layout/UiViewport.svelte';
   import {recordStageClear} from './stageRecords';
-  import { onMount } from 'svelte';
+  import { onMount,untrack } from 'svelte';
   import {retainMenuPortraitAfter} from '../presentation/menu/sharedMenuPortrait';
   import { Engine } from '@babylonjs/core/Engines/engine';
   import { createLevelSwap } from './levelSwap';
   import { createPalaceScene,type PalaceScene } from '../presentation/palace/palaceScene';
+  import {getPalaceStage} from '../domain/palace/palaceStages';
   import { createPalaceRun } from '../domain/palace/palaceRun';
   import PalaceHud from '../presentation/palace/PalaceHud.svelte';
-  let {onReady,onFailure,onExit,onComplete,exitLabel='返回主選單'}:{onReady:()=>void;onFailure:(error:unknown)=>void;onExit?:()=>void;onComplete?:()=>void;exitLabel?:string}=$props();
+  let {onReady,onFailure,onExit,onComplete,stageId='palace',exitLabel='返回主選單'}:{onReady:()=>void;onFailure:(error:unknown)=>void;onExit?:()=>void;onComplete?:()=>void;exitLabel?:string;stageId?:string}=$props();
+  // One session owns one scene; stage changes are mounted as a new session.
+  const stage=untrack(()=>getPalaceStage(stageId));
   let canvas:HTMLCanvasElement;
-  let run=$state(createPalaceRun());
+  let run=$state(createPalaceRun(stage.layout));
   let status=$state<'loading'|'playing'|'paused'|'finished'>('loading');
   let palace:PalaceScene|undefined;
   let discardNextFrame=false;
@@ -48,13 +51,13 @@
       if(document.hidden){pause();return;}
       if(discardNextFrame){discardNextFrame=false;palace.scene.resetLastAnimationTimeFrame();return;}
       run=palace.advance(engine.getDeltaTime()/1000);
-      if(run.finished){status='finished';palace.suspendInput(true);recordStageClear('palace',run.elapsed);onComplete?.();}
+      if(run.finished){status='finished';palace.suspendInput(true);recordStageClear(stage.id,run.elapsed);onComplete?.();}
     });
     const resize=()=>engine.resize();
     const hidden=()=>{if(document.hidden)pause();};
     window.addEventListener('resize',resize);document.addEventListener('visibilitychange',hidden);resize();
     swap.swap(async()=>{
-      try{return await createPalaceScene(engine);}
+      try{return await createPalaceScene(engine,stage);}
       catch(error){if(live)onFailure(error);throw error;}
     },built=>{
       palace=built;run=built.state;status='playing';
@@ -65,9 +68,9 @@
   });
 </script>
 <svelte:window onkeydown={keydown}/>
-<canvas bind:this={canvas} tabindex="-1" data-game-entry aria-label="白色宮殿遊戲畫面" style="width:100vw;height:100vh;display:block"></canvas>
+<canvas bind:this={canvas} tabindex="-1" data-game-entry aria-label={`白色宮殿 ${stage.number} ${stage.title} 遊戲畫面`} style="width:100vw;height:100vh;display:block"></canvas>
 <UiViewport>
 <div bind:this={dialogHost}>
-{#if status!=='loading'}<PalaceHud {run} {status} onPause={pause} onResume={resume} onRestart={restart} onExit={leave} {exitLabel}/>{/if}
+{#if status!=='loading'}<PalaceHud {stage} {run} {status} onPause={pause} onResume={resume} onRestart={restart} onExit={leave} {exitLabel}/>{/if}
 </div>
 </UiViewport>

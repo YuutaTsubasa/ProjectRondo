@@ -1,27 +1,25 @@
 <script lang="ts">
  import {duckMusic} from '../audio/musicDucking';
  import {readStageBest,stageTime} from '../../app/stageRecords';
- import {COURSE_RANK_TIMES,PALACE_RANK_TIMES} from '../../domain/course/stageScore';
+ import {getStageInfo} from '../../content/stageCatalog';
+ import type {StageId} from '../../domain/stage/stageIds';
  import {navigateUi} from '../input/uiNavigation';
  import {tick} from 'svelte';
  import {regionModal} from './regionModal';
  import {createExitMotion} from '../motion/exitMotion.svelte';
  import SettingsScreen from '../settings/SettingsScreen.svelte';
  import InputHint from '../input/InputHint.svelte';
- import {COURSE_GATES} from '../../domain/course/courseLayout';
- import {COURSE_GUARD_SPAWNS} from '../../domain/course/courseCombat';
- import {PALACE_LAYOUT} from '../../domain/palace/palaceLayout';
- import type {RegionExpeditionId} from '../../domain/region/regionProgress';
- let {expedition,completed=false,onStart,onClose,onMap}:{expedition:RegionExpeditionId;completed?:boolean;onStart:()=>void;onClose:()=>void;onMap:()=>void}=$props();
+ let {expedition,completed=false,onStart,onClose,onMap}:{expedition:StageId;completed?:boolean;onStart:()=>void;onClose:()=>void;onMap:()=>void}=$props();
  let settings=$state(false),dialog:HTMLDivElement;
  const exit=createExitMotion(280);
- const course=$derived(expedition==='course');
+ const info=$derived(getStageInfo(expedition));
+ const course=$derived(info.kind==='course');
  const best=$derived(readStageBest(expedition));
- const recommended=$derived(course?COURSE_RANK_TIMES[0]:PALACE_RANK_TIMES[0]);
- const title=$derived(course?'白宮天廊':'白宮引水道');
- const objectives=$derived(course?['穿越白石露臺與懸空拱橋','啟動沿途紀錄點','抵達白塔中繼台']:['穿越宮殿維修水道','突破騎士守衛的封鎖','抵達末端閘門']);
- const guardCount=$derived(course?COURSE_GUARD_SPAWNS.length:PALACE_LAYOUT.guards.length);
- const checkpointCount=$derived(course?COURSE_GATES.length-1:PALACE_LAYOUT.checkpoints.length);
+ const recommended=$derived(info.times[0]);
+ const title=$derived(info.title);
+ const objectives=$derived(info.objectives);
+ const guardCount=$derived(info.guards);
+ const checkpointCount=$derived(info.checkpoints);
  async function closeSettings(){settings=false;await tick();dialog.querySelector<HTMLButtonElement>('[aria-label="系統設定"]')?.focus();}
  function keys(e:KeyboardEvent){
   if(settings||e.defaultPrevented||e.ctrlKey||e.metaKey||e.altKey)return;
@@ -32,7 +30,7 @@
  }
 </script>
 <svelte:window onkeydown={keys}/>
-{#if settings}<SettingsScreen onClose={closeSettings} chapterTitle={title} chapterNumber="01" subtitle="白色王城"/>{/if}
+{#if settings}<SettingsScreen onClose={closeSettings} chapterTitle={title} chapterNumber={info.number} subtitle="白色王城"/>{/if}
 <div use:duckMusic class="expedition-intro" class:leaving={exit.leaving} class:covered={settings} inert={settings} role="dialog" aria-modal="true" aria-label="關卡介紹" aria-labelledby="region-dialog-title" aria-busy={exit.leaving} tabindex="-1" bind:this={dialog} use:regionModal>
  <div class="veil" aria-hidden="true"></div>
  <div class="shell">
@@ -46,20 +44,20 @@
   </aside>
   <main class="sheet">
    <div class="copy">
-    <p class="chapter">CHAPTER <strong>01</strong></p>
+    <p class="chapter">CHAPTER <strong>{info.number}</strong></p>
     <header><span aria-hidden="true">✦</span><h1 id="region-dialog-title">{title}</h1><i></i></header>
     <p class="english">{course?'THE WHITE PALACE SKYWAY':'THE PALACE AQUEDUCT'}</p>
-    <p class="description">{course?'白塔的回聲，正從高處呼喚。':'停下的潮聲，在石壁之間等待。'}<br/>{course?'沿王宮高塔間的白石天廊前進，跨越斷開的拱橋與水晶路線，重新接通草原與港口的中繼台。':'沿狹窄的宮殿維修水道前進，穿過騎士守衛的封鎖，讓王城與港口之間的水流再次相連。'}</p>
+    <p class="description">{info.description}</p>
     <div class="mode"><span>{course?'3D ACTION':'SIDE-SCROLLING'}</span><p>{course?'跑跳 · 二段跳 · 揮劍 · 空中盾衝':'橫向跑跳 · 二段跳 · 揮劍 · 盾衝'}</p></div>
    </div>
-   <figure class="preview"><img src={course?'/stages/palace-skyway.webp':'/stages/palace-aqueduct.webp'} alt={title+'實際關卡場景'}/><figcaption><span>WHITE PALACE</span><b>{completed?'已完成 · 可再次挑戰':'遠征路線已開啟'}</b></figcaption></figure>
+   <figure class="preview"><img src={info.preview} alt={title+'場景風格示意'}/><figcaption><span>WHITE PALACE</span><b>{completed?'已完成 · 可再次挑戰':'遠征路線已開啟'}</b></figcaption></figure>
    <section class="objectives"><h2><span aria-hidden="true">✧</span>任務目標<small>OBJECTIVES</small></h2><ol>{#each objectives as objective,i}<li class:primary={i===0}><span aria-hidden="true">{i===0?'◆':'✦'}</span>{objective}</li>{/each}</ol></section>
    <section class="details" aria-label="關卡情報">
     <div class="timing"><span class="detail-icon" aria-hidden="true">◷</span><h2>建議時間<small>BEST / TARGET</small></h2><strong><span aria-label="最佳紀錄">{stageTime(best)}</span><em>/</em><span aria-label="建議時間">{stageTime(recommended)}</span></strong></div>
     <div><span class="detail-icon" aria-hidden="true">◇</span><h2>紀錄點<small>CHECKPOINTS</small></h2><strong>{checkpointCount}<small>處</small></strong></div>
     <div><span class="detail-icon" aria-hidden="true">♜</span><h2>騎士守衛<small>GUARDS</small></h2><strong>{guardCount}<small>名</small></strong></div>
-    {#if !course}<div><span class="detail-icon" aria-hidden="true">◈</span><h2>金幣<small>COINS</small></h2><strong>{PALACE_LAYOUT.coins.length}<small>枚</small></strong></div>{/if}
-    <p class="return-note">建議時間依 S 評級門檻設定。<br/>完成後返回{course?'白塔廣場':'白潮原野'}，繼續悠太翼的旅程。</p>
+    <div><span class="detail-icon" aria-hidden="true">◈</span><h2>金幣<small>COINS</small></h2><strong>{info.coins}<small>枚</small></strong></div>
+    <p class="return-note">建議時間依 S 評級門檻設定。<br/>完成後返回白色王城，繼續悠太翼的旅程。</p>
    </section>
    <div class="actions"><button class="later" aria-label="稍後再來" onclick={()=>exit.run(onClose)}>稍後再來 <span>BACK</span></button><button class="start" data-game-entry aria-label="開始遠征" onclick={()=>exit.run(onStart)}>開始遠征 <span>START EXPEDITION</span><b aria-hidden="true">→</b></button></div>
   </main>

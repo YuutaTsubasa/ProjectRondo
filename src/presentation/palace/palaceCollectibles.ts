@@ -6,14 +6,14 @@ import { CreateSphere } from '@babylonjs/core/Meshes/Builders/sphereBuilder';
 import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
 import { Color3 } from '@babylonjs/core/Maths/math.color';
 import { VertexBuffer } from '@babylonjs/core/Buffers/buffer';
-import { PALACE_LAYOUT } from '../../domain/palace/palaceLayout';
+import { PALACE_LAYOUT, type PalaceLayout } from '../../domain/palace/palaceLayout';
 import type { PalaceRun } from '../../domain/palace/palaceRun';
 import type { PalaceMaterials } from './palaceMaterials';
 import { createBeveledBox } from './palaceArchitecture';
 
 /** A minted disc, raised rim and a two-sided diamond seal, all one gold draw per coin. */
-export function createPalaceCoins(scene: Scene, materials: PalaceMaterials) {
-  return PALACE_LAYOUT.coins.map((p, i) => {
+export function createPalaceCoins(scene: Scene, materials: PalaceMaterials,layout:PalaceLayout=PALACE_LAYOUT) {
+  return layout.coins.map((p, i) => {
     const disc = CreateCylinder('coinDisc', { diameter: .5, height: .075, tessellation: 40 }, scene);
     disc.rotation.x = Math.PI / 2;
     const parts = [disc];
@@ -35,7 +35,7 @@ export function createPalaceCoins(scene: Scene, materials: PalaceMaterials) {
 }
 
 /** One reusable burst follows the newest checkpoint; its clock is the paused game clock. */
-export function createCheckpointFeedback(scene: Scene, markers: Mesh[]) {
+export function createCheckpointFeedback(scene: Scene, markers: Mesh[],layout:PalaceLayout=PALACE_LAYOUT) {
   const light = (name: string, color: string) => {
     const material = new StandardMaterial(name, scene);
     material.disableLighting = true; material.emissiveColor = Color3.FromHexString(color);
@@ -55,7 +55,7 @@ export function createCheckpointFeedback(scene: Scene, markers: Mesh[]) {
     if (run.elapsed < previousTime || run.checkpoint < previous) { previous = -1; started = null; }
     if (run.checkpoint > previous) {
       started = run.elapsed;
-      const point = PALACE_LAYOUT.checkpoints[run.checkpoint]!;
+      const point = layout.checkpoints[run.checkpoint]!;
       pulse.position.set(point.x, point.y + .04, 0);
     }
     previous = run.checkpoint; previousTime = run.elapsed;

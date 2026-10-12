@@ -138,3 +138,29 @@ it('opens and closes the region pause menu with controller Start after the openi
   expect(document.querySelector('[data-world-paused=false]')).not.toBeNull();
  } finally {stop();owner.dispose();deviceInput.poll(null,64);deviceInput.claim('keyboard');}
 });
+
+
+it.each(['course-2','course-3','course-4','course-5','palace-1-2','palace-1-3','palace-1-4','palace-1-5'])('enters %s, returns to its city portal, and preserves the main quest',async(id)=>{
+ await start();await skip();await move(id);key('e');await settle();
+ expect(document.querySelector('[aria-label="關卡介紹"]')).not.toBeNull();
+ button('查看關卡地圖').click();await settle();button('關閉區域地圖').click();await settle();
+ button('開始遠征').click();await settle();
+ expect(document.querySelector('[data-expedition]')?.getAttribute('data-expedition')).toBe(id);
+ const saved=JSON.parse(localStorage.getItem(REGION_SAVE_KEY)!);
+ button('fixture clear').click();await settle();button('返回白色王城').click();await settle();
+ expect(JSON.parse(document.querySelector('[data-spawn]')!.getAttribute('data-spawn')!)).toEqual(saved.position);
+ expect(JSON.parse(localStorage.getItem(REGION_SAVE_KEY)!).progress).toEqual(saved.progress);
+ expect(document.querySelector('[data-world-paused=false]')).not.toBeNull();
+});
+
+it('completes the optional city walk in order without replacing the chapter save',async()=>{
+ await start();await skip();const before=JSON.parse(localStorage.getItem(REGION_SAVE_KEY)!).progress;
+ await move('city-forecourt');key('e');await settle();expect(button('SKIP')).toBeUndefined();
+ for(const id of ['city-market','city-residential','city-forecourt','city-belvedere']){
+  await move(id);key('e');await settle();expect(document.body.textContent).toContain('白色王城 · 沿潮聲走');
+  await skip();
+  const choice=document.querySelector<HTMLButtonElement>('[aria-labelledby="choices-head"] button.choice');if(choice){choice.click();await settle();await skip();}
+ }
+ expect(JSON.parse(localStorage.getItem('rondo.city-journey.v1')!).done).toEqual(['city-market','city-residential','city-forecourt','city-belvedere']);
+ expect(JSON.parse(localStorage.getItem(REGION_SAVE_KEY)!).progress).toEqual(before);
+});

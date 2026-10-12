@@ -1,3 +1,7 @@
+import {createTownDistricts} from './townDistricts';
+import {ORIGINAL_TOWN_BOUNDS} from '../../domain/town/townTerraces';
+import {createTownSkyline} from './townSkyline';
+import {createTownTerraces} from './townTerraces';
 import type {Scene} from '@babylonjs/core/scene';
 import {Mesh} from '@babylonjs/core/Meshes/mesh';
 import {CreateBox} from '@babylonjs/core/Meshes/Builders/boxBuilder';
@@ -32,7 +36,7 @@ export function createTownScenery(scene:Scene,assets:readonly TownAssetPlacement
   new PhysicsAggregate(mesh,PhysicsShapeType.BOX,{mass:0,friction:.8},scene);
   if(camera)cameraSolids.push({min:new Vector3(x-w/2,y-h/2,z-d/2),max:new Vector3(x+w/2,y+h/2,z+d/2)});
  };
- const depth=TOWN_BOUNDS.maxZ-TOWN_BOUNDS.minZ,centerZ=(TOWN_BOUNDS.maxZ+TOWN_BOUNDS.minZ)/2;
+ const depth=ORIGINAL_TOWN_BOUNDS.maxZ-ORIGINAL_TOWN_BOUNDS.minZ,centerZ=(ORIGINAL_TOWN_BOUNDS.maxZ+ORIGINAL_TOWN_BOUNDS.minZ)/2;
  solid('town-ground-collider',0,-1,centerZ,80,2,depth,false);
  box('town-foundation',0,-1.6,centerZ,80,3.2,depth,stone,false);
  box('town-ground',0,-.035,centerZ,80,.06,depth,paving,false);
@@ -45,7 +49,7 @@ export function createTownScenery(scene:Scene,assets:readonly TownAssetPlacement
  box('sea-walk',33,.025,centerZ,8,.05,depth-8,light,false);box('cross-street',20,.026,24,30,.05,7,paving,false);
  for(const x of [-6.3,6.3])box('sidewalk',x,.02,-20,2.3,.04,84,light,false);
  // Low parapets make the water boundary visible; falling beyond it still resets safely.
- const parapets:number[][]=[[39,centerZ,1,depth],[-39,centerZ,1,depth],[0,56,78,1]];
+ const parapets:number[][]=[[39,centerZ,1,depth],[-39,-27.5,1,71],[-39,36.5,1,41],[0,56,44,1],[-38.5,56,1,1],[38.5,56,1,1]];
  const opening=Math.max(0,Math.min(76,options.southExitWidth??0));
  if(opening){const width=(78-opening)/2;for(const sign of [-1,1])parapets.push([sign*(opening/2+width/2),TOWN_BOUNDS.minZ+1,width,1]);}
  else parapets.push([0,TOWN_BOUNDS.minZ+1,78,1]);
@@ -72,7 +76,7 @@ export function createTownScenery(scene:Scene,assets:readonly TownAssetPlacement
     solid('gate-wing-collider',x,1.65,center.z,width,3.3,1.4);
    }
    }
-  }else solid(asset.id+'-collider',center.x,size.y/2,center.z,size.x*.92,size.y,size.z*.92);
+  }else solid(asset.id+'-collider',center.x,center.y,center.z,size.x*.92,size.y,size.z*.92);
   // Overall bounds include roof eaves and porticoes; a visible box here would cover recessed facades.
 
  }
@@ -103,5 +107,7 @@ export function createTownScenery(scene:Scene,assets:readonly TownAssetPlacement
  for(const group of groups.values()){
   const mesh=Mesh.MergeMeshes(group.parts,true,true,undefined,false,false)!;mesh.name='town-static-'+mesh.material!.name;mesh.isPickable=false;mesh.freezeWorldMatrix();receivers.push(mesh);if(group.cast)casters.push(mesh);
  }
- return {casters,receivers,cameraSolids};
+ const terraces=createTownTerraces(scene),districts=createTownDistricts(scene);
+ createTownSkyline(scene);
+ return {casters:[...casters,...terraces.casters,...districts.casters],receivers:[...receivers,...terraces.receivers,...districts.receivers],cameraSolids:[...cameraSolids,...terraces.cameraSolids,...districts.cameraSolids]};
 }

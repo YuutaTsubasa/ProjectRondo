@@ -110,3 +110,11 @@ describe('white palace course scenery', () => {
     expect(bounds.maximumWorld.y - bounds.minimumWorld.y).toBeGreaterThan(1);
   });
 });
+
+it('builds the selected high course with its exact platform and gate geometry',async()=>{
+ const {getCourseStage}=await import('../../src/domain/course/courseStages');const stage=getCourseStage('course-3');
+ createCourseScenery(scene,stage);
+ expect(scene.meshes.filter(m=>m.name.startsWith('courseSupport_'))).toHaveLength(stage.platforms.length);
+ for(const p of stage.platforms){const support=scene.getMeshByName('courseSupport_'+p.id)!;support.computeWorldMatrix(true);expect(support.getBoundingInfo().boundingBox.maximumWorld.y).toBeCloseTo(p.center.y);}
+ expect(scene.meshes.some(m=>m.name.startsWith('coursePalaceGate_'+(stage.gates.length-1)+':'))).toBe(true);
+});

@@ -1,3 +1,4 @@
+import {CITY_LOOP,CITY_EXPLORATION_ROUTE} from '../../src/domain/town/townTerraces';
 // @vitest-environment jsdom
 import { expect, it, vi } from 'vitest';
 import { NullEngine } from '@babylonjs/core/Engines/nullEngine';
@@ -11,7 +12,7 @@ it('keeps interactions and every road clear of scenery colliders', () => {
     const scenery = createRegionScenery(scene);
     const isBlocked = (x: number, z: number) => scenery.cameraSolids.some(b => b.min.x < x + .65 && b.max.x > x - .65 && b.min.z < z + .65 && b.max.z > z - .65 && b.min.y < regionHeight(x, z) + 2.3 && b.max.y > regionHeight(x, z));
     for (const place of REGION_PLACES) expect(isBlocked(place.x, place.z)).toBe(false);
-    for (const trail of REGION_TRAILS) for (let i = 1; i < trail.length; i++) {
+    for (const trail of [...REGION_TRAILS,CITY_LOOP,CITY_EXPLORATION_ROUTE]) for (let i = 1; i < trail.length; i++) {
       const [ax, az] = trail[i - 1], [bx, bz] = trail[i];
       for (let t = 0; t <= 1; t += .025) {
         const x=ax+(bx-ax)*t,z=az+(bz-az)*t;

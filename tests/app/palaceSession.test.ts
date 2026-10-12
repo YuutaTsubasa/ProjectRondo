@@ -97,3 +97,10 @@ it('suspends on hidden page and keeps keyboard focus inside the pause menu',asyn
   stub.frame();expect(scene.advance).toHaveBeenCalledTimes(calls);
   stub.frame();expect(scene.advance).toHaveBeenCalledTimes(calls+1);
  });
+
+it('loads the selected palace course and shows its own counts and title',async()=>{
+ const palace=level();stub.build.mockResolvedValue(palace);
+ app=mount(PalaceSession,{target:document.body,props:{stageId:'palace-1-2',onReady:vi.fn(),onFailure:vi.fn()}});await settle();
+ expect(stub.build.mock.calls[0][1]).toMatchObject({id:'palace-1-2',number:'1-2'});
+ expect(document.body.textContent).toContain('1-2');expect(document.body.textContent).toContain('0 / 17');
+});

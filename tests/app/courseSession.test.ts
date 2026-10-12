@@ -190,3 +190,14 @@ it('uses combat life, recovers at checkpoint and fully resets guards on restart'
  [...document.querySelectorAll('button')].find(b=>b.textContent?.includes('重新開始'))!.click();await settle();
  expect(course.resetCombat).toHaveBeenLastCalledWith(true);
 });
+
+it('builds and restarts the selected course and reports its coins on the HUD',async()=>{
+ const {getCourseStage}=await import('../../src/domain/course/courseStages');const stage=getCourseStage('course-2'),course=level();stub.build.mockResolvedValue(course);
+ app=mount(CourseSession,{target:document.body,props:{stageId:stage.id,onReady:vi.fn(),onFailure:vi.fn(),onExit:vi.fn()}});await settle();
+ expect(stub.build.mock.calls[0][2]).toBe(stage);course.set(stage.coins[0]);stub.frame();await settle();
+ expect(document.querySelector('[aria-label="金幣 1 / '+stage.coins.length+'"]')).not.toBeNull();
+ window.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape'}));await settle();
+ [...document.querySelectorAll('button')].find(b=>b.textContent?.includes('重新開始'))!.click();await settle();
+ expect(course.player.teleport).toHaveBeenLastCalledWith(new Vector3(stage.spawn.x,stage.spawn.y,stage.spawn.z));
+ expect(document.querySelector('[aria-label="金幣 0 / '+stage.coins.length+'"]')).not.toBeNull();
+});

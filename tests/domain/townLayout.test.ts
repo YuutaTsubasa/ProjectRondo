@@ -12,7 +12,7 @@ describe('town preview layout',()=>{
  it('recovers sea falls and escaped bounds, but permits the street and promenade',()=>{
   expect(outsideTown(0,1,22)).toBe(false);expect(outsideTown(35,1,22)).toBe(false);
   expect(outsideTown(44,-1,22)).toBe(true);expect(outsideTown(0,-4,10)).toBe(true);
-  expect(outsideTown(0,1,90)).toBe(true);expect(outsideTown(NaN,1,0)).toBe(true);
+  expect(outsideTown(0,1,90)).toBe(false);expect(outsideTown(0,13,210)).toBe(true);expect(outsideTown(NaN,1,0)).toBe(true);
  });
  it('names the town districts according to position',()=>{
   expect(townLocation(0,-24)).toContain('街');expect(townLocation(0,23)).toContain('廣場');expect(townLocation(33,23)).toContain('海');

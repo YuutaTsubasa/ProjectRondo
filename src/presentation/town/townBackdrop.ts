@@ -14,7 +14,7 @@ export function createTownBackdrop(scene:Scene):void {
       const peak=19+layer*10+7*Math.sin(x*.034+layer)+4*Math.sin(x*.081-layer)+1.5*Math.sin(x*.23);
       for(let row=0;row<rows;row++){
         const t=row/(rows-1);
-        positions.push(x,-5+(peak+5)*t,104+layer*55+t*33+Math.sin(x*.049)*7);
+        positions.push(x,-5+(peak+5)*t,300+layer*55+t*33+Math.sin(x*.049)*7);
       }
     }
     for(let i=0;i<segments;i++)for(let row=0;row<rows-1;row++){

@@ -30,3 +30,15 @@ it('uses the same displaced mesh for visible ground and static support without c
     }
   } finally { scene.dispose(); engine.dispose(); }
 });
+
+it('keeps decorative headland triangles below walkable terrace edges',async()=>{
+ const {Ray}=await import('@babylonjs/core/Culling/ray');const {Vector3}=await import('@babylonjs/core/Maths/math.vector');
+ const engine=new NullEngine(),scene=new Scene(engine);
+ try{
+  createRegionTerrain(scene);const land=scene.getMeshByName('region-town-headland')!;land.computeWorldMatrix(true);
+  for(const [x,z] of [[0,144],[0,170],[-80,90],[-80,116]]){
+   const hit=new Ray(new Vector3(x,60,z),new Vector3(0,-1,0),80).intersectsMesh(land,false);
+   expect(hit.hit).toBe(true);expect(hit.pickedPoint!.y).toBeLessThan(regionHeight(x,z)-.3);
+  }
+ }finally{scene.dispose();engine.dispose();}
+});
