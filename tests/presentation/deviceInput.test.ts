@@ -64,3 +64,10 @@ it('consumes touch zoom once and drops it when leaving camera gameplay',()=>{
  h.touchZoom(1);rig.setEnabled(false);rig.setEnabled(true);expect(h.cameraZoom(.016)).toBe(0);rig.dispose();
  const fixed=h.registerGameplay(false);fixed.setEnabled(true);h.touchZoom(1);expect(h.cameraZoom(.016)).toBe(0);fixed.dispose();
 });
+
+it('ignores trigger drift at rest so the camera does not creep',()=>{
+ const h=createDeviceHub(),rig=h.registerGameplay(true);rig.setEnabled(true);
+ const resting=(value:number)=>({...pad(),buttons:pad().buttons.map((b,i)=>i===6||i===7?{pressed:false,value:i===6?value:0}:b)});
+ h.poll(pad(),0);h.poll(resting(.06),10);expect(h.cameraZoom(.05)).toBe(0);
+ h.poll(resting(.6),20);expect(h.cameraZoom(.05)).toBeGreaterThan(0);rig.dispose();
+});

@@ -5,6 +5,7 @@ export type UiAction='confirm'|'back'|'up'|'down'|'left'|'right'|'next'|'previou
 export interface PadSample {id:string;index:number;mapping:string;buttons:readonly {pressed:boolean;value:number}[];axes:readonly number[];}
 export interface DeviceStatus {device:Device;family:'xbox'|'playstation';playing:boolean;camera:boolean;interact:boolean;connected:boolean;}
 const zero=()=>({x:0,y:0});
+const TRIGGER_DEADZONE=.12;
 export function deadzone(x:number,y:number,threshold=.2){
  const length=Math.hypot(x,y);if(!Number.isFinite(length)||length<=threshold)return zero();
  const magnitude=Math.min(1,(length-threshold)/(1-threshold));return{x:x/length*magnitude,y:y/length*magnitude};
@@ -37,7 +38,8 @@ export function createDeviceHub(){
   if(!armed){if(active){previous=held;return;}armed=true;}
   const edges=held.map((v,i)=>v&&!previous[i]);previous=held;
   move=state.playing?{x:left.x,y:-left.y}:zero();lookAxis=state.playing&&state.camera?right:zero();walk=state.playing&&!!held[4];
-  const trigger=(i:number)=>{const b=pad.buttons[i];return b?.pressed?1:Math.max(0,Math.min(1,Number.isFinite(b?.value)?b.value:0));};
+  // Triggers can rest slightly above zero (worn pads, Android's remapped trigger axes): ignore that drift.
+  const trigger=(i:number)=>{const b=pad.buttons[i];const v=b?.pressed?1:Math.max(0,Math.min(1,Number.isFinite(b?.value)?b.value:0));return v<=TRIGGER_DEADZONE?0:(v-TRIGGER_DEADZONE)/(1-TRIGGER_DEADZONE);};
   zoomAxis=state.playing&&state.camera?trigger(6)-trigger(7):0;
   if(state.playing){
    if(edges[9]){emitUi('pause');return;}
