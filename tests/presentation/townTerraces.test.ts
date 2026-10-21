@@ -25,7 +25,7 @@ it('uses the rendered ascent as physical support and leaves the whole walking ro
     expect(result.cameraSolids.some(b=>x>b.min.x-.45&&x<b.max.x+.45&&z>b.min.z-.45&&z<b.max.z+.45&&y+1>b.min.y&&y+1<b.max.y),'blocked route '+[x,z]).toBe(false);
    }
   }
-  expect(result.receivers.length).toBeLessThan(20);
+  expect(result.receivers.length).toBeLessThanOrEqual(TOWN_TERRACES.length+3);
  }finally{scene.dispose();engine.dispose();}
 });
 

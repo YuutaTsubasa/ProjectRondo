@@ -22,6 +22,7 @@ import { VertexBuffer } from '@babylonjs/core/Buffers/buffer';
 import { createStoneTextures, applyStoneUV } from '../palace/palaceStoneSurface';
 import { applyWind } from '../babylon/wind';
 import { rng } from '../../domain/math/rng';
+import {createActivityHosts} from './activityHosts';
 import {createCityJourneyProps} from './cityJourneyProps';
 
 export function createRegionScenery(scene: Scene) {
@@ -67,8 +68,7 @@ export function createRegionScenery(scene: Scene) {
   echoBell.position.set(2, 1.75, -35); echoBell.rotation.z = -.55; register(echoBell, metal);
 
   // Beacons and interactions use one anchor, beside the center of the road.
-  let harborLamp: Mesh | undefined;
-  for (const place of REGION_INTERACTION_PLACES) {
+  for (const place of REGION_INTERACTION_PLACES.filter(place=>place.kind!=='expedition')) {
     const { x, z } = place;
     const y = regionHeight(x, z);
     post('beacon-base-' + place.id, x, z, 1.65, .38, metal);
@@ -76,8 +76,8 @@ export function createRegionScenery(scene: Scene) {
     lamp.position.set(x, y + 1.92, z); register(lamp, light);
     const halo = CreateTorus('region-beacon-ring-' + place.id, { diameter: .85, thickness: .055, tessellation: 24 }, scene);
     halo.position.set(x, y + 1.75, z); register(halo, metal);
-    if (place.id === 'palace') harborLamp = lamp;
   }
+  const hosts=createActivityHosts(scene);casters.push(...hosts.meshes);receivers.push(...hosts.meshes);
   const cityProps=createCityJourneyProps(scene,{wood,ivory,stone,metal,blue:royalBlue,gold:trim});
   casters.push(...cityProps.meshes);receivers.push(...cityProps.meshes);
   // Broken signal relay: a modest ring of columns, not a wall across the main road.
@@ -120,10 +120,8 @@ export function createRegionScenery(scene: Scene) {
   // Flow exits over the existing east parapet into the sea; it is decorative and below the walkway.
   const water = box('restored-water', 40.3, -1.4, -23, .32, 3.6, 2.2, restored, false);
   water.setEnabled(false);
-  const idleHarbor = material('harbor-idle', '#c0a066'); idleHarbor.emissiveColor = new Color3(.20, .12, .03);
   const setWaterRestored = (on: boolean) => {
     water.setEnabled(on);
-    if (harborLamp) harborLamp.material = on ? restored : idleHarbor;
   };
   setWaterRestored(false);
   let time = 0;

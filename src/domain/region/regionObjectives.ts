@@ -2,6 +2,7 @@ import {COURSE_RETURN} from './regionLayout';
 import type {RegionChapter} from './regionProgress';
 export interface RegionPoint {readonly x:number;readonly y:number;readonly z:number}
 export interface PlacePoint {readonly id:string;readonly x:number;readonly z:number}
+export const explorationObjective={title:'自由探索白色王城',detail:'漫遊各區與王宮大廳，和接待員交談即可挑戰 2D／3D 關卡。',placeId:null};
 const objectives:Record<RegionChapter,{title:string;detail:string;placeId:string|null}>={
  arrival:{title:'潮聲未到的午後',detail:'聽聽城裡發生了什麼。',placeId:'homecoming'},
  signal:{title:'風裡重複的訊號',detail:'走出南門，調查草原白石環旁的回聲管。',placeId:'signal'},

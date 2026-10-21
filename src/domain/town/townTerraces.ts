@@ -1,3 +1,4 @@
+import {PALACE_SURFACES} from './townPalace';
 /** Authored surfaces are shared by visible paving, Havok support and foot/camera probes. */
 export interface TownSurface {
  readonly id:string; readonly minX:number; readonly maxX:number;
@@ -9,6 +10,7 @@ export const CITY_LOOP:readonly (readonly [number,number])[]=[[-30,50],[-30,76],
 /** A continuous walk through the four journey stops, returning via the old square to the overlook. */
 export const CITY_EXPLORATION_ROUTE:readonly (readonly [number,number])[]=[[-30,76],[-70,76],[-70,130],[-10,130],[-70,130],[-70,188],[-10,188],[-70,188],[-70,76],[-30,76],[-30,12],[-56,12],[-74,12],[-74,22],[-74,46],[-74,52]];
 export const TOWN_TERRACES:readonly TownSurface[]=[
+ ...PALACE_SURFACES,
  {id:'market-district',minX:-84,maxX:64,minZ:57,maxZ:91,fromY:0,toY:0,axis:'z'},
  {id:'market-garden',minX:-42,maxX:22,minZ:91,maxZ:115,fromY:0,toY:0,axis:'z'},
  {id:'residential-district',minX:-84,maxX:64,minZ:115,maxZ:145,fromY:6,toY:6,axis:'z'},

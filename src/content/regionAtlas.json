@@ -1,14 +1,14 @@
 {
   "size": 1024,
   "bounds": {
-    "minX": -284,
-    "maxX": 239,
+    "minX": -325,
+    "maxX": 280,
     "minZ": -302,
-    "maxZ": 221
+    "maxZ": 303
   },
-  "generatedAt": "2026-10-11T18:28:33.578Z",
+  "generatedAt": "2026-10-21T02:52:51.879Z",
   "orientation": "north:+Z,east:+X",
   "source": "createRegionScene",
   "image": "/maps/white-tide-atlas.png",
-  "sha256": "0664cea1de0b1265dad7d413f999a245e6afd514d3cda8e88be31e8697b6a447"
+  "sha256": "300c46b2372b46aa4934ff4c9a3e3312dbf54c88ccd84bdbcddacd14513040e5"
 }

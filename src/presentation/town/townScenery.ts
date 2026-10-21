@@ -1,3 +1,4 @@
+import {createTownPalace} from './townPalace';
 import {createTownDistricts} from './townDistricts';
 import {ORIGINAL_TOWN_BOUNDS} from '../../domain/town/townTerraces';
 import {createTownSkyline} from './townSkyline';
@@ -107,7 +108,7 @@ export function createTownScenery(scene:Scene,assets:readonly TownAssetPlacement
  for(const group of groups.values()){
   const mesh=Mesh.MergeMeshes(group.parts,true,true,undefined,false,false)!;mesh.name='town-static-'+mesh.material!.name;mesh.isPickable=false;mesh.freezeWorldMatrix();receivers.push(mesh);if(group.cast)casters.push(mesh);
  }
- const terraces=createTownTerraces(scene),districts=createTownDistricts(scene);
+ const terraces=createTownTerraces(scene),districts=createTownDistricts(scene),palace=createTownPalace(scene);
  createTownSkyline(scene);
- return {casters:[...casters,...terraces.casters,...districts.casters],receivers:[...receivers,...terraces.receivers,...districts.receivers],cameraSolids:[...cameraSolids,...terraces.cameraSolids,...districts.cameraSolids]};
+ return {casters:[...casters,...terraces.casters,...districts.casters,...palace.casters],receivers:[...receivers,...terraces.receivers,...districts.receivers,...palace.receivers],cameraSolids:[...cameraSolids,...terraces.cameraSolids,...districts.cameraSolids,...palace.cameraSolids]};
 }

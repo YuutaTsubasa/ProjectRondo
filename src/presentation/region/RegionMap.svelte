@@ -6,8 +6,8 @@
  import InputHint from '../input/InputHint.svelte';
  import {REGION_PLACES,type RegionPlaceId,type RegionPlace} from '../../domain/region/regionLayout';
  import type {RegionProgress} from '../../domain/region/regionProgress';
- import {canEnterRegionExpedition} from '../../domain/region/regionProgress';
- import {regionObjective,type RegionPoint} from '../../domain/region/regionObjectives';
+ import {getActivityHost} from '../../content/activityHosts';
+ import {explorationObjective,type RegionPoint} from '../../domain/region/regionObjectives';
  import {regionModal} from './regionModal';
  import RegionAtlas from './RegionAtlas.svelte';
  import HudWaves from '../hud/HudWaves.svelte';
@@ -17,7 +17,7 @@
  let selectedId=$state<RegionPlaceId|null>(null),previewFailed=$state(false);
  let view:RegionAtlas;
  const exit=createExitMotion(320),titleId=$props.id();
- const objective=$derived(objectiveOverride??regionObjective(progress.chapter));
+ const objective=$derived(objectiveOverride??explorationObjective);
  const selected=$derived(REGION_PLACES.find(p=>p.id===(selectedId??initialPlace??objective.placeId??'homecoming'))!);
  const distance=$derived(Math.round(Math.hypot(selected.x-position.x,selected.z-position.z)));
  const order:RegionPlaceId[]=['homecoming','palace','signal','course',...REGION_PLACES.filter(p=>p.id.startsWith('course-')||p.id.startsWith('palace-')||p.id.startsWith('city-')).map(p=>p.id),'ridge','cove','watch'];
@@ -30,9 +30,8 @@
  const records=$derived(REGION_PLACES.filter(p=>p.kind!=='story'&&done(p.id)).length);
  function status(place:RegionPlace){
   if(place.kind==='vista')return done(place.id)?'已記錄的風景':'尚未記錄';
-  if(place.id==='course'||place.id==='palace')return canEnterRegionExpedition(progress,place.id)?(done(place.id)?'已完成 · 可再次挑戰':place.id==='course'?'3D 遠征 · 已開放':'2D 遠征 · 已開放'):'隨旅程開放';
-  if(place.kind==='expedition')return '自由試煉 · 已開放';
-  return '回聲管 · 劇情';
+  if(place.kind==='expedition')return done(place.id)?'已完成 · 可再次挑戰':'接待員帶路 · 隨時出發';
+  return done(place.id)?'已記錄 · 可重溫':'王城故事 · 自由選看';
  }
  function choose(id:RegionPlaceId,focus=false){if(exit.leaving)return;selectedId=id;if(focus)view?.focusPlace(id);}
  function close(){exit.run(onClose);}
@@ -51,7 +50,7 @@
  <div class="brand" aria-hidden="true"><img src="/title/project-rondo-logo-v2.png" alt=""/><small>BEYOND THE FAMILIAR SKY.</small></div>
  <aside class="navigation">
   <header><svg viewBox="0 0 80 80" aria-hidden="true"><path d="m40 2 6 27 12-11-8 16 28 6-28 6 8 16-12-11-6 27-6-27-12 11 8-16L2 40l28-6-8-16 12 11Z"/><path d="m40 29 11 11-11 11-11-11Z"/></svg><div><h1 id={titleId}>MAP</h1><p>地圖<span></span></p></div></header>
-  <button class="region-name" onclick={()=>view.overview()}><span class="region-star" aria-hidden="true">✧</span><span>白潮原野<small>WHITE-TIDE FIELDS</small></span><span aria-hidden="true">›</span></button>
+  <button class="region-name" onclick={()=>view.overview()}><span class="region-star" aria-hidden="true">✧</span><span>白色王城與原野<small>WHITE CITY & FIELDS</small></span><span aria-hidden="true">›</span></button>
   <nav aria-label="地點導覽" data-input-scroll>
    {#each order as id}{@const place=REGION_PLACES.find(p=>p.id===id)!}
     <button onkeydown={listKey} data-place={id} class:selected={selected.id===id} aria-pressed={selected.id===id} onclick={()=>choose(id,true)}>
@@ -61,18 +60,19 @@
    {/each}
   </nav>
  </aside>
- <section class="chapter" aria-label="目前章節"><p>CHAPTER <b>01</b><span aria-hidden="true">／</span></p><h2>白潮原野</h2><small>— {objective.title}</small></section>
+ <section class="chapter" aria-label="目前章節"><p>EXPLORATION <b>01</b><span aria-hidden="true">／</span></p><h2>白色王城</h2><small>— {objective.title}</small></section>
  <aside class="information" data-input-scroll>
   {#key selected.id}<section class="location-detail" data-location-detail aria-live="polite">
    <div class="detail-heading"><div><h2>{selected.name}</h2><small>{names[selected.id]??'WHITE PALACE'}</small></div><span aria-hidden="true">⌖</span></div>
    {#if !previewFailed}<svg class="location-photo" viewBox={`${selected.x-37} ${-selected.z-20} 74 40`} role="img" aria-label={`${selected.name}俯拍預覽`}><image href={`${atlas.image}?v=${atlas.sha256.slice(0,12)}`} x={atlas.bounds.minX} y={-atlas.bounds.maxZ} width={atlas.bounds.maxX-atlas.bounds.minX} height={atlas.bounds.maxZ-atlas.bounds.minZ} onerror={()=>previewFailed=true}/><path d={`m${selected.x} ${-selected.z-3} 3 3-3 3-3-3Z`}/></svg>{/if}
    <p class="description">{selected.description}</p>
+   {#if getActivityHost(selected.id)}<p class="description">接待員 · {getActivityHost(selected.id)!.name}（{getActivityHost(selected.id)!.role}）<br/>靠近後交談，即可查看關卡並出發。</p>{/if}
    <h3><span aria-hidden="true">▸</span> 地點資訊</h3>
-   <dl><div><dt>類型</dt><dd>{selected.kind==='vista'?'風景紀錄':selected.kind==='expedition'?'遠征入口':'劇情地點'}</dd></div><div><dt>狀態</dt><dd>{status(selected)}</dd></div><div><dt>距離</dt><dd>{distance} m</dd></div></dl>
+   <dl><div><dt>類型</dt><dd>{selected.kind==='vista'?'風景紀錄':selected.kind==='expedition'?'NPC 關卡接待':'選看故事'}</dd></div><div><dt>狀態</dt><dd>{status(selected)}</dd></div><div><dt>距離</dt><dd>{distance} m</dd></div></dl>
    {#if objective.placeId===selected.id}<p class="objective-note"><span aria-hidden="true">◇</span>{objective.detail}</p>{/if}
    <button class="track" onclick={track} aria-label={`追蹤${selected.name}`}><span aria-hidden="true">◇</span>追蹤目的地<span aria-hidden="true">›</span></button>
   </section>{/key}
-  <section class="records" aria-label="探索紀錄"><div class="record-heading"><h3>探索紀錄</h3><span>{Math.round(records/recordTotal*100)}<small>%</small></span></div><div class="progress" role="progressbar" aria-label="景點與遠征完成度" aria-valuenow={records} aria-valuemin={0} aria-valuemax={recordTotal}><span style:width={`${records/recordTotal*100}%`}></span></div><dl><div><dt>◇ 風景紀錄</dt><dd>{progress.discoveries.length} / 3</dd></div><div><dt>◇ 遠征完成</dt><dd>{expeditionsDone} / {expeditionTotal}</dd></div></dl><p>{progress.chapter==='complete'?'第一章旅途完成':'旅途進行中'} · 景點與遠征合計</p></section>
+  <section class="records" aria-label="探索紀錄"><div class="record-heading"><h3>探索紀錄</h3><span>{Math.round(records/recordTotal*100)}<small>%</small></span></div><div class="progress" role="progressbar" aria-label="景點與遠征完成度" aria-valuenow={records} aria-valuemin={0} aria-valuemax={recordTotal}><span style:width={`${records/recordTotal*100}%`}></span></div><dl><div><dt>◇ 風景紀錄</dt><dd>{progress.discoveries.length} / 3</dd></div><div><dt>◇ 遠征完成</dt><dd>{expeditionsDone} / {expeditionTotal}</dd></div></dl><p>自由探索 · 景點與遠征合計</p></section>
  </aside>
  <div class="waves"><HudWaves edges={false}/></div>
  <p class="motto" aria-hidden="true">STILL<br/>TOWARD<br/>A BRIGHTER<br/>TOMORROW.</p>

@@ -1,4 +1,5 @@
 <script lang="ts">
+ import type {ActivityHost} from '../../content/activityHosts';
  import {duckMusic} from '../audio/musicDucking';
  import {readStageBest,stageTime} from '../../app/stageRecords';
  import {getStageInfo} from '../../content/stageCatalog';
@@ -9,7 +10,7 @@
  import {createExitMotion} from '../motion/exitMotion.svelte';
  import SettingsScreen from '../settings/SettingsScreen.svelte';
  import InputHint from '../input/InputHint.svelte';
- let {expedition,completed=false,onStart,onClose,onMap}:{expedition:StageId;completed?:boolean;onStart:()=>void;onClose:()=>void;onMap:()=>void}=$props();
+ let {host,expedition,completed=false,onStart,onClose,onMap}:{host?:ActivityHost;expedition:StageId;completed?:boolean;onStart:()=>void;onClose:()=>void;onMap:()=>void}=$props();
  let settings=$state(false),dialog:HTMLDivElement;
  const exit=createExitMotion(280);
  const info=$derived(getStageInfo(expedition));
@@ -47,7 +48,7 @@
     <p class="chapter">CHAPTER <strong>{info.number}</strong></p>
     <header><span aria-hidden="true">✦</span><h1 id="region-dialog-title">{title}</h1><i></i></header>
     <p class="english">{course?'THE WHITE PALACE SKYWAY':'THE PALACE AQUEDUCT'}</p>
-    <p class="description">{info.description}</p>
+    <p class="description">{#if host}<span aria-label="接待員問候"><strong>{host.role} · {host.name}</strong><br/>{host.greeting}</span>{:else}{info.description}{/if}</p>
     <div class="mode"><span>{course?'3D ACTION':'SIDE-SCROLLING'}</span><p>{course?'跑跳 · 二段跳 · 揮劍 · 空中盾衝':'橫向跑跳 · 二段跳 · 揮劍 · 盾衝'}</p></div>
    </div>
    <figure class="preview"><img src={info.preview} alt={title+'場景風格示意'}/><figcaption><span>WHITE PALACE</span><b>{completed?'已完成 · 可再次挑戰':'遠征路線已開啟'}</b></figcaption></figure>

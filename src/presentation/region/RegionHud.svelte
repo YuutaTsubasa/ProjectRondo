@@ -20,7 +20,7 @@
  }
  const objective=$derived(objectiveOverride??regionObjective(progress.chapter));
  const target=$derived(REGION_INTERACTION_PLACES.find(p=>p.id===navigationId));
- const copy=$derived(target&&target.id!==objective.placeId?{title:`前往${target.name}`,instruction:target.kind==='expedition'?'查看遠征入口':target.kind==='vista'?'探索這處風景':'調查回聲管'}:objectiveOverride?{title:objectiveOverride.title,instruction:objectiveOverride.detail}:regionHudCopy[progress.chapter]);
+ const copy=$derived(target&&target.id!==objective.placeId?{title:`前往${target.name}`,instruction:target.kind==='expedition'?'和接待員交談':target.kind==='vista'?'探索這處風景':'調查回聲管'}:objectiveOverride?{title:objectiveOverride.title,instruction:objectiveOverride.detail}:regionHudCopy[progress.chapter]);
  const distance=$derived(target?Math.round(Math.hypot(target.x-position.x,target.z-position.z)):0);
  const location=$derived(locationLabel.split('·')[0].trim());
  const area=$derived(position.z>=REGION_TOWN_EDGE_Z?'白色王城':location);

@@ -18,7 +18,7 @@ it('selects from the location list and displays real progress without tracking',
  const track=vi.fn();const app=mount(RegionMap,{target:document.body,props:{progress:{...createRegionProgress(),chapter:'relay',discoveries:['ridge'],completedExpeditions:[]},position:{x:0,y:1.3,z:-35},onTrack:track,onClose:vi.fn()}});
  try{flushSync();const list=document.querySelector('[aria-label="地點導覽"]');expect(list).not.toBeNull();
  list!.querySelector<HTMLButtonElement>('[data-place="palace"]')!.click();flushSync();
- expect(document.querySelector('[data-location-detail]')?.textContent).toContain('隨旅程開放');expect(track).not.toHaveBeenCalled();
+ expect(document.querySelector('[data-location-detail]')?.textContent).toContain('接待員 · 汐亞');expect(track).not.toHaveBeenCalled();
  expect(document.querySelector('[aria-label="探索紀錄"]')?.textContent).toContain('1 / 3');
  expect(document.querySelector('[aria-label="探索紀錄"]')?.textContent).toContain('0 / 10');
  expect(document.querySelector('image')?.getAttribute('href')).toContain('/maps/white-tide-atlas.png');
@@ -74,3 +74,5 @@ it('uses the active city journey objective for selection, quest marker and track
   document.querySelector<HTMLButtonElement>('[aria-label="追蹤白石巷的風鈴"]')!.click();expect(track).toHaveBeenCalledWith('city-residential');
  }finally{await unmount(app);document.body.innerHTML='';}
 });
+
+it('shows exploration without a default quest and labels optional stories',async()=>{const app=mount(RegionMap,{target:document.body,props:{progress:createRegionProgress(),position:{x:0,y:1.3,z:-35},onTrack:vi.fn(),onClose:vi.fn()}});try{flushSync();expect(document.querySelector('.chapter')?.textContent).toContain('自由探索白色王城');expect(document.querySelector('.quest')).toBeNull();expect(document.querySelector('[data-location-detail]')?.textContent).toContain('自由選看');}finally{await unmount(app);document.body.innerHTML='';}});

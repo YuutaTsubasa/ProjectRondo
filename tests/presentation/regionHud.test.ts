@@ -77,3 +77,5 @@ it.each([
   expect(document.querySelector('[role="status"]')?.textContent).toContain(notice);
  }finally{await unmount(app);document.body.innerHTML='';}
 });
+
+it('directs a tracked stage to its host',async()=>{const app=mount(RegionHud,{target:document.body,props:{progress:createRegionProgress(),position:{x:0,y:1.3,z:0},locationLabel:'白色王城',navigationId:'course',prompt:'交談 · 嵐恩 · 白宮天廊',notice:'',saveWarning:false,onMap:()=>{},onPause:()=>{},onInteract:()=>{}}});try{flushSync();expect(document.querySelector('[aria-label="目前任務"]')?.textContent).toContain('和接待員交談');}finally{await unmount(app);document.body.innerHTML='';}});

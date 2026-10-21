@@ -1,7 +1,7 @@
 import {townSurfaceHeight} from './townTerraces';
 export type TownBuildingKind = 'house' | 'shop' | 'tower' | 'gate' | 'arcade';
 export interface TownBuilding { readonly id:string; readonly kind:TownBuildingKind; readonly x:number; readonly z:number; readonly yaw:number; readonly height:number; readonly baseY?:number }
-export const TOWN_BOUNDS={minX:-84,maxX:64,minZ:-63,maxZ:209} as const;
+export const TOWN_BOUNDS={minX:-84,maxX:64,minZ:-63,maxZ:291} as const;
 export const TOWN_SPAWN = {x:0,y:1.2,z:-54} as const;
 export const TOWN_BUILDINGS:readonly TownBuilding[] = [
  ...[-25,-10,5].flatMap((z,i)=>[
@@ -19,6 +19,9 @@ export function outsideTown(x:number,y:number,z:number):boolean {
  return ![x,y,z].every(Number.isFinite)||y < -3||y>100||townSurfaceHeight(x,z)===null;
 }
 export function townLocation(x:number,z:number):string {
+ if(z>=277)return '王宮觀海臺 · PALACE SEA TERRACE';
+ if(z>=229)return x>=18?'海風迴廊 · SEA CLOISTER':'白光大廳 · HALL OF LIGHT';
+ if(z>=209)return '王宮中庭 · PALACE COURTYARD';
  if(z>=169)return '王宮前庭 · ROYAL FORECOURT';
  if(z>=115)return '白石居住區 · IVORY QUARTER';
  if(z>=91)return '階庭花園 · TERRACE GARDENS';

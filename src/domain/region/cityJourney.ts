@@ -8,10 +8,10 @@ export type CityStopId=typeof CITY_STOPS[number]['id'];
 export const CITY_JOURNEY_KEY='rondo.city-journey.v1';
 type StoragePort={getItem(key:string):string|null;setItem(key:string,value:string):void};
 export const isCityStop=(id:string):id is CityStopId=>CITY_STOPS.some(s=>s.id===id);
-export function finishCityStop(done:readonly string[],id:string):string[]{return CITY_STOPS[done.length]?.id===id?[...done,id]:[...done];}
+export function finishCityStop(done:readonly string[],id:string):string[]{return isCityStop(id)&&!done.includes(id)?[...done,id]:[...done];}
 export function readCityJourney(storage?:Pick<StoragePort,'getItem'>):string[]{
  try{const data=JSON.parse(storage?.getItem(CITY_JOURNEY_KEY)??'null');if(data?.version!==1||!Array.isArray(data.done)||data.done.length>CITY_STOPS.length)return [];
- return data.done.every((id:unknown,i:number)=>id===CITY_STOPS[i].id)?[...data.done]:[];}catch{return [];}
+ return new Set(data.done).size===data.done.length&&data.done.every((id:unknown)=>typeof id==='string'&&isCityStop(id))?[...data.done]:[];}catch{return [];}
 }
 export function writeCityJourney(done:readonly string[],storage?:Pick<StoragePort,'setItem'>):boolean{
  try{if(!storage)return false;storage.setItem(CITY_JOURNEY_KEY,JSON.stringify({version:1,done}));return true;}catch{return false;}

@@ -13,13 +13,19 @@ import {createStoneTextures,applyStoneUV} from '../palace/palaceStoneSurface';
 export function createTownSkyline(scene:Scene):Mesh[]{
  const grain=createStoneTextures(scene),batches=new Map<string,Mesh[]>();let district='palace';
  const material=(name:string,hex:string,roughness=.85)=>{const m=new PBRMaterial('skyline-'+name,scene);m.albedoColor=Color3.FromHexString(hex).toLinearSpace();m.roughness=roughness;m.environmentIntensity=.25;return m;};
- const stone=material('ivory','#ddd9cd'),light=material('edges','#eee9da'),slate=material('roofs','#536c85'),glass=material('recesses','#657983'),gold=material('brass','#b5a675',.5),green=material('cypress','#50684b'),rock=material('cliff','#91978c');
+ const stone=material('ivory','#ddd9cd'),light=material('edges','#eee9da'),slate=material('roofs','#536c85'),glass=material('recesses','#657983'),gold=material('brass','#b5a675',.5),green=material('cypress','#50684b'),trunk=material('cypress-trunks','#78634c'),rock=material('cliff','#91978c');
  stone.albedoTexture=grain.albedo;stone.bumpTexture=grain.normal;
- const add=(mesh:Mesh,mat=stone)=>{mesh.material=mat;mesh.isPickable=false;applyStoneUV(mesh);if(district==='palace'||district==='viaduct'){mesh.position.z+=119;mesh.position.y-=16;}const key=district+':'+mat.name;const list=batches.get(key)??[];list.push(mesh);batches.set(key,list);return mesh;};
+ const add=(mesh:Mesh,mat=stone)=>{mesh.material=mat;mesh.isPickable=false;applyStoneUV(mesh);if(district==='palace'||district==='viaduct'){mesh.position.z+=231;mesh.position.y-=16;}const key=district+':'+mat.name;const list=batches.get(key)??[];list.push(mesh);batches.set(key,list);return mesh;};
  const box=(name:string,x:number,y:number,z:number,w:number,h:number,d:number,mat=stone)=>{const m=CreateBox(name,{width:w,height:h,depth:d},scene);m.position.set(x,y,z);return add(m,mat);};
  const cone=(name:string,x:number,y:number,z:number,r:number,h:number,mat=slate,top=0)=>{const m=CreateCylinder(name,{diameterBottom:r*2,diameterTop:top,height:h,tessellation:8},scene);m.position.set(x,y,z);return add(m,mat);};
  const arch=(x:number,y:number,z:number,width:number,rise:number,depth:number,thickness=.5)=>{const m=createArch('skyline-arch',{width,rise,depth,thickness,segments:16},scene);m.position.set(x,y,z);return add(m,light);};
- const cypress=(x:number,y:number,z:number,h=8)=>{const m=CreateSphere('skyline-cypress',{diameter:2,segments:8},scene);m.scaling.set(h*.12,h/2,h*.12);m.position.set(x,y+h/2,z);return add(m,green);};
+ const cypress=(x:number,y:number,z:number,h=8)=>{
+  // A visible stem joins the terrace to the crown; an unsupported ellipsoid reads as floating.
+  cone('cypress-trunk',x,y+1.1,z,.15,2.2,trunk,.3);
+  box('cypress-bed',x,y+.16,z,2,.32,2,light);
+  const crown=h-.8,m=CreateSphere('skyline-cypress',{diameter:2,segments:8},scene);
+  m.scaling.set(h*.12,crown/2,h*.12);m.position.set(x,y+.8+crown/2,z);return add(m,green);
+ };
  const roof=(x:number,y:number,z:number,w:number,h:number,d:number)=>{
   const m=new Mesh('skyline-gable',scene),data=new VertexData();
   const p=[-w/2,0,-d/2,w/2,0,-d/2,0,h,-d/2,-w/2,0,d/2,w/2,0,d/2,0,h,d/2];
@@ -78,16 +84,16 @@ export function createTownSkyline(scene:Scene):Mesh[]{
   recess(x,10.5,20,89.05,6,4);
   arch(x,20,89.2,6,4,1,.7);
   for(const side of [-1,1])box('retaining-pier',x+side*3.65,13.5,89.2,.8,20,1.2,light);
-  cypress(x,28.6,96,6+(x%3+3));
+  cypress(x,28.55,96,6+(x%3+3));
  }
- house(-30,36.6,134,44,17,24);
- house(-58,36.6,134,12,12,32);house(-2,36.6,134,12,12,32);
- tower(-30,36.6,134,5,43);
- for(const [x,z] of [[-67,113],[7,113],[-67,151],[7,151]])tower(x,36.6,z,2.6,19);
+ house(-30,36.525,134,44,17,24);
+ house(-58,36.525,134,12,12,32);house(-2,36.525,134,12,12,32);
+ tower(-30,36.525,134,5,43);
+ for(const [x,z] of [[-67,113],[7,113],[-67,151],[7,151]])tower(x,36.525,z,2.6,19);
  // Upper front gallery.
  for(let x=-60;x<=0;x+=6){arch(x,40,112,4.7,2.5,3);box('gallery-column',x-2.7,38.3,112,.65,3.4,3,light);}
  box('gallery-entablature',-30,43.25,112,67,.7,4,light);
- for(let x=-84;x<=24;x+=18)tower(x,28.5,94,1.4,8);
+ for(let x=-84;x<=24;x+=18)tower(x,28.55,94,1.4,8);
  // Long coastal viaduct, with genuine openings visible from the town.
  district='viaduct';
  for(let i=0;i<8;i++){
@@ -98,7 +104,7 @@ export function createTownSkyline(scene:Scene):Mesh[]{
  }
  box('viaduct-deck',96.5,25,114,124,1.7,6);
  for(const z of [111,117])box('viaduct-parapet',96.5,26.4,z,124,1.1,.45,light);
- tower(158,26,114,2.5,13);
+ tower(158,25.85,114,2.5,13);
  // Gardens behind the playable terrace frame its open sea-facing view.
  district='west-garden';
  for(const [x,y,z] of [[-82,6,4],[-82,6,20],[-82,12,52],[-62,6,4]]){

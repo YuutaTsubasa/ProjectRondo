@@ -1,6 +1,6 @@
 # WhitePalace modular model wishlist
 
-The current slice is playable outdoor city blockout art. Preserve the bright ivory stone, blue slate and banners, warm wood, planted terraces and clear sea views of a coastal Japanese RPG town. Buildings have closed decorative doors; no asset in this list implies a playable interior.
+The current slice is playable city and castle public-space blockout art. Preserve the bright ivory stone, blue slate and banners, warm wood, planted terraces and clear sea views of a coastal Japanese RPG town. Ordinary residential/shop doors remain decorative. The castle great hall, sea cloister and north viewing terrace are now enterable; replacement castle modules must preserve those openings.
 
 ## Reused now
 
@@ -41,3 +41,12 @@ Dimensions are width × depth × height in metres. Each item is a separate reusa
 ## Protected walking space
 
 Reserve a 2 m radius around market `(-30, 76)`, residential `(-10, 130)`, forecourt `(-10, 188)` and belvedere `(-74, 52)`. Keep both ascent roads centred at X = -70 and X = 50 unobstructed. The authored `CITY_EXPLORATION_ROUTE` uses the western road for ascent/descent and returns via the old square to the existing coastal ramps; the full `CITY_LOOP` still uses both roads. These data and route-clearance tests take precedence over decorative placement.
+
+## Castle public-space replacements (2026-10-21)
+
+- P0: rigged city hosts to replace the shared procedural humanoids. Match the player scale and coastal white/blue palette, with restrained idle and measured mobile LOD. Avoid full combat-knight rigs for all ten hosts.
+- P1: limestone column/base/capital, open arch and clerestory/blue-slate roof modules. Preserve the 12 m entrance aperture, side passages at z235 and z267-271, and route/camera tests. Replace decorative meshes without changing authoritative floors.
+- P1: banners, medallions and floor-inlay decals to give the hall identity without extra point lights or floor steps.
+- P2: simplified distant palace facade/tower variants beyond the public terrace.
+
+Castle floor y12; keep approaches to hall host (-8.6,265) and garden host (-8.6,285) clear. This is a playable layout prototype, not final art.

@@ -24,10 +24,10 @@ it('keeps interactions and every road clear of scenery colliders', () => {
     const entry=scene.getMeshByName('region-palace-entry-lintel')!;
     expect(entry.position.x).toBe(COURSE_ENTRANCE.x);expect(entry.position.z).toBe(COURSE_ENTRANCE.z);
     for(const target of REGION_INTERACTION_PLACES){
-      const pole=scene.getMeshByName('region-beacon-base-'+target.id)!;
+      const pole=scene.getMeshByName((target.kind==='expedition'?'region-activity-host-':'region-beacon-base-')+target.id)!;
       expect([pole.position.x,pole.position.z]).toEqual([target.x,target.z]);
     }
-    const beacon=scene.getMeshByName('region-place-course')!;
+    const beacon=scene.getMeshByName('region-activity-host-course')!;
     expect(Math.hypot(beacon.position.x-COURSE_ENTRANCE.x,beacon.position.z-COURSE_ENTRANCE.z)).toBeLessThan(6);
     expect(scene.meshes.some(m=>m.name.startsWith('region-ruins-'))).toBe(false);
     const water = scene.getMeshByName('region-restored-water')!;
@@ -36,6 +36,6 @@ it('keeps interactions and every road clear of scenery colliders', () => {
     expect(water.isEnabled()).toBe(true);
     scenery.setWaterRestored(false);
     expect(water.isEnabled()).toBe(false);
-    expect(scene.meshes.filter(m => m.name.startsWith('region-place-'))).toHaveLength(REGION_PLACES.length);
+    expect(scene.meshes.filter(m => m.name.startsWith('region-place-'))).toHaveLength(REGION_PLACES.filter(place=>place.kind!=='expedition').length);
   } finally { scene.dispose(); engine.dispose(); }
 });
