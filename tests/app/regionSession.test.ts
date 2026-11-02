@@ -138,3 +138,34 @@ it('opens and closes the region pause menu with controller Start after the openi
   expect(document.querySelector('[data-world-paused=false]')).not.toBeNull();
  } finally {stop();owner.dispose();deviceInput.poll(null,64);deviceInput.claim('keyboard');}
 });
+
+it('enters the mahjong parlor, talks to 一目元 without touching the chapter, and leaves at its door',async()=>{
+ const {PARLOR_SAVE_KEY}=await import('../../src/app/parlorSave');
+ const {PARLOR_RETURN}=await import('../../src/domain/town/mahjongParlor');
+ await start();await skip();
+ await move('parlor door');expect(button('進入 · 白石台麻館')).toBeTruthy();key('e');await settle();
+ expect(document.querySelector('[data-interior=parlor]')).not.toBeNull();
+ expect(JSON.parse(localStorage.getItem(REGION_SAVE_KEY)!).position).toEqual(PARLOR_RETURN);
+ // Spawning beside the door offers leaving; the host is across the room.
+ expect(button('離開 · 白石街')).toBeTruthy();
+ await move('parlor host');expect(button('交談 · 一目元')).toBeTruthy();key('e');await settle();
+ expect(document.body.textContent).toContain('一目元');expect(document.querySelector('.chapter h2')?.textContent).toBe('白石台麻館');
+ expect(document.querySelector('[data-world-paused=true]')).not.toBeNull();
+ await skip();
+ [...document.querySelectorAll('button')].find(b=>b.textContent?.includes('你在看哪裡？'))!.click();await settle();await skip();
+ expect(button('SKIP')).toBeUndefined();
+ expect(JSON.parse(localStorage.getItem(PARLOR_SAVE_KEY)!).talks).toBe(1);
+ expect(JSON.parse(localStorage.getItem(REGION_SAVE_KEY)!).progress.chapter).toBe('signal');
+ key('e');await settle();expect(document.querySelector('.chapter .titles p')?.textContent).toContain('花牌要分開收');await skip();
+ await move('parlor exit');key('e');await settle();
+ expect(document.querySelector('[data-interior=none]')).not.toBeNull();
+ expect(JSON.parse(document.querySelector('[data-spawn]')!.getAttribute('data-spawn')!)).toEqual(PARLOR_RETURN);
+ expect(JSON.parse(document.querySelector('[data-spawn-facing]')!.getAttribute('data-spawn-facing')!)).toEqual({x:-1,z:0});
+});
+
+it('returns from the parlor to the south gate from the pause menu',async()=>{
+ await start();await skip();await move('parlor door');key('e');await settle();
+ key('Escape');await settle();button('返回王城南門').click();await settle();
+ expect(document.querySelector('[data-interior=none]')).not.toBeNull();
+ expect(JSON.parse(localStorage.getItem(REGION_SAVE_KEY)!).position.z).toBe(-35);
+});

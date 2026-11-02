@@ -22,6 +22,7 @@ import { exposeDevHandle } from '../babylon/devHandles';
 import { createHubAudio, type HubAudio } from '../audio/hubAudio';
 import { createTownAssets } from '../town/townAssets';
 import { createTownScenery } from '../town/townScenery';
+import { createParlorFrontage } from '../town/parlorFrontage';
 import { townCameraPosition } from '../town/townCamera';
 import { createRegionTerrain } from './regionTerrain';
 import { createRegionScenery } from './regionScenery';
@@ -44,6 +45,8 @@ export async function createRegionScene(
   engine: Engine,
   canvas: HTMLCanvasElement,
   spawn: { x: number; y: number; z: number } = REGION_SPAWN,
+  /** World X/Z direction the player faces on arrival; the camera starts behind it. Defaults to south. */
+  facing: { x: number; z: number } = { x: 0, z: -1 },
 ): Promise<RegionScene> {
   const scene = new Scene(engine), parts: LevelParts = {};
   try {
@@ -54,27 +57,29 @@ export async function createRegionScene(
     scene.enablePhysics(Vector3.Zero(), new HavokPlugin(true, await loadHavok()));
     const assets = await createTownAssets(scene);
     const town = createTownScenery(scene, assets, { southExitWidth: 12, backdrop: false, sea: false });
+    const parlorFrontage = await createParlorFrontage(scene);
     const terrain = createRegionTerrain(scene);
     createWind(scene);
     const scenery = createRegionScenery(scene);
     const objectiveMarker = createRegionObjectiveMarker(scene);
     const initial = isRegionPositionSafe(spawn) ? spawn : REGION_SPAWN;
+    const arrival = initial === spawn ? facing : { x: 0, z: -1 }, arrivalYaw = Math.atan2(-arrival.x, -arrival.z);
     const rig = await createCharacterRig(scene, {
       canvas,
       makeShadows: camera => createShadows(sun, camera, { maxZ: 105, cascades: 3 }),
       groundHeight: (x, z) => isRegionPositionSafe({ x, y: 1, z }) ? regionHeight(x, z) : null,
       spawn: new Vector3(initial.x, initial.y, initial.z),
       crystals: createCrystals(scene, []),
-      initialYaw: 0,
+      initialYaw: arrivalYaw,
       interact: true,
       cameraFraming: { distance: 7.5, height: 1.8, initialPitch: -.035 },
       descentFollow: false,
     });
     parts.rig = rig;
-    rig.player.motion = { ...rig.player.motion, facing: { x: 0, y: -1 } };
-    rig.player.root.rotation.y = 0;
+    rig.player.motion = { ...rig.player.motion, facing: { x: arrival.x, y: arrival.z } };
+    rig.player.root.rotation.y = arrivalYaw;
     const buildings = assets.flatMap(asset => asset.meshes);
-    rig.shadows.cast(...town.casters, ...scenery.casters, ...buildings);
+    rig.shadows.cast(...town.casters, ...scenery.casters, ...parlorFrontage.casters, ...buildings);
     rig.shadows.receive(terrain.ground, ...town.receivers, ...scenery.receivers, ...buildings);
     createClouds(scene);
     createAtmosphere(scene, rig.follow.camera);

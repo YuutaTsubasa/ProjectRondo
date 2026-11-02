@@ -1,0 +1,79 @@
+{
+  "schemaVersion": 1,
+  "sourceFile": "ichimoku-gen_v03_vrm1.vrm",
+  "sourceSha256": "51cae21c803d27efb2549ec4c73a1caf390a3285f1017f0c31ee02f4b984dca5",
+  "title": "一目元",
+  "humanBones": {
+    "chest": "chest",
+    "head": "head",
+    "hips": "hips",
+    "leftEye": "eye",
+    "leftFoot": "foot.L",
+    "leftHand": "hand.L",
+    "leftLowerArm": "lowerArm.L",
+    "leftLowerLeg": "lowerLeg.L",
+    "leftUpperArm": "upperArm.L",
+    "leftUpperLeg": "upperLeg.L",
+    "neck": "neck",
+    "rightFoot": "foot.R",
+    "rightHand": "hand.R",
+    "rightLowerArm": "lowerArm.R",
+    "rightLowerLeg": "lowerLeg.R",
+    "rightUpperArm": "upperArm.R",
+    "rightUpperLeg": "upperLeg.R",
+    "spine": "spine"
+  },
+  "lookAt": {
+    "offsetFromHeadBone": [
+      0.0000011477629868750228,
+      0.009825236164033413,
+      0.2372944951057434
+    ],
+    "rangeMapHorizontalInner": {
+      "inputMaxValue": 18,
+      "outputScale": 22
+    },
+    "rangeMapHorizontalOuter": {
+      "inputMaxValue": 18,
+      "outputScale": 22
+    },
+    "rangeMapVerticalDown": {
+      "inputMaxValue": 12,
+      "outputScale": 22
+    },
+    "rangeMapVerticalUp": {
+      "inputMaxValue": 12,
+      "outputScale": 22
+    },
+    "type": "bone"
+  },
+  "morphTargets": [
+    "Eyelid:blink",
+    "Eyelid:relaxed",
+    "Eyelid:happy",
+    "Eyelid:angry",
+    "Eyelid:sad"
+  ],
+  "settings": {
+    "maxTextureSize": 1024,
+    "textureFormat": "webp",
+    "textureQuality": 88,
+    "morphTargets": "source",
+    "decimation": false,
+    "vrmExtensions": "removed"
+  },
+  "outputSha256": "9bd028566ecd251c781102d13104752e4723b57ce73bf7e1456e1311e327d0fa",
+  "outputBytes": 2128148,
+  "textures": [
+    {
+      "name": "ichimoku_basecolor",
+      "width": 1024,
+      "height": 1024
+    },
+    {
+      "name": "eyelid_gradient",
+      "width": 16,
+      "height": 128
+    }
+  ]
+}
