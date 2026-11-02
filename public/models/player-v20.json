@@ -45,7 +45,7 @@
       "channels": 53
     }
   ],
-  "sourceSha256": "b03ccf4f0f0ae8d2431193db057befc16857195b8e3367b0f3d346328f75a127",
+  "sourceSha256": "f2311a9fd27c2102ab96a0964deea3c7bcaba7fa9041a60c94cfa4b69105483d",
   "donorSha256": "a4c21bc7d118f2d6a7f62b29d2106ad89e0853d8563eb0bea52b62bc132fe732",
   "boneMap": {
     "chest": "Chest",
@@ -125,9 +125,6 @@
     ]
   },
   "lipSeam": null,
-  "droppedMatcapMaterials": [
-    "V39 shaped steel sole"
-  ],
   "secondaryMotion": {
     "constraints": [
       {
@@ -291,9 +288,9 @@
       ]
     }
   },
-  "sourceFile": "H01-B01-small-eyes_face01-cuff01-lf01-js01-eo01-ec01-tf01-hb02-tsB-cs02-y30_VRM1.vrm",
-  "outputSha256": "d1105244716e8d5d75763d7d1cf13ebc44d8fb9d4b962063ce977149b88b343c",
-  "outputBytes": 14240224,
+  "sourceFile": "H01-B01-small-eyes_face01-cuff01-lf01-js01-eo01-ec01-tf01-hb02-tsB-cs02-y30-soles_VRM1.vrm",
+  "outputSha256": "bfc4e05d8a5c2f943799bce134468f41a44ec18a81736a9a1e8dafce6dfa152b",
+  "outputBytes": 14692344,
   "textures": [
     {
       "name": "tripo_image_3770dbe0_0.001 cs02",

@@ -15,6 +15,7 @@ import {applyPlayerMaterials} from '../babylon/playerMaterials';
 import {applyPortraitPainting} from './portraitPainting';
 import {attachPlayerBlink} from '../babylon/playerBlink';
 import {attachSecondaryMotion} from '../babylon/secondaryMotion';
+import {attachRigidSkinnedMeshes} from '../babylon/rigidAttachments';
 import {measureSkinnedSole} from '../babylon/skinnedSole';
 
 export type PortraitPose='menu'|'loading';
@@ -57,6 +58,7 @@ export function createMenuPortraitScene(engine:AbstractEngine){
   idle.play(true);idle.goToFrame(idle.from);
   const skinned=asset.meshes.filter(mesh=>mesh.skeleton&&mesh.getTotalVertices()>0);
   holder.position.y-=skinned.length?measureSkinnedSole(skinned):holder.getHierarchyBoundingVectors(true).min.y;
+  attachRigidSkinnedMeshes(asset.meshes);
   releaseBlink=attachPlayerBlink(scene,asset.meshes);
   releaseSecondary=attachSecondaryMotion(scene,asset.transformNodes,PLAYER_MODEL.secondaryMotion,()=>({offGround:false,verticalSpeed:0}),undefined,holder);
   loaded=true;dirty=true;

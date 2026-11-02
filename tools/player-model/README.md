@@ -4,17 +4,17 @@ The authoring VRM stays outside this repository. The game loads `public/models/p
 
 ## Current release
 
-The stable runtime filename `player-v20.glb` now contains **H01(Small Eyes)-B01** (cs02, y30 side plates), imported from
-`ProjectVtuber/projects/vrm-model/output/current/H01-B01-small-eyes/H01-B01-small-eyes_face01-cuff01-lf01-js01-eo01-ec01-tf01-hb02-tsB-cs02-y30_VRM1.vrm` on 2026-11-02.
-Source SHA-256: `b03ccf4f0f0ae8d2431193db057befc16857195b8e3367b0f3d346328f75a127`.
+The stable runtime filename `player-v20.glb` now contains **H01(Small Eyes)-B01** (cs02, y30 side plates, rebuilt soles), imported from
+`ProjectVtuber/projects/vrm-model/output/trials/b01-soles-2026-11-02/H01-B01-small-eyes/H01-B01-small-eyes_face01-cuff01-lf01-js01-eo01-ec01-tf01-hb02-tsB-cs02-y30-soles_VRM1.vrm` on 2026-11-02
+(the soles rebuild had not yet been promoted to ProjectVtuber's `current`).
+Source SHA-256: `f2311a9fd27c2102ab96a0964deea3c7bcaba7fa9041a60c94cfa4b69105483d`.
 The receipt hash changes the runtime URL automatically for every gameplay and menu portrait consumer.
 Its face keeps V33's authored soft-cheek/lip textures; the exact-name V20 seam correction intentionally does not apply.
 AVG video portraits and the HUD's static portrait are independent assets and still show the earlier knight.
 
-Known issue: the two `Preserved boot rim` meshes (boot sidewall slivers that share Armor's material, ~38% of their
-triangles wound against their normals) intermittently render as bands of unrelated color along the heel at some
-distances and idle phases. Hiding them removes it; neither unified joint layouts, separate vertex buffers, outline,
-shadow or material experiments isolated a game-side cause reliably. See docs/HANDOFF.md (2026-11-02).
+The boot rims and soles are weighted 100% to a Foot joint. GPU-skinned with the bone-matrix texture, Babylon drew them
+with that 264×1 texture's colors as rainbow bands along the heel, so the game re-parents such single-joint meshes as rigid
+children of their joint (`src/presentation/babylon/rigidAttachments.ts`) after the knight is seated.
 
 ## Update the player
 
@@ -34,7 +34,7 @@ The importer preserves neutral positions, normals, UVs, indices, joint weights a
 
 Rotations transfer through each rig's parent and bone rest-world frames. The target keeps its own neutral bone axes and proportions. Hips displacement from the donor rest position is scaled by the target/source hips height ratio; key times and interpolation stay unchanged. Unmapped animated bones fail conversion.
 
-The importer classifies materials through explicit mesh roles: `Armor` and H01-B01's split boot rim, steel sole and undersuit lining meshes are body; named face, hair, eye, neck and mouth pieces are head. A future unknown mesh name fails with a request to update this policy. MToon factors are retained in `material.extras.playerMaterial`; base-color factors/textures remain ordinary glTF material data. Unsupported active rim effects, UV animation, shade-shift textures, independent shade textures, non-world outlines and transparency fail conversion. The one named exception is `V39 shaped steel sole`, whose matcap is dropped (the toon has none; the sole keeps its base color) and listed in the receipt's `droppedMatcapMaterials`. Authoring VRM extension blocks are removed. The safe baseline remains unlit; the game's material adapter applies its toon lighting.
+The importer classifies materials through explicit mesh roles: `Armor` and H01-B01's split boot rim, steel sole and undersuit lining meshes are body; named face, hair, eye, neck and mouth pieces are head. A future unknown mesh name fails with a request to update this policy. MToon factors are retained in `material.extras.playerMaterial`; base-color factors/textures remain ordinary glTF material data. Unsupported active rim effects, UV animation, shade-shift textures, independent shade textures, non-world outlines and transparency fail conversion. Materials no primitive draws are skipped and pruned (H01-B01's soles rebuild left its old matcap sole material behind). Authoring VRM extension blocks are removed. The safe baseline remains unlit; the game's material adapter applies its toon lighting.
 
 `asset.extras.playerModel` contains schema version, hips/root names, orientation, material roles, humanoid bone map, donor/source hashes, motion scale and settings. The sidecar adds output SHA256, byte count, texture sizes and clip durations. Conversion checks references, clip presence, finite accessors and increasing key times before publishing. Each file is written to a temporary sibling and renamed into place; the GLB and receipt are not a two-file transaction. Compare the receipt checksum if a run was interrupted between the two renames. Repeated runs with the same inputs and dependency lockfile are byte-identical.
 

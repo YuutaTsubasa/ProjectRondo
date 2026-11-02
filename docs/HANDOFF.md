@@ -1011,9 +1011,14 @@ root-relative spring with thigh collision, falling air lift capped at 50°). Bro
 (plate swing 1–16°, door up to 17.5°, no thigh pass-through seen), jump (plates rise to 50° while falling and settle within
 ~0.3 s of landing), homing dash, sword/shield grip, face close-up, forced blink and menu portrait.
 
-Open: the `Preserved boot rim` heel stripes (see tools/player-model/README.md). A frame metric (readPixels, count of
-strongly saturated pixels, 10–15 frames per variant) showed: rim hidden → none every run; standard/toon/fresh materials,
-outline, shadows and buffer layout gave inconsistent results between runs (idle-phase dependent). Not fixed here; the
-model source or a decision to drop the rim in the game derivative is the next step. AVG video portraits still show the
-earlier knight (separate asset, todo).
+Update (same day): imported ProjectVtuber's soles rebuild (`trials/b01-soles-2026-11-02/...-y30-soles_VRM1.vrm`, 14.7 MB):
+soles now use the Armor atlas and the rim's dark fragments are gone. The rebuild left its old matcap sole material unused;
+the importer now skips materials no primitive draws (they are pruned) and the sole-matcap exception is gone.
 
+Heel stripes, root cause: the rims and soles are weighted 100% to Foot. With GPU skinning and bones stored in a texture,
+their base color showed the skeleton's 264×1 bone-matrix texture (u-only bands that changed with the pose). Reproducible
+both ways: CPU skinning or uniform-array bones → clean; texture bones → bands; removing the base texture → clean. The
+earlier material/outline/shadow experiments were noise from a whole-frame pixel metric that also counted other objects.
+Fix: `attachRigidSkinnedMeshes` re-parents single-joint meshes under their joint at the inverse bind transform after seating
+(knight and menu portrait); verified in the trial at the distances that striped before, idle and running. AVG video portraits
+still show the earlier knight (separate asset, todo).

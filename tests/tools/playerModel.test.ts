@@ -60,15 +60,15 @@ describe('VRM game derivative preparation', () => {
       expect(prepareVrm(input).json.materials[0].extras.playerMaterial.role).toBe('body');
     }
   });
-  it('drops the steel sole matcap explicitly and records it, but rejects matcaps elsewhere', () => {
+  it('skips a material no mesh uses, even one with unsupported effects, and still checks used ones', () => {
+    // The soles-rebuild left V39's matcap sole material in the file after moving the soles onto Armor.
     const input = vrmFixture();
-    input.nodes[0].name = 'Closed metal sole.L';
-    input.materials[0].name = 'V39 shaped steel sole';
-    Object.assign(input.materials[0].extensions.VRMC_materials_mtoon, { matcapTexture: { index: 0 }, matcapFactor: [1, 1, 1] });
-    const { json, droppedMatcapMaterials } = prepareVrm(input);
-    expect(droppedMatcapMaterials).toEqual(['V39 shaped steel sole']);
-    expect(json.materials[0].extensions).toBeUndefined();
-    input.materials[0].name = 'Knight V28 - smart UV armor.001';
+    input.materials.push({ name: 'V39 shaped steel sole', pbrMetallicRoughness: { baseColorFactor: [0.22, 0.225, 0.235, 1] },
+      extensions: { VRMC_materials_mtoon: { matcapTexture: { index: 0 }, matcapFactor: [1, 1, 1] } as never } });
+    const { json } = prepareVrm(input);
+    expect(json.materials[1].extras?.playerMaterial).toBeUndefined();
+    expect(json.materials[0].extras.playerMaterial.role).toBe('head');
+    Object.assign(input.materials[0].extensions.VRMC_materials_mtoon, { matcapTexture: { index: 0 } });
     expect(() => prepareVrm(input)).toThrow(/Unsupported MToon/);
   });
   it('rejects unknown mesh roles rather than classifying future body pieces as head', () => {

@@ -17,6 +17,7 @@ import { createKnightEquipment, type KnightEquipment } from './knightEquipment';
 import { applyPlayerMaterials } from './playerMaterials';
 import { attachPlayerBlink } from './playerBlink';
 import { attachSecondaryMotion, type AirLift } from './secondaryMotion';
+import { attachRigidSkinnedMeshes } from './rigidAttachments';
 import type { GroundHeight } from './groundHeight';
 import { moveToward } from '../../domain/math/scalar';
 import { stepJumpPose, INITIAL_JUMP_POSE } from './jumpPose';
@@ -354,6 +355,8 @@ export async function loadKnight(
     attached.push(plantFeet(scene, root, parent, knight, seatedLocalY, groundHeight));
   }
 
+  // After seating, which measures the skinned soles: rigid pieces then leave the skeleton.
+  attachRigidSkinnedMeshes(result.meshes);
   anchorKnightTrail(trailGenerator, root, result.transformNodes);
   equipment = createKnightEquipment(scene, root, result.transformNodes, shadows);
   return knight;
