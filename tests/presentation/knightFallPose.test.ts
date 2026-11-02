@@ -136,6 +136,7 @@ function mount(runSpeed = 8): Rig {
   const knight: Knight = {
     animations,
     planted: 1,
+    air: { offGround: false, verticalSpeed: 0 },
     trail: createDashTrail(scene, new TransformNode('trailGen', scene)),
     // Nothing to release: this rig never runs `loadKnight`, so nothing put the seating pass or the
     // foot plant on this scene's frame loop. The animation observer is `driveKnightAnimation`'s own,
@@ -408,4 +409,19 @@ it('matches faster running with faster strides, including after an airborne tran
   expect(rig.knight.planted).toBe(0);
   rig.run(.1);
   expect(rig.jumpStarts()).toBe(starts + 1);
+});
+
+describe('the air the side plates feel', () => {
+  it('is the pose layer\'s own off-ground signal plus the supplied fall speed', () => {
+    const rig = running();
+    expect(rig.knight.air).toEqual({ offGround: false, verticalSpeed: 0 });
+    rig.motion.airborne = true;
+    rig.motion.verticalSpeed = -3;
+    rig.step();
+    expect(rig.knight.air).toEqual({ offGround: true, verticalSpeed: -3 });
+    rig.motion.airborne = false;
+    rig.motion.verticalSpeed = 0;
+    rig.run(0.5);
+    expect(rig.knight.air).toEqual({ offGround: false, verticalSpeed: 0 });
+  });
 });

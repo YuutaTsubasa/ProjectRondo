@@ -75,7 +75,7 @@ export async function importPlayer(sourcePath, outputPath = DEFAULT_OUTPUT) {
   if (resolvedSource.toLowerCase() === resolvedOutput.toLowerCase() || resolvedOutput.toLowerCase() === DONOR_PATH.toLowerCase()) throw Error('Output must not overwrite source or immutable donor');
   const sourceBytes = await fs.readFile(resolvedSource);
   const source = await io.binaryToJSON(sourceBytes);
-  const { json, humanBones, blink } = prepareVrm(source.json);
+  const { json, humanBones, blink, secondaryMotion } = prepareVrm(source.json);
   const document = await io.readJSON({ json, resources: source.resources });
   const blinkMetadata = bakePlayerBlink(document, blink);
   const donorBytes = await fs.readFile(DONOR_PATH);
@@ -129,6 +129,10 @@ export async function importPlayer(sourcePath, outputPath = DEFAULT_OUTPUT) {
   }
   await document.transform(pruneUnused);
   applyRelaxedPose(document, boneMap);
+  const retainedNames = new Set(root.listNodes().map(n => n.getName()));
+  for (const name of [...secondaryMotion.constraints.flatMap(c => [c.node, c.source]), ...secondaryMotion.springs.flatMap(s => [...s.joints.map(j => j.node), ...s.colliders.map(c => c.node)])]) {
+    if (!retainedNames.has(name)) throw Error(`Secondary motion node ${name} was not retained`);
+  }
   const textures = [];
   for (const texture of root.listTextures()) {
     const original = texture.getImage();
@@ -141,7 +145,7 @@ export async function importPlayer(sourcePath, outputPath = DEFAULT_OUTPUT) {
   const metadata = {
     schemaVersion: 1, hipsNodeName: targetHips.getName(), rootNodeName: 'Root', orientation: 'gltf-positive-z-forward',
     headMaterialNames: root.listMaterials().filter(m => m.getExtras().playerMaterial.role === 'head').map(m => m.getName()),
-    clips: CLIPS, sourceSha256: sha256(sourceBytes), donorSha256: sha256(donorBytes), boneMap, motionScale, blink: blinkMetadata, lipSeam, settings: SETTINGS,
+    clips: CLIPS, sourceSha256: sha256(sourceBytes), donorSha256: sha256(donorBytes), boneMap, motionScale, blink: blinkMetadata, lipSeam, secondaryMotion, settings: SETTINGS,
   };
   root.getAsset().extras = { playerModel: metadata };
   const outputBytes = await io.writeBinary(document);

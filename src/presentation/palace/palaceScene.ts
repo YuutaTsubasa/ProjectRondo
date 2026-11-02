@@ -65,7 +65,7 @@ export async function createPalaceScene(engine:Engine):Promise<PalaceScene> {
     playerRoot.rotation.y=-Math.PI/2;
     knight=await loadKnight(scene,playerRoot,shadows,()=>state.player.grounded?state.player.y:null);
     const motion=():KnightMotionSample=>({
-      planarSpeed:Math.abs(state.player.vx),airborne:!state.player.grounded,
+      planarSpeed:Math.abs(state.player.vx),verticalSpeed:state.player.vy,airborne:!state.player.grounded,
       homing:state.player.homing!==null,homingEntrySeconds:.5,bounced:state.player.bounced,
       airJumped:state.player.airJumped,swordSeconds:state.player.swordSeconds,
     });
