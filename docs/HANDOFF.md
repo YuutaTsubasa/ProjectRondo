@@ -996,3 +996,24 @@ The existing 3D course is now 白宮天廊: authored collision rectangles, jump 
 The course portal and beacon moved from the outdoor ruin to white tower square west (-20,43), with safe return (-20,1.3,40). Physical white-stone portal, objective/story/menu names, map markers, return action, and narrowly scoped old-entrance save migration agree. The grass signal still unlocks this expedition. Old `course` / dialogue IDs stay stable. Existing atlas raster remains from the earlier bake; dynamic markers are current.
 
 Validation: 100 tests across 13 suites, clean typecheck, production build (only existing chunk-size warning). Browser verified sword/Homing defeat, three-hit checkpoint recovery, patrol/attack poses, full traversal (7 jumps / 8 crystal bounces / zero retries or damage), results/retry, and actual city entrance clearance. Local isolated playable preview: /.superpowers/stage-play-qa.html?mode=course. No save writes in that preview. No commit or PR requested. Existing course BGM retained pending the user's town-theme Hardcore remix.
+
+
+## 2026-11-02 — H01(Small Eyes)-B01 player and side-plate motion
+
+Imported ProjectVtuber `output/current/H01-B01-small-eyes/...-tsB-cs02-y30_VRM1.vrm` into the stable `player-v20.glb`
+(14.2 MB, was 12.9 MB). Importer policy: the split boot rim / steel sole / undersuit lining meshes are body; the steel
+sole's matcap is dropped by name and recorded; spring tail leaves may be pruned. Neutral geometry, skin, blink deltas
+(15 primitives) and checksum verified by `verify.mjs`.
+
+B01's side plates are no longer skinned to the thighs: the VRM drives them with two roll constraints and a spring.
+The importer now keeps those as receipt data and `secondaryMotion.ts` drives them in game (hinge roll, door splay,
+root-relative spring with thigh collision, falling air lift capped at 50°). Browser check on the 3D trial: idle, walk/run
+(plate swing 1–16°, door up to 17.5°, no thigh pass-through seen), jump (plates rise to 50° while falling and settle within
+~0.3 s of landing), homing dash, sword/shield grip, face close-up, forced blink and menu portrait.
+
+Open: the `Preserved boot rim` heel stripes (see tools/player-model/README.md). A frame metric (readPixels, count of
+strongly saturated pixels, 10–15 frames per variant) showed: rim hidden → none every run; standard/toon/fresh materials,
+outline, shadows and buffer layout gave inconsistent results between runs (idle-phase dependent). Not fixed here; the
+model source or a decision to drop the rim in the game derivative is the next step. AVG video portraits still show the
+earlier knight (separate asset, todo).
+

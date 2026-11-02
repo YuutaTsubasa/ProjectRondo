@@ -1,6 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { Document } from '@gltf-transform/core';
-import { retainSecondaryMotion, uniformJoints } from '../../tools/player-model/secondary.mjs';
+import { retainSecondaryMotion } from '../../tools/player-model/secondary.mjs';
 
 // The B01 side-plate (tasset) chain as authored in ProjectVtuber: Hips -> Hinge -> FrameYaw -> SplayYaw
 // -> UnframeYaw -> Plate -> Tip, two roll constraints from UpperLeg and one spring on the plate.
@@ -58,27 +57,3 @@ describe('secondary motion retained from VRM extensions', () => {
   });
 });
 
-describe('joint index layout', () => {
-  const skinned = (document: Document, array: Uint8Array<ArrayBuffer> | Uint16Array<ArrayBuffer>) => {
-    const joints = document.createAccessor().setType('VEC4').setArray(array);
-    const primitive = document.createPrimitive().setAttribute('JOINTS_0', joints);
-    document.createMesh().addPrimitive(primitive);
-    return joints;
-  };
-  it('stores every primitive with the same component type, keeping the joint values', () => {
-    const document = new Document();
-    const narrow = skinned(document, new Uint8Array([0, 1, 2, 3]));
-    const wide = skinned(document, new Uint16Array([4, 56, 0, 0]));
-    expect(uniformJoints(document)).toEqual({ componentType: 5121, converted: 1 });
-    expect(narrow.getArray()).toBeInstanceOf(Uint8Array);
-    expect(wide.getArray()).toBeInstanceOf(Uint8Array);
-    expect(Array.from(wide.getArray()!)).toEqual([4, 56, 0, 0]);
-  });
-  it('widens instead when a joint index does not fit in a byte', () => {
-    const document = new Document();
-    const narrow = skinned(document, new Uint8Array([0, 1, 2, 3]));
-    skinned(document, new Uint16Array([300, 0, 0, 0]));
-    expect(uniformJoints(document)).toEqual({ componentType: 5123, converted: 1 });
-    expect(narrow.getArray()).toBeInstanceOf(Uint16Array);
-  });
-});

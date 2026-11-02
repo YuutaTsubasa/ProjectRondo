@@ -62,21 +62,3 @@ export function retainSecondaryMotion(json) {
   return { constraints, springs };
 }
 
-/**
- * Store every JOINTS_0 with one component type. Babylon renders the wrong colors when one toon
- * material is shared by primitives whose joint indices differ (H01-B01's boot rim vs Armor).
- * Values never change; bytes are used when every index fits, otherwise unsigned shorts.
- */
-export function uniformJoints(document) {
-  const accessors = [...new Set(document.getRoot().listMeshes().flatMap(mesh => mesh.listPrimitives()
-    .map(primitive => primitive.getAttribute('JOINTS_0')).filter(Boolean)))];
-  const fits = accessors.every(accessor => accessor.getArray().every(value => value < 256));
-  const Type = fits ? Uint8Array : Uint16Array;
-  let converted = 0;
-  for (const accessor of accessors) {
-    if (accessor.getArray() instanceof Type) continue;
-    accessor.setArray(Type.from(accessor.getArray()));
-    converted++;
-  }
-  return { componentType: fits ? 5121 : 5123, converted };
-}

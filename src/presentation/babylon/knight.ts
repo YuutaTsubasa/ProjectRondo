@@ -328,7 +328,7 @@ export async function loadKnight(
   // Blink and foot planting each own their own scene subscription.
   const releaseBlink = attachPlayerBlink(scene, result.meshes);
   // Side plates follow the thighs and swing; the knight is defined below, before the first frame.
-  const releaseSecondary = attachSecondaryMotion(scene, result.transformNodes, PLAYER_MODEL.secondaryMotion, () => knight.air);
+  const releaseSecondary = attachSecondaryMotion(scene, result.transformNodes, PLAYER_MODEL.secondaryMotion, () => knight.air, undefined, root);
   let equipment: KnightEquipment | undefined;
   const knight: Knight = {
     get equipment() { return equipment; },

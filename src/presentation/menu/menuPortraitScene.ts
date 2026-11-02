@@ -58,7 +58,7 @@ export function createMenuPortraitScene(engine:AbstractEngine){
   const skinned=asset.meshes.filter(mesh=>mesh.skeleton&&mesh.getTotalVertices()>0);
   holder.position.y-=skinned.length?measureSkinnedSole(skinned):holder.getHierarchyBoundingVectors(true).min.y;
   releaseBlink=attachPlayerBlink(scene,asset.meshes);
-  releaseSecondary=attachSecondaryMotion(scene,asset.transformNodes,PLAYER_MODEL.secondaryMotion,()=>({offGround:false,verticalSpeed:0}));
+  releaseSecondary=attachSecondaryMotion(scene,asset.transformNodes,PLAYER_MODEL.secondaryMotion,()=>({offGround:false,verticalSpeed:0}),undefined,holder);
   loaded=true;dirty=true;
  }).catch(error=>{if(disposed)return;dispose();throw error;});
  return {scene,ready,dispose,

@@ -258,7 +258,6 @@
       }
     ]
   },
-  "jointComponentType": 5121,
   "settings": {
     "maxTextureSize": 2048,
     "textureFormat": "webp",
@@ -293,8 +292,8 @@
     }
   },
   "sourceFile": "H01-B01-small-eyes_face01-cuff01-lf01-js01-eo01-ec01-tf01-hb02-tsB-cs02-y30_VRM1.vrm",
-  "outputSha256": "9989058eec1c83ccb678f5965544d749d01002918113a6b325d3d2389e154774",
-  "outputBytes": 14196508,
+  "outputSha256": "d1105244716e8d5d75763d7d1cf13ebc44d8fb9d4b962063ce977149b88b343c",
+  "outputBytes": 14240224,
   "textures": [
     {
       "name": "tripo_image_3770dbe0_0.001 cs02",

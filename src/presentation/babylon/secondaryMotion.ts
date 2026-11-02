@@ -47,6 +47,17 @@ export interface AirLift {
  * B01 side plates read 1.5 as the most natural lift (~48° from a 0.3 m hop); 2 flips them about.
  */
 export const AIR_LIFT_WIND = 1.5;
+/**
+ * Fall speed (units/s) beyond which the lift stops growing: about the landing speed of that 0.3 m
+ * trial hop. Rondo's jumps fall at up to 9 units/s, where the uncapped lift flipped the plates ~165°.
+ */
+export const AIR_LIFT_MAX_FALL_SPEED = 2.4;
+/**
+ * Degrees the air may carry a spring from its rest direction. Any upward pull stronger than the
+ * spring's own stiffness and gravity ends with the plate flipped over, so the ~48° the trial hop
+ * showed only in passing is held here for falls of any length.
+ */
+export const AIR_LIFT_MAX_ANGLE = 50;
 /** Larger frame gaps (tab switches, loading hitches) are simulated as this step, not extrapolated. */
 const MAX_STEP = 1 / 30;
 
@@ -115,6 +126,8 @@ export interface SpringStep {
   readonly gravityPower: number;
   readonly hitRadius: number;
   readonly colliders: readonly { readonly head: Vec3; readonly tail: Vec3; readonly radius: number }[];
+  /** Degrees the tail may leave {@link restDirection}; unlimited when absent. */
+  readonly maxAngle?: number;
 }
 
 /** One VRM 1.0 spring-bone verlet step for a joint's tail, in world space. */
@@ -135,6 +148,14 @@ export function stepSpring(state: SpringState, step: SpringStep, dt: number): Sp
       next = onBone();
     }
   }
+  if (step.maxAngle !== undefined) {
+    const direction = unit(sub(next, step.head));
+    const limit = (step.maxAngle * Math.PI) / 180;
+    if (Math.acos(Math.max(-1, Math.min(1, dot(direction, step.restDirection)))) > limit) {
+      const toward = unit(sub(direction, scale(step.restDirection, dot(direction, step.restDirection))));
+      next = add(step.head, scale(add(scale(step.restDirection, Math.cos(limit)), scale(toward, Math.sin(limit))), step.length));
+    }
+  }
   return { current: next, previous: state.current };
 }
 
@@ -145,7 +166,7 @@ export function springGravity(
   wind: number,
 ): { gravityDir: Vec3; gravityPower: number } {
   if (!air.offGround || air.verticalSpeed >= 0) return own;
-  return { gravityDir: [0, 1, 0], gravityPower: wind * -air.verticalSpeed };
+  return { gravityDir: [0, 1, 0], gravityPower: wind * Math.min(-air.verticalSpeed, AIR_LIFT_MAX_FALL_SPEED) };
 }
 
 const quatOf = (node: TransformNode): Quat => {
@@ -159,8 +180,6 @@ function refreshWorld(node: TransformNode): void {
   for (let n: TransformNode | null = node; n; n = n.parent as TransformNode | null) chain.unshift(n);
   for (const n of chain) n.computeWorldMatrix(true);
 }
-const worldPoint = (node: TransformNode, local: readonly number[]): Vec3 =>
-  vec(Vector3.TransformCoordinates(new Vector3(local[0], local[1], local[2]), node.getWorldMatrix()));
 const worldRotation = (node: TransformNode | null): Quat => {
   if (!node) return IDENTITY;
   const q = new Quaternion();
@@ -172,6 +191,10 @@ const worldRotation = (node: TransformNode | null): Quat => {
  * Drive the receipt's roll constraints and spring chains on the imported nodes every frame, after the
  * skeletal clips have posed this frame and before skinning reads the nodes. Rest rotations are read
  * here for the constrained and spring nodes, which no clip animates. Returns the unsubscribe.
+ *
+ * Springs are simulated in `center`'s frame (VRM's spring `center`), normally the character root:
+ * running at 8 units/s flung B01's side plates ~60° out in world space. The thighs' motion, their
+ * collisions and the explicit falling air lift still move them.
  */
 export function attachSecondaryMotion(
   scene: Scene,
@@ -179,6 +202,7 @@ export function attachSecondaryMotion(
   settings: SecondaryMotionSettings,
   air: () => AirLift,
   wind = AIR_LIFT_WIND,
+  center: TransformNode | null = null,
 ): () => void {
   const byName = new Map(nodes.map((node) => [node.name, node]));
   const find = (name: string) => {
@@ -206,33 +230,41 @@ export function attachSecondaryMotion(
       (c.node.rotationQuaternion ??= new Quaternion()).set(q[0], q[1], q[2], q[3]);
     }
     const lift = air();
+    if (center) refreshWorld(center);
+    const toCenter = center ? center.getWorldMatrix().clone().invert() : null;
+    const centerRotation = worldRotation(center);
+    const local = (point: Vector3): Vec3 => vec(toCenter ? Vector3.TransformCoordinates(point, toCenter) : point);
+    const pointOf = (node: TransformNode, offset: readonly number[]): Vec3 =>
+      local(Vector3.TransformCoordinates(new Vector3(offset[0], offset[1], offset[2]), node.getWorldMatrix()));
     for (const spring of springs) {
       for (const joint of spring.joints) {
         // Simulate against the rest pose under the current parent pose; the result replaces it.
         (joint.target.rotationQuaternion ??= new Quaternion()).set(...(joint.rest as [number, number, number, number]));
         refreshWorld(joint.target);
-        const head = vec(joint.target.getAbsolutePosition());
-        const restTail = worldPoint(joint.target, joint.tail);
+        const head = local(joint.target.getAbsolutePosition());
+        const restTail = pointOf(joint.target, joint.tail);
         const length = Math.hypot(...sub(restTail, head));
         // The model is scaled to its game height; keep the authored metre-based forces in proportion.
         const unitsPerMetre = length / Math.max(1e-9, Math.hypot(...joint.tail));
         const stale = !joint.state || Math.hypot(...sub(joint.state.current, head)) > 3 * length;
         const state = stale ? { current: restTail, previous: restTail } : joint.state!;
         if (dt <= 0) { joint.state = state; continue; }
-        const gravity = springGravity({ gravityDir: joint.gravityDir as unknown as Vec3, gravityPower: joint.gravityPower }, lift, wind);
+        const worldGravity = springGravity({ gravityDir: joint.gravityDir as unknown as Vec3, gravityPower: joint.gravityPower }, lift, wind);
+        const gravity = { ...worldGravity, gravityDir: rotate(inv(centerRotation), worldGravity.gravityDir) };
         const colliders = spring.colliders.map((c) => {
           refreshWorld(c.target);
-          return { head: worldPoint(c.target, c.offset), tail: worldPoint(c.target, c.tail), radius: c.radius * unitsPerMetre };
+          return { head: pointOf(c.target, c.offset), tail: pointOf(c.target, c.tail), radius: c.radius * unitsPerMetre };
         });
         joint.state = stepSpring(state, {
           head, length, restDirection: unit(sub(restTail, head)),
           stiffness: joint.stiffness * unitsPerMetre, dragForce: joint.dragForce,
           gravityDir: gravity.gravityDir, gravityPower: gravity.gravityPower * unitsPerMetre,
           hitRadius: joint.hitRadius * unitsPerMetre, colliders,
+          maxAngle: lift.offGround && lift.verticalSpeed < 0 ? AIR_LIFT_MAX_ANGLE : undefined,
         }, dt);
         // Turn the rest tail direction onto the simulated one, in the joint's local rest frame.
-        const restWorld = mul(worldRotation(joint.target.parent as TransformNode | null), joint.rest);
-        const to = unit(rotate(inv(restWorld), sub(joint.state.current, head)));
+        const restInCenter = mul(inv(centerRotation), mul(worldRotation(joint.target.parent as TransformNode | null), joint.rest));
+        const to = unit(rotate(inv(restInCenter), sub(joint.state.current, head)));
         const q = mul(joint.rest, fromTo(joint.axis, to));
         joint.target.rotationQuaternion!.set(q[0], q[1], q[2], q[3]);
       }

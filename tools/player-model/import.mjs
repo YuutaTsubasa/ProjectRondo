@@ -9,7 +9,6 @@ import sharp from 'sharp';
 import { blendLipSeam, LIP_SEAM_SETTINGS } from './lipSeam.mjs';
 import { applyRelaxedPose, RELAXED_POSE } from './relaxedPose.mjs';
 import { prune } from '@gltf-transform/functions';
-import { uniformJoints } from './secondary.mjs';
 import { CLIPS, prepareVrm, bakePlayerBlink, validateGameAsset, worldRotations, transferRotation, transferTranslation, inverse, multiply, normalize } from './core.mjs';
 
 const DIRECTORY = path.dirname(fileURLToPath(import.meta.url));
@@ -130,7 +129,6 @@ export async function importPlayer(sourcePath, outputPath = DEFAULT_OUTPUT) {
   }
   await document.transform(pruneUnused);
   applyRelaxedPose(document, boneMap);
-  const joints = uniformJoints(document);
   const retainedNames = new Set(root.listNodes().map(n => n.getName()));
   for (const name of [...secondaryMotion.constraints.flatMap(c => [c.node, c.source]), ...secondaryMotion.springs.flatMap(s => [...s.joints.map(j => j.node), ...s.colliders.map(c => c.node)])]) {
     if (!retainedNames.has(name)) throw Error(`Secondary motion node ${name} was not retained`);
@@ -147,7 +145,7 @@ export async function importPlayer(sourcePath, outputPath = DEFAULT_OUTPUT) {
   const metadata = {
     schemaVersion: 1, hipsNodeName: targetHips.getName(), rootNodeName: 'Root', orientation: 'gltf-positive-z-forward',
     headMaterialNames: root.listMaterials().filter(m => m.getExtras().playerMaterial.role === 'head').map(m => m.getName()),
-    clips: CLIPS, sourceSha256: sha256(sourceBytes), donorSha256: sha256(donorBytes), boneMap, motionScale, blink: blinkMetadata, lipSeam, droppedMatcapMaterials, secondaryMotion, jointComponentType: joints.componentType, settings: SETTINGS,
+    clips: CLIPS, sourceSha256: sha256(sourceBytes), donorSha256: sha256(donorBytes), boneMap, motionScale, blink: blinkMetadata, lipSeam, droppedMatcapMaterials, secondaryMotion, settings: SETTINGS,
   };
   root.getAsset().extras = { playerModel: metadata };
   const outputBytes = await io.writeBinary(document);
