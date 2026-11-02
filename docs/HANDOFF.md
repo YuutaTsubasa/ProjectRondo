@@ -997,6 +997,15 @@ The course portal and beacon moved from the outdoor ruin to white tower square w
 
 Validation: 100 tests across 13 suites, clean typecheck, production build (only existing chunk-size warning). Browser verified sword/Homing defeat, three-hit checkpoint recovery, patrol/attack poses, full traversal (7 jumps / 8 crystal bounces / zero retries or damage), results/retry, and actual city entrance clearance. Local isolated playable preview: /.superpowers/stage-play-qa.html?mode=course. No save writes in that preview. No commit or PR requested. Existing course BGM retained pending the user's town-theme Hardcore remix.
 
+## White Palace mahjong parlor and 一目元 (2026-11-02)
+
+The middle east townhouse on Ivory Street (`east-house-1`) is now enterable as **白石台麻館**, a Taiwanese mahjong parlor. A hanging signboard and two lanterns mark its door (`presentation/town/parlorFrontage.ts`); standing at the door offers **進入**. The interior is its own small scene (`presentation/parlor/parlorScene.ts`) that implements the region scene contract, so `RegionWorld` hosts it with the same readiness, pause and resize handling (`interior="parlor"`), and `RegionSession` switches to it with the expedition-style loading swap. Leaving returns the player outside the door facing the street. The region save keeps the door as the safe position while indoors, so quitting inside resumes at the door.
+
+`domain/town/mahjongParlor.ts` owns the door, return point, room bounds, four tables and their chairs, the host seat and the talk rotation. The room (`parlorRoom.ts`) is code-authored: ivory stone walls with wainscot, timber floor, side windows, four green-felt tables with thin-instanced tile walls/hands/discards, chairs, a tea cabinet, the parlor plaque, lanterns and pendant lamps. Signs draw text onto a DynamicTexture shown on BACKSIDE planes (in the right-handed scene that plane faces +z and reads unmirrored).
+
+The first member character, **一目元** (member01, a floating one-eyed jellyfish), hovers in the aisle seat of the back table. `public/models/ichimoku-gen.glb` is a derivative of the ProjectVtuber VRM made by `tools/npc-model/import.mjs` (see its README); the VRM itself stays outside this repository. `ichimokuGen.ts` drives a procedural idle (float, rippling tentacles, eye following the player within the VRM look-at range, blink). Talking (**交談**) plays `content/dialogue/parlor/*.dlg`: an introduction on the first talk, then three rotating topics. Talks never change chapter progress; the count is kept separately in LocalStorage `rondo.parlor.v1`.
+
+Not done: no playable mahjong (the Virtual series web game may later be embedded through an arcade cabinet), no map/atlas marker for the parlor, and the furniture is procedural. Codex reference images for Tripo replacements (table, chair, signboard) are outside the repo in `Data\20_Assets\Art\2026-11-02_rondo-mahjong-parlor-tripo-refs`. The member's terms currently cover the Virtual series, streams and related content; confirm Rondo use before a public deploy.
 
 ## 2026-11-02 — H01(Small Eyes)-B01 player and side-plate motion
 
