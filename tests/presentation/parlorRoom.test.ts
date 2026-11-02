@@ -26,3 +26,16 @@ it('walls the room in and keeps the walk from the door to 一目元 clear',async
   expect((scene.getMeshByName('parlor-tile') as Mesh|null)?.thinInstanceCount).toBeGreaterThan(400);
  }finally{scene.dispose();engine.dispose();}
 });
+
+it('builds at an offset with world-space colliders and camera solids',async()=>{
+ const engine=new NullEngine(),scene=new Scene(engine);
+ try{
+  const {Vector3}=await import('@babylonjs/core/Maths/math.vector');
+  const room=await createParlorRoom(scene,new Vector3(240,0,0));
+  const near=(x:number,z:number)=>room.cameraSolids.some(b=>b.min.x<x&&b.max.x>x&&b.min.z<z&&b.max.z>z&&b.max.y>0);
+  for(const t of PARLOR_TABLES)expect(near(240+t.x,t.z)).toBe(true);
+  expect(near(PARLOR_TABLES[0].x,PARLOR_TABLES[0].z)).toBe(false);
+  const floor=scene.getMeshByName('parlor-static-parlor-felt')!;floor.computeWorldMatrix(true);
+  expect(floor.getBoundingInfo().boundingBox.centerWorld.x).toBeGreaterThan(230);
+ }finally{scene.dispose();engine.dispose();}
+});

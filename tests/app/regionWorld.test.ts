@@ -2,9 +2,8 @@
 import {afterEach,expect,it,vi} from 'vitest';
 import {mount,unmount,flushSync} from 'svelte';
 import RegionWorld from '../../src/app/RegionWorld.svelte';
-const fake=vi.hoisted(()=>({build:vi.fn(),buildParlor:vi.fn(),frame:()=>{},dispose:vi.fn(),resize:vi.fn()}));
+const fake=vi.hoisted(()=>({build:vi.fn(),frame:()=>{},dispose:vi.fn(),resize:vi.fn()}));
 vi.mock('../../src/presentation/region/regionScene',()=>({createRegionScene:fake.build}));
-vi.mock('../../src/presentation/parlor/parlorScene',()=>({createParlorScene:fake.buildParlor}));
 vi.mock('@babylonjs/core/Engines/engine',()=>({Engine:class{runRenderLoop(fn:()=>void){fake.frame=fn;}getDeltaTime(){return 16;}resize(){fake.resize();}dispose(){fake.dispose();}}}));
 let app:ReturnType<typeof mount>|undefined;
 const settle=async()=>{flushSync();await new Promise(r=>setTimeout(r,0));flushSync();};
@@ -100,8 +99,11 @@ it('places the selected mission marker before the initial paused backdrop is dra
  app=mount(RegionWorld,{target:document.body,props:{paused:true,waterRestored:false,targetId:'palace',onReady:vi.fn(),onFailure:vi.fn(),onPosition:vi.fn(),onPause:vi.fn()}});
  await settle();expect(scene.setObjective).toHaveBeenCalledWith('palace');expect(order.indexOf('target')).toBeLessThan(order.indexOf('render'));
 });
-it('builds the parlor interior instead of the region when asked',async()=>{
- const scene=level(),ready=vi.fn();fake.buildParlor.mockResolvedValue(scene);
- app=mount(RegionWorld,{target:document.body,props:{interior:'parlor',paused:true,waterRestored:false,onReady:ready,onFailure:vi.fn(),onPosition:vi.fn(),onPause:vi.fn()}});await settle();
- expect(fake.buildParlor).toHaveBeenCalledOnce();expect(fake.build).not.toHaveBeenCalled();expect(ready).toHaveBeenCalledOnce();
+it('teleports within the built world and discards the stale frame',async()=>{
+ const scene={...level(),teleport:vi.fn()};fake.build.mockResolvedValue(scene);
+ const component=mount(RegionWorld,{target:document.body,props:{paused:false,waterRestored:false,onReady:vi.fn(),onFailure:vi.fn(),onPosition:vi.fn(),onPause:vi.fn()}});app=component;await settle();
+ scene.scene.render.mockClear();
+ (component as unknown as {teleport:(p:unknown,f:unknown)=>void}).teleport({x:240,y:1.3,z:-3.6},{x:0,z:1});
+ expect(scene.teleport).toHaveBeenCalledWith({x:240,y:1.3,z:-3.6},{x:0,z:1});
+ fake.frame();expect(scene.scene.render).not.toHaveBeenCalled();fake.frame();expect(scene.scene.render).toHaveBeenCalledOnce();
 });

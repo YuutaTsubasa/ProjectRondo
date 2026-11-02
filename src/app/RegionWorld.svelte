@@ -4,10 +4,9 @@
  import {createLevelSwap} from './levelSwap';
  import {waitForRegionReadiness} from './regionReadiness';
  import {createRegionScene,type RegionScene} from '../presentation/region/regionScene';
- import {createParlorScene} from '../presentation/parlor/parlorScene';
  import type {RegionPoint} from '../domain/region/regionObjectives';
  import type {SoundCue} from '../domain/audio/soundCue';
- let {interior=null,paused,waterRestored,targetId=null,spawn,spawnFacing,onReady,onFailure,onPosition,onPause,onHeading,onPlayerHeading}:{interior?:'parlor'|null;paused:boolean;waterRestored:boolean;targetId?:string|null;spawn?:RegionPoint;spawnFacing?:{x:number;z:number};onReady:()=>void;onFailure:(error:unknown)=>void;onPosition:(position:RegionPoint,label:string)=>void;onPause:()=>void;onHeading?:(heading:number)=>void;onPlayerHeading?:(heading:number)=>void}=$props();
+ let {paused,waterRestored,targetId=null,spawn,spawnFacing,onReady,onFailure,onPosition,onPause,onHeading,onPlayerHeading}:{paused:boolean;waterRestored:boolean;targetId?:string|null;spawn?:RegionPoint;spawnFacing?:{x:number;z:number};onReady:()=>void;onFailure:(error:unknown)=>void;onPosition:(position:RegionPoint,label:string)=>void;onPause:()=>void;onHeading?:(heading:number)=>void;onPlayerHeading?:(heading:number)=>void}=$props();
  let canvas:HTMLCanvasElement;
  let region:RegionScene|undefined;
  let lastPaused:boolean|undefined,discardNextFrame=true;
@@ -27,6 +26,7 @@
  $effect(()=>{const target=targetId;region?.setObjective(target);});
  export function reset(){region?.reset();region?.scene.resetLastAnimationTimeFrame();discardNextFrame=true;}
  export function playCue(cue:SoundCue){region?.audio.play(cue);}
+ export function teleport(point:RegionPoint,facing:{x:number;z:number}){region?.teleport(point,facing);region?.scene.resetLastAnimationTimeFrame();discardNextFrame=true;}
  onMount(()=>{
   let live=true,engine:Engine;
   const readinessAbort=new AbortController();
@@ -49,7 +49,7 @@
   window.addEventListener('resize',resize);document.addEventListener('visibilitychange',hidden);resize();
   levels.swap(async()=>{
    let built:RegionScene|undefined;
-   try{built=interior==='parlor'?await createParlorScene(engine,canvas):await createRegionScene(engine,canvas,spawn,spawnFacing);built.suspendInput(true);built.setObjective(targetId);await waitForRegionReadiness(built.scene,readinessAbort.signal);return built;}
+   try{built=await createRegionScene(engine,canvas,spawn,spawnFacing);built.suspendInput(true);built.setObjective(targetId);await waitForRegionReadiness(built.scene,readinessAbort.signal);return built;}
    catch(error){built?.dispose();if(live)onFailure(error);throw error;}
   },built=>{
    region=built;built.setWaterRestored(waterRestored);built.setObjective(targetId);
