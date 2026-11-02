@@ -53,6 +53,24 @@ describe('VRM game derivative preparation', () => {
     Object.assign(input.materials[0].extensions.VRMC_materials_mtoon, { parametricRimColorFactor: [1, 0, 0] });
     expect(() => prepareVrm(input)).toThrow(/Unsupported MToon/);
   });
+  it('classifies the H01-B01 boot, sole and undersuit lining meshes as body', () => {
+    for (const name of ['Preserved boot rim.L0', 'Preserved boot rim.R0', 'Closed metal sole.L', 'Closed metal sole.R', 'V39 continuous right arm lining', 'V39 continuous torso lining']) {
+      const input = vrmFixture();
+      input.nodes[0].name = name;
+      expect(prepareVrm(input).json.materials[0].extras.playerMaterial.role).toBe('body');
+    }
+  });
+  it('drops the steel sole matcap explicitly and records it, but rejects matcaps elsewhere', () => {
+    const input = vrmFixture();
+    input.nodes[0].name = 'Closed metal sole.L';
+    input.materials[0].name = 'V39 shaped steel sole';
+    Object.assign(input.materials[0].extensions.VRMC_materials_mtoon, { matcapTexture: { index: 0 }, matcapFactor: [1, 1, 1] });
+    const { json, droppedMatcapMaterials } = prepareVrm(input);
+    expect(droppedMatcapMaterials).toEqual(['V39 shaped steel sole']);
+    expect(json.materials[0].extensions).toBeUndefined();
+    input.materials[0].name = 'Knight V28 - smart UV armor.001';
+    expect(() => prepareVrm(input)).toThrow(/Unsupported MToon/);
+  });
   it('rejects unknown mesh roles rather than classifying future body pieces as head', () => {
     const input = vrmFixture();
     input.nodes[0].name = 'NewCape';
@@ -100,4 +118,19 @@ it('marks authored skin patches as internal surfaces without changing their MToo
   expect(json.materials[0].extras.playerMaterial.suppressOutline).toBe(true);
   expect(json.materials[0].extras.playerMaterial.outlineWidthFactor).toBe(.001);
  }
+});
+
+import { Document } from '@gltf-transform/core';
+import { isPrunedLeaf } from '../../tools/player-model/core.mjs';
+it('lets verification skip only empty non-joint leaves that prune removes, such as spring-bone tips', () => {
+  const document = new Document();
+  const tip = document.createNode('TassetTip.L');
+  const plate = document.createNode('TassetPlate.L').addChild(tip);
+  const joint = document.createNode('Toes.L');
+  document.createSkin('Skin').addJoint(plate).addJoint(joint);
+  const meshNode = document.createNode('Armor').setMesh(document.createMesh('Armor'));
+  expect(isPrunedLeaf(tip)).toBe(true);
+  expect(isPrunedLeaf(plate)).toBe(false);
+  expect(isPrunedLeaf(joint)).toBe(false);
+  expect(isPrunedLeaf(meshNode)).toBe(false);
 });

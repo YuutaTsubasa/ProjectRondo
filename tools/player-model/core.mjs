@@ -4,7 +4,10 @@ export const CLIPS = Object.freeze(['Idle', 'Walk', 'Run', 'Jump', 'FlyingKick']
 const IDENTITY = [0, 0, 0, 1];
 // These authored skin patches have internal edges, not character silhouettes.
 const INTERNAL_FACE_SKIN = /^(Repaired lower face skin|Rebuilt lip skin|Original eyelid skin cleaned|Jaw silhouette skin)(?:$| -)/;
-const BODY_MESH = /^Armor$/i;
+// H01-B01 split the boots, soles and undersuit lining out of Armor; they stay body (shadow receivers).
+const BODY_MESH = /^(Armor|Preserved boot rim\.[LR]0|Closed metal sole\.[LR]|V39 continuous (right arm|torso) lining)$/i;
+// The game toon has no matcap; the sole's base color carries it, so only this underside drops its matcap.
+const DROPPED_MATCAP_MATERIAL = /^V39 shaped steel sole$/;
 const HEAD_MESH = /^(Brow|Face|FaceDetail|Glint|Hair|Iris|Lash|MouthCavity|NeckCap|Sclera|Teeth|Tongue)(\.|$)/i;
 const MTOON_DEFAULTS = { shadeColorFactor: [1, 1, 1], shadingShiftFactor: 0, shadingToonyFactor: 0.9, giEqualizationFactor: 0.9, outlineWidthFactor: 0, outlineColorFactor: [0, 0, 0] };
 export const multiply = (a, b) => [
@@ -54,9 +57,14 @@ export function prepareVrm(input) {
       roles.set(primitive.material, role);
     }
   }
+  const droppedMatcapMaterials = [];
   for (const [i, material] of json.materials.entries()) {
     const mtoon = material.extensions?.VRMC_materials_mtoon;
     if (!mtoon || !roles.has(i)) throw Error(`Missing MToon or role for ${material.name}`);
+    if (mtoon.matcapTexture && DROPPED_MATCAP_MATERIAL.test(material.name)) {
+      delete mtoon.matcapTexture;
+      droppedMatcapMaterials.push(material.name);
+    }
     const baseTexture = material.pbrMetallicRoughness?.baseColorTexture;
     const unsupported = (mtoon.parametricRimColorFactor ?? []).some(v => v !== 0)
       || ['uvAnimationRotationSpeedFactor', 'uvAnimationScrollXSpeedFactor', 'uvAnimationScrollYSpeedFactor'].some(k => (mtoon[k] ?? 0) !== 0)
@@ -83,8 +91,11 @@ export function prepareVrm(input) {
     delete node.weights;
   }
   delete json.animations;
-  return { json, humanBones, blink };
+  return { json, humanBones, blink, droppedMatcapMaterials };
 }
+/** prune({ keepLeaves: false }) drops empty leaves (H01-B01's spring-bone TassetTip markers); everything else must survive. */
+export const isPrunedLeaf = node => !node.getMesh() && !node.getCamera() && !node.getSkin() && !node.listChildren().length
+  && !node.listParents().some(parent => parent.propertyType === 'Skin');
 /** Validate contract and references on the serialized glTF, before publishing it. */
 export function validateGameAsset(json) {
   for (const name of CLIPS) {
