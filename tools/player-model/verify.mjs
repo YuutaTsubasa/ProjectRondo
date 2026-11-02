@@ -61,7 +61,12 @@ for (const mesh of source.getRoot().listMeshes()) {
   assert.equal(mesh.listPrimitives().length, target.listPrimitives().length);
   mesh.listPrimitives().forEach((primitive, i) => {
     const result = target.listPrimitives()[i];
-    for (const semantic of primitive.listSemantics()) assert.deepEqual(arrayBytes(primitive.getAttribute(semantic)), arrayBytes(result.getAttribute(semantic)), `${mesh.getName()}: ${semantic} changed`);
+    for (const semantic of primitive.listSemantics()) {
+      // Joint indices may be re-stored with the receipt's uniform component type; their values may not change.
+      const read = semantic === 'JOINTS_0' ? accessor => Array.from(accessor.getArray()) : arrayBytes;
+      assert.deepEqual(read(primitive.getAttribute(semantic)), read(result.getAttribute(semantic)), `${mesh.getName()}: ${semantic} changed`);
+      if (semantic === 'JOINTS_0') assert.equal(result.getAttribute(semantic).getComponentType(), receipt.jointComponentType);
+    }
     if (primitive.getIndices()) assert.deepEqual(arrayBytes(primitive.getIndices()), arrayBytes(result.getIndices()));
     assert.deepEqual(primitive.getMaterial().getBaseColorFactor(), result.getMaterial().getBaseColorFactor());
   });

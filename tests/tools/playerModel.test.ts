@@ -134,3 +134,9 @@ it('lets verification skip only empty non-joint leaves that prune removes, such 
   expect(isPrunedLeaf(joint)).toBe(false);
   expect(isPrunedLeaf(meshNode)).toBe(false);
 });
+
+it('returns the secondary motion it read before stripping the VRM extensions', () => {
+  const input = vrmFixture();
+  (input.extensions as Record<string, unknown>).VRMC_springBone = { colliders: [], colliderGroups: [], springs: [] };
+  expect(prepareVrm(input).secondaryMotion).toEqual({ constraints: [], springs: [] });
+});

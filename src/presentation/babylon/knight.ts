@@ -16,6 +16,7 @@ import { PLAYER_MODEL } from './playerModel';
 import { createKnightEquipment, type KnightEquipment } from './knightEquipment';
 import { applyPlayerMaterials } from './playerMaterials';
 import { attachPlayerBlink } from './playerBlink';
+import { attachSecondaryMotion, type AirLift } from './secondaryMotion';
 import type { GroundHeight } from './groundHeight';
 import { moveToward } from '../../domain/math/scalar';
 import { stepJumpPose, INITIAL_JUMP_POSE } from './jumpPose';
@@ -66,6 +67,8 @@ export interface KnightMotionSample {
    * arrive on its entry frame, which never sets {@link KnightMotionSample.homing} at all.
    */
   readonly bounced: boolean;
+  /** World units/s, up positive. Drives the springs' air lift while falling; 0 when not supplied. */
+  readonly verticalSpeed?: number;
 }
 
 /** Movement numbers the animation layer has to match, read live so `window.moveConfig` tuning applies. */
@@ -90,6 +93,8 @@ export interface Knight {
    * several centimetres, since it drops out for ~10% of frames while running.
    */
   planted: number;
+  /** Written by {@link driveKnightAnimation} each frame; read by the side-plate springs. */
+  air: AirLift;
   /** Blue dash trail, started when `homing` turns on and stopped at the bounce or the timeout — see
    *  {@link driveKnightAnimation}. Created once, hidden, in {@link loadKnight}. */
   readonly trail: DashTrail;
@@ -322,13 +327,16 @@ export async function loadKnight(
   const attached: (() => void)[] = [];
   // Blink and foot planting each own their own scene subscription.
   const releaseBlink = attachPlayerBlink(scene, result.meshes);
+  // Side plates follow the thighs and swing; the knight is defined below, before the first frame.
+  const releaseSecondary = attachSecondaryMotion(scene, result.transformNodes, PLAYER_MODEL.secondaryMotion, () => knight.air);
   let equipment: KnightEquipment | undefined;
   const knight: Knight = {
     get equipment() { return equipment; },
     animations: { idle, walk, run, jump, kick },
     planted: 1,
+    air: { offGround: false, verticalSpeed: 0 },
     trail,
-    release: () => { equipment?.dispose(); releaseBlink(); trail.dispose(); trailGenerator.dispose(); for (const detach of attached.splice(0)) detach(); },
+    release: () => { equipment?.dispose(); releaseBlink(); releaseSecondary(); trail.dispose(); trailGenerator.dispose(); for (const detach of attached.splice(0)) detach(); },
   };
 
   // Calibrate against a known Idle pose before the animation driver can switch to a spawn fall,
@@ -595,6 +603,7 @@ export function driveKnightAnimation(
     const pose = stepJumpPose(jumpPose, { airborne, homing, bounced });
     jumpPose = pose.state;
     const { offGround } = pose.state;
+    knight.air = { offGround, verticalSpeed: sample.verticalSpeed ?? 0 };
     if (pose.cue === 'launch') {
       // Stretch (or compress) the segment onto the actual airtime so the pose lands with the capsule.
       const ratio = (JUMP_FALL_END - JUMP_LAUNCH_START) / Math.max(airtime, DIVISOR_FLOOR);

@@ -1,4 +1,5 @@
 import { retainBlink, PLAYER_BLINK } from './blink.mjs';
+import { retainSecondaryMotion } from './secondary.mjs';
 export { bakePlayerBlink } from './blink.mjs';
 export const CLIPS = Object.freeze(['Idle', 'Walk', 'Run', 'Jump', 'FlyingKick']);
 const IDENTITY = [0, 0, 0, 1];
@@ -76,6 +77,7 @@ export function prepareVrm(input) {
     material.extras = { ...material.extras, playerMaterial: { role: roles.get(i), ...(INTERNAL_FACE_SKIN.test(material.name) ? { suppressOutline: true } : {}), ...Object.fromEntries(Object.entries(MTOON_DEFAULTS).map(([k, fallback]) => [k, mtoon[k] ?? fallback])) } };
   }
   const blink = retainBlink(json);
+  const secondaryMotion = retainSecondaryMotion(json);
   const strip = object => {
     if (!object || typeof object !== 'object') return;
     if (object.extensions) {
@@ -91,7 +93,7 @@ export function prepareVrm(input) {
     delete node.weights;
   }
   delete json.animations;
-  return { json, humanBones, blink, droppedMatcapMaterials };
+  return { json, humanBones, blink, droppedMatcapMaterials, secondaryMotion };
 }
 /** prune({ keepLeaves: false }) drops empty leaves (H01-B01's spring-bone TassetTip markers); everything else must survive. */
 export const isPrunedLeaf = node => !node.getMesh() && !node.getCamera() && !node.getSkin() && !node.listChildren().length

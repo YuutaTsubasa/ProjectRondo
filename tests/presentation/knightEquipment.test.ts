@@ -93,7 +93,7 @@ it('keeps the airborne clip and trail but suppresses Flying Kick for an equipped
     group.addTargetedAnimation(track,node('UpperLeg.R')); return group;
   };
   const knight: Knight = { animations: { idle: clip('Idle'), walk: clip('Walk'), run: clip('Run'),
-    jump: clip('Jump'), kick: clip('FlyingKick') }, planted: 1, equipment,
+    jump: clip('Jump'), kick: clip('FlyingKick') }, planted: 1, air: { offGround: false, verticalSpeed: 0 }, equipment,
     trail: createDashTrail(scene,root), release: () => {} };
   const release = driveKnightAnimation(scene,knight,() => ({ planarSpeed: 10,airborne: true,
     homing: true,homingEntrySeconds: .3,bounced: false,swordSeconds: null }),
