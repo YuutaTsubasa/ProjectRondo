@@ -189,3 +189,11 @@ it('never saves a position inside the parlor and resumes a door save facing the 
  await unmount(app!);app=undefined;document.body.innerHTML='';await start();
  expect(JSON.parse(document.querySelector('[data-spawn-facing]')!.getAttribute('data-spawn-facing')!)).toEqual({x:-1,z:0});
 });
+
+it('shows the parlor door, not the far room, on the map while indoors',async()=>{
+ await start();await skip();await move('parlor door');
+ button('開啟區域地圖').click();await settle();const atDoor=document.querySelector('.region-map, [role=dialog]')?.textContent;button('關閉區域地圖').click();await settle();
+ key('e');await settle();await move('parlor host');
+ button('開啟區域地圖').click();await settle();
+ expect(document.querySelector('.region-map, [role=dialog]')?.textContent).toBe(atDoor);
+});

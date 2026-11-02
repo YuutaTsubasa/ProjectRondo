@@ -46,6 +46,8 @@
  const indoors=$derived(mode==='world'&&inParlor(position));
  const nearby=$derived(mode==='world'&&!indoors?nearbyRegionPlace(position,REGION_INTERACTION_PLACES,regionHeight):undefined);
  const nearDoor=$derived(mode==='world'&&!indoors&&!!nearbyRegionPlace(position,[PARLOR_ENTRANCE],regionHeight));
+ // Maps and the HUD place the player at the parlor's street door, not at the far-off room.
+ const mapPosition=$derived(indoors?PARLOR_RETURN:position);
  const parlorSpot=$derived(indoors?nearbyParlorSpot(toParlorRoom(position)):undefined);
  // A save at the parlor door resumes facing the street, not the sidewalk trees behind.
  const spawnFacing=$derived(Math.hypot(spawn.x-PARLOR_RETURN.x,spawn.z-PARLOR_RETURN.z)<.5?PARLOR_RETURN_FACING:undefined);
@@ -136,13 +138,13 @@
 <!-- Above stage HUDs (10), below the touch controls (12) so their buttons stay tappable. -->
 <UiViewport layer={11}>
 {#if mode==='world'&&!loading&&!error}
- <div inert={paused} hidden={modal==='paused'}><RegionHud subdued={!!dialogue} {progress} position={indoors?PARLOR_RETURN:position} {heading} {playerHeading} {locationLabel} {navigationId} prompt={paused?'':prompt} {notice} {saveWarning} onInteract={interact} onMap={openMap} onPause={pause}/></div>
+ <div inert={paused} hidden={modal==='paused'}><RegionHud subdued={!!dialogue} {progress} position={mapPosition} {heading} {playerHeading} {locationLabel} {navigationId} prompt={paused?'':prompt} {notice} {saveWarning} onInteract={interact} onMap={openMap} onPause={pause}/></div>
 {/if}
 {#if dialogue&&dialogueId}
  {#key dialogueId}<DialogueOverlay chapter={isParlorTalk(dialogueId)?parlorStoryChapter(dialogueId):regionStoryChapter(dialogueId)} session={dialogue} showPortrait={dialogue.speaker==='悠太翼'} playCue={cue=>world?.playCue(cue)} onFinished={finishStory}/>{/key}
 {/if}
 {#if loading&&readySent}<LoadingPage message={mode==='world'?'正在返回白潮原野…':mode==='course'?'正在前往白宮天廊…':'正在前往白宮引水道…'}/>{/if}
-{#if modal==='map'}<RegionMap {progress} {position} initialPlace={mapFromIntroduction?pendingExpedition:null} onClose={closeMap} onTrack={track}/>{/if}
+{#if modal==='map'}<RegionMap {progress} position={mapPosition} initialPlace={mapFromIntroduction?pendingExpedition:null} onClose={closeMap} onTrack={track}/>{/if}
 {#if modal==='paused'&&!error}
  <PauseScreen onResume={resume} resumeLabel="繼續旅途" chapterTitle="白潮原野" subtitle={objective.title} location={locationLabel} objective={objective.title} detail={objective.detail} tip="按 M 開啟地圖，選取地點後可追蹤目的地。旅途進度會自動記錄。"
   actions={[{label:'地圖與旅途紀錄',english:'WORLD MAP',run:openMap},{label:'返回王城南門',english:'RETURN TO GATE',run:reset},{label:'返回主選單',english:'MAIN MENU',run:leave}]}/>
