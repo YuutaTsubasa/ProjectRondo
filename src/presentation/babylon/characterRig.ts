@@ -191,6 +191,7 @@ async function buildCharacterRig(
     const v = player.motion.velocity;
     return {
       planarSpeed: Math.hypot(v.x, v.z),
+      verticalSpeed: v.y,
       airborne: player.airborne,
       homing: player.motion.homing !== null,
       homingEntrySeconds: player.homingEntrySeconds,

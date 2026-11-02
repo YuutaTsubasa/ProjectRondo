@@ -1,4 +1,5 @@
 import receipt from '../../../public/models/player-v20.json';
+import type { SecondaryMotionSettings } from './secondaryMotion';
 
 /** Runtime contract written by tools/player-model/import.mjs into each material's glTF extras. */
 export interface PlayerMaterialSettings {
@@ -25,6 +26,8 @@ export const PLAYER_MODEL = {
   trailRadius: 0.16,
   /** Animated chest joint from this derivative's import receipt. */
   trailTorsoNode: receipt.boneMap.chest,
+  /** Side-plate roll constraints and springs the importer kept from the VRM extensions. */
+  secondaryMotion: receipt.secondaryMotion as SecondaryMotionSettings,
 } as const;
 
 const record = (value: unknown): Record<string, unknown> =>

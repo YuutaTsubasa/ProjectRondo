@@ -4,12 +4,17 @@ The authoring VRM stays outside this repository. The game loads `public/models/p
 
 ## Current release
 
-The stable runtime filename `player-v20.glb` now contains **Knight-New-V33**, imported from
-`ProjectVtuber/projects/vrm-model/output/current/new-vtuber-v33/knight_new_vrm1.vrm` on 2026-10-10.
-Source SHA-256: `22b71efb9e8d5955bf492cd5be8f451e48a003f783e9fbcc38c681dc641967bf`.
+The stable runtime filename `player-v20.glb` now contains **H01(Small Eyes)-B01** (cs02, y30 side plates, rebuilt soles), imported from
+`ProjectVtuber/projects/vrm-model/output/trials/b01-soles-2026-11-02/H01-B01-small-eyes/H01-B01-small-eyes_face01-cuff01-lf01-js01-eo01-ec01-tf01-hb02-tsB-cs02-y30-soles_VRM1.vrm` on 2026-11-02
+(the soles rebuild had not yet been promoted to ProjectVtuber's `current`).
+Source SHA-256: `f2311a9fd27c2102ab96a0964deea3c7bcaba7fa9041a60c94cfa4b69105483d`.
 The receipt hash changes the runtime URL automatically for every gameplay and menu portrait consumer.
-V33 has authored soft-cheek/lip textures; the exact-name V20 seam correction intentionally does not apply.
-AVG video portraits and the HUD's static portrait are independent assets.
+Its face keeps V33's authored soft-cheek/lip textures; the exact-name V20 seam correction intentionally does not apply.
+AVG video portraits and the HUD's static portrait are independent assets and still show the earlier knight.
+
+The boot rims and soles are weighted 100% to a Foot joint. GPU-skinned with the bone-matrix texture, Babylon drew them
+with that 264×1 texture's colors as rainbow bands along the heel, so the game re-parents such single-joint meshes as rigid
+children of their joint (`src/presentation/babylon/rigidAttachments.ts`) after the knight is seated.
 
 ## Update the player
 
@@ -29,7 +34,7 @@ The importer preserves neutral positions, normals, UVs, indices, joint weights a
 
 Rotations transfer through each rig's parent and bone rest-world frames. The target keeps its own neutral bone axes and proportions. Hips displacement from the donor rest position is scaled by the target/source hips height ratio; key times and interpolation stay unchanged. Unmapped animated bones fail conversion.
 
-The importer classifies materials through explicit mesh roles: `Armor` is body; named face, hair, eye, neck and mouth pieces are head. A future unknown mesh name fails with a request to update this policy. MToon factors are retained in `material.extras.playerMaterial`; base-color factors/textures remain ordinary glTF material data. Unsupported active rim effects, UV animation, shade-shift textures, independent shade textures, non-world outlines and transparency fail conversion. Authoring VRM extension blocks are removed. The safe baseline remains unlit; the game's material adapter applies its toon lighting.
+The importer classifies materials through explicit mesh roles: `Armor` and H01-B01's split boot rim, steel sole and undersuit lining meshes are body; named face, hair, eye, neck and mouth pieces are head. A future unknown mesh name fails with a request to update this policy. MToon factors are retained in `material.extras.playerMaterial`; base-color factors/textures remain ordinary glTF material data. Unsupported active rim effects, UV animation, shade-shift textures, independent shade textures, non-world outlines and transparency fail conversion. Materials no primitive draws are skipped and pruned (H01-B01's soles rebuild left its old matcap sole material behind). Authoring VRM extension blocks are removed. The safe baseline remains unlit; the game's material adapter applies its toon lighting.
 
 `asset.extras.playerModel` contains schema version, hips/root names, orientation, material roles, humanoid bone map, donor/source hashes, motion scale and settings. The sidecar adds output SHA256, byte count, texture sizes and clip durations. Conversion checks references, clip presence, finite accessors and increasing key times before publishing. Each file is written to a temporary sibling and renamed into place; the GLB and receipt are not a two-file transaction. Compare the receipt checksum if a run was interrupted between the two renames. Repeated runs with the same inputs and dependency lockfile are byte-identical.
 
@@ -59,3 +64,17 @@ The receipt records the source preset, source bind count, affected node names an
 V20's rebuilt lip patch shares positions and normals with the lower-face surface but uses a different color texture. `lipSeam.mjs` records a local vertex color blend on both sides of that boundary, with a 6mm fade and neighboring skin samples. It adds linear RGB plus a blend weight to COLOR_0; the game material adapter interprets alpha as a surface weight, not opacity. A separate shader varying preserves that weight while vertex transparency is disabled. Face silhouette outlines are disabled on these two surfaces to avoid redrawing the internal split; hair and armor outlines remain.
 
 This is a game derivative correction. Original images, UVs, material factors, geometry, skin weights, morphs and the source VRM are unchanged. The existing source verifier still checks them. The receipt records the correction version, materials and boundary count, and the runtime URL changes with the generated hash. Other source models without this exact material pair are left alone and require visual review.
+
+## Secondary motion (side plates)
+
+VRM1 `VRMC_node_constraint` roll constraints and `VRMC_springBone` springs are read before the VRM extensions are
+stripped and written to the receipt's `secondaryMotion` (node names, roll source rest rotation, spring tail offset,
+stiffness, gravity, drag, hit radius and sphere/capsule colliders). Aim/rotation constraints, spring `center` and other
+collider shapes fail conversion. Spring tail nodes are pruned as empty leaves; `verify.mjs` allows only that.
+
+`src/presentation/babylon/secondaryMotion.ts` drives them every frame after the clips pose the skeleton: B01's
+`TassetHinge` follows the thigh's outward roll (weight 1), `TassetSplayYaw` opens like a door by 0.3 of the thigh lift,
+and `TassetPlate` is a VRM 1.0 spring against the thigh capsules. Springs run in the character root's frame, so running
+speed does not fling the plates. While airborne and falling, their gravity turns upward (wind 1.5 per unit/s of fall,
+capped at 2.4 units/s, and at most 50° from rest); on landing normal gravity returns and the plates swing back once.
+`driveKnightAnimation` supplies the off-ground signal and `KnightMotionSample.verticalSpeed`.

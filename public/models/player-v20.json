@@ -45,7 +45,7 @@
       "channels": 53
     }
   ],
-  "sourceSha256": "22b71efb9e8d5955bf492cd5be8f451e48a003f783e9fbcc38c681dc641967bf",
+  "sourceSha256": "f2311a9fd27c2102ab96a0964deea3c7bcaba7fa9041a60c94cfa4b69105483d",
   "donorSha256": "a4c21bc7d118f2d6a7f62b29d2106ad89e0853d8563eb0bea52b62bc132fe732",
   "boneMap": {
     "chest": "Chest",
@@ -125,6 +125,136 @@
     ]
   },
   "lipSeam": null,
+  "secondaryMotion": {
+    "constraints": [
+      {
+        "node": "TassetHinge.L",
+        "source": "UpperLeg.L",
+        "sourceRest": [
+          -0.9986264109611511,
+          -0.000002376184738750453,
+          -0.05239597335457802,
+          8.05300373940554e-7
+        ],
+        "rollAxis": "Z",
+        "weight": 1
+      },
+      {
+        "node": "TassetSplayYaw.L",
+        "source": "UpperLeg.L",
+        "sourceRest": [
+          -0.9986264109611511,
+          -0.000002376184738750453,
+          -0.05239597335457802,
+          8.05300373940554e-7
+        ],
+        "rollAxis": "X",
+        "weight": 0.3
+      },
+      {
+        "node": "TassetHinge.R",
+        "source": "UpperLeg.R",
+        "sourceRest": [
+          -0.9986264109611511,
+          0.000002376184738750453,
+          0.05239597335457802,
+          8.05300373940554e-7
+        ],
+        "rollAxis": "Z",
+        "weight": 1
+      },
+      {
+        "node": "TassetSplayYaw.R",
+        "source": "UpperLeg.R",
+        "sourceRest": [
+          -0.9986264109611511,
+          0.000002376184738750453,
+          0.05239597335457802,
+          8.05300373940554e-7
+        ],
+        "rollAxis": "X",
+        "weight": 0.3
+      }
+    ],
+    "springs": [
+      {
+        "name": "Tasset.L",
+        "joints": [
+          {
+            "node": "TassetPlate.L",
+            "tail": [
+              0.045270183281468146,
+              0.34298589535728013,
+              0.02679683988930663
+            ],
+            "stiffness": 2,
+            "gravityPower": 0.4,
+            "gravityDir": [
+              0,
+              -1,
+              0
+            ],
+            "dragForce": 0.6,
+            "hitRadius": 0.025
+          }
+        ],
+        "colliders": [
+          {
+            "node": "UpperLeg.L",
+            "offset": [
+              0,
+              0,
+              0
+            ],
+            "tail": [
+              -3.958962935257659e-9,
+              0.3792346715927124,
+              -5.714007045298786e-9
+            ],
+            "radius": 0.07878208135972842
+          }
+        ]
+      },
+      {
+        "name": "Tasset.R",
+        "joints": [
+          {
+            "node": "TassetPlate.R",
+            "tail": [
+              -0.045627627626716905,
+              0.3429858956860475,
+              0.026833021407784097
+            ],
+            "stiffness": 2,
+            "gravityPower": 0.4,
+            "gravityDir": [
+              0,
+              -1,
+              0
+            ],
+            "dragForce": 0.6,
+            "hitRadius": 0.025
+          }
+        ],
+        "colliders": [
+          {
+            "node": "UpperLeg.R",
+            "offset": [
+              0,
+              0,
+              0
+            ],
+            "tail": [
+              3.958962935257659e-9,
+              0.3792346715927124,
+              -5.714007045298786e-9
+            ],
+            "radius": 0.0779817113445454
+          }
+        ]
+      }
+    ]
+  },
   "settings": {
     "maxTextureSize": 2048,
     "textureFormat": "webp",
@@ -158,15 +288,15 @@
       ]
     }
   },
-  "sourceFile": "knight_new_vrm1.vrm",
-  "outputSha256": "ebd9728afefb6cfb1387ee61466ba0ed8bf510046178f3a09f8e053592d71d78",
-  "outputBytes": 12956108,
+  "sourceFile": "H01-B01-small-eyes_face01-cuff01-lf01-js01-eo01-ec01-tf01-hb02-tsB-cs02-y30-soles_VRM1.vrm",
+  "outputSha256": "bfc4e05d8a5c2f943799bce134468f41a44ec18a81736a9a1e8dafce6dfa152b",
+  "outputBytes": 14692344,
   "textures": [
     {
-      "name": "tripo_image_3770dbe0_0.001",
+      "name": "tripo_image_3770dbe0_0.001 cs02",
       "width": 2048,
       "height": 2048,
-      "bytes": 587788
+      "bytes": 595818
     },
     {
       "name": "leather-band-painted.png.001",
@@ -217,28 +347,16 @@
       "bytes": 97324
     },
     {
-      "name": "face-softened-1.png",
-      "width": 256,
-      "height": 256,
-      "bytes": 480
-    },
-    {
       "name": "face-softened-2.png",
       "width": 1254,
       "height": 1254,
       "bytes": 56352
     },
     {
-      "name": "face-softened-3.png",
+      "name": "portrait-matched-brown-hair hb02",
       "width": 2048,
       "height": 2048,
-      "bytes": 97486
-    },
-    {
-      "name": "portrait-matched-brown-hair",
-      "width": 2048,
-      "height": 2048,
-      "bytes": 474054
+      "bytes": 462660
     },
     {
       "name": "portrait-matched-iris-color",
@@ -251,6 +369,18 @@
       "width": 1254,
       "height": 1254,
       "bytes": 57228
+    },
+    {
+      "name": "H01 lip with mouth line",
+      "width": 2048,
+      "height": 2048,
+      "bytes": 15210
+    },
+    {
+      "name": "H01 jaw skin with underside shadow",
+      "width": 2048,
+      "height": 2048,
+      "bytes": 97720
     }
   ]
 }
