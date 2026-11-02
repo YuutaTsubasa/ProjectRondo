@@ -4,7 +4,7 @@ import {NullEngine} from '@babylonjs/core/Engines/nullEngine';
 import {Scene} from '@babylonjs/core/scene';
 import type {Mesh} from '@babylonjs/core/Meshes/mesh';
 import {createParlorRoom} from '../../src/presentation/parlor/parlorRoom';
-import {PARLOR_SPAWN,PARLOR_EXIT,PARLOR_HOST,PARLOR_ROOM,PARLOR_TABLES} from '../../src/domain/town/mahjongParlor';
+import {PARLOR_SPAWN,PARLOR_EXIT,PARLOR_HOST,PARLOR_ROOM,PARLOR_TABLES,parlorChairs} from '../../src/domain/town/mahjongParlor';
 vi.mock('@babylonjs/core/Physics/v2/physicsAggregate',()=>({PhysicsAggregate:class{}}));
 it('walls the room in and keeps the walk from the door to 一目元 clear',async()=>{
  const engine=new NullEngine(),scene=new Scene(engine);
@@ -17,6 +17,8 @@ it('walls the room in and keeps the walk from the door to 一目元 clear',async
   for(let z=PARLOR_EXIT.z;z<=PARLOR_HOST.z;z+=.25)expect(blocked(0,z),`aisle blocked at z=${z}`).toBe(false);
   for(let x=0;x<=PARLOR_HOST.x-1.1;x+=.25)expect(blocked(x,PARLOR_HOST.z),`approach blocked at x=${x}`).toBe(false);
   for(const t of PARLOR_TABLES)expect(blocked(t.x,t.z)).toBe(true);
+  // Chairs are solid for the player and the camera, not just visible.
+  for(const c of parlorChairs())expect(blocked(c.x,c.z,.05),`chair ${c.tableId}/${c.side}`).toBe(true);
   // Every side of the room is closed, including both sides of the doorway.
   expect(blocked(PARLOR_ROOM.maxX+.2,0)).toBe(true);expect(blocked(PARLOR_ROOM.minX-.2,0)).toBe(true);
   expect(blocked(0,PARLOR_ROOM.maxZ+.2)).toBe(true);expect(blocked(3,PARLOR_ROOM.minZ-.2)).toBe(true);expect(blocked(0,PARLOR_ROOM.minZ-.5)).toBe(true);

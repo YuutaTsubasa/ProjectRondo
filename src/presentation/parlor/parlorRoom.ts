@@ -96,6 +96,8 @@ export async function createParlorRoom(scene:Scene):Promise<ParlorRoom>{
   const forward=new Vector3(Math.sin(chair.yaw),0,Math.cos(chair.yaw));
   const at=(along:number,y:number)=>new Vector3(chair.x-forward.x*along,y,chair.z-forward.z*along);
   const seat=at(0,.46);box('chair-seat',seat.x,seat.y,seat.z,.46,.06,.44,darkWood,true,chair.yaw);
+  // Chairs are axis-aligned; one box covers seat and back for the player and the camera.
+  const footprint=at(.05,.55),across=Math.abs(forward.x)>.5;solid('chair-collider',footprint.x,footprint.y,footprint.z,across?.55:.5,1.1,across?.5:.55);
   const pad=at(0,.5);box('chair-cushion',pad.x,pad.y,pad.z,.4,.04,.38,cushion,true,chair.yaw);
   const back=at(.21,.78);box('chair-back',back.x,back.y,back.z,.44,.5,.05,darkWood,true,chair.yaw);
   const crest=at(.21,1.04);box('chair-crest',crest.x,crest.y,crest.z,.46,.04,.06,bronze,true,chair.yaw);

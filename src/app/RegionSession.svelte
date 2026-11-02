@@ -46,7 +46,8 @@
  const isParlorTalk=(id:RegionStoryId|ParlorTalkId):id is ParlorTalkId=>Object.hasOwn(parlorStories,id);
  const paused=$derived(loading||!!dialogue||modal!==null||!!error);
  const prompt=$derived(parlorSpot==='host'?'交談 · 一目元':parlorSpot==='exit'?'離開 · 白石街':nearDoor?`進入 · ${PARLOR_NAME}`:!nearby?'':nearby.kind==='vista'?`記錄風景 · ${nearby.name}`:nearby.kind==='expedition'?`查看入口 · ${nearby.name}`:`接聽回聲管 · ${nearby.name}`);
- function persist(){saveWarning=!writeRegionSave(storage,{progress,position:safePosition});lastSavedAt=Date.now();}
+ // The talk count is saved with the region, so NEW GAME replaces it only when the new run first saves.
+ function persist(){saveWarning=!writeRegionSave(storage,{progress,position:safePosition});writeParlorTalks(storage,parlorTalks);lastSavedAt=Date.now();}
  function inform(text:string){notice=text;if(noticeTimer)clearTimeout(noticeTimer);noticeTimer=setTimeout(()=>notice='',5000);}
  function openStory(id:RegionStoryId|ParlorTalkId){dialogueId=id;dialogue=createDialogueSession((isParlorTalk(id)?parlorStories[id]:regionStories[id]).graph);modal=null;}
  $effect(()=>{

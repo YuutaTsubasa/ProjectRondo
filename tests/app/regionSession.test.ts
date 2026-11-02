@@ -169,3 +169,11 @@ it('returns from the parlor to the south gate from the pause menu',async()=>{
  expect(document.querySelector('[data-interior=none]')).not.toBeNull();
  expect(JSON.parse(localStorage.getItem(REGION_SAVE_KEY)!).position.z).toBe(-35);
 });
+
+it('NEW GAME forgets the parlor introduction once the new run saves',async()=>{
+ const {PARLOR_SAVE_KEY}=await import('../../src/app/parlorSave');
+ localStorage.setItem(PARLOR_SAVE_KEY,JSON.stringify({version:1,talks:3}));
+ app=mount(RegionSession,{target:document.body,props:{onReady:vi.fn(),onFailure:vi.fn(),freshStart:true}});await settle();
+ await skip();window.dispatchEvent(new Event('pagehide'));await settle();
+ expect(JSON.parse(localStorage.getItem(PARLOR_SAVE_KEY)!).talks).toBe(0);
+});
