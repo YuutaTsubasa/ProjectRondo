@@ -41,6 +41,11 @@ describe('secondary motion retained from VRM extensions', () => {
     json.nodes[0].extensions = { VRMC_node_constraint: { specVersion: '1.0', constraint: { roll: { source: 1, rollAxis: 'Y', weight: 1 } } } } as never;
     expect(() => retainSecondaryMotion(json)).toThrow(/cycle/i);
   });
+  it('uses the VRM default weight of 1 when a roll constraint omits it', () => {
+    const json = tassetFixture();
+    delete (json.nodes[1]!.extensions!.VRMC_node_constraint.constraint.roll as { weight?: number }).weight;
+    expect(retainSecondaryMotion(json).constraints[0]!.weight).toBe(1);
+  });
   it('is empty for a model without secondary motion', () => {
     expect(retainSecondaryMotion({ nodes: [{ name: 'Hips' }] })).toEqual({ constraints: [], springs: [] });
   });

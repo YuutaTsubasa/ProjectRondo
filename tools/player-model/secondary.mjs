@@ -15,9 +15,10 @@ export function retainSecondaryMotion(json) {
     if (!constraint) continue;
     const { roll: settings, ...other } = constraint;
     if (!settings || Object.keys(other).length) throw Error(`Unsupported node constraint on ${node.name}`);
-    if (!['X', 'Y', 'Z'].includes(settings.rollAxis) || !(settings.weight >= 0 && settings.weight <= 1)) throw Error(`Invalid roll constraint on ${node.name}`);
+    const weight = settings.weight ?? 1; // VRMC_node_constraint 1.0 default
+    if (!['X', 'Y', 'Z'].includes(settings.rollAxis) || !(weight >= 0 && weight <= 1)) throw Error(`Invalid roll constraint on ${node.name}`);
     // The source is usually an animated bone, so its rest rotation travels with the receipt.
-    roll.set(index, { node: nameOf(index), source: nameOf(settings.source), sourceIndex: settings.source, sourceRest: nodes[settings.source].rotation ?? [0, 0, 0, 1], rollAxis: settings.rollAxis, weight: settings.weight ?? 1 });
+    roll.set(index, { node: nameOf(index), source: nameOf(settings.source), sourceIndex: settings.source, sourceRest: nodes[settings.source].rotation ?? [0, 0, 0, 1], rollAxis: settings.rollAxis, weight });
   }
   // A constraint reads its source's solved rotation, so sources come first.
   const constraints = [];
