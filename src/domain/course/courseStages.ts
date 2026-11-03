@@ -61,4 +61,8 @@ export const COURSE_STAGES:readonly CourseDefinition[]=[original,
   [-4,3.2,16,22,32],[-6,3.6,7,10,3.3],[-4,4,7,10,3.3],[-2,4.4,20,28,3.3],
  ],['巡禮起點','銀翼哨台','東冠露臺','巡禮中庭','西冠露臺','王冠終庭']),
 ];
-export function getCourseStage(id:string='course'):CourseDefinition{return COURSE_STAGES.find(s=>s.id===id)??original;}
+export function getCourseStage(id:string='course'):CourseDefinition{
+ const stage=COURSE_STAGES.find(s=>s.id===id);
+ if(!stage)throw new Error(`Unknown course stage: ${id}`);
+ return stage;
+}

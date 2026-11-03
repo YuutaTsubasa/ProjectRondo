@@ -6,7 +6,7 @@ import {createCourseCombat,stepCourseCombat} from '../../../src/domain/course/co
 import {vec3} from '../../../src/domain/math/vec3';
 it('offers the original route and four distinct longer challenge courses',()=>{
  expect(COURSE_STAGES.map(s=>s.id)).toEqual(['course','course-2','course-3','course-4','course-5']);
- expect(getCourseStage()).toBe(COURSE_STAGES[0]);expect(getCourseStage('unknown')).toBe(COURSE_STAGES[0]);
+ expect(getCourseStage()).toBe(COURSE_STAGES[0]);expect(()=>getCourseStage('unknown')).toThrow('Unknown course stage: unknown');
  expect(new Set(COURSE_STAGES.map(s=>JSON.stringify(s.platforms))).size).toBe(5);
  for(const s of COURSE_STAGES){expect(s.coins.length).toBeGreaterThan(20);expect(s.gates.length).toBeGreaterThanOrEqual(4);}
 });

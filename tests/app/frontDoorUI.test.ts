@@ -166,6 +166,20 @@ it.each([false,true])('enters the integrated city with the current save (existin
  expect(localStorage.getItem(REGION_SAVE_KEY)).toBe(existing?saved:null);expect(localStorage.getItem(REGION_SAVE_KEY+'.backup')).toBeNull();
 });
 
+it('backs up an unreadable slot before the city entry can overwrite it',async()=>{
+ localStorage.setItem(REGION_SAVE_KEY,'{corrupt');localStorage.setItem('rondo.city-journey.v1','{corrupt city');
+ load.mockResolvedValue({default:GameFixture});await render();button('進入主選單').click();await settle();button('額外內容').click();await settle();button('白色王城').click();await settle();button('進入選擇內容').click();await settle();
+ expect(load).toHaveBeenLastCalledWith('region');
+ expect(localStorage.getItem(REGION_SAVE_KEY+'.backup')).toBe('{corrupt');expect(localStorage.getItem('rondo.city-journey.v1.backup')).toBe('{corrupt city');
+});
+it('keeps an unreadable slot and stays in the menu when its backup fails',async()=>{
+ localStorage.setItem(REGION_SAVE_KEY,'{corrupt');
+ load.mockResolvedValue({default:GameFixture});await render();button('進入主選單').click();await settle();button('額外內容').click();await settle();button('白色王城').click();await settle();
+ const setItem=vi.spyOn(Storage.prototype,'setItem').mockImplementation(()=>{throw new Error('quota');});
+ button('進入選擇內容').click();await settle();setItem.mockRestore();
+ expect(load).not.toHaveBeenCalled();expect(localStorage.getItem(REGION_SAVE_KEY)).toBe('{corrupt');expect(document.body.textContent).toContain('無法保留目前的存檔');
+});
+
 it('clears the previous NEW GAME flag before returning through the city entry',async()=>{
  load.mockResolvedValue({default:GameFixture});await render();button('進入主選單').click();await settle();button('開始遊戲').click();await settle();await confirmNew();
  expect(document.querySelector('[data-fresh-start]')?.getAttribute('data-fresh-start')).toBe('true');button('fixture ready').click();await settle();button('fixture exit').click();await settle();

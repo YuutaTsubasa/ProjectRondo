@@ -20,7 +20,7 @@
  import {createDialogueSession,type DialogueSession} from '../presentation/dialogue/dialogueSession.svelte';
  import {regionStories,regionStoryChapter,type RegionStoryId} from '../content/regionStory';
  import {finishRegionDialogue,completeRegionExpedition,discoverRegionSite} from '../domain/region/regionProgress';
- import {REGION_PLACES,REGION_INTERACTION_PLACES,REGION_SPAWN,COURSE_RETURN,regionHeight,type RegionPlaceId} from '../domain/region/regionLayout';
+ import {REGION_PLACES,REGION_INTERACTION_PLACES,REGION_SPAWN,COURSE_RETURN,regionHeight,isRegionGrounded,type RegionPlaceId} from '../domain/region/regionLayout';
  import {explorationObjective,nearbyRegionPlace,restoreRegionCoursePosition,type RegionPoint} from '../domain/region/regionObjectives';
  import {readRegionSave,writeRegionSave,regionStorage} from './regionSave';
  import {readParlorTalks,writeParlorTalks} from './parlorSave';
@@ -78,7 +78,7 @@
   if(mode!=='world'||error)return;position=next;locationLabel=label;
   // Indoors the door stays the safe position, so a save never resumes inside the room.
   if(inParlor(next)){if(Date.now()-lastSavedAt>5000)persist();return;}
-  const onGround=Math.abs(next.y-regionHeight(next.x,next.z)-1.2)<.3;
+  const onGround=isRegionGrounded(next);
   if(onGround)safePosition={...next};
   const place=nearbyRegionPlace(next,REGION_INTERACTION_PLACES,regionHeight);
   if(place?.kind==='vista'){

@@ -35,13 +35,15 @@ export function canEnterRegionExpedition(_progress: RegionProgress, _id: RegionE
   return true;
 }
 
-/** Call only for a real stage goal. Leaving, retrying, or replaying cannot grant story progress. */
+/** Call only for a real stage goal. Leaving, retrying, or replaying cannot grant story progress.
+ * A free clear before the story reaches the stage is kept by stage records, not here, so the
+ * restored aqueduct and the save screen's expedition count follow the chapter. */
 export function completeRegionExpedition(progress: RegionProgress, id: RegionExpeditionId): RegionProgress {
   const chapter = id === 'course' && progress.chapter === 'relay' ? 'relay-report' :
     id === 'palace' && progress.chapter === 'aqueduct' ? 'aqueduct-report' : undefined;
+  if (!chapter) return progress;
   const completed = progress.completedExpeditions.includes(id);
-  if (!chapter && completed) return progress;
-  return { ...progress, chapter: chapter ?? progress.chapter, completedExpeditions: completed ? progress.completedExpeditions : [...progress.completedExpeditions, id] };
+  return { ...progress, chapter, completedExpeditions: completed ? progress.completedExpeditions : [...progress.completedExpeditions, id] };
 }
 
 const siteIds: readonly string[] = ['ridge', 'cove', 'watch'];
@@ -51,7 +53,7 @@ export function discoverRegionSite(progress: RegionProgress, id: string): Region
   return { ...progress, discoveries: [...progress.discoveries, id] };
 }
 
-/** Legacy story chapters still require their earned stages; free exploration can add others. */
+/** The stages each chapter has earned: required, and the only ones a save keeps. */
 const requiredExpeditions: Record<RegionChapter, readonly RegionExpeditionId[]> = {
   arrival: [], signal: [], relay: [],
   'relay-report': ['course'], aqueduct: ['course'],
@@ -63,7 +65,7 @@ function uniqueAllowedList(value: unknown, allowed: readonly string[]): value is
     new Set(value).size === value.length;
 }
 
-/** Validate old story prerequisites while accepting independently completed expeditions. */
+/** Validate story prerequisites; drop stages an older save recorded before the story reached them. */
 export function validateRegionProgress(value: unknown): RegionProgress | null {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) return null;
   const candidate = value as Record<string, unknown>;
@@ -77,7 +79,7 @@ export function validateRegionProgress(value: unknown): RegionProgress | null {
   if (!expected.every(id => completed.includes(id))) return null;
   return {
     version: 1, chapter, discoveries: [...candidate.discoveries],
-    completedExpeditions: [...completed] as RegionExpeditionId[],
+    completedExpeditions: (completed as RegionExpeditionId[]).filter(id => expected.includes(id)),
   };
 }
 
