@@ -1,7 +1,22 @@
 # ProjectRondo — Developer Handoff
 
-Last updated: 2026-10-11. Purpose: everything the next machine / developer / Claude session needs to
+Last updated: 2026-11-03. Purpose: everything the next machine / developer / Claude session needs to
 pick this up cold. The repo is the source of truth; this file is the map.
+
+## White Palace review follow-ups (2026-11-03)
+
+Four P3 items from the #47/#51 review. `getCourseStage` now throws on an unknown ID, like
+`getPalaceStage`. EXTRA > White Palace backs up a slot that exists but cannot be loaded
+(`hasUnloadableRegionSave`) before the session can overwrite it, and stays in the menu if
+the backup fails. `completeRegionExpedition` records a stage only when it advances the
+chapter; free clears live in stage records, so the aqueduct and the save screen's
+expedition count follow the story. Older saves drop early-recorded stages on load instead
+of being rejected. A fall off unwalkable ground returns to the last grounded spot
+(`isRegionGrounded`), not the south gate; the pause menu's Return to Gate is unchanged.
+
+Not done, by owner decision: the P2 story-objective guidance (HUD/map/save screen pointing
+at the next story step after `automaticStory()` was removed). The owner wants the town,
+its contents and stages finished first; the story is to be revisited later.
 
 ## Review follow-up (2026-10-11)
 
