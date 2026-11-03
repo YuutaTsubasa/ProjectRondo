@@ -5,7 +5,7 @@ import { Scene } from '@babylonjs/core/scene';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { HavokPlugin } from '@babylonjs/core/Physics/v2/Plugins/havokPlugin';
 import '@babylonjs/core/Physics/joinedPhysicsEngineComponent';
-import { REGION_SPAWN, isRegionPositionSafe, regionHeight, regionLocation } from '../../domain/region/regionLayout';
+import { REGION_SPAWN, isRegionGrounded, isRegionPositionSafe, regionHeight, regionLocation } from '../../domain/region/regionLayout';
 import { regionMusicScene } from '../../domain/region/regionMusic';
 import { createCharacterRig } from '../babylon/characterRig';
 import type { Player } from '../babylon/playerController';
@@ -104,10 +104,17 @@ export async function createRegionScene(
       rig.follow.snap(yaw); scene.resetLastAnimationTimeFrame();
     };
     const reset = () => teleport(REGION_SPAWN, { x: 0, z: -1 });
+    /** A fall off a ledge, railing or sill returns here, not to the distant gate. */
+    let lastGround = { x: initial.x, z: initial.z };
+    const recover = () => {
+      const { facing } = rig.player.motion;
+      teleport({ ...lastGround, y: regionHeight(lastGround.x, lastGround.z) + 1.3 }, { x: facing.x, z: facing.y });
+    };
     let seconds = 0;
     scene.onBeforeRenderObservable.add(() => {
       const position = rig.player.capsulePosition();
-      if (!isRegionPositionSafe(position) && !inParlor(position)) reset();
+      if (isRegionGrounded(position)) lastGround = { x: position.x, z: position.z };
+      else if (!isRegionPositionSafe(position) && !inParlor(position)) recover();
       seconds += Math.min(.05, engine.getDeltaTime() / 1000);
       parlor.update(seconds, rig.player.root.position.add(new Vector3(0, 1.6, 0)));
       const nextMusicScene = regionMusicScene(rig.player.root.position.z, musicScene);

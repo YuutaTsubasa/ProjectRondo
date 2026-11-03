@@ -87,6 +87,10 @@ export function isRegionPositionSafe(point: { x: number; y: number; z: number })
     && x >= REGION_BOUNDS.minX && x <= REGION_BOUNDS.maxX && z >= REGION_BOUNDS.minZ && z <= REGION_BOUNDS.maxZ
     && (z <= REGION_TOWN_EDGE_Z || townSurfaceHeight(x,z) !== null);
 }
+/** The capsule centre rests 1.2 above a walkable surface; a railing or sill above it doesn't count. */
+export function isRegionGrounded(point: { x: number; y: number; z: number }): boolean {
+  return isRegionPositionSafe(point) && Math.abs(point.y - regionHeight(point.x, point.z) - 1.2) < .3;
+}
 export function regionLocation(x: number, z: number): string {
   if (z >= REGION_TOWN_EDGE_Z) return townLocation(x, z);
   if (x > 38) return '潮音海岸 · TIDAL COAST';

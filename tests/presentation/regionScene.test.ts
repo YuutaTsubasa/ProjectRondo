@@ -4,7 +4,7 @@ import { NullEngine } from '@babylonjs/core/Engines/nullEngine';
 import { Scene } from '@babylonjs/core/scene';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { createRegionScene } from '../../src/presentation/region/regionScene';
-import { REGION_SPAWN } from '../../src/domain/region/regionLayout';
+import { REGION_SPAWN, regionHeight } from '../../src/domain/region/regionLayout';
 const state = vi.hoisted(() => ({ havok: vi.fn(), rig: vi.fn(), audio: vi.fn(), events: [] as string[] }));
 vi.mock('../../src/presentation/babylon/havokModule', () => ({ loadHavok: state.havok }));
 vi.mock('@babylonjs/core/Physics/v2/Plugins/havokPlugin', () => ({ HavokPlugin: class {} }));
@@ -77,6 +77,28 @@ it('resets to the town gate even when the region was loaded at an expedition ret
     const region = await createRegionScene(engine, document.createElement('canvas'), { x: 0, y: 1.3, z: -110 });
     region.reset();
     expect(teleport.mock.calls[0][0].asArray()).toEqual([REGION_SPAWN.x, REGION_SPAWN.y, REGION_SPAWN.z]);
+    region.dispose();
+  } finally { engine.dispose(); }
+});
+
+it('returns a fall off the walkable town to the last grounded spot instead of the far gate', async () => {
+  const engine = new NullEngine(), teleport = vi.fn();
+  const ground = (x: number, z: number) => new Vector3(x, regionHeight(x, z) + 1.2, z), position = ground(0, -35);
+  try {
+    state.rig.mockResolvedValue({
+      player: { motion: { facing: { x: 1, y: 0 } }, root: { position, rotation: Vector3.Zero() }, capsulePosition: () => position, teleport },
+      follow: { camera: { position: new Vector3(0, 4, -40), getTarget: () => position, setTarget: vi.fn() }, snap: vi.fn() },
+      shadows: { cast: vi.fn(), receive: vi.fn() }, dispose: vi.fn(), suspendInput: vi.fn(),
+    });
+    state.audio.mockReturnValue({ whenReady: vi.fn().mockResolvedValue(undefined), setMusicScene: vi.fn(), dispose: vi.fn() });
+    const region = await createRegionScene(engine, document.createElement('canvas'));
+    const step = (next: Vector3) => { position.copyFrom(next); region.scene.onBeforeRenderObservable.notifyObservers(region.scene); };
+    step(ground(-10, 130));
+    step(new Vector3(-10, regionHeight(-10, 130) + 4, 130));
+    expect(teleport).not.toHaveBeenCalled();
+    step(new Vector3(-10, -8, 130));
+    expect(teleport).toHaveBeenCalledOnce();
+    expect(teleport.mock.calls[0][0].asArray()).toEqual([-10, regionHeight(-10, 130) + 1.3, 130]);
     region.dispose();
   } finally { engine.dispose(); }
 });
