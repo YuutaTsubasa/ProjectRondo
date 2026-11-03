@@ -2,7 +2,7 @@
  import {stageKind,type StageId} from '../domain/stage/stageIds';
  import UiViewport from '../presentation/layout/UiViewport.svelte';
   import { onDestroy, onMount, type Component } from 'svelte';
-  import {backupRegionSave,regionStorage,inspectRegionSave} from './regionSave';
+  import {backupRegionSave,hasUnloadableRegionSave,regionStorage,inspectRegionSave} from './regionSave';
   import InputLayer from '../presentation/input/InputLayer.svelte';
   import FrontDoor from '../presentation/menu/FrontDoor.svelte';
   import { stepFrontDoor, type FrontDoorAction, type FrontDoorPhase } from './frontDoor';
@@ -73,6 +73,7 @@
       if(!backupRegionSave(regionStorage())){menuError='無法保留目前的存檔，尚未開始新旅程。請確認瀏覽器儲存空間後再試。';return;}
       freshStart=true;
     }
+    if(action==='town'&&hasUnloadableRegionSave(regionStorage())&&!backupRegionSave(regionStorage())){menuError='無法保留目前的存檔，尚未進入白色王城。請確認瀏覽器儲存空間後再試。';return;}
     if(action==='continue'||action==='town')freshStart=false;
     if (action === 'town') entry = 'region';
     if (action === 'palace') entry = 'palace';

@@ -1,5 +1,5 @@
 import {expect,it} from 'vitest';
-import {readRegionSave,writeRegionSave,REGION_SAVE_KEY,hasRegionSave,backupRegionSave} from '../../src/app/regionSave';
+import {readRegionSave,writeRegionSave,REGION_SAVE_KEY,hasRegionSave,backupRegionSave,hasUnloadableRegionSave} from '../../src/app/regionSave';
 import {createRegionProgress} from '../../src/domain/region/regionProgress';
 it('round-trips chapter progress and a supported position',()=>{
  const memory=new Map<string,string>();const storage={getItem:(k:string)=>memory.get(k)??null,setItem:(k:string,v:string)=>{memory.set(k,v);}};
@@ -34,4 +34,15 @@ it('backs up the optional city journey together with the chapter before NEW GAME
  expect(memory.get('rondo.first-region.v1.backup')).toBe('chapter');
  expect(memory.get('rondo.city-journey.v1.backup')).toBe('city');
  expect(memory.get('rondo.city-journey.v1')).toBe('city');
+});
+
+it('flags a stored slot that cannot be loaded so a continuing entry can back it up first',()=>{
+ const store=(entries:Record<string,string>)=>({getItem:(key:string)=>entries[key]??null});
+ const valid=JSON.stringify({version:1,progress:createRegionProgress(),position:{x:0,y:1.3,z:-35}});
+ expect(hasUnloadableRegionSave(store({}))).toBe(false);
+ expect(hasUnloadableRegionSave(store({'rondo.first-region.v1':valid,'rondo.city-journey.v1':JSON.stringify({version:1,done:['city-market']})}))).toBe(false);
+ expect(hasUnloadableRegionSave(store({'rondo.first-region.v1':'{bad'}))).toBe(true);
+ expect(hasUnloadableRegionSave(store({'rondo.first-region.v1':JSON.stringify({version:1,progress:{version:1,chapter:'complete',discoveries:[],completedExpeditions:[]}})}))).toBe(true);
+ expect(hasUnloadableRegionSave(store({'rondo.first-region.v1':valid,'rondo.city-journey.v1':'{bad'}))).toBe(true);
+ expect(hasUnloadableRegionSave({getItem:()=>{throw new Error('blocked');}})).toBe(false);
 });

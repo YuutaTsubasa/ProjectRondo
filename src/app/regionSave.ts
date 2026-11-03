@@ -1,4 +1,4 @@
-import {CITY_JOURNEY_KEY} from '../domain/region/cityJourney';
+import {CITY_JOURNEY_KEY,readCityJourney} from '../domain/region/cityJourney';
 import {createRegionProgress,validateRegionProgress,type RegionProgress} from '../domain/region/regionProgress';
 import {REGION_SPAWN,isRegionPositionSafe,regionHeight} from '../domain/region/regionLayout';
 import type {RegionPoint} from '../domain/region/regionObjectives';
@@ -31,4 +31,12 @@ export function hasRegionSave(storage?:ReadStorage):boolean{return inspectRegion
 /** Preserve the current slot before a new run; don't replace it until the new world saves. */
 export function backupRegionSave(storage?:(ReadStorage&WriteStorage)):boolean{
  try{for(const key of [REGION_SAVE_KEY,CITY_JOURNEY_KEY]){const raw=storage?.getItem(key);if(raw)storage!.setItem(key+'.backup',raw);}return true;}catch{return false;}
+}
+/** A stored slot that won't load; a continuing entry would otherwise replace it on its first save. */
+export function hasUnloadableRegionSave(storage?:ReadStorage):boolean{
+ try{
+  if(storage?.getItem(REGION_SAVE_KEY)&&!inspectRegionSave(storage).available)return true;
+  const city=storage?.getItem(CITY_JOURNEY_KEY);
+  return !!city&&city!==JSON.stringify({version:1,done:readCityJourney(storage)});
+ }catch{return false;}
 }
