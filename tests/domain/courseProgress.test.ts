@@ -28,7 +28,7 @@ describe('course progress', () => {
     expect(done.finished).toBe(true);
     expect(done.elapsed).toBe(.1);
     expect(stepCourseRun(done, input(0, false, -20), gates, -10)).toEqual({ run: done, respawn: null });
-    expect(createCourseRun()).toEqual({ health: 3, checkpoint: 0, elapsed: 0, falls: 0, finished: false });
+    expect(createCourseRun()).toEqual({ collected: [], health: 3, checkpoint: 0, elapsed: 0, falls: 0, finished: false });
   });
   it('freezes while paused and rejects invalid or stalled frame times', () => {
     const start = createCourseRun();

@@ -4,7 +4,7 @@ import { CreateTorus } from '@babylonjs/core/Meshes/Builders/torusBuilder';
 import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
 import { Color3 } from '@babylonjs/core/Maths/math.color';
 import type { Shadows } from '../babylon/shadows';
-import { PALACE_LAYOUT } from '../../domain/palace/palaceLayout';
+import { PALACE_LAYOUT, type PalaceLayout } from '../../domain/palace/palaceLayout';
 import type { PalaceRun } from '../../domain/palace/palaceRun';
 import { createArch, createArchSpandrel, createBeveledBox, createColumn } from './palaceArchitecture';
 import { createPalaceMaterials, mergePalaceParts } from './palaceMaterials';
@@ -13,7 +13,7 @@ import { createPalaceLowMist } from './palaceLowMist';
 import { createPalaceDistrict } from './palaceDistrict';
 import { createPalaceCoins, createCheckpointFeedback } from './palaceCollectibles';
 
-export function createPalaceScenery(scene: Scene, shadows: Shadows) {
+export function createPalaceScenery(scene: Scene, shadows: Shadows, layout:PalaceLayout=PALACE_LAYOUT) {
   const materials = createPalaceMaterials(scene);
   let parts: Mesh[] = [];
   const box = (name: string, x: number, y: number, z: number, width: number, height: number, depth: number, material = materials.stone, bevel = .035) => {
@@ -26,7 +26,7 @@ export function createPalaceScenery(scene: Scene, shadows: Shadows) {
   };
   const flush = (name: string) => { mergePalaceParts(name, parts, shadows, true); parts = []; };
 
-  for (const [index, p] of PALACE_LAYOUT.platforms.entries()) {
+  for (const [index, p] of layout.platforms.entries()) {
     const cx = p.x + p.width / 2, depth = 4.5;
     // Keep this surface separate so rendering/collision alignment can be verified directly.
     const top = box('palaceWalkable' + index, cx, p.y - .14, 0, p.width, .28, depth, materials.light, .025);
@@ -68,14 +68,14 @@ export function createPalaceScenery(scene: Scene, shadows: Shadows) {
     }
     flush('palaceBridge' + index);
   }
-  createPalaceDistrict(scene, shadows, materials);
+  createPalaceDistrict(scene, shadows, materials,layout.width);
   const mist = createPalaceLowMist(scene);
 
   const glow = new StandardMaterial('palaceAzureLight', scene);
   glow.diffuseColor = Color3.FromHexString('#68a8bf'); glow.emissiveColor = new Color3(.11, .3, .4);
   glow.specularColor = Color3.Black();
-  const coins = createPalaceCoins(scene, materials);
-  const checkpoints = PALACE_LAYOUT.checkpoints.map((p, i) => {
+  const coins = createPalaceCoins(scene, materials,layout);
+  const checkpoints = layout.checkpoints.map((p, i) => {
     box('checkpointBase' + i, p.x, p.y + .1, -1.1, .8, .2, .8, materials.aged);
     const stem = createColumn('checkpointStem' + i, { height: 1.45, radius: .14 }, scene);
     stem.position.set(p.x, p.y + .2, -1.1); stem.material = materials.light; parts.push(stem);
@@ -83,8 +83,8 @@ export function createPalaceScenery(scene: Scene, shadows: Shadows) {
     ring.position.set(p.x, p.y + 1.95, -1.1); ring.rotation.x = Math.PI / 2; ring.material = glow;
     return ring;
   });
-  const updateCheckpoints = createCheckpointFeedback(scene, checkpoints);
-  const goal = PALACE_LAYOUT.goal;
+  const updateCheckpoints = createCheckpointFeedback(scene, checkpoints,layout);
+  const goal = layout.goal;
   for (const dx of [-2.2, 2.2]) {
     const column = createColumn('palaceGateColumn', { height: 3.2, radius: .3 }, scene);
     column.position.set(goal.x + dx, goal.y, -1.3); column.material = materials.light; parts.push(column);

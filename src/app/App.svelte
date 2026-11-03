@@ -1,4 +1,5 @@
 <script lang="ts">
+ import {stageKind,type StageId} from '../domain/stage/stageIds';
  import UiViewport from '../presentation/layout/UiViewport.svelte';
   import { onDestroy, onMount, type Component } from 'svelte';
   import {backupRegionSave,regionStorage,inspectRegionSave} from './regionSave';
@@ -21,13 +22,14 @@
   });
 
   let entry: GameEntry = 'region';
+  let selectedStage=$state<StageId>('course');
   let freshStart = $state(false);
   const initialSave = inspectRegionSave(regionStorage());
   let saveAvailable = $state(initialSave.available);
   let saveProgress = $state(initialSave.progress);
   let menuError = $state('');
   let phase = $state<FrontDoorPhase>('title');
-  let Game = $state<Component<{ onReady: () => void; onFailure: (error: unknown) => void; onExit?: () => void; freshStart?: boolean }>>();
+  let Game = $state<Component<{ onReady: () => void; onFailure: (error: unknown) => void; onExit?: () => void; freshStart?: boolean;stageId?:string }>>();
   let gameHost = $state<HTMLDivElement>();
   $effect(() => {
     if (phase !== 'game') return;
@@ -57,6 +59,8 @@
     } catch (error) { fail(error); }
   }
 
+  function selectStage(id:StageId){selectedStage=id;act(stageKind(id));}
+
   function act(action: FrontDoorAction) {
     const next = stepFrontDoor(phase, action);
     if (next === phase) return;
@@ -69,8 +73,8 @@
       if(!backupRegionSave(regionStorage())){menuError='無法保留目前的存檔，尚未開始新旅程。請確認瀏覽器儲存空間後再試。';return;}
       freshStart=true;
     }
-    if(action==='continue')freshStart=false;
-    if (action === 'town') entry = 'town';
+    if(action==='continue'||action==='town')freshStart=false;
+    if (action === 'town') entry = 'region';
     if (action === 'palace') entry = 'palace';
     if (action === 'course') entry = 'course';
     if (action === 'start'||action==='confirm-new'||action==='continue') entry = 'region';
@@ -84,11 +88,11 @@
 
 {#if Game}
   <div bind:this={gameHost} class="game-session" class:preparing={phase !== 'game'} inert={phase !== 'game'}>
-    <Game {freshStart} onReady={() => act('ready')} onFailure={fail} onExit={() => act('leave')} />
+    <Game {freshStart} stageId={selectedStage} onReady={() => act('ready')} onFailure={fail} onExit={() => act('leave')} />
   </div>
 {/if}
 {#if phase !== 'game'}
-  <UiViewport layer={100}><FrontDoor {phase} {saveAvailable} {saveProgress} {menuError} onAction={act} /></UiViewport>
+  <UiViewport layer={100}><FrontDoor {phase} {saveAvailable} {saveProgress} {menuError} onAction={act} onStageSelect={selectStage} /></UiViewport>
 {/if}
 
 <style>

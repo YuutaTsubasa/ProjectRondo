@@ -1,4 +1,5 @@
 <script lang="ts">
+  import type {StageId} from '../../domain/stage/stageIds';
   import {onMount} from 'svelte';
   import {mountMenuUiAudio} from '../audio/menuUiAudio';
   import InformationDialog from './InformationDialog.svelte';
@@ -14,7 +15,7 @@
   import RondoWordmark from './RondoWordmark.svelte';
   import LoadingScreen from './LoadingScreen.svelte';
 
-  let { phase, onAction, saveAvailable = false, saveProgress, menuError = '' }: { saveProgress?:RegionProgress; saveAvailable?: boolean; menuError?: string; phase: Exclude<FrontDoorPhase, 'game'>; onAction: (action: FrontDoorAction) => void } = $props();
+  let { phase, onAction, onStageSelect, saveAvailable = false, saveProgress, menuError = '' }: { saveProgress?:RegionProgress; saveAvailable?: boolean; menuError?: string; phase: Exclude<FrontDoorPhase, 'game'>; onStageSelect?:(stage:StageId)=>void; onAction: (action: FrontDoorAction) => void } = $props();
   const menuEntries = [
     {action:'start', label:'開始遊戲', text:'NEW GAME', detail:'展開新的旅程'},
     {action:'load-game', label:'讀取遊戲', text:'LOAD GAME', detail:'讀取自動存檔'},
@@ -90,7 +91,7 @@
         <p class="menu-caption">{menuEntries[menuIndex].detail}</p>
         <button class="back" data-ui-sound="back" onclick={() => onAction('back')}>← 返回標題</button>
       {:else if phase === 'extras' || phase === 'new-game' || phase === 'load-game'}
-        <MenuSubpages {phase} {onAction} {saveAvailable} {saveProgress} {menuError}/>
+        <MenuSubpages {phase} {onAction} {onStageSelect} {saveAvailable} {saveProgress} {menuError}/>
       {:else if phase === 'settings'}
         <SettingsScreen onClose={() => onAction('back')}/>
       {:else if phase === 'loading'}

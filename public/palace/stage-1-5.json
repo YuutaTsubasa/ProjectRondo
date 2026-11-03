@@ -1,0 +1,833 @@
+{
+  "id": "1-5",
+  "rankTargets": {
+    "sTime": 66,
+    "aTime": 84,
+    "bTime": 110,
+    "cTime": 145
+  },
+  "world": {
+    "width": 29184,
+    "height": 1080,
+    "tileSize": 64
+  },
+  "playerSpawn": {
+    "x": 256,
+    "surfaceY": 512
+  },
+  "platforms": [
+    {
+      "col": 2,
+      "row": 8,
+      "width": 16,
+      "height": 1
+    },
+    {
+      "col": 21,
+      "row": 8,
+      "width": 6,
+      "height": 1
+    },
+    {
+      "col": 30,
+      "row": 7,
+      "width": 5,
+      "height": 1
+    },
+    {
+      "col": 38,
+      "row": 8,
+      "width": 7,
+      "height": 1
+    },
+    {
+      "col": 48,
+      "row": 7,
+      "width": 5,
+      "height": 1
+    },
+    {
+      "col": 56,
+      "row": 6,
+      "width": 5,
+      "height": 1
+    },
+    {
+      "col": 64,
+      "row": 7,
+      "width": 6,
+      "height": 1
+    },
+    {
+      "col": 73,
+      "row": 8,
+      "width": 12,
+      "height": 1
+    },
+    {
+      "col": 100,
+      "row": 8,
+      "width": 12,
+      "height": 1
+    },
+    {
+      "col": 115,
+      "row": 7,
+      "width": 5,
+      "height": 1
+    },
+    {
+      "col": 123,
+      "row": 6,
+      "width": 5,
+      "height": 1
+    },
+    {
+      "col": 131,
+      "row": 7,
+      "width": 5,
+      "height": 1
+    },
+    {
+      "col": 139,
+      "row": 8,
+      "width": 10,
+      "height": 1
+    },
+    {
+      "col": 153,
+      "row": 8,
+      "width": 6,
+      "height": 1
+    },
+    {
+      "col": 162,
+      "row": 7,
+      "width": 6,
+      "height": 1
+    },
+    {
+      "col": 171,
+      "row": 8,
+      "width": 8,
+      "height": 1
+    },
+    {
+      "col": 182,
+      "row": 8,
+      "width": 14,
+      "height": 1
+    },
+    {
+      "col": 199,
+      "row": 7,
+      "width": 5,
+      "height": 1
+    },
+    {
+      "col": 207,
+      "row": 6,
+      "width": 5,
+      "height": 1
+    },
+    {
+      "col": 215,
+      "row": 7,
+      "width": 5,
+      "height": 1
+    },
+    {
+      "col": 223,
+      "row": 8,
+      "width": 12,
+      "height": 1
+    },
+    {
+      "col": 239,
+      "row": 8,
+      "width": 6,
+      "height": 1
+    },
+    {
+      "col": 248,
+      "row": 7,
+      "width": 5,
+      "height": 1
+    },
+    {
+      "col": 256,
+      "row": 6,
+      "width": 5,
+      "height": 1
+    },
+    {
+      "col": 264,
+      "row": 7,
+      "width": 5,
+      "height": 1
+    },
+    {
+      "col": 272,
+      "row": 8,
+      "width": 8,
+      "height": 1
+    },
+    {
+      "col": 294,
+      "row": 8,
+      "width": 12,
+      "height": 1
+    },
+    {
+      "col": 309,
+      "row": 7,
+      "width": 5,
+      "height": 1
+    },
+    {
+      "col": 317,
+      "row": 8,
+      "width": 6,
+      "height": 1
+    },
+    {
+      "col": 326,
+      "row": 6,
+      "width": 5,
+      "height": 1
+    },
+    {
+      "col": 335,
+      "row": 7,
+      "width": 6,
+      "height": 1
+    },
+    {
+      "col": 344,
+      "row": 8,
+      "width": 14,
+      "height": 1
+    },
+    {
+      "col": 361,
+      "row": 8,
+      "width": 7,
+      "height": 1
+    },
+    {
+      "col": 371,
+      "row": 7,
+      "width": 5,
+      "height": 1
+    },
+    {
+      "col": 379,
+      "row": 6,
+      "width": 5,
+      "height": 1
+    },
+    {
+      "col": 387,
+      "row": 7,
+      "width": 5,
+      "height": 1
+    },
+    {
+      "col": 395,
+      "row": 8,
+      "width": 10,
+      "height": 1
+    },
+    {
+      "col": 420,
+      "row": 8,
+      "width": 10,
+      "height": 1
+    },
+    {
+      "col": 433,
+      "row": 7,
+      "width": 5,
+      "height": 1
+    },
+    {
+      "col": 441,
+      "row": 8,
+      "width": 14,
+      "height": 1
+    }
+  ],
+  "coins": [
+    {
+      "x": 420,
+      "y": 456
+    },
+    {
+      "x": 680,
+      "y": 456
+    },
+    {
+      "x": 940,
+      "y": 456
+    },
+    {
+      "x": 1460,
+      "y": 456
+    },
+    {
+      "x": 1990,
+      "y": 392
+    },
+    {
+      "x": 2510,
+      "y": 456
+    },
+    {
+      "x": 3150,
+      "y": 392
+    },
+    {
+      "x": 3660,
+      "y": 328
+    },
+    {
+      "x": 4200,
+      "y": 392
+    },
+    {
+      "x": 4750,
+      "y": 456
+    },
+    {
+      "x": 5550,
+      "y": 360
+    },
+    {
+      "x": 5850,
+      "y": 250
+    },
+    {
+      "x": 6150,
+      "y": 250
+    },
+    {
+      "x": 6450,
+      "y": 360
+    },
+    {
+      "x": 6800,
+      "y": 456
+    },
+    {
+      "x": 7420,
+      "y": 392
+    },
+    {
+      "x": 7900,
+      "y": 328
+    },
+    {
+      "x": 8380,
+      "y": 392
+    },
+    {
+      "x": 9000,
+      "y": 456
+    },
+    {
+      "x": 9800,
+      "y": 456
+    },
+    {
+      "x": 10100,
+      "y": 340
+    },
+    {
+      "x": 10400,
+      "y": 240
+    },
+    {
+      "x": 10700,
+      "y": 240
+    },
+    {
+      "x": 11000,
+      "y": 340
+    },
+    {
+      "x": 11700,
+      "y": 456
+    },
+    {
+      "x": 12300,
+      "y": 456
+    },
+    {
+      "x": 12850,
+      "y": 392
+    },
+    {
+      "x": 13350,
+      "y": 328
+    },
+    {
+      "x": 13850,
+      "y": 392
+    },
+    {
+      "x": 14500,
+      "y": 456
+    },
+    {
+      "x": 15450,
+      "y": 456
+    },
+    {
+      "x": 16000,
+      "y": 392
+    },
+    {
+      "x": 16450,
+      "y": 328
+    },
+    {
+      "x": 16950,
+      "y": 392
+    },
+    {
+      "x": 17500,
+      "y": 456
+    },
+    {
+      "x": 18100,
+      "y": 360
+    },
+    {
+      "x": 18420,
+      "y": 250
+    },
+    {
+      "x": 18740,
+      "y": 250
+    },
+    {
+      "x": 19000,
+      "y": 360
+    },
+    {
+      "x": 19750,
+      "y": 392
+    },
+    {
+      "x": 20350,
+      "y": 456
+    },
+    {
+      "x": 20950,
+      "y": 328
+    },
+    {
+      "x": 21500,
+      "y": 392
+    },
+    {
+      "x": 22100,
+      "y": 456
+    },
+    {
+      "x": 22500,
+      "y": 456
+    },
+    {
+      "x": 23200,
+      "y": 456
+    },
+    {
+      "x": 23850,
+      "y": 392
+    },
+    {
+      "x": 24350,
+      "y": 328
+    },
+    {
+      "x": 24900,
+      "y": 392
+    },
+    {
+      "x": 25500,
+      "y": 456
+    },
+    {
+      "x": 26050,
+      "y": 360
+    },
+    {
+      "x": 26360,
+      "y": 250
+    },
+    {
+      "x": 26670,
+      "y": 250
+    },
+    {
+      "x": 26980,
+      "y": 360
+    },
+    {
+      "x": 27350,
+      "y": 456
+    },
+    {
+      "x": 27850,
+      "y": 392
+    },
+    {
+      "x": 28450,
+      "y": 456
+    }
+  ],
+  "enemies": [
+    {
+      "id": "act1-guard-a",
+      "x": 760,
+      "surfaceY": 512,
+      "patrolMinX": 560,
+      "patrolMaxX": 980
+    },
+    {
+      "id": "act1-guard-b",
+      "x": 2520,
+      "surfaceY": 512,
+      "patrolMinX": 2480,
+      "patrolMaxX": 2780
+    },
+    {
+      "id": "act1-guard-c",
+      "x": 3240,
+      "surfaceY": 448,
+      "patrolMinX": 3140,
+      "patrolMaxX": 3340
+    },
+    {
+      "id": "act1-guard-d",
+      "x": 4210,
+      "surfaceY": 448,
+      "patrolMinX": 4140,
+      "patrolMaxX": 4380
+    },
+    {
+      "id": "act1-core-a",
+      "type": "azure-core",
+      "x": 5550,
+      "y": 380,
+      "patrolMinX": 5550,
+      "patrolMaxX": 5550
+    },
+    {
+      "id": "act1-core-b",
+      "type": "azure-core",
+      "x": 5850,
+      "y": 270,
+      "patrolMinX": 5850,
+      "patrolMaxX": 5850
+    },
+    {
+      "id": "act1-core-c",
+      "type": "azure-core",
+      "x": 6150,
+      "y": 270,
+      "patrolMinX": 6150,
+      "patrolMaxX": 6150
+    },
+    {
+      "id": "act1-core-d",
+      "type": "azure-core",
+      "x": 6450,
+      "y": 380,
+      "patrolMinX": 6450,
+      "patrolMaxX": 6450
+    },
+    {
+      "id": "act2-guard-a",
+      "x": 6800,
+      "surfaceY": 512,
+      "patrolMinX": 6600,
+      "patrolMaxX": 7040
+    },
+    {
+      "id": "act2-guard-b",
+      "x": 7480,
+      "surfaceY": 448,
+      "patrolMinX": 7400,
+      "patrolMaxX": 7580
+    },
+    {
+      "id": "act2-route-core-a",
+      "type": "azure-core",
+      "x": 9700,
+      "y": 380,
+      "patrolMinX": 9700,
+      "patrolMaxX": 9700
+    },
+    {
+      "id": "act2-route-core-b",
+      "type": "azure-core",
+      "x": 10020,
+      "y": 280,
+      "patrolMinX": 10020,
+      "patrolMaxX": 10020
+    },
+    {
+      "id": "act2-route-core-c",
+      "type": "azure-core",
+      "x": 10340,
+      "y": 200,
+      "patrolMinX": 10340,
+      "patrolMaxX": 10340
+    },
+    {
+      "id": "act2-route-core-d",
+      "type": "azure-core",
+      "x": 10660,
+      "y": 200,
+      "patrolMinX": 10660,
+      "patrolMaxX": 10660
+    },
+    {
+      "id": "act2-route-core-e",
+      "type": "azure-core",
+      "x": 10980,
+      "y": 280,
+      "patrolMinX": 10980,
+      "patrolMaxX": 10980
+    },
+    {
+      "id": "act2-route-core-f",
+      "type": "azure-core",
+      "x": 11300,
+      "y": 380,
+      "patrolMinX": 11300,
+      "patrolMaxX": 11300
+    },
+    {
+      "id": "act2-route-core-g",
+      "type": "azure-core",
+      "x": 11600,
+      "y": 400,
+      "patrolMinX": 11600,
+      "patrolMaxX": 11600
+    },
+    {
+      "id": "act2-route-core-h",
+      "type": "azure-core",
+      "x": 11720,
+      "y": 400,
+      "patrolMinX": 11720,
+      "patrolMaxX": 11720
+    },
+    {
+      "id": "act2-guard-c",
+      "x": 11850,
+      "surfaceY": 512,
+      "patrolMinX": 11720,
+      "patrolMaxX": 12100
+    },
+    {
+      "id": "act2-guard-d",
+      "x": 12900,
+      "surfaceY": 448,
+      "patrolMinX": 12800,
+      "patrolMaxX": 13000
+    },
+    {
+      "id": "act2-guard-e",
+      "x": 13900,
+      "surfaceY": 448,
+      "patrolMinX": 13800,
+      "patrolMaxX": 14040
+    },
+    {
+      "id": "act3-guard-a",
+      "x": 15550,
+      "surfaceY": 512,
+      "patrolMinX": 15400,
+      "patrolMaxX": 15640
+    },
+    {
+      "id": "act3-guard-b",
+      "x": 16450,
+      "surfaceY": 384,
+      "patrolMinX": 16432,
+      "patrolMaxX": 16650
+    },
+    {
+      "id": "act3-guard-c",
+      "x": 17500,
+      "surfaceY": 512,
+      "patrolMinX": 17440,
+      "patrolMaxX": 17760
+    },
+    {
+      "id": "act3-core-a",
+      "type": "azure-core",
+      "x": 18100,
+      "y": 380,
+      "patrolMinX": 18100,
+      "patrolMaxX": 18100
+    },
+    {
+      "id": "act3-core-b",
+      "type": "azure-core",
+      "x": 18420,
+      "y": 270,
+      "patrolMinX": 18420,
+      "patrolMaxX": 18420
+    },
+    {
+      "id": "act3-core-c",
+      "type": "azure-core",
+      "x": 18740,
+      "y": 270,
+      "patrolMinX": 18740,
+      "patrolMaxX": 18740
+    },
+    {
+      "id": "act3-core-d",
+      "type": "azure-core",
+      "x": 19000,
+      "y": 380,
+      "patrolMinX": 19000,
+      "patrolMaxX": 19000
+    },
+    {
+      "id": "act3-guard-d",
+      "x": 19500,
+      "surfaceY": 512,
+      "patrolMinX": 19300,
+      "patrolMaxX": 19536
+    },
+    {
+      "id": "act3-guard-e",
+      "x": 20450,
+      "surfaceY": 512,
+      "patrolMinX": 20320,
+      "patrolMaxX": 20600
+    },
+    {
+      "id": "act3-guard-f",
+      "x": 21500,
+      "surfaceY": 448,
+      "patrolMinX": 21488,
+      "patrolMaxX": 21760
+    },
+    {
+      "id": "act3-finish-guard",
+      "x": 22200,
+      "surfaceY": 512,
+      "patrolMinX": 22080,
+      "patrolMaxX": 22400
+    },
+    {
+      "id": "encore-guard-a",
+      "x": 23300,
+      "surfaceY": 512,
+      "patrolMinX": 23180,
+      "patrolMaxX": 23500
+    },
+    {
+      "id": "encore-guard-b",
+      "x": 24380,
+      "surfaceY": 384,
+      "patrolMinX": 24300,
+      "patrolMaxX": 24500
+    },
+    {
+      "id": "encore-guard-c",
+      "x": 25450,
+      "surfaceY": 512,
+      "patrolMinX": 25320,
+      "patrolMaxX": 25700
+    },
+    {
+      "id": "encore-core-a",
+      "type": "azure-core",
+      "x": 26050,
+      "y": 380,
+      "patrolMinX": 26050,
+      "patrolMaxX": 26050
+    },
+    {
+      "id": "encore-core-b",
+      "type": "azure-core",
+      "x": 26360,
+      "y": 270,
+      "patrolMinX": 26360,
+      "patrolMaxX": 26360
+    },
+    {
+      "id": "encore-core-c",
+      "type": "azure-core",
+      "x": 26670,
+      "y": 270,
+      "patrolMinX": 26670,
+      "patrolMaxX": 26670
+    },
+    {
+      "id": "encore-core-d",
+      "type": "azure-core",
+      "x": 26980,
+      "y": 380,
+      "patrolMinX": 26980,
+      "patrolMaxX": 26980
+    },
+    {
+      "id": "encore-guard-d",
+      "x": 27850,
+      "surfaceY": 448,
+      "patrolMinX": 27780,
+      "patrolMaxX": 27960
+    },
+    {
+      "id": "encore-finish-guard",
+      "x": 28450,
+      "surfaceY": 512,
+      "patrolMinX": 28320,
+      "patrolMaxX": 28600
+    }
+  ],
+  "checkpoints": [
+    {
+      "id": "remix-one-complete",
+      "x": 6680,
+      "surfaceY": 512,
+      "spawnX": 6760,
+      "spawnSurfaceY": 512
+    },
+    {
+      "id": "remix-two-complete",
+      "x": 14400,
+      "surfaceY": 512,
+      "spawnX": 14520,
+      "spawnSurfaceY": 512
+    },
+    {
+      "id": "final-remix",
+      "x": 19320,
+      "surfaceY": 512,
+      "spawnX": 19420,
+      "spawnSurfaceY": 512
+    },
+    {
+      "id": "encore-start",
+      "x": 22480,
+      "surfaceY": 512,
+      "spawnX": 22580,
+      "spawnSurfaceY": 512
+    }
+  ],
+  "goal": {
+    "x": 28800,
+    "surfaceY": 512
+  }
+}

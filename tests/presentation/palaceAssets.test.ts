@@ -1,3 +1,4 @@
+import {getPalaceStage} from '../../src/domain/palace/palaceStages';
 // @vitest-environment jsdom
 import {readFileSync} from 'node:fs';
 import {createHash} from 'node:crypto';
@@ -40,4 +41,20 @@ it('keeps each guard transform and animation independent, then clears the instan
  expect(visual.guards[0].holder.isEnabled()).toBe(true);
  visual.dispose();expect(scene.getTransformNodeByName('palaceGuard0')).toBeNull();
  scene.dispose();engine.dispose();
+});
+
+it('renders floating cores separately from skinned guards and restores their burst visibility',()=>{
+ const engine=new NullEngine(),scene=new Scene(engine),container=new AssetContainer(scene);
+ const mesh=CreateBox('body',{height:2},scene);mesh.position.y=1;
+ const group=new AnimationGroup('Run',scene),animation=new Animation('stride','rotation.x',60,Animation.ANIMATIONTYPE_FLOAT);
+ animation.setKeys([{frame:0,value:0},{frame:60,value:.2}]);group.addTargetedAnimation(animation,mesh);
+ container.meshes.push(mesh);container.animationGroups.push(group);container.removeAllFromScene();
+ const shadows={cast(){},receive(){},generator:{removeShadowCaster(){}}} as unknown as Shadows;
+ const layout=getPalaceStage('palace-1-2').layout,visual=instantiateGuards(container,scene,shadows,layout);
+ try{
+  expect(visual.guards).toHaveLength(3);
+  const core=scene.getTransformNodeByName('palaceCore0')!;expect(core).not.toBeNull();expect(core.position.y).toBe(2.44);
+  const run=createPalaceRun(layout);run.guards[0].defeated=true;run.guards[0].defeatedFor=.6;visual.update(run);expect(core.isEnabled()).toBe(false);
+  run.guards[0].defeated=false;run.guards[0].defeatedFor=0;visual.update(run);expect(core.isEnabled()).toBe(true);
+ }finally{visual.dispose();scene.dispose();engine.dispose();}
 });

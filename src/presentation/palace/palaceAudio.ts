@@ -9,7 +9,7 @@ export function createPalaceAudio(){
       const p=after.player,old=before.player;
       if(swordSoundCrossed(old.swordSeconds,p.swordSeconds))audio.play('swing');
       if(after.deaths>before.deaths)audio.play('death');
-      else if(after.damageTaken>before.damageTaken||p.health<old.health||after.guards.filter(g=>g.defeated).length>before.guards.filter(g=>g.defeated).length)audio.play('hit');
+      else if(after.damageTaken>before.damageTaken||p.health<old.health||after.guards.some(g=>g.defeated&&before.guards.some(old=>old.id===g.id&&!old.defeated)))audio.play('hit');
       if(p.health>0&&old.health>0){
         if(p.airJumped&&!old.airJumped||old.grounded&&!p.grounded&&p.vy>0&&!p.homing&&!p.bounced)audio.play('takeoff');
         if(!old.grounded&&p.grounded&&!old.homing&&!p.bounced)audio.play('land');

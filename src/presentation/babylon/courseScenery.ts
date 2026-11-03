@@ -5,14 +5,14 @@ import { CreateBox } from '@babylonjs/core/Meshes/Builders/boxBuilder';
 import { PBRMaterial } from '@babylonjs/core/Materials/PBR/pbrMaterial';
 import { PhysicsAggregate } from '@babylonjs/core/Physics/v2/physicsAggregate';
 import { PhysicsShapeType } from '@babylonjs/core/Physics/v2/IPhysicsEnginePlugin';
-import { COURSE_PLATFORMS, COURSE_GATES } from '../../domain/course/courseLayout';
+import {getCourseStage,type CourseDefinition} from '../../domain/course/courseStages';
 import { createArch, createArchSpandrel, createBeveledBox, createColumn, createDome } from '../palace/palaceArchitecture';
 import { createPalaceMaterials } from '../palace/palaceMaterials';
 import { applyStoneUV } from '../palace/palaceStoneSurface';
 import { createCourseCloudScenery } from '../course/courseCloudScenery';
 
 /** Same authored supports and jump gaps; all ornament is nonphysical and outside the running lane. */
-export function createCourseScenery(scene: Scene): { casters: Mesh[]; receivers: Mesh[]; update(elapsed: number): void } {
+export function createCourseScenery(scene: Scene, stage:CourseDefinition=getCourseStage()): { casters: Mesh[]; receivers: Mesh[]; update(elapsed: number): void } {
   const casters: Mesh[] = [], receivers: Mesh[] = [];
   const materials = createPalaceMaterials(scene);
   let parts: Mesh[] = [];
@@ -48,7 +48,7 @@ export function createCourseScenery(scene: Scene): { casters: Mesh[]; receivers:
     parts = [];
   };
 
-  for (const p of COURSE_PLATFORMS) {
+  for (const p of stage.platforms) {
     const { x, y, z } = p.center, w = p.width, d = p.depth;
     const support = CreateBox(`courseSupport_${p.id}`, { width: w, depth: d, height: 3 }, scene);
     support.position.set(x, y - 1.5, z); support.isVisible = false; support.isPickable = false;
@@ -112,7 +112,7 @@ export function createCourseScenery(scene: Scene): { casters: Mesh[]; receivers:
     flush(`courseTerrace_${p.id}`);
   }
 
-  for (const [i, gate] of COURSE_GATES.entries()) {
+  for (const [i, gate] of stage.gates.entries()) {
     const y = gate.center.y - 1, x = gate.center.x, z = gate.center.z;
     for (const side of [-1, 1]) {
       const px = x + side * (gate.halfWidth + .6);
@@ -121,7 +121,7 @@ export function createCourseScenery(scene: Scene): { casters: Mesh[]; receivers:
       box('gateAzureInset', px, y + 1.5, z - .3, .22, .9, .07, materials.banner);
       add(createDome('gateFinial', { radius: .22, height: .32, segments: 16 }, scene), px, y + 2.56, z, materials.gold);
     }
-    if (i === COURSE_GATES.length - 1) {
+    if (i === stage.gates.length - 1) {
       for (const side of [-1, 1]) column('goalColumn', x + side * 5.8, y, z + 3.8, 5.6, .4);
       arch('goalTriumphalArch', x, y + 5.6, z + 3.8, 10.7, 3.5, 1.2);
       box('goalCrownKey', x, y + 9.13, z + 3.14, .65, .85, .15, materials.gold);
@@ -132,7 +132,7 @@ export function createCourseScenery(scene: Scene): { casters: Mesh[]; receivers:
   // Separate tower batches preserve frustum culling and leave the two crystal chasms entirely open.
   for (let i = 0; i < 12; i++) {
     const side = i % 2 ? 1 : -1;
-    const x = side * (34 + (i % 3) * 14), z = -20 + Math.floor(i / 2) * 49;
+    const x = side * (34 + (i % 3) * 14), z = -20 + Math.floor(i / 2) * (stage.gates.at(-1)!.center.z + 40) / 5;
     const width = 8 + (i % 3) * 2, top = 8 + (i % 4) * 4, base = -22;
     box('palaceTowerBody', x, (base + top) / 2, z, width, top - base, width);
     for (const y of [top - 7, top - 1, top]) {

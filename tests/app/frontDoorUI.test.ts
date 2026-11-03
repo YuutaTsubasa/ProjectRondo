@@ -80,7 +80,7 @@ describe('title and main menu', () => {
     vi.restoreAllMocks();
   });
 });
-it.each([['course', '試玩第一關'], ['palace', '試玩 2D 關卡'], ['town', '白色王城']])('routes %s, retains it on retry, and disposes it on return to menu', async (entry, label) => {
+it.each([['course', '試玩第一關'], ['palace', '試玩 2D 關卡'], ['region', '白色王城']])('routes %s, retains it on retry, and disposes it on return to menu', async (entry, label) => {
   vi.spyOn(console, 'error').mockImplementation(() => {});
   load.mockRejectedValueOnce(new Error('offline')).mockResolvedValue({ default: GameFixture });
   await render(); button('進入主選單').click(); await settle();
@@ -155,4 +155,21 @@ it('keeps native exit errors recoverable',async()=>{
  expect(document.body.textContent).toContain('無法關閉遊戲');
  expect(button('確定').disabled).toBe(false);button('確定').click();await settle();
  expect(platform.invoke).toHaveBeenCalledTimes(2);
+});
+
+
+it.each([false,true])('enters the integrated city with the current save (existing=%s)',async(existing)=>{
+ const saved=JSON.stringify({version:1,progress:{version:1,chapter:'aqueduct',discoveries:['ridge'],completedExpeditions:['course']},position:{x:-10,y:7.3,z:130}});
+ if(existing)localStorage.setItem(REGION_SAVE_KEY,saved);
+ load.mockResolvedValue({default:GameFixture});await render();button('進入主選單').click();await settle();button('額外內容').click();await settle();button('白色王城').click();await settle();button('進入選擇內容').click();await settle();
+ expect(load).toHaveBeenLastCalledWith('region');expect(document.querySelector('[data-fresh-start]')?.getAttribute('data-fresh-start')).toBe('false');
+ expect(localStorage.getItem(REGION_SAVE_KEY)).toBe(existing?saved:null);expect(localStorage.getItem(REGION_SAVE_KEY+'.backup')).toBeNull();
+});
+
+it('clears the previous NEW GAME flag before returning through the city entry',async()=>{
+ load.mockResolvedValue({default:GameFixture});await render();button('進入主選單').click();await settle();button('開始遊戲').click();await settle();await confirmNew();
+ expect(document.querySelector('[data-fresh-start]')?.getAttribute('data-fresh-start')).toBe('true');button('fixture ready').click();await settle();button('fixture exit').click();await settle();
+ const saved=JSON.stringify({version:1,progress:{version:1,chapter:'signal',discoveries:[],completedExpeditions:[]},position:{x:0,y:1.3,z:-35}});localStorage.setItem(REGION_SAVE_KEY,saved);
+ button('額外內容').click();await settle();button('白色王城').click();await settle();button('進入選擇內容').click();await settle();
+ expect(load).toHaveBeenLastCalledWith('region');expect(document.querySelector('[data-fresh-start]')?.getAttribute('data-fresh-start')).toBe('false');expect(localStorage.getItem(REGION_SAVE_KEY)).toBe(saved);
 });

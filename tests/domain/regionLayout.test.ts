@@ -1,8 +1,10 @@
+import {STAGE_IDS} from '../../src/domain/stage/stageIds';
+import {CITY_STOPS} from '../../src/domain/region/cityJourney';
 import {NodeIO} from '@gltf-transform/core';
 import {getBounds} from '@gltf-transform/functions';
 import {TOWN_BUILDINGS} from '../../src/domain/town/townLayout';
 import { describe, expect, it } from 'vitest';
-import { REGION_PLACES, REGION_SPAWN, REGION_TRAILS, regionHeight, isRegionPositionSafe } from '../../src/domain/region/regionLayout';
+import { REGION_INTERACTION_PLACES, REGION_PLACES, REGION_SPAWN, REGION_TRAILS, regionHeight, isRegionPositionSafe } from '../../src/domain/region/regionLayout';
 
 describe('first region traversal', () => {
   it('joins the town and outdoor road at exactly the same supported height', () => {
@@ -26,8 +28,8 @@ describe('first region traversal', () => {
       }
     }
   });
-  it('provides seven distinct destinations with safe, gently sloped interaction clearings', () => {
-    expect(REGION_PLACES.map(p => p.id).sort()).toEqual(['course', 'cove', 'homecoming', 'palace', 'ridge', 'signal', 'watch']);
+  it('provides every stage and city stop with safe, gently sloped interaction clearings', () => {
+    expect(REGION_PLACES.map(p => p.id).sort()).toEqual([...STAGE_IDS,...CITY_STOPS.map(s=>s.id),'cove','homecoming','ridge','signal','watch'].sort());
     for (const place of REGION_PLACES) {
       const y = regionHeight(place.x, place.z);
       expect(isRegionPositionSafe({ ...place, y: y + 1.3 })).toBe(true);
@@ -71,4 +73,10 @@ it('keeps the northwest entry and its approach clear of actual scaled town asset
    expect(overlaps(ax+(bx-ax)*t,az+(bz-az)*t,.7),building.id+' blocks approach').toBe(false);
   }
  }
+});
+
+it.each([['course-5',263,265],['palace-1-5',283,285]] as const)('places %s in the walkable public palace at floor 12', (id,placeZ,hostZ)=>{
+ const place=REGION_PLACES.find(p=>p.id===id)!,host=REGION_INTERACTION_PLACES.find(p=>p.id===id)!;
+ expect([place.x,place.z]).toEqual([-10,placeZ]);expect([host.x,host.z]).toEqual([-8.6,hostZ]);
+ for(const point of [place,host]){expect(regionHeight(point.x,point.z)).toBe(12);expect(isRegionPositionSafe({...point,y:13.3})).toBe(true);}
 });

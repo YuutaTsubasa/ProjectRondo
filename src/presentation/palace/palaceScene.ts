@@ -17,7 +17,8 @@ import { loadKnight, driveKnightAnimation, type Knight, type KnightMotionSample 
 import { CAPSULE_HALF } from '../babylon/capsule';
 import { createHomingReticle } from '../babylon/homingReticle';
 import { exposeDevHandle } from '../babylon/devHandles';
-import { PALACE_LAYOUT } from '../../domain/palace/palaceLayout';
+import {getPalaceStage,type PalaceStage} from '../../domain/palace/palaceStages';
+import {palaceTargetPoint} from '../../domain/palace/palaceRun';
 import { createPalaceRun, stepPalaceRun, selectPalaceTarget, type PalaceRun } from '../../domain/palace/palaceRun';
 import { createPalaceScenery } from './palaceScenery';
 import { loadPalaceGuards } from './palaceGuards';
@@ -31,7 +32,8 @@ export interface PalaceScene {
   suspendInput(on:boolean):void;
   dispose():void;
 }
-export async function createPalaceScene(engine:Engine):Promise<PalaceScene> {
+export async function createPalaceScene(engine:Engine,stage:PalaceStage=getPalaceStage()):Promise<PalaceScene> {
+  const layout=stage.layout;
   const scene=new Scene(engine);
   const input=createInput({canvas:engine.getRenderingCanvas()??undefined});input.setEnabled(false);
   let knight:Knight|undefined,stopAnimation:(()=>void)|undefined;
@@ -58,8 +60,8 @@ export async function createPalaceScene(engine:Engine):Promise<PalaceScene> {
     // Closed palace masonry can cast from its rear faces: avoid surface self-shadow striping.
     shadows.generator.forceBackFacesOnly = true;
     shadows.generator.bias = .0001;
-    const scenery=createPalaceScenery(scene,shadows);
-    let state=createPalaceRun();
+    const scenery=createPalaceScenery(scene,shadows,layout);
+    let state=createPalaceRun(layout);
     const playerRoot=new TransformNode('palacePlayer',scene);
     playerRoot.position.set(state.player.x,state.player.y+CAPSULE_HALF,0);
     playerRoot.rotation.y=-Math.PI/2;
@@ -70,7 +72,7 @@ export async function createPalaceScene(engine:Engine):Promise<PalaceScene> {
       airJumped:state.player.airJumped,swordSeconds:state.player.swordSeconds,
     });
     stopAnimation=driveKnightAnimation(scene,knight,motion,()=>({walk:4,run:10,airtime:25.6/30}));
-    guards=await loadPalaceGuards(scene,shadows);
+    guards=await loadPalaceGuards(scene,shadows,layout);
     const reticle=createHomingReticle(scene);
     let cameraX=state.player.x+4,cameraY=2.7;
     const update=(snap=false)=>{
@@ -81,16 +83,16 @@ export async function createPalaceScene(engine:Engine):Promise<PalaceScene> {
       playerRoot.rotation.z=dying?-p.facing*Math.min(1,(.7-p.deadFor)/.45)*1.3:0;
       for(const mesh of playerRoot.getChildMeshes())
         mesh.visibility=p.invulnerable>0&&Math.floor(state.elapsed*14)%2===0?.38:1;
-      const desiredX=Math.max(9,Math.min(PALACE_LAYOUT.width-9,p.x+4));
+      const desiredX=Math.max(9,Math.min(layout.width-9,p.x+4));
       const desiredY=Math.max(2.2,Math.min(6,p.y+2.5));
       if(snap){cameraX=desiredX;cameraY=desiredY;}
       else{cameraX+=(desiredX-cameraX)*.14;cameraY+=(desiredY-cameraY)*.1;}
       camera.position.set(cameraX,cameraY+3.2,25);
       camera.setTarget(new Vector3(cameraX,cameraY,0));
       guards!.update(state);scenery.update(state,cameraX);
-      const targetId=selectPalaceTarget(state);
+      const targetId=selectPalaceTarget(state,layout);
       const target=state.guards.find(g=>g.id===targetId);
-      if(target&&!dying)reticle.showAt({x:target.x,y:target.y+.95,z:.2});
+      if(target&&!dying)reticle.showAt({x:target.x,y:palaceTargetPoint(target).y+.95,z:.2});
       else reticle.hide();
     };
     let disposed=false,suspended=true;
@@ -99,12 +101,12 @@ export async function createPalaceScene(engine:Engine):Promise<PalaceScene> {
       advance(dt){
         if(disposed||suspended)return state;
         const before=state;
-        state=stepPalaceRun(state,{axis:input.axis().x,jump:input.consumeJump(),attack:input.consumeAttack(),dt});
+        state=stepPalaceRun(state,{axis:input.axis().x,jump:input.consumeJump(),attack:input.consumeAttack(),dt},layout);
         update(state.deaths!==before.deaths||state.player.deadFor===0&&before.player.deadFor>0);
         audio!.update(before,state);scene.render();return state;
       },
       reset(){
-        state=createPalaceRun();audio!.reset();input.setEnabled(false);input.setEnabled(!suspended);
+        state=createPalaceRun(layout);audio!.reset();input.setEnabled(false);input.setEnabled(!suspended);
         scene.resetLastAnimationTimeFrame();update(true);return state;
       },
       suspendInput(on){

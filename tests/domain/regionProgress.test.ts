@@ -18,13 +18,13 @@ describe('first region progression', () => {
 
   it('requires each expedition result before its report dialogue can advance the chapter', () => {
     let progress = createRegionProgress();
-    expect(canEnterRegionExpedition(progress, 'course')).toBe(false);
+    expect(canEnterRegionExpedition(progress, 'course')).toBe(true);
     progress = finishRegionDialogue(progress, 'town_arrival');
     expect(progress.chapter).toBe('signal');
     progress = finishRegionDialogue(progress, 'meadow_signal');
     expect(progress.chapter).toBe('relay');
     expect(canEnterRegionExpedition(progress, 'course')).toBe(true);
-    expect(canEnterRegionExpedition(progress, 'palace')).toBe(false);
+    expect(canEnterRegionExpedition(progress, 'palace')).toBe(true);
     expect(finishRegionDialogue(progress, 'ruin_relay')).toBe(progress);
     progress = completeRegionExpedition(progress, 'course');
     expect(progress.chapter).toBe('relay-report');
@@ -51,9 +51,9 @@ describe('first region progression', () => {
     expect(arrival.chapter).toBe('arrival');
   });
 
-  it('cannot complete a locked expedition or regress progress by replaying an old one', () => {
+  it('records freely entered expeditions without regressing story progress', () => {
     const initial = createRegionProgress();
-    expect(completeRegionExpedition(initial, 'course')).toBe(initial);
+    expect(completeRegionExpedition(initial, 'course')).toEqual({...initial,completedExpeditions:['course']});
     expect(completeRegionExpedition(relayReady(), 'palace').chapter).toBe('relay');
     const aqueduct = aqueductReady();
     expect(canEnterRegionExpedition(aqueduct, 'course')).toBe(true);
@@ -101,11 +101,8 @@ describe('region progress persistence', () => {
     { discoveries: null }, { discoveries: ['ridge', 'ridge'] }, { discoveries: ['elsewhere'] },
     { discoveries: [1] }, { completedExpeditions: 'course' },
     { completedExpeditions: ['course', 'course'] }, { completedExpeditions: ['tower'] },
-    { chapter: 'arrival', completedExpeditions: ['course'] },
-    { chapter: 'relay', completedExpeditions: ['course'] },
     { chapter: 'relay-report', completedExpeditions: [] },
     { chapter: 'aqueduct', completedExpeditions: ['palace'] },
-    { chapter: 'aqueduct', completedExpeditions: ['course', 'palace'] },
     { chapter: 'aqueduct-report', completedExpeditions: ['course'] },
     { chapter: 'homecoming', completedExpeditions: [] },
     { chapter: 'complete', completedExpeditions: ['palace'] },
@@ -113,3 +110,5 @@ describe('region progress persistence', () => {
     expect(parseRegionProgress(JSON.stringify({ ...createRegionProgress(), ...fields }))).toEqual(createRegionProgress());
   });
 });
+
+it('round trips independently completed stages before optional story starts',()=>{const progress=completeRegionExpedition(completeRegionExpedition(createRegionProgress(),'palace'),'course');expect(progress.chapter).toBe('arrival');expect(progress.completedExpeditions).toEqual(['palace','course']);expect(parseRegionProgress(JSON.stringify(progress))).toEqual(progress);});

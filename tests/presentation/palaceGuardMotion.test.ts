@@ -1,7 +1,9 @@
 // @vitest-environment jsdom
 import { readFileSync } from 'node:fs';
-import { afterEach, expect, it } from 'vitest';
+import { afterEach, expect, it, vi } from 'vitest';
 import { NullEngine } from '@babylonjs/core/Engines/nullEngine';
+import { FreeCamera } from '@babylonjs/core/Cameras/freeCamera';
+import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { Scene } from '@babylonjs/core/scene';
 import { LoadAssetContainerAsync } from '@babylonjs/core/Loading/sceneLoader';
 import { instantiateGuards } from '../../src/presentation/palace/palaceGuards';
@@ -25,7 +27,7 @@ async function mount() {
   const node = (name: string) => guard.holder.getChildTransformNodes().find(n => n.name.endsWith(name))!;
   const position = (name: string) => { const n = node(name); n.computeWorldMatrix(true); return n.getAbsolutePosition().clone(); };
   const advance = (distance: number) => { state.guards[0].x += distance; state.elapsed += Math.abs(distance) / 1.6; visual.update(state); };
-  return { visual, state, guard, node, position, advance };
+  return { scene, visual, state, guard, node, position, advance };
 }
 it.each([1, -1] as const)('keeps the support boot planted while traveling in direction %s', async direction => {
   const { position, advance, state, visual } = await mount();
@@ -82,4 +84,29 @@ it('swings each arm opposite its advancing leg', async () => {
   const { position } = await mount();
   expect(position('DEF-foot.L').x).toBeGreaterThan(position('DEF-foot.R').x);
   expect(position('DEF-hand.L').x).toBeLessThan(position('DEF-hand.R').x);
+});
+
+it('sleeps offscreen rigs while preserving patrol and restores the pose before showing them', async () => {
+  const { scene, visual, state, guard } = await mount();
+  const camera = new FreeCamera('testCamera', new Vector3(guard.holder.position.x, 5, 25), scene);
+  camera.fov = .63; camera.setTarget(new Vector3(guard.holder.position.x, 2, 0));
+  const pose = vi.spyOn(guard.walk!, 'pose');
+  visual.update(state); expect(guard.holder.isEnabled()).toBe(true);
+  pose.mockClear();
+  camera.position.x += 150; camera.setTarget(new Vector3(camera.position.x, 2, 0));
+  const before = JSON.stringify(state);
+  visual.update(state);
+  expect(guard.holder.isEnabled()).toBe(false);
+  expect(pose).not.toHaveBeenCalled();
+  expect(JSON.stringify(state)).toBe(before);
+  state.guards[0].x += .4; state.elapsed += .25; visual.update(state);
+  expect(pose).not.toHaveBeenCalled();
+  camera.position.x -= 150; camera.setTarget(new Vector3(camera.position.x, 2, 0));
+  visual.update(state);
+  expect(guard.holder.isEnabled()).toBe(true);
+  expect(guard.holder.position.x).toBe(state.guards[0].x);
+  expect(pose).toHaveBeenCalledWith(expect.closeTo(.4));
+  state.guards[0].defeated = true; state.guards[0].defeatedFor = .6;
+  visual.update(state); expect(guard.holder.isEnabled()).toBe(false);
+  visual.update(createPalaceRun()); expect(guard.holder.isEnabled()).toBe(true);
 });

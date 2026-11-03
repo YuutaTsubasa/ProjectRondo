@@ -1,0 +1,424 @@
+{
+  "id": "1-4",
+  "rankTargets": {
+    "sTime": 27,
+    "aTime": 35,
+    "bTime": 48,
+    "cTime": 65
+  },
+  "world": {
+    "width": 12800,
+    "height": 1080,
+    "tileSize": 64
+  },
+  "playerSpawn": {
+    "x": 256,
+    "surfaceY": 512
+  },
+  "platforms": [
+    {
+      "col": 2,
+      "row": 8,
+      "width": 16,
+      "height": 1
+    },
+    {
+      "col": 21,
+      "row": 8,
+      "width": 6,
+      "height": 1
+    },
+    {
+      "col": 30,
+      "row": 7,
+      "width": 5,
+      "height": 1
+    },
+    {
+      "col": 38,
+      "row": 8,
+      "width": 7,
+      "height": 1
+    },
+    {
+      "col": 48,
+      "row": 7,
+      "width": 5,
+      "height": 1
+    },
+    {
+      "col": 56,
+      "row": 6,
+      "width": 5,
+      "height": 1
+    },
+    {
+      "col": 64,
+      "row": 7,
+      "width": 6,
+      "height": 1
+    },
+    {
+      "col": 73,
+      "row": 8,
+      "width": 12,
+      "height": 1
+    },
+    {
+      "col": 88,
+      "row": 8,
+      "width": 5,
+      "height": 1
+    },
+    {
+      "col": 96,
+      "row": 7,
+      "width": 5,
+      "height": 1
+    },
+    {
+      "col": 104,
+      "row": 8,
+      "width": 5,
+      "height": 1
+    },
+    {
+      "col": 112,
+      "row": 7,
+      "width": 5,
+      "height": 1
+    },
+    {
+      "col": 120,
+      "row": 8,
+      "width": 12,
+      "height": 1
+    },
+    {
+      "col": 135,
+      "row": 8,
+      "width": 6,
+      "height": 1
+    },
+    {
+      "col": 144,
+      "row": 7,
+      "width": 5,
+      "height": 1
+    },
+    {
+      "col": 153,
+      "row": 6,
+      "width": 5,
+      "height": 1
+    },
+    {
+      "col": 162,
+      "row": 7,
+      "width": 5,
+      "height": 1
+    },
+    {
+      "col": 171,
+      "row": 8,
+      "width": 6,
+      "height": 1
+    },
+    {
+      "col": 180,
+      "row": 8,
+      "width": 17,
+      "height": 1
+    }
+  ],
+  "coins": [
+    {
+      "x": 420,
+      "y": 456
+    },
+    {
+      "x": 680,
+      "y": 456
+    },
+    {
+      "x": 940,
+      "y": 456
+    },
+    {
+      "x": 1460,
+      "y": 456
+    },
+    {
+      "x": 1990,
+      "y": 392
+    },
+    {
+      "x": 2510,
+      "y": 456
+    },
+    {
+      "x": 3150,
+      "y": 392
+    },
+    {
+      "x": 3660,
+      "y": 328
+    },
+    {
+      "x": 4200,
+      "y": 392
+    },
+    {
+      "x": 4750,
+      "y": 456
+    },
+    {
+      "x": 5100,
+      "y": 456
+    },
+    {
+      "x": 5600,
+      "y": 300
+    },
+    {
+      "x": 5900,
+      "y": 210
+    },
+    {
+      "x": 6200,
+      "y": 210
+    },
+    {
+      "x": 6500,
+      "y": 300
+    },
+    {
+      "x": 6800,
+      "y": 380
+    },
+    {
+      "x": 7360,
+      "y": 392
+    },
+    {
+      "x": 7800,
+      "y": 456
+    },
+    {
+      "x": 8220,
+      "y": 456
+    },
+    {
+      "x": 8700,
+      "y": 340
+    },
+    {
+      "x": 9000,
+      "y": 240
+    },
+    {
+      "x": 9300,
+      "y": 190
+    },
+    {
+      "x": 9600,
+      "y": 240
+    },
+    {
+      "x": 9900,
+      "y": 340
+    },
+    {
+      "x": 10480,
+      "y": 392
+    },
+    {
+      "x": 11000,
+      "y": 456
+    },
+    {
+      "x": 11680,
+      "y": 456
+    },
+    {
+      "x": 12000,
+      "y": 456
+    },
+    {
+      "x": 12320,
+      "y": 456
+    }
+  ],
+  "enemies": [
+    {
+      "id": "opening-guard-a",
+      "x": 760,
+      "surfaceY": 512,
+      "patrolMinX": 560,
+      "patrolMaxX": 980
+    },
+    {
+      "id": "rhythm-guard-a",
+      "x": 2520,
+      "surfaceY": 512,
+      "patrolMinX": 2460,
+      "patrolMaxX": 2780
+    },
+    {
+      "id": "rhythm-guard-b",
+      "x": 3240,
+      "surfaceY": 448,
+      "patrolMinX": 3140,
+      "patrolMaxX": 3340
+    },
+    {
+      "id": "rhythm-guard-c",
+      "x": 4210,
+      "surfaceY": 448,
+      "patrolMinX": 4140,
+      "patrolMaxX": 4380
+    },
+    {
+      "id": "first-checkpoint-guard",
+      "x": 5050,
+      "surfaceY": 512,
+      "patrolMinX": 4860,
+      "patrolMaxX": 5320
+    },
+    {
+      "id": "high-arch-core-a",
+      "type": "azure-core",
+      "x": 5600,
+      "y": 320,
+      "patrolMinX": 5600,
+      "patrolMaxX": 5600
+    },
+    {
+      "id": "high-arch-core-b",
+      "type": "azure-core",
+      "x": 5900,
+      "y": 230,
+      "patrolMinX": 5900,
+      "patrolMaxX": 5900
+    },
+    {
+      "id": "high-arch-core-c",
+      "type": "azure-core",
+      "x": 6200,
+      "y": 230,
+      "patrolMinX": 6200,
+      "patrolMaxX": 6200
+    },
+    {
+      "id": "high-arch-core-d",
+      "type": "azure-core",
+      "x": 6500,
+      "y": 320,
+      "patrolMinX": 6500,
+      "patrolMaxX": 6500
+    },
+    {
+      "id": "high-arch-core-e",
+      "type": "azure-core",
+      "x": 6800,
+      "y": 400,
+      "patrolMinX": 6800,
+      "patrolMaxX": 6800
+    },
+    {
+      "id": "bridge-guard-a",
+      "x": 7420,
+      "surfaceY": 448,
+      "patrolMinX": 7300,
+      "patrolMaxX": 7500
+    },
+    {
+      "id": "bridge-guard-b",
+      "x": 7880,
+      "surfaceY": 512,
+      "patrolMinX": 7740,
+      "patrolMaxX": 8100
+    },
+    {
+      "id": "second-checkpoint-guard",
+      "x": 8230,
+      "surfaceY": 512,
+      "patrolMinX": 8120,
+      "patrolMaxX": 8400
+    },
+    {
+      "id": "crest-core-a",
+      "type": "azure-core",
+      "x": 8700,
+      "y": 360,
+      "patrolMinX": 8700,
+      "patrolMaxX": 8700
+    },
+    {
+      "id": "crest-core-b",
+      "type": "azure-core",
+      "x": 9000,
+      "y": 260,
+      "patrolMinX": 9000,
+      "patrolMaxX": 9000
+    },
+    {
+      "id": "crest-core-c",
+      "type": "azure-core",
+      "x": 9300,
+      "y": 210,
+      "patrolMinX": 9300,
+      "patrolMaxX": 9300
+    },
+    {
+      "id": "crest-core-d",
+      "type": "azure-core",
+      "x": 9600,
+      "y": 260,
+      "patrolMinX": 9600,
+      "patrolMaxX": 9600
+    },
+    {
+      "id": "crest-core-e",
+      "type": "azure-core",
+      "x": 9900,
+      "y": 360,
+      "patrolMinX": 9900,
+      "patrolMaxX": 9900
+    },
+    {
+      "id": "final-bridge-guard",
+      "x": 11040,
+      "surfaceY": 512,
+      "patrolMinX": 10980,
+      "patrolMaxX": 11220
+    },
+    {
+      "id": "finish-guard",
+      "x": 11920,
+      "surfaceY": 512,
+      "patrolMinX": 11720,
+      "patrolMaxX": 12120
+    }
+  ],
+  "checkpoints": [
+    {
+      "id": "broken-bridge-complete",
+      "x": 4840,
+      "surfaceY": 512,
+      "spawnX": 4920,
+      "spawnSurfaceY": 512
+    },
+    {
+      "id": "high-arch-complete",
+      "x": 7860,
+      "surfaceY": 512,
+      "spawnX": 7980,
+      "spawnSurfaceY": 512
+    }
+  ],
+  "goal": {
+    "x": 12500,
+    "surfaceY": 512
+  }
+}

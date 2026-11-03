@@ -8,7 +8,7 @@ import { mergePalaceParts, type PalaceMaterials } from './palaceMaterials';
 import type { Shadows } from '../babylon/shadows';
 
 /** World-space palace buildings: no scrolling billboards or camera-dependent offsets. */
-export function createPalaceDistrict(scene: Scene, shadows: Shadows, materials: PalaceMaterials) {
+export function createPalaceDistrict(scene: Scene, shadows: Shadows, materials: PalaceMaterials, width=192) {
   let parts: Mesh[] = [];
   const place = (mesh: Mesh, x: number, y: number, z: number, material = materials.stone) => {
     mesh.position.set(x, y, z); mesh.material = material; parts.push(mesh); return mesh;
@@ -22,7 +22,7 @@ export function createPalaceDistrict(scene: Scene, shadows: Shadows, materials: 
   const flush = (name: string, cast: boolean) => { mergePalaceParts(name, parts, shadows, cast, true); parts = []; };
 
   // An inhabited lower district gives the tall piers a coherent foundation below the falling zone.
-  box(98, -25.5, -32, 240, 3, 110, materials.aged, .18);
+  box(width/2+2, -25.5, -32, width+48, 3, 110, materials.aged, .18);
   flush('palaceFoundation', false);
 
   const tower = (x: number, z: number, base: number, width: number, height: number, dome: boolean) => {
@@ -59,8 +59,9 @@ export function createPalaceDistrict(scene: Scene, shadows: Shadows, materials: 
     }
   };
 
+  const repeat=(positions:number[])=>Array.from({length:Math.ceil(width/224)},(_,section)=>positions.map(x=>x+section*224)).flat().filter(x=>x<=width+24);
   // Unequal heights, setbacks and openings make parallax read as a city, not a repeating wall.
-  for (const [i, x] of [-12, 21, 57, 88, 121, 151, 183, 213].entries()) {
+  for (const [i, x] of repeat([-12, 21, 57, 88, 121, 151, 183, 213]).entries()) {
     const z = -42 - (i % 3) * 7, base = -24, height = 26 + [0, 5, 1, 8][i % 4]!;
     const width = 8 + (i % 2) * 2;
     tower(x, z, base, width, height, true);
@@ -74,7 +75,7 @@ export function createPalaceDistrict(scene: Scene, shadows: Shadows, materials: 
     box(x + 11.6, 4.95, z + 1.5, 14.5, .4, 8.5, materials.light);
     flush('palaceDistantBlock' + i, false);
   }
-  for (const [i, x] of [8, 54, 91, 143, 180].entries()) {
+  for (const [i, x] of repeat([8, 54, 91, 143, 180]).entries()) {
     tower(x + 5, -19 - (i % 2) * 3, -24, 6.3, 33 + (i % 2) * 3, i % 2 === 0);
     // Flanking gate towers set behind the play lane do not hide the player or target reticles.
     if (i === 0 || i === 4) tower(x - 6, -21, -24, 5, 30, false);
@@ -82,7 +83,7 @@ export function createPalaceDistrict(scene: Scene, shadows: Shadows, materials: 
   }
 
   // Five short open loggias behind broad landing terraces. No foreground wall crosses the route.
-  for (const [i, config] of [[3.5, 3, 0], [49.4, 4, 0], [84, 3, 0], [143, 3, 0], [175, 4, 0]].entries()) {
+  for (const [i, config] of repeat([3.5,49.4,84,143,175]).map((x,i)=>[x,i%5===1||i%5===4?4:3,0]).entries()) {
     const [start, bays, floor] = config as [number, number, number];
     const spacing = 3.1, z = -7.4, end = start + bays * spacing;
     box((start + end) / 2, floor - 12, z - 2, end - start + 4.3, 24, 5, materials.aged, .1);

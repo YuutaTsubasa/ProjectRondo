@@ -1,23 +1,25 @@
 <script lang="ts">
  import UiViewport from '../presentation/layout/UiViewport.svelte';
   import {recordStageClear} from './stageRecords';
-  import { onMount } from 'svelte';
+  import { onMount, untrack } from 'svelte';
   import { retainMenuPortraitAfter } from '../presentation/menu/sharedMenuPortrait';
   import { Engine } from '@babylonjs/core/Engines/engine';
   import { Vector3 } from '@babylonjs/core/Maths/math.vector';
   import { createLevelSwap } from './levelSwap';
   import { createCourseScene, type CourseScene } from '../presentation/babylon/courseScene';
-  import { COURSE_GATES, COURSE_KILL_Y, COURSE_SPAWN } from '../domain/course/courseLayout';
+  import {getCourseStage} from '../domain/course/courseStages';
   import { createCourseRun, stepCourseRun } from '../domain/course/courseProgress';
   import CourseHud from '../presentation/course/CourseHud.svelte';
 
-  let { onReady, onFailure, onExit, onComplete, exitLabel = '返回主選單' }: {
+  let { stageId='course', onReady, onFailure, onExit, onComplete, exitLabel = '返回主選單' }: {
     onReady: () => void; onFailure: (error: unknown) => void; onExit?: () => void;
-    onComplete?: () => void; exitLabel?: string;
+    stageId?:string; onComplete?: () => void; exitLabel?: string;
   } = $props();
+  // A mounted session owns one stage; entry changes remount it.
+  const stage = untrack(() => getCourseStage(stageId));
   let canvas: HTMLCanvasElement;
   let run = $state(createCourseRun());
-  let hudPlayer=$state({x:COURSE_SPAWN.x,y:COURSE_SPAWN.z});
+  let hudPlayer=$state({x:stage.spawn.x,y:stage.spawn.z});
   let hudFacing=$state({x:0,y:1});
   let defeated=$state(0), damage=$state(0);
   let status = $state<'loading' | 'playing' | 'paused' | 'finished'>('loading');
@@ -39,10 +41,10 @@
     if (!course) return;
     discardNextFrame = true;
     course.scene.resetLastAnimationTimeFrame();
-    course.player.teleport(new Vector3(COURSE_SPAWN.x, COURSE_SPAWN.y, COURSE_SPAWN.z));
+    course.player.teleport(new Vector3(stage.spawn.x, stage.spawn.y, stage.spawn.z));
     course.player.motion = { ...course.player.motion, facing: { x: 0, y: 1 } };
     course.player.root.rotation.y = Math.PI;
-    hudPlayer={x:COURSE_SPAWN.x,y:COURSE_SPAWN.z};hudFacing={x:0,y:1};
+    hudPlayer={x:stage.spawn.x,y:stage.spawn.z};hudFacing={x:0,y:1};
     course.resetCombat(true); defeated=0; damage=0;
     course.follow.snap(); run = createCourseRun(); status = 'playing';
     course.suspendInput(false); canvas.focus();
@@ -76,7 +78,7 @@
       const stepped = stepCourseRun(run, {
         position: course.player.capsulePosition(), grounded: !course.player.airborne,
         dt: engine.getDeltaTime() / 1000, active: true,
-      }, COURSE_GATES, COURSE_KILL_Y);
+      }, stage.gates, stage.killY, stage.coins);
       course.updateAudio(run,stepped.run);
       run = stepped.run;
       if (stepped.respawn) {
@@ -86,7 +88,7 @@
       }
       const position=course.player.capsulePosition();
       hudPlayer={x:position.x,y:position.z};hudFacing={...course.player.motion.facing};
-      if (run.finished) { status = 'finished'; course.suspendInput(true); recordStageClear('course',run.elapsed);onComplete?.(); }
+      if (run.finished) { status = 'finished'; course.suspendInput(true); recordStageClear(stage.id,run.elapsed);onComplete?.(); }
     });
     const resize = () => engine.resize();
     const visibility = () => { if (document.hidden) pause(); };
@@ -94,7 +96,7 @@
     document.addEventListener('visibilitychange', visibility);
     engine.resize();
     levels.swap(async () => {
-      try { return await createCourseScene(engine, canvas); }
+      try { return await createCourseScene(engine, canvas, stage); }
       catch (error) { if (live) onFailure(error); throw error; }
     }, built => {
       course = built;
@@ -116,10 +118,10 @@
 </script>
 
 <svelte:window onkeydown={keydown} />
-<canvas bind:this={canvas} tabindex="-1" data-game-entry aria-label="白宮天廊遊戲畫面" style="width:100vw;height:100vh;display:block"></canvas>
+<canvas bind:this={canvas} tabindex="-1" data-game-entry aria-label={`${stage.title}遊戲畫面`} style="width:100vw;height:100vh;display:block"></canvas>
 <UiViewport>
 {#if status !== 'loading'}
-  <CourseHud {run} {status} {defeated} {damage} player={hudPlayer} facing={hudFacing} checkpointLabel={COURSE_GATES[run.checkpoint]!.label}
+  <CourseHud {stage} {run} {status} {defeated} {damage} player={hudPlayer} facing={hudFacing} checkpointLabel={stage.gates[run.checkpoint]!.label}
     onPause={pause} onResume={resume} onRestart={restart} onExit={leave} {exitLabel} />
 {/if}
 </UiViewport>

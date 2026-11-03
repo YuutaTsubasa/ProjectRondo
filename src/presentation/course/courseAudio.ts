@@ -5,6 +5,7 @@ export function createCourseAudio(){
  const audio=createStageAudio('course');
  return {...audio,
   updateProgress(before:CourseRun,after:CourseRun){
+   if(after.collected.length>before.collected.length)audio.play('coin');
    if(after.falls>before.falls)audio.play('death');
    if(after.finished&&!before.finished)audio.finish();
    else if(after.checkpoint>before.checkpoint)audio.play('checkpoint');

@@ -1,5 +1,6 @@
 <script lang="ts">
  import {REGION_TRAILS,REGION_PLACES,REGION_INTERACTION_PLACES} from '../../domain/region/regionLayout';
+ import {PALACE_SURFACES,PALACE_WALK_ROUTE} from '../../domain/town/townPalace';
  import {TOWN_BOUNDS,TOWN_BUILDINGS} from '../../domain/town/townLayout';
  import type {RegionPoint} from '../../domain/region/regionObjectives';
  import {minimapOffset} from '../hud/hudNavigation';
@@ -28,6 +29,10 @@
     {#each REGION_TRAILS as trail}<polyline points={trail.map(([x,z])=>`${x},${z}`).join(' ')} class="road"/>{/each}
     {#each TOWN_BUILDINGS as b}<rect x={b.x-4} y={b.z-4} width="8" height="8" rx="1" class="building"/>{/each}
    </g>{/if}
+   <g transform="scale(1 -1)" class="palace-plan">
+    {#each PALACE_SURFACES as floor}<rect data-palace-floor={floor.id} x={floor.minX} y={floor.minZ} width={floor.maxX-floor.minX} height={floor.maxZ-floor.minZ} class:hall={floor.id==='palace-great-hall'}/>{/each}
+    <polyline points={PALACE_WALK_ROUTE.map(([x,z])=>`${x},${z}`).join(' ')} class="palace-route"/>
+   </g>
    </g>
    <circle r="76" fill="#142137" opacity=".2"/>
    <g transform={`scale(${zoom}) translate(${-position.x} ${position.z})`}>
@@ -42,6 +47,7 @@
 
 </div>
 <style>
+ .palace-plan rect{fill:#9eb9c136;stroke:#d4e5e4;stroke-width:.6}.palace-plan .hall{fill:#dce6de52}.palace-route{fill:none;stroke:#b8d2d9;stroke-width:1.2;stroke-linecap:round;stroke-linejoin:round}
  .atlas-photo{filter:grayscale(.9) brightness(.58)}
  .minimap{width:170px;position:relative;filter:drop-shadow(0 2px 8px #132e4240)}svg{display:block;width:100%;overflow:visible}.outer{fill:#172d4018;stroke:#effaff70;stroke-width:.6}.ring{fill:none;stroke:#f3f9ffd9;stroke-width:.7}.water{fill:#142a42c9}.land{fill:#344557;stroke:#758aa1;stroke-width:1.3}.town{fill:#273543}.road{fill:none;stroke:#b0b8bd;stroke-width:2.3;stroke-linecap:round;stroke-linejoin:round}.building{fill:#81909c;stroke:#b6c2cb;stroke-width:.6}.place{fill:#cad9e4}.vision{fill:#64a4ff20;stroke:none}.player{fill:#c5eeff;stroke:#448cff;stroke-width:1.5;filter:drop-shadow(0 0 4px #508cff)}.target{fill:#3c73ff;stroke:#d2efff;stroke-width:1.3}.ticks{stroke:#e5f3ff;stroke-width:.6}.north{fill:white;font:400 11px var(--font-body);text-anchor:middle}
 </style>

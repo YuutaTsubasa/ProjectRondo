@@ -1,0 +1,490 @@
+{
+  "id": "1-3",
+  "rankTargets": {
+    "sTime": 25,
+    "aTime": 32,
+    "bTime": 44,
+    "cTime": 60
+  },
+  "world": {
+    "width": 12032,
+    "height": 1080,
+    "tileSize": 64
+  },
+  "playerSpawn": {
+    "x": 256,
+    "surfaceY": 512
+  },
+  "platforms": [
+    {
+      "col": 2,
+      "row": 8,
+      "width": 16,
+      "height": 1
+    },
+    {
+      "col": 30,
+      "row": 8,
+      "width": 12,
+      "height": 1
+    },
+    {
+      "col": 45,
+      "row": 8,
+      "width": 6,
+      "height": 1
+    },
+    {
+      "col": 54,
+      "row": 7,
+      "width": 6,
+      "height": 1
+    },
+    {
+      "col": 64,
+      "row": 8,
+      "width": 12,
+      "height": 1
+    },
+    {
+      "col": 80,
+      "row": 6,
+      "width": 5,
+      "height": 1
+    },
+    {
+      "col": 89,
+      "row": 5,
+      "width": 5,
+      "height": 1
+    },
+    {
+      "col": 99,
+      "row": 6,
+      "width": 5,
+      "height": 1
+    },
+    {
+      "col": 110,
+      "row": 8,
+      "width": 12,
+      "height": 1
+    },
+    {
+      "col": 130,
+      "row": 8,
+      "width": 6,
+      "height": 1
+    },
+    {
+      "col": 142,
+      "row": 7,
+      "width": 6,
+      "height": 1
+    },
+    {
+      "col": 156,
+      "row": 6,
+      "width": 6,
+      "height": 1
+    },
+    {
+      "col": 171,
+      "row": 8,
+      "width": 14,
+      "height": 1
+    }
+  ],
+  "coins": [
+    {
+      "x": 420,
+      "y": 456
+    },
+    {
+      "x": 650,
+      "y": 456
+    },
+    {
+      "x": 880,
+      "y": 456
+    },
+    {
+      "x": 1370,
+      "y": 360
+    },
+    {
+      "x": 1600,
+      "y": 260
+    },
+    {
+      "x": 1940,
+      "y": 360
+    },
+    {
+      "x": 2200,
+      "y": 456
+    },
+    {
+      "x": 2500,
+      "y": 456
+    },
+    {
+      "x": 2960,
+      "y": 456
+    },
+    {
+      "x": 3290,
+      "y": 392
+    },
+    {
+      "x": 2920,
+      "y": 280
+    },
+    {
+      "x": 3240,
+      "y": 180
+    },
+    {
+      "x": 3560,
+      "y": 180
+    },
+    {
+      "x": 3880,
+      "y": 280
+    },
+    {
+      "x": 4300,
+      "y": 456
+    },
+    {
+      "x": 4660,
+      "y": 456
+    },
+    {
+      "x": 5220,
+      "y": 328
+    },
+    {
+      "x": 5800,
+      "y": 264
+    },
+    {
+      "x": 6440,
+      "y": 328
+    },
+    {
+      "x": 6900,
+      "y": 390
+    },
+    {
+      "x": 7300,
+      "y": 456
+    },
+    {
+      "x": 7660,
+      "y": 456
+    },
+    {
+      "x": 8060,
+      "y": 360
+    },
+    {
+      "x": 8360,
+      "y": 456
+    },
+    {
+      "x": 8820,
+      "y": 300
+    },
+    {
+      "x": 9180,
+      "y": 392
+    },
+    {
+      "x": 9600,
+      "y": 250
+    },
+    {
+      "x": 10080,
+      "y": 328
+    },
+    {
+      "x": 10520,
+      "y": 270
+    },
+    {
+      "x": 11100,
+      "y": 456
+    },
+    {
+      "x": 11400,
+      "y": 456
+    }
+  ],
+  "enemies": [
+    {
+      "id": "launch-core-a",
+      "type": "azure-core",
+      "x": 1370,
+      "y": 380,
+      "patrolMinX": 1370,
+      "patrolMaxX": 1370
+    },
+    {
+      "id": "launch-core-b",
+      "type": "azure-core",
+      "x": 1600,
+      "y": 280,
+      "patrolMinX": 1600,
+      "patrolMaxX": 1600
+    },
+    {
+      "id": "launch-core-c",
+      "type": "azure-core",
+      "x": 1820,
+      "y": 380,
+      "patrolMinX": 1820,
+      "patrolMaxX": 1820
+    },
+    {
+      "id": "launch-core-d",
+      "type": "azure-core",
+      "x": 1960,
+      "y": 380,
+      "patrolMinX": 1960,
+      "patrolMaxX": 1960
+    },
+    {
+      "id": "terrace-guard-a",
+      "x": 2300,
+      "surfaceY": 512,
+      "patrolMinX": 2100,
+      "patrolMaxX": 2540
+    },
+    {
+      "id": "upper-route-core-a",
+      "type": "azure-core",
+      "x": 2920,
+      "y": 300,
+      "patrolMinX": 2920,
+      "patrolMaxX": 2920
+    },
+    {
+      "id": "upper-route-core-b",
+      "type": "azure-core",
+      "x": 3240,
+      "y": 200,
+      "patrolMinX": 3240,
+      "patrolMaxX": 3240
+    },
+    {
+      "id": "upper-route-core-c",
+      "type": "azure-core",
+      "x": 3560,
+      "y": 200,
+      "patrolMinX": 3560,
+      "patrolMaxX": 3560
+    },
+    {
+      "id": "upper-route-core-d",
+      "type": "azure-core",
+      "x": 3880,
+      "y": 300,
+      "patrolMinX": 3880,
+      "patrolMaxX": 3880
+    },
+    {
+      "id": "upper-route-core-e",
+      "type": "azure-core",
+      "x": 4160,
+      "y": 380,
+      "patrolMinX": 4160,
+      "patrolMaxX": 4160
+    },
+    {
+      "id": "terrace-guard-b",
+      "x": 4500,
+      "surfaceY": 512,
+      "patrolMinX": 4260,
+      "patrolMaxX": 4740
+    },
+    {
+      "id": "stair-core-a",
+      "type": "azure-core",
+      "x": 5000,
+      "y": 390,
+      "patrolMinX": 5000,
+      "patrolMaxX": 5000
+    },
+    {
+      "id": "stair-core-b",
+      "type": "azure-core",
+      "x": 5320,
+      "y": 300,
+      "patrolMinX": 5320,
+      "patrolMaxX": 5320
+    },
+    {
+      "id": "stair-core-c",
+      "type": "azure-core",
+      "x": 5640,
+      "y": 240,
+      "patrolMinX": 5640,
+      "patrolMaxX": 5640
+    },
+    {
+      "id": "stair-core-d",
+      "type": "azure-core",
+      "x": 5960,
+      "y": 200,
+      "patrolMinX": 5960,
+      "patrolMaxX": 5960
+    },
+    {
+      "id": "stair-core-e",
+      "type": "azure-core",
+      "x": 6280,
+      "y": 240,
+      "patrolMinX": 6280,
+      "patrolMaxX": 6280
+    },
+    {
+      "id": "stair-core-f",
+      "type": "azure-core",
+      "x": 6600,
+      "y": 300,
+      "patrolMinX": 6600,
+      "patrolMaxX": 6600
+    },
+    {
+      "id": "stair-core-g",
+      "type": "azure-core",
+      "x": 6920,
+      "y": 360,
+      "patrolMinX": 6920,
+      "patrolMaxX": 6920
+    },
+    {
+      "id": "stair-core-h",
+      "type": "azure-core",
+      "x": 7160,
+      "y": 400,
+      "patrolMinX": 7160,
+      "patrolMaxX": 7160
+    },
+    {
+      "id": "convergence-guard",
+      "x": 7420,
+      "surfaceY": 512,
+      "patrolMinX": 7160,
+      "patrolMaxX": 7700
+    },
+    {
+      "id": "final-core-a",
+      "type": "azure-core",
+      "x": 8060,
+      "y": 380,
+      "patrolMinX": 8060,
+      "patrolMaxX": 8060
+    },
+    {
+      "id": "final-core-b",
+      "type": "azure-core",
+      "x": 8380,
+      "y": 300,
+      "patrolMinX": 8380,
+      "patrolMaxX": 8380
+    },
+    {
+      "id": "final-core-c",
+      "type": "azure-core",
+      "x": 8700,
+      "y": 250,
+      "patrolMinX": 8700,
+      "patrolMaxX": 8700
+    },
+    {
+      "id": "final-core-d",
+      "type": "azure-core",
+      "x": 9020,
+      "y": 320,
+      "patrolMinX": 9020,
+      "patrolMaxX": 9020
+    },
+    {
+      "id": "final-core-e",
+      "type": "azure-core",
+      "x": 9340,
+      "y": 220,
+      "patrolMinX": 9340,
+      "patrolMaxX": 9340
+    },
+    {
+      "id": "final-core-f",
+      "type": "azure-core",
+      "x": 9660,
+      "y": 300,
+      "patrolMinX": 9660,
+      "patrolMaxX": 9660
+    },
+    {
+      "id": "final-core-g",
+      "type": "azure-core",
+      "x": 9980,
+      "y": 240,
+      "patrolMinX": 9980,
+      "patrolMaxX": 9980
+    },
+    {
+      "id": "final-core-h",
+      "type": "azure-core",
+      "x": 10300,
+      "y": 300,
+      "patrolMinX": 10300,
+      "patrolMaxX": 10300
+    },
+    {
+      "id": "final-core-i",
+      "type": "azure-core",
+      "x": 10630,
+      "y": 350,
+      "patrolMinX": 10630,
+      "patrolMaxX": 10630
+    },
+    {
+      "id": "final-core-j",
+      "type": "azure-core",
+      "x": 10980,
+      "y": 400,
+      "patrolMinX": 10980,
+      "patrolMaxX": 10980
+    },
+    {
+      "id": "finish-guard",
+      "x": 11220,
+      "surfaceY": 512,
+      "patrolMinX": 11020,
+      "patrolMaxX": 11500
+    }
+  ],
+  "checkpoints": [
+    {
+      "id": "route-choice-complete",
+      "x": 4300,
+      "surfaceY": 512,
+      "spawnX": 4380,
+      "spawnSurfaceY": 512
+    },
+    {
+      "id": "sky-stair-complete",
+      "x": 7280,
+      "surfaceY": 512,
+      "spawnX": 7360,
+      "spawnSurfaceY": 512
+    }
+  ],
+  "goal": {
+    "x": 11620,
+    "surfaceY": 512
+  }
+}

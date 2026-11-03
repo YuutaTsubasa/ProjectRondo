@@ -1,17 +1,17 @@
-import type {RegionExpeditionId} from '../domain/region/regionProgress';
+import {STAGE_IDS,isStageId,type StageId} from '../domain/stage/stageIds';
 export const STAGE_RECORDS_KEY='rondo.stage-records.v1';
 type StoragePort=Pick<Storage,'getItem'|'setItem'>;
-type Records=Partial<Record<RegionExpeditionId,number>>;
+type Records=Partial<Record<StageId,number>>;
 function local():StoragePort|undefined{try{return globalThis.localStorage;}catch{return undefined;}}
 function read(storage:StoragePort|undefined):Records{
  try{const data=JSON.parse(storage?.getItem(STAGE_RECORDS_KEY)??'null');if(data?.version!==1)return {};const records:Records={};
- for(const stage of ['course','palace'] as const){const n=data.best?.[stage];if(typeof n==='number'&&Number.isFinite(n)&&n>0)records[stage]=n;}return records;
+ for(const stage of STAGE_IDS){const n=data.best?.[stage];if(typeof n==='number'&&Number.isFinite(n)&&n>0)records[stage]=n;}return records;
  }catch{return {};}
 }
-export function readStageBest(stage:RegionExpeditionId,storage=local()):number|null{return read(storage)[stage]??null;}
+export function readStageBest(stage:string,storage=local()):number|null{return isStageId(stage)?read(storage)[stage]??null:null;}
 /** Only called at a finished run, never at a checkpoint or on abandonment. */
-export function recordStageClear(stage:RegionExpeditionId,seconds:number,storage=local()):void{
- if(!Number.isFinite(seconds)||seconds<=0)return;
+export function recordStageClear(stage:string,seconds:number,storage=local()):void{
+ if(!isStageId(stage)||!Number.isFinite(seconds)||seconds<=0)return;
  const best=read(storage);if(best[stage]!==undefined&&best[stage]! <= seconds)return;
  best[stage]=seconds;try{storage?.setItem(STAGE_RECORDS_KEY,JSON.stringify({version:1,best}));}catch{/* Play remains available when persistent storage is unavailable. */}
 }

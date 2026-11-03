@@ -4,3 +4,11 @@ function storage(){const data=new Map<string,string>();return {getItem:(k:string
 it('persists independent fastest finished times and never replaces with slower or invalid time',()=>{const s=storage();expect(readStageBest('course',s)).toBeNull();recordStageClear('course',44.12,s);recordStageClear('course',58,s);recordStageClear('palace',28.03,s);expect(readStageBest('course',s)).toBe(44.12);recordStageClear('course',39.4,s);for(const n of [NaN,Infinity,-1,0])recordStageClear('course',n,s);expect(readStageBest('course',s)).toBe(39.4);expect(readStageBest('palace',s)).toBe(28.03);});
 it('ignores malformed saves and unavailable storage',()=>{const s=storage();s.setItem(STAGE_RECORDS_KEY,'{');expect(readStageBest('course',s)).toBeNull();s.setItem(STAGE_RECORDS_KEY,JSON.stringify({version:1,best:{course:'9',palace:-3}}));expect(readStageBest('course',s)).toBeNull();const fail={getItem:()=>{throw Error();},setItem:()=>{throw Error();}};expect(()=>recordStageClear('course',40,fail)).not.toThrow();});
 it('formats centiseconds with correct minute rollover',()=>{expect(stageTime(null)).toBe('—');expect(stageTime(39.128)).toBe('00:39.13');expect(stageTime(59.999)).toBe('01:00.00');});
+
+it('keeps the eight new stage records independent and preserves legacy saves',()=>{
+ const s=storage();s.setItem(STAGE_RECORDS_KEY,JSON.stringify({version:1,best:{course:44,palace:28}}));
+ const ids=['course-2','course-3','course-4','course-5','palace-1-2','palace-1-3','palace-1-4','palace-1-5'];
+ ids.forEach((id,i)=>recordStageClear(id,70+i,s));ids.forEach((id,i)=>expect(readStageBest(id,s)).toBe(70+i));
+ expect(readStageBest('course',s)).toBe(44);expect(readStageBest('palace',s)).toBe(28);
+ recordStageClear('__proto__',3,s);expect(readStageBest('__proto__',s)).toBeNull();
+});

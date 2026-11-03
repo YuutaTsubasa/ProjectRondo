@@ -2,12 +2,40 @@
   "repository": "https://github.com/YuutaTsubasa/ProjectAlmost",
   "revision": "76b9ca1c680e98e27ac9f51871bf4feffb3f0bbc",
   "stage": "src/domain/gameplay/gameplayStageSources.ts#1-1",
+  "stages": [
+    "src/domain/gameplay/gameplayStageSources.ts#1-1",
+    "src/domain/gameplay/gameplayStageSources.ts#1-2",
+    "src/domain/gameplay/gameplayStageSources.ts#1-3",
+    "src/domain/gameplay/gameplayStageSources.ts#1-4",
+    "src/domain/gameplay/gameplayStageSources.ts#1-5"
+  ],
+  "sourceSha256": "2d272a6f7503e3f73b978a562d91dba0441c956089787ff458062bc0a9f697de",
   "knightSource": "C:/Users/User/Repo/3DModel/knight-parkour/dist/assets/knight.glb",
   "files": [
     {
       "file": "stage-1-1.json",
       "bytes": 4265,
       "sha256": "1b7df665c08d006740cc3e67a79087a6051a9e1b0e12844cbe6b8c044eaf27c5"
+    },
+    {
+      "file": "stage-1-2.json",
+      "bytes": 4061,
+      "sha256": "70d3042113f177a99a52d2bcf29c0daf9517462917d86dd56c50cff8b0e5df27"
+    },
+    {
+      "file": "stage-1-3.json",
+      "bytes": 7839,
+      "sha256": "a32d27e495dc5d56cb74a23c178c0a07169df34847dbaeb76206265386887577"
+    },
+    {
+      "file": "stage-1-4.json",
+      "bytes": 6443,
+      "sha256": "d816d7bd215227b05247583e368ab956144b67845fb5b386d5ca09cef409c03e"
+    },
+    {
+      "file": "stage-1-5.json",
+      "bytes": 12812,
+      "sha256": "30d92dd474684ef71deeb4cd97326b50ee6862db57619120ab57903d11b30143"
     },
     {
       "file": "guard.glb",

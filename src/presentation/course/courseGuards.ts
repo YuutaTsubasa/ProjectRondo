@@ -8,13 +8,14 @@ import { Quaternion, Vector3 } from '@babylonjs/core/Maths/math.vector';
 import type { Shadows } from '../babylon/shadows';
 import { createPalaceGuardWalk } from '../palace/palaceGuardMotion';
 import { COURSE_GUARD_SPAWNS, COURSE_GUARD_ATTACK_RADIUS, type CourseCombat } from '../../domain/course/courseCombat';
+import type {CourseGuardSpawn} from '../../domain/course/courseLayout';
 import '@babylonjs/loaders/glTF';
 
-export async function loadCourseGuards(scene:Scene,shadows:Shadows){
+export async function loadCourseGuards(scene:Scene,shadows:Shadows,spawns:readonly CourseGuardSpawn[]=COURSE_GUARD_SPAWNS){
  const container=await LoadAssetContainerAsync('/palace/guard.glb',scene);
  const warning=new StandardMaterial('courseGuardWarning',scene);warning.disableLighting=true;warning.emissiveColor=new Color3(1,.32,.06);
  const visuals:ReturnType<typeof createVisual>[]=[];
- function createVisual(spawn:(typeof COURSE_GUARD_SPAWNS)[number]){
+ function createVisual(spawn:CourseGuardSpawn){
   const instance=container.instantiateModelsToScene(n=>`courseGuard${spawn.id}_${n}`,false,{doNotInstantiate:true});
   const holder=new TransformNode('courseGuard'+spawn.id,scene);
   for(const root of instance.rootNodes)root.parent=holder;
@@ -35,7 +36,7 @@ export async function loadCourseGuards(scene:Scene,shadows:Shadows){
   return {holder,instance,walk,meshes,ring,arm,rest,lastX:spawn.x,lastZ:spawn.z,dead:false};
  }
  function dispose(){for(const v of visuals){for(const mesh of v.meshes)shadows.generator.removeShadowCaster(mesh,false);v.ring.dispose();v.instance.dispose();v.holder.dispose();}warning.dispose();container.dispose();}
- try{for(const spawn of COURSE_GUARD_SPAWNS)visuals.push(createVisual(spawn));}
+ try{for(const spawn of spawns)visuals.push(createVisual(spawn));}
  catch(error){dispose();throw error;}
  return {update(state:CourseCombat){state.guards.forEach((g,i)=>{
   const v=visuals[i],dead=g.phase==='defeated';

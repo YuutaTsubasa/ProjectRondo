@@ -25,7 +25,7 @@ export async function createTownAssets(scene:Scene):Promise<TownAssetPlacement[]
    const content=new TransformNode(`${b.id}:origin`,scene);
    entries.rootNodes.forEach(node=>node.parent=content);content.parent=pivot;
    content.position.set(-(raw.min.x+raw.max.x)/2,-raw.min.y,-(raw.min.z+raw.max.z)/2);
-   pivot.scaling.setAll(scale);pivot.rotation.y=b.yaw;pivot.position.set(b.x,0,b.z);
+   pivot.scaling.setAll(scale);pivot.rotation.y=b.yaw;pivot.position.set(b.x,b.baseY??0,b.z);
    const meshes=pivot.getChildMeshes().filter(mesh=>mesh.getTotalVertices()>0);
    meshes.forEach(mesh=>{mesh.computeWorldMatrix(true);mesh.isPickable=false;mesh.receiveShadows=true;});
    const bounds=pivot.getHierarchyBoundingVectors(true);

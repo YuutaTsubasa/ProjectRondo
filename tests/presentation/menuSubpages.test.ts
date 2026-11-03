@@ -1,3 +1,4 @@
+import {STAGE_CATALOG} from '../../src/content/stageCatalog';
 // @vitest-environment jsdom
 import {afterEach,expect,it,vi} from 'vitest';
 import {mount,unmount,flushSync} from 'svelte';
@@ -30,4 +31,13 @@ it('defaults every NEW GAME step to Continue or Start for controller confirmatio
  navigateUi('back');await settle();expect(document.activeElement).toBe(button('前往開始確認'));
  navigateUi('confirm');await settle();navigateUi('confirm');await settle();
  expect(action).toHaveBeenCalledExactlyOnceWith('confirm-new');
+});
+
+it.each(STAGE_CATALOG)('launches the actual selected $id definition from EXTRA',async(stage)=>{
+ vi.stubGlobal('matchMedia',()=>({matches:true}));const action=vi.fn(),choose=vi.fn();
+ app=mount(MenuSubpages,{target:document.body,props:{phase:'extras',onAction:action,onStageSelect:choose}});await settle();
+ const rows=[...document.querySelectorAll<HTMLButtonElement>('.extra-options button')];
+ rows.find(row=>row.textContent?.includes(stage.title))!.click();await settle();
+ expect(choose).not.toHaveBeenCalled();button('進入選擇內容').click();await settle();
+ expect(choose).toHaveBeenCalledExactlyOnceWith(stage.id);expect(action).not.toHaveBeenCalled();
 });

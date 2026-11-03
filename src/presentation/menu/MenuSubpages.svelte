@@ -1,4 +1,6 @@
 <script lang="ts">
+ import {STAGE_CATALOG} from '../../content/stageCatalog';
+ import {stageKind,type StageId} from '../../domain/stage/stageIds';
  import InputHint from '../input/InputHint.svelte';
  import {onDestroy,onMount,tick} from 'svelte';
  import type {FrontDoorAction} from '../../app/frontDoor';
@@ -6,12 +8,13 @@
  import {regionObjective} from '../../domain/region/regionObjectives';
  import RondoWordmark from './RondoWordmark.svelte';
  import SettingsScreen from '../settings/SettingsScreen.svelte';
- let {phase,onAction,saveAvailable=false,saveProgress,menuError=''}:{phase:'new-game'|'load-game'|'extras';onAction:(action:FrontDoorAction)=>void;saveAvailable?:boolean;saveProgress?:RegionProgress;menuError?:string}=$props();
+ let {phase,onAction,onStageSelect,saveAvailable=false,saveProgress,menuError=''}:{phase:'new-game'|'load-game'|'extras';onAction:(action:FrontDoorAction)=>void;onStageSelect?:(stage:StageId)=>void;saveAvailable?:boolean;saveProgress?:RegionProgress;menuError?:string}=$props();
  const steps=[{title:'旅程介紹',en:'THE JOURNEY'},{title:'遊戲設定',en:'PREFERENCES'},{title:'開始確認',en:'CONFIRM'}];
  const extras=[
+  ...STAGE_CATALOG.filter(s=>s.id!=='course'&&s.id!=='palace').map(s=>({id:s.id,label:s.title,title:s.title,en:(s.kind==='course'?'3D TRIAL ':'2D TRIAL ')+s.number,tag:s.kind==='course'?'3D 試煉':'2.5D 試煉',description:s.description,short:`${s.coins} 枚金幣 · ${s.checkpoints} 處紀錄點`,group:'trials'})),
   {id:'course',label:'試玩第一關',title:'白宮天廊',en:'PALACE SKYWAY',tag:'3D 試煉',description:'穿越王宮高塔間的白石天廊，以二段跳、揮劍與盾牌衝擊突破騎士守衛，抵達高處中繼台。',short:'跑跳、鎖定與空中接力。',group:'trials'},
-  {id:'palace',label:'試玩 2D 關卡',title:'白色宮殿',en:'WHITE PALACE',tag:'2.5D 試煉',description:'沿著宮殿水道橫向前進，穿梭廊橋、躍過斷層，突破騎士守衛的封鎖。',short:'橫向跑跳與騎士守衛。',group:'trials'},
-  {id:'town',label:'白色王城',title:'白色王城',en:'WHITE PALACE TOWN',tag:'自由漫遊',description:'走入臨海王城，在拱廊、白塔與海風之間，尋找下一段旅程的風景。',short:'走進白塔與海風之間。',group:'town'},
+  {id:'palace',label:'試玩 2D 關卡',title:'白宮引水道',en:'PALACE AQUEDUCT',tag:'2.5D 試煉',description:'沿著宮殿水道橫向前進，穿梭廊橋、躍過斷層，突破騎士守衛的封鎖。',short:'橫向跑跳與騎士守衛。',group:'trials'},
+  {id:'town',label:'白色王城',title:'白色王城',en:'WHITE PALACE TOWN',tag:'自由漫遊',description:'接續目前旅程，探索王城商店街、白石巷與海風眺望廊，尋找故事和試煉入口。尚無存檔時，從王城的第一段故事開始。',short:'接續旅程 · 城鎮故事與試煉入口。',group:'town'},
  ] as const;
  const groups=[{id:'all',title:'所有內容',en:'ALL CONTENT'},{id:'trials',title:'跑跳試煉',en:'TRIALS'},{id:'town',title:'王城漫遊',en:'EXPLORATION'}];
  let step=$state(0),group=$state('all'),selected=$state<(typeof extras)[number]['id']>('course'),settingsOpen=$state(false),leaving=$state(false);
@@ -19,14 +22,14 @@
  const title=$derived(phase==='new-game'?'NEW GAME':phase==='load-game'?'LOAD GAME':'EXTRA');
  const subtitle=$derived(phase==='new-game'?'開始新旅程':phase==='load-game'?'繼續旅程':'額外內容');
  const selection=$derived(extras.find(item=>item.id===selected)!);
- const entries=$derived(extras.filter(item=>group==='all'||item.group===group));
+ const entries=$derived(extras.filter(item=>group==='all'||item.group===group).sort((a,b)=>(a.id==='course'?-2:a.id==='palace'?-1:0)-(b.id==='course'?-2:b.id==='palace'?-1:0)));
  const objective=$derived(saveProgress?regionObjective(saveProgress.chapter):undefined);
  const contentKey=$derived(phase==='new-game'?String(step):phase==='extras'?group:'save');
  onMount(()=>{root.querySelector<HTMLElement>(phase==='new-game'?'[data-game-entry]':'nav button')?.focus({preventScroll:true});});
  onDestroy(()=>{if(timer)clearTimeout(timer);});
- function navigate(action:FrontDoorAction){
+ function navigate(action:FrontDoorAction,stage?:StageId){
   if(leaving)return;leaving=true;
-  const finish=()=>{onAction(action);leaving=false;};
+  const finish=()=>{if(stage&&onStageSelect)onStageSelect(stage);else onAction(action);leaving=false;};
   if(!globalThis.matchMedia||matchMedia('(prefers-reduced-motion: reduce)').matches)finish();else timer=setTimeout(finish,240);
  }
  async function goStep(next:number){step=next;await tick();if(!settingsOpen&&!leaving)root.querySelector<HTMLElement>('[data-game-entry]')?.focus({preventScroll:true});}
@@ -70,20 +73,20 @@
    {:else if phase==='load-game'}
     <button class="option-row save-slot" class:selected={saveAvailable} aria-label="第一章自動存檔" disabled={!saveAvailable}><span class="diamond" aria-hidden="true">◇</span><span class="option-title">{saveAvailable?'白潮原野':'尚無存檔'}<small>AUTO SAVE · 01</small></span><span class="option-description">{saveAvailable?(objective?.title??'第一章自動存檔'):'開始新旅程後，會在這裡留下紀錄。'}</span>{#if saveAvailable}<b aria-hidden="true">✓</b>{/if}</button>
     {#if saveAvailable}<div class="save-details"><h3>{objective?.title??'第一章自動存檔'}</h3><p>{objective?.detail??'繼續白潮原野的旅程。'}</p>{#if saveProgress}<dl><div><dt>發現風景</dt><dd>{saveProgress.discoveries.length}<small> / 3</small></dd></div><div><dt>完成遠征</dt><dd>{saveProgress.completedExpeditions.length}<small> / 2</small></dd></div></dl>{/if}</div>{:else}<div class="empty-save"><span aria-hidden="true">◇</span><h3>旅程，還等著你開始。</h3><p>目前沒有可讀取的自動存檔。</p></div>{/if}
-   {:else}<div class="extra-options" aria-label="可遊玩內容">{#each entries as item}<button class="option-row" class:selected={selected===item.id} aria-pressed={selected===item.id} aria-label={item.label} onclick={()=>selected=item.id} onkeydown={rowKeys}><span class="diamond" aria-hidden="true">✧</span><span class="option-title">{item.title}<small>{item.en}</small></span><span class="option-description">{item.short}</span><b aria-hidden="true">›</b></button>{/each}</div><div class="extra-description"><span>{selection.tag}</span><p>{selection.description}</p></div>{/if}
+   {:else}<div class="extra-options" data-input-scroll aria-label="可遊玩內容">{#each entries as item}<button class="option-row" class:selected={selected===item.id} aria-pressed={selected===item.id} aria-label={item.label} onclick={()=>selected=item.id} onkeydown={rowKeys}><span class="diamond" aria-hidden="true">✧</span><span class="option-title">{item.title}<small>{item.en}</small></span><span class="option-description">{item.short}</span><b aria-hidden="true">›</b></button>{/each}</div><div class="extra-description"><span>{selection.tag}</span><p>{selection.description}</p></div>{/if}
    </div>{/key}
    <div class="journey-preview"><figure><img src="/title/white-palace-city-v1.png" alt="白色王城景觀意象"/><figcaption>WHITE PALACE · 景觀意象</figcaption></figure><div><small>{phase==='extras'?selection.en:'A JOURNEY BEYOND THE KNOWN.'}</small><i></i><p>{phase==='load-game'?'讓未完的故事，繼續向前。':phase==='extras'?'下一步，交給你的腳步。':'與悠太翼一起，走向更寬廣的明天。'}</p></div></div>
    {#if menuError}<p class="error" role="alert">{menuError}</p>{/if}
    {#if phase==='new-game'}<button class="primary" data-game-entry aria-label={step===2?'確認開始新旅程':step===0?'繼續至遊戲設定':'前往開始確認'} onclick={()=>step<2?goStep(step+1):navigate('confirm-new')}><span aria-hidden="true">✧</span><span>{step===2?'開始遊戲':'繼續'}<small>{step===2?'START GAME':'CONTINUE'}</small></span><b aria-hidden="true">›</b></button>
    {:else if phase==='load-game'}<button class="primary" disabled={!saveAvailable} aria-label="繼續旅程" onclick={()=>navigate('continue')}><span aria-hidden="true">✧</span><span>繼續旅程<small>CONTINUE JOURNEY</small></span><b aria-hidden="true">›</b></button>
-   {:else}<button class="primary" aria-label="進入選擇內容" onclick={()=>navigate(selection.id)}><span aria-hidden="true">✧</span><span>{selected==='town'?'前往王城':'開始試煉'}<small>{selected==='town'?'ENTER THE CITY':'START TRIAL'}</small></span><b aria-hidden="true">›</b></button>{/if}
+   {:else}<button class="primary" aria-label="進入選擇內容" onclick={()=>selected==='town'?navigate('town'):navigate(stageKind(selected),selected)}><span aria-hidden="true">✧</span><span>{selected==='town'?'前往王城':'開始試煉'}<small>{selected==='town'?'ENTER THE CITY':'START TRIAL'}</small></span><b aria-hidden="true">›</b></button>{/if}
   </section>
  </div>
  <button class="page-back" data-ui-sound="back" aria-label={phase==='new-game'&&step>0?'返回上一步':'返回主選單'} onclick={back}><kbd><InputHint label="Esc"/></kbd><span>{phase==='new-game'&&step>0?'上一步':'返回'}<small>BACK</small></span></button>
 </div>
 {#if settingsOpen}<SettingsScreen onClose={closeSettings}/>{/if}
 <style>
- .inner-page{position:absolute;inset:0;z-index:3;height:100%;overflow:clip;color:#173359;font-family:var(--font-body);animation:inner-in .3s ease-out both;scrollbar-width:thin;scrollbar-color:#6688ad70 #f2f7ff80}.inner-page.covered{visibility:hidden}.page-brand{position:absolute;top:4%;left:3.5%;width:clamp(185px,18cqw,320px)}.page-brand>p{font-size:8px;letter-spacing:.24em;margin:8px 0 0;text-align:right}
+ .extra-options{max-height:34cqh;overflow-y:auto;scrollbar-width:thin}.inner-page{position:absolute;inset:0;z-index:3;height:100%;overflow:clip;color:#173359;font-family:var(--font-body);animation:inner-in .3s ease-out both;scrollbar-width:thin;scrollbar-color:#6688ad70 #f2f7ff80}.inner-page.covered{visibility:hidden}.page-brand{position:absolute;top:4%;left:3.5%;width:clamp(185px,18cqw,320px)}.page-brand>p{font-size:8px;letter-spacing:.24em;margin:8px 0 0;text-align:right}
  .inner-layout{display:grid;grid-template-columns:190px minmax(350px,560px);gap:26px;margin:20cqh 0 110px 3.3cqw;width:calc(70cqw - 3.3cqw)}.journey-rail header{display:flex;gap:13px;align-items:center;margin-bottom:30px}.journey-rail header svg{width:43px;height:65px;flex:none;fill:#16365f}.journey-rail h1{font-size:18px;letter-spacing:.17em;font-weight:600;white-space:nowrap;margin:0}.journey-rail header p{font-size:11px;letter-spacing:.25em;margin:6px 0 0;color:#849bbb}
  nav{position:relative;margin-left:20px;border-left:1px solid #99afca;padding:0 0 26px}button{font:inherit;cursor:pointer;border:0;color:inherit;background:transparent}button:focus-visible{outline:1px solid #255bea;outline-offset:5px}.journey-rail nav button{display:flex;position:relative;align-items:center;gap:13px;text-align:left;min-height:70px;padding:10px 0 10px 22px;color:#8d9eb8;width:100%;font-size:13px;letter-spacing:.08em}.journey-rail nav b{font-size:20px;line-height:1;font-weight:400;font-variant-numeric:tabular-nums}.journey-rail nav small{display:block;font-size:8px;letter-spacing:.09em;margin-top:5px}.dot{position:absolute;left:-4px;top:calc(50% - 4px);width:7px;height:7px;transform:rotate(45deg);background:#92a6c0}.current{color:#2751a7!important}.current b{color:#3169ee}.current .dot{left:-7px;top:calc(50% - 7px);width:12px;height:12px;background:#3274ff;box-shadow:0 0 0 4px #eaf2ff}.current .dot:after{content:'';position:absolute;inset:4px;background:white}.rail-note{font-size:9px;line-height:1.8;letter-spacing:.18em;margin:30px 0 0 42px;color:#7890ae}.rail-note i{display:block;width:35px;height:1px;background:#7993b8;margin:17px 0}.rail-note>span{font-size:10px;letter-spacing:.1em;line-height:2}
  .journey-rail nav button:focus-visible{outline:none}.journey-rail nav button:focus-visible>span:last-child{text-decoration:underline;text-underline-offset:5px;text-decoration-color:#6794e8}
