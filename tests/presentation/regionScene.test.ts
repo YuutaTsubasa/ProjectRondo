@@ -18,6 +18,7 @@ vi.mock('../../src/presentation/town/townScenery', () => ({ createTownScenery: (
 vi.mock('../../src/presentation/region/regionTerrain', () => ({ createRegionTerrain: () => ({ ground: {} }) }));
 vi.mock('../../src/presentation/region/regionScenery', () => ({ createRegionScenery: () => ({ casters: [], receivers: [], cameraSolids: [], setWaterRestored: vi.fn() }) }));
 vi.mock('../../src/presentation/babylon/wind', () => ({ createWind: vi.fn() }));
+vi.mock('../../src/presentation/parlor/parlorInterior', () => ({ createParlorInterior: async () => ({ casters: [], receivers: [], cameraSolids: [], update: vi.fn() }) }));
 vi.mock('../../src/presentation/babylon/clouds', () => ({ createClouds: vi.fn() }));
 vi.mock('../../src/presentation/babylon/postProcessing', () => ({ createAtmosphere: vi.fn() }));
 vi.mock('../../src/presentation/babylon/crystals', () => ({ createCrystals: () => ({}) }));

@@ -5,6 +5,7 @@ import {nearbyRegionPlace} from '../../src/domain/region/regionObjectives';
 import {
  PARLOR_HOUSE_ID,PARLOR_ENTRANCE,PARLOR_RETURN,PARLOR_ROOM,PARLOR_SPAWN,PARLOR_EXIT,PARLOR_HOST,PARLOR_TABLES,
  parlorChairs,nearbyParlorSpot,outsideParlor,parlorTalk,PARLOR_TALKS,
+ PARLOR_ORIGIN,PARLOR_ARRIVAL,toParlorRoom,fromParlorRoom,inParlor,
 } from '../../src/domain/town/mahjongParlor';
 
 const house=TOWN_BUILDINGS.find(b=>b.id===PARLOR_HOUSE_ID)!;
@@ -79,5 +80,21 @@ describe('talking to 一目元',()=>{
   expect(parlorTalk(-1)).toBe('ichimoku_first');
   expect(parlorTalk(Number.NaN)).toBe('ichimoku_first');
   expect(parlorTalk(2.5)).toBe('ichimoku_first');
+ });
+});
+
+describe('the parlor inside the region world',()=>{
+ it('sits outside every region and town position, so the two never overlap',()=>{
+  const corners=[[PARLOR_ROOM.minX,PARLOR_ROOM.minZ],[PARLOR_ROOM.maxX,PARLOR_ROOM.maxZ]].map(([x,z])=>fromParlorRoom({x,y:1.2,z}));
+  for(const c of corners)expect(isRegionPositionSafe(c)).toBe(false);
+  expect(PARLOR_ORIGIN.x+PARLOR_ROOM.minX).toBeGreaterThan(85+100);
+ });
+ it('converts between room and world coordinates',()=>{
+  const p={x:1,y:2,z:3};
+  expect(toParlorRoom(fromParlorRoom(p))).toEqual(p);
+  expect(inParlor(PARLOR_ARRIVAL)).toBe(true);
+  expect(nearbyParlorSpot(toParlorRoom(PARLOR_ARRIVAL))).toBe('exit');
+  expect(inParlor(PARLOR_RETURN)).toBe(false);
+  expect(inParlor({x:0,y:1.2,z:0})).toBe(false);
  });
 });

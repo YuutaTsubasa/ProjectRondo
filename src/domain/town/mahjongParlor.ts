@@ -11,10 +11,22 @@ export const PARLOR_RETURN={x:PARLOR_ENTRANCE.x-.6,y:1.3,z:PARLOR_ENTRANCE.z} as
 /** Leaving faces the street, so the camera starts against the facade rather than in the sidewalk trees. */
 export const PARLOR_RETURN_FACING={x:-1,z:0} as const;
 
-/** The interior is its own small scene: metres, origin at the room's floor centre, door on -z. */
+/**
+ * Room coordinates: metres, origin at the floor centre, door on -z. The room is built inside the
+ * region world at PARLOR_ORIGIN, far east beyond the coast and fully enclosed, so entering is a
+ * short fade and a teleport rather than a scene load.
+ */
 export const PARLOR_ROOM={minX:-6,maxX:6,minZ:-5,maxZ:5,height:4.2} as const;
 export const PARLOR_SPAWN={x:0,y:1.2,z:-3.6} as const;
 export const PARLOR_EXIT={x:0,z:-4.3} as const;
+export const PARLOR_ORIGIN={x:240,y:0,z:0} as const;
+export const toParlorRoom=(p:RegionPoint):RegionPoint=>({x:p.x-PARLOR_ORIGIN.x,y:p.y-PARLOR_ORIGIN.y,z:p.z-PARLOR_ORIGIN.z});
+export const fromParlorRoom=(p:RegionPoint):RegionPoint=>({x:p.x+PARLOR_ORIGIN.x,y:p.y+PARLOR_ORIGIN.y,z:p.z+PARLOR_ORIGIN.z});
+/** Where entering places the player, in world coordinates, facing into the room. */
+export const PARLOR_ARRIVAL=fromParlorRoom({...PARLOR_SPAWN,y:1.3});
+export const PARLOR_ARRIVAL_FACING={x:0,z:1} as const;
+/** True when a world position is inside the parlor room. */
+export const inParlor=(world:RegionPoint):boolean=>!outsideParlor(toParlorRoom(world));
 
 export type ParlorSide='north'|'south'|'east'|'west';
 export interface ParlorTable {readonly id:string;readonly x:number;readonly z:number}

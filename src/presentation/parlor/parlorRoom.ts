@@ -9,6 +9,7 @@ import {PBRMaterial} from '@babylonjs/core/Materials/PBR/pbrMaterial';
 import {PointLight} from '@babylonjs/core/Lights/pointLight';
 import {Color3} from '@babylonjs/core/Maths/math.color';
 import {Matrix,Quaternion,Vector3} from '@babylonjs/core/Maths/math.vector';
+import {TransformNode} from '@babylonjs/core/Meshes/transformNode';
 import {PhysicsAggregate} from '@babylonjs/core/Physics/v2/physicsAggregate';
 import {PhysicsShapeType} from '@babylonjs/core/Physics/v2/IPhysicsEnginePlugin';
 import {createStoneTextures,applyStoneUV} from '../palace/palaceStoneSurface';
@@ -24,9 +25,13 @@ function random(seed:number){return()=>{seed=(seed*1664525+1013904223)>>>0;retur
 
 export interface ParlorRoom {readonly casters:Mesh[];readonly receivers:Mesh[];readonly cameraSolids:TownBounds[]}
 
-/** Code-authored interior of the converted townhouse: ivory stone walls, timber floor and four tables. */
-export async function createParlorRoom(scene:Scene):Promise<ParlorRoom>{
+/**
+ * Code-authored interior of the converted townhouse: ivory stone walls, timber floor and four tables.
+ * Built in room coordinates under a root at `origin`; colliders, camera solids and merged meshes are world-space.
+ */
+export async function createParlorRoom(scene:Scene,origin:Vector3=Vector3.Zero()):Promise<ParlorRoom>{
  const pieces:{mesh:Mesh;cast:boolean}[]=[];const cameraSolids:TownBounds[]=[];
+ const root=new TransformNode('parlor-room',scene);root.position.copyFrom(origin);root.computeWorldMatrix(true);
  const grain=createStoneTextures(scene);
  const material=(name:string,hex:string,roughness=.8,metallic=0)=>{const m=new PBRMaterial('parlor-'+name,scene);m.albedoColor=Color3.FromHexString(hex).toLinearSpace();m.roughness=roughness;m.metallic=metallic;m.environmentIntensity=.2;return m;};
  const stone=material('ivory','#d8d0bf'),trim=material('cut-stone','#ece6d8'),wood=material('wood','#7a5a3a',.6),darkWood=material('dark-wood','#4b3524',.55),felt=material('felt','#2f6b4f',.95),
@@ -35,13 +40,13 @@ export async function createParlorRoom(scene:Scene):Promise<ParlorRoom>{
  for(const m of [stone,trim]){m.albedoTexture=grain.albedo;m.bumpTexture=grain.normal;}
  const glow=(name:string,hex:string,intensity=1)=>{const m=material(name,hex);m.emissiveColor=Color3.FromHexString(hex).toLinearSpace().scale(intensity);m.disableLighting=true;return m;};
  const windowGlass=glow('window','#cfe8f5',.9),doorLight=glow('doorway','#f3f0e4',1.1),lanternGlow=glow('lantern','#e0573f',.85);
- const add=(mesh:Mesh,mat:PBRMaterial,cast=true)=>{mesh.material=mat;mesh.isPickable=false;if(mat===stone||mat===trim)applyStoneUV(mesh);pieces.push({mesh,cast});return mesh;};
+ const add=(mesh:Mesh,mat:PBRMaterial,cast=true)=>{mesh.parent=root;mesh.material=mat;mesh.isPickable=false;if(mat===stone||mat===trim)applyStoneUV(mesh);pieces.push({mesh,cast});return mesh;};
  const box=(id:string,x:number,y:number,z:number,w:number,h:number,d:number,mat:PBRMaterial,cast=true,yaw=0)=>{const m=CreateBox(id,{width:w,height:h,depth:d},scene);m.position.set(x,y,z);m.rotation.y=yaw;return add(m,mat,cast);};
  const cylinder=(id:string,x:number,y:number,z:number,d:number,h:number,mat:PBRMaterial,cast=true)=>{const m=CreateCylinder(id,{height:h,diameter:d,tessellation:20},scene);m.position.set(x,y,z);return add(m,mat,cast);};
  const solid=(id:string,x:number,y:number,z:number,w:number,h:number,d:number,camera=true)=>{
-  const mesh=CreateBox(id,{width:w,height:h,depth:d},scene);mesh.position.set(x,y,z);mesh.isVisible=false;mesh.isPickable=false;
+  const mesh=CreateBox(id,{width:w,height:h,depth:d},scene);mesh.position.set(x,y,z);mesh.parent=root;mesh.isVisible=false;mesh.isPickable=false;mesh.computeWorldMatrix(true);
   new PhysicsAggregate(mesh,PhysicsShapeType.BOX,{mass:0,friction:.8},scene);
-  if(camera)cameraSolids.push({min:new Vector3(x-w/2,y-h/2,z-d/2),max:new Vector3(x+w/2,y+h/2,z+d/2)});
+  if(camera)cameraSolids.push({min:new Vector3(x-w/2,y-h/2,z-d/2).addInPlace(origin),max:new Vector3(x+w/2,y+h/2,z+d/2).addInPlace(origin)});
  };
  const {minX,maxX,minZ,maxZ,height}=PARLOR_ROOM,width=maxX-minX,depth=maxZ-minZ,cx=(minX+maxX)/2,cz=(minZ+maxZ)/2,wall=.3;
 
@@ -108,8 +113,8 @@ export async function createParlorRoom(scene:Scene):Promise<ParlorRoom>{
  }
 
  // Tiles: thin instances of one ivory-faced, green-backed tile. Walls of 17 pairs, hands and discards.
- const tileFace=CreateBox('parlor-tile',{width:TILE.w,height:TILE.h*.72,depth:TILE.d},scene);tileFace.material=tile;tileFace.isPickable=false;
- const tileBackMesh=CreateBox('parlor-tile-back',{width:TILE.w,height:TILE.h*.28,depth:TILE.d},scene);tileBackMesh.material=tileBack;tileBackMesh.isPickable=false;
+ const tileFace=CreateBox('parlor-tile',{width:TILE.w,height:TILE.h*.72,depth:TILE.d},scene);tileFace.parent=root;tileFace.material=tile;tileFace.isPickable=false;
+ const tileBackMesh=CreateBox('parlor-tile-back',{width:TILE.w,height:TILE.h*.28,depth:TILE.d},scene);tileBackMesh.parent=root;tileBackMesh.material=tileBack;tileBackMesh.isPickable=false;
  const faces:Matrix[]=[],backs:Matrix[]=[];
  // Standing: face part above, green back below. Lying face-down shows the green back on top.
  const place=(x:number,y:number,z:number,yaw:number,pose:'standing'|'down'|'up')=>{
@@ -160,7 +165,7 @@ export async function createParlorRoom(scene:Scene):Promise<ParlorRoom>{
   for(const dy of [-.27,.27])cylinder('lantern-cap',x,3.3+dy,maxZ-.6,.22,.05,bronze,false);
  }
  // Two warm fills keep the room readable without per-table lights.
- for(const [x,z] of [[0,-1.2],[0,3]]){const light=new PointLight('parlor-lamp',new Vector3(x,3.5,z),scene);light.diffuse=Color3.FromHexString('#ffd9a8');light.intensity=8;light.range=11;}
+ const lamps=[[0,-1.2],[0,3]].map(([x,z])=>{const light=new PointLight('parlor-lamp',new Vector3(x,3.5,z).addInPlace(origin),scene);light.diffuse=Color3.FromHexString('#ffd9a8');light.intensity=8;light.range=11;return light;});
  for(const [x,z] of [[-3,-.6],[3,-.6],[-3,2.8],[3,2.8]]){
   box('pendant-cord',x,3.75,z,.015,.7,.015,darkWood,false);
   const shade=CreateCylinder('pendant-shade',{height:.22,diameterTop:.18,diameterBottom:.55,tessellation:20},scene);shade.position.set(x,3.32,z);add(shade,bronze,false);
@@ -179,5 +184,7 @@ export async function createParlorRoom(scene:Scene):Promise<ParlorRoom>{
  for(const group of groups.values()){
   const mesh=Mesh.MergeMeshes(group.parts,true,true,undefined,false,false)!;mesh.name='parlor-static-'+mesh.material!.name;mesh.isPickable=false;mesh.freezeWorldMatrix();receivers.push(mesh);if(group.cast)casters.push(mesh);
  }
+ // The lamps light only the room, so the region's other materials keep their light budget.
+ for(const lamp of lamps)lamp.includedOnlyMeshes=[...receivers];
  return {casters,receivers,cameraSolids};
 }
