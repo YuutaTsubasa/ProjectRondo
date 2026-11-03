@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
 import { NodeIO } from '@gltf-transform/core';
 import { ALL_EXTENSIONS } from '@gltf-transform/extensions';
-import { prepareVrm, validateGameAsset } from './core.mjs';
+import { isPrunedLeaf, prepareVrm, validateGameAsset } from './core.mjs';
 const directory = path.dirname(fileURLToPath(import.meta.url));
 const io = new NodeIO().registerExtensions(ALL_EXTENSIONS);
 const arrayBytes = accessor => {
@@ -73,6 +73,7 @@ for (const skin of source.getRoot().listSkins()) {
 }
 for (const node of source.getRoot().listNodes()) {
   const target = output.getRoot().listNodes().find(n => n.getName() === node.getName());
+  if (!target && isPrunedLeaf(node)) continue;
   assert(target, `Missing neutral node ${node.getName()}`);
   for (const property of ['getTranslation', 'getRotation', 'getScale']) {
     node[property]().forEach((value, i) => assert(Math.abs(value - target[property]()[i]) < 1e-6, node.getName() + ' rest transform drift'));

@@ -99,3 +99,11 @@ it('places the selected mission marker before the initial paused backdrop is dra
  app=mount(RegionWorld,{target:document.body,props:{paused:true,waterRestored:false,targetId:'palace',onReady:vi.fn(),onFailure:vi.fn(),onPosition:vi.fn(),onPause:vi.fn()}});
  await settle();expect(scene.setObjective).toHaveBeenCalledWith('palace');expect(order.indexOf('target')).toBeLessThan(order.indexOf('render'));
 });
+it('teleports within the built world and discards the stale frame',async()=>{
+ const scene={...level(),teleport:vi.fn()};fake.build.mockResolvedValue(scene);
+ const component=mount(RegionWorld,{target:document.body,props:{paused:false,waterRestored:false,onReady:vi.fn(),onFailure:vi.fn(),onPosition:vi.fn(),onPause:vi.fn()}});app=component;await settle();
+ scene.scene.render.mockClear();
+ (component as unknown as {teleport:(p:unknown,f:unknown)=>void}).teleport({x:240,y:1.3,z:-3.6},{x:0,z:1});
+ expect(scene.teleport).toHaveBeenCalledWith({x:240,y:1.3,z:-3.6},{x:0,z:1});
+ fake.frame();expect(scene.scene.render).not.toHaveBeenCalled();fake.frame();expect(scene.scene.render).toHaveBeenCalledOnce();
+});

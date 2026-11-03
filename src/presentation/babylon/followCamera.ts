@@ -205,8 +205,11 @@ export interface FollowCamera {
    * `teleport` had not yet reached `root`, so the camera passed the checkpoint frame **3.6 u below**
    * where it belonged and took **24 frames (0.40 s at 60 fps)** to climb back within 0.1 u of it. It
    * now arrives on the checkpoint on the frame the respawn is decided, and does not move after.
+   *
+   * `heading`, when given, also turns the camera to that yaw (same convention as `initialYaw`), for
+   * a teleport that should arrive looking a particular way, such as walking through a door.
    */
-  snap(): void;
+  snap(heading?: number): void;
   /** Removes the per-frame placement subscription and the canvas pointer listeners. The camera
    *  itself goes with the scene. */
   dispose(): void;
@@ -339,7 +342,8 @@ export function createFollowCamera(
     // frame is drawn. The descent history goes with it: a respawn moves the target by tens of units
     // in one frame, and reading that as a speed would engage the descent term on a cut. Nothing here
     // waits for a later frame, so nothing here depends on which observer runs first.
-    snap: () => {
+    snap: (heading?: number) => {
+      if (heading !== undefined && Number.isFinite(heading)) yaw = heading;
       // Forced, and the fix does not work without it: Babylon caches a node's world matrix per
       // RENDER ID, and `getAbsolutePosition` returns that cache. The observer above has already read
       // the target this frame, so the write `Player.teleport` makes in a later observer is invisible

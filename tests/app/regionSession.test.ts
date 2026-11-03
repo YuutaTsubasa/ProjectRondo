@@ -137,3 +137,63 @@ it('opens and closes the region pause menu with controller Start during free exp
   expect(document.querySelector('[data-world-paused=false]')).not.toBeNull();
  } finally {stop();owner.dispose();deviceInput.poll(null,64);deviceInput.claim('keyboard');}
 });
+
+it('enters the mahjong parlor, talks to 一目元 without touching the chapter, and leaves at its door',async()=>{
+ const {PARLOR_SAVE_KEY}=await import('../../src/app/parlorSave');
+ const {PARLOR_RETURN,PARLOR_ARRIVAL}=await import('../../src/domain/town/mahjongParlor');
+ const teleported=()=>JSON.parse(document.querySelector('[data-teleport]')!.getAttribute('data-teleport')!);
+ await start();const worldNode=document.querySelector('[data-world-paused]');
+ await move('parlor door');expect(button('進入 · 白石台麻館')).toBeTruthy();key('e');await settle();
+ // Same world, no reload: a fade and a teleport into the room.
+ expect(document.querySelector('[data-world-paused]')).toBe(worldNode);expect(document.querySelector('[aria-label="載入畫面"]')).toBeNull();
+ expect(teleported()).toEqual({point:PARLOR_ARRIVAL,facing:{x:0,z:1}});
+ expect(JSON.parse(localStorage.getItem(REGION_SAVE_KEY)!).position).toEqual(PARLOR_RETURN);
+ // Spawning beside the door offers leaving; the host is across the room.
+ expect(button('離開 · 白石街')).toBeTruthy();
+ await move('parlor host');expect(button('交談 · 一目元')).toBeTruthy();key('e');await settle();
+ expect(document.body.textContent).toContain('一目元');expect(document.querySelector('.chapter h2')?.textContent).toBe('白石台麻館');
+ expect(document.querySelector('[data-world-paused=true]')).not.toBeNull();
+ await skip();
+ [...document.querySelectorAll('button')].find(b=>b.textContent?.includes('你在看哪裡？'))!.click();await settle();await skip();
+ expect(button('SKIP')).toBeUndefined();
+ expect(JSON.parse(localStorage.getItem(PARLOR_SAVE_KEY)!).talks).toBe(1);
+ // Talking never moves the chapter story.
+ expect(JSON.parse(localStorage.getItem(REGION_SAVE_KEY)!).progress.chapter).toBe('arrival');
+ key('e');await settle();expect(document.querySelector('.chapter .titles p')?.textContent).toContain('花牌要分開收');await skip();
+ await move('parlor exit');key('e');await settle();
+ expect(document.querySelector('[data-world-paused]')).toBe(worldNode);
+ expect(teleported()).toEqual({point:PARLOR_RETURN,facing:{x:-1,z:0}});
+ expect(button('進入 · 白石台麻館')).toBeTruthy();
+ expect(JSON.parse(localStorage.getItem(REGION_SAVE_KEY)!).position).toEqual(PARLOR_RETURN);
+});
+
+it('returns from the parlor to the south gate from the pause menu',async()=>{
+ await start();await move('parlor door');key('e');await settle();
+ key('Escape');await settle();button('返回王城南門').click();await settle();
+ expect(JSON.parse(localStorage.getItem(REGION_SAVE_KEY)!).position.z).toBe(-35);
+});
+
+it('NEW GAME forgets the parlor introduction once the new run saves',async()=>{
+ const {PARLOR_SAVE_KEY}=await import('../../src/app/parlorSave');
+ localStorage.setItem(PARLOR_SAVE_KEY,JSON.stringify({version:1,talks:3}));
+ app=mount(RegionSession,{target:document.body,props:{onReady:vi.fn(),onFailure:vi.fn(),freshStart:true}});await settle();
+ window.dispatchEvent(new Event('pagehide'));await settle();
+ expect(JSON.parse(localStorage.getItem(PARLOR_SAVE_KEY)!).talks).toBe(0);
+});
+
+it('never saves a position inside the parlor and resumes a door save facing the street',async()=>{
+ await start();await move('parlor door');key('e');await settle();
+ await move('parlor host');window.dispatchEvent(new Event('pagehide'));await settle();
+ const {PARLOR_RETURN}=await import('../../src/domain/town/mahjongParlor');
+ expect(JSON.parse(localStorage.getItem(REGION_SAVE_KEY)!).position).toEqual(PARLOR_RETURN);
+ await unmount(app!);app=undefined;document.body.innerHTML='';await start();
+ expect(JSON.parse(document.querySelector('[data-spawn-facing]')!.getAttribute('data-spawn-facing')!)).toEqual({x:-1,z:0});
+});
+
+it('shows the parlor door, not the far room, on the map while indoors',async()=>{
+ await start();await move('parlor door');
+ button('開啟區域地圖').click();await settle();const atDoor=document.querySelector('.region-map, [role=dialog]')?.textContent;button('關閉區域地圖').click();await settle();
+ key('e');await settle();await move('parlor host');
+ button('開啟區域地圖').click();await settle();
+ expect(document.querySelector('.region-map, [role=dialog]')?.textContent).toBe(atDoor);
+});

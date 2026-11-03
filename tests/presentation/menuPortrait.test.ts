@@ -1,4 +1,4 @@
-import {afterEach, expect, it, vi} from 'vitest';
+import {afterEach, beforeEach, expect, it, vi} from 'vitest';
 import {NullEngine} from '@babylonjs/core/Engines/nullEngine';
 import {AssetContainer} from '@babylonjs/core/assetContainer';
 import {MeshBuilder} from '@babylonjs/core/Meshes/meshBuilder';
@@ -6,13 +6,15 @@ import {AnimationGroup} from '@babylonjs/core/Animations/animationGroup';
 import {TransformNode} from '@babylonjs/core/Meshes/transformNode';
 import type {Scene} from '@babylonjs/core/scene';
 import {createMenuPortraitScene} from '../../src/presentation/menu/menuPortraitScene';
-const stub=vi.hoisted(()=>({load:vi.fn(),blink:vi.fn(()=>vi.fn())}));
+const stub=vi.hoisted(()=>({load:vi.fn(),blink:vi.fn(()=>vi.fn()),releaseSecondary:vi.fn(),secondary:vi.fn()}));
 vi.mock('@babylonjs/core/Loading/sceneLoader',()=>({LoadAssetContainerAsync:stub.load}));
 vi.mock('../../src/presentation/menu/portraitPainting',()=>({applyPortraitPainting:vi.fn(()=>vi.fn())}));
 vi.mock('../../src/presentation/babylon/playerMaterials',()=>({applyPlayerMaterials:vi.fn()}));
 vi.mock('../../src/presentation/babylon/playerBlink',()=>({attachPlayerBlink:stub.blink}));
+vi.mock('../../src/presentation/babylon/secondaryMotion',()=>({attachSecondaryMotion:stub.secondary}));
 let engine:NullEngine;
 afterEach(()=>{engine?.dispose();vi.clearAllMocks();});
+beforeEach(()=>{stub.secondary.mockImplementation(()=>stub.releaseSecondary);});
 function model(scene:Scene){
  const container=new AssetContainer(scene),root=new TransformNode('root',scene);
  const mesh=MeshBuilder.CreateBox('body',{height:2},scene);mesh.parent=root;
@@ -26,11 +28,15 @@ it('uses a transparent right-handed scene, shares the player model and reframes 
  expect(stub.load.mock.calls[0][0]).toMatch(/player-v20.glb/);
  expect(view.scene.clearColor.a).toBe(0);expect(view.scene.useRightHandedSystem).toBe(true);
  expect(stub.blink).toHaveBeenCalledOnce();
+ // The side plates follow the idle thighs on the ground, without air lift.
+ expect(stub.secondary).toHaveBeenCalledOnce();
+ expect(stub.secondary.mock.calls[0]![3]()).toEqual({offGround:false,verticalSpeed:0});
  const camera=view.scene.activeCamera!;const wide=camera.position.clone();
  view.setPresentation('loading',true,true);view.render();
  expect(camera.position.equals(wide)).toBe(false);
  expect(view.scene.getPhysicsEngine()).toBeFalsy();
  view.dispose();expect(view.scene.isDisposed).toBe(true);
+ expect(stub.releaseSecondary).toHaveBeenCalledOnce();
 });
 it('disposes a late model without adding it after the portrait has been released',async()=>{
  engine=new NullEngine();let finish!:(value:AssetContainer)=>void;

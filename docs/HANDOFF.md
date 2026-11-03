@@ -996,3 +996,38 @@ The existing 3D course is now 白宮天廊: authored collision rectangles, jump 
 The course portal and beacon moved from the outdoor ruin to white tower square west (-20,43), with safe return (-20,1.3,40). Physical white-stone portal, objective/story/menu names, map markers, return action, and narrowly scoped old-entrance save migration agree. The grass signal still unlocks this expedition. Old `course` / dialogue IDs stay stable. Existing atlas raster remains from the earlier bake; dynamic markers are current.
 
 Validation: 100 tests across 13 suites, clean typecheck, production build (only existing chunk-size warning). Browser verified sword/Homing defeat, three-hit checkpoint recovery, patrol/attack poses, full traversal (7 jumps / 8 crystal bounces / zero retries or damage), results/retry, and actual city entrance clearance. Local isolated playable preview: /.superpowers/stage-play-qa.html?mode=course. No save writes in that preview. No commit or PR requested. Existing course BGM retained pending the user's town-theme Hardcore remix.
+
+## White Palace mahjong parlor and 一目元 (2026-11-02)
+
+The middle east townhouse on Ivory Street (`east-house-1`) is now enterable as **白石台麻館**, a Taiwanese mahjong parlor. A hanging signboard and two lanterns mark its door (`presentation/town/parlorFrontage.ts`); standing at the door offers **進入**. Update (2026-11-03): the room is no longer its own scene. `parlorInterior.ts` builds the room and 一目元 inside the region world at `PARLOR_ORIGIN` (x=240, far east beyond the coast, fully enclosed), and the door is a ~0.3 s fade (`.door-fade` in `RegionSession`) plus `RegionScene.teleport`, which also turns the follow camera (`FollowCamera.snap(heading)`). No loading page, and the town music keeps playing. Being indoors is derived from position (`inParlor`); the region save keeps the door as the safe position while indoors, and a save at the door resumes facing the street. The room's two point lights are limited to its own meshes. Reduced motion cuts without the fade.
+
+`domain/town/mahjongParlor.ts` owns the door, return point, room bounds, four tables and their chairs, the host seat and the talk rotation. The room (`parlorRoom.ts`) is code-authored: ivory stone walls with wainscot, timber floor, side windows, four green-felt tables with thin-instanced tile walls/hands/discards, chairs, a tea cabinet, the parlor plaque, lanterns and pendant lamps. Signs draw text onto a DynamicTexture shown on BACKSIDE planes (in the right-handed scene that plane faces +z and reads unmirrored).
+
+The first member character, **一目元** (member01, a floating one-eyed jellyfish), hovers in the aisle seat of the back table. `public/models/ichimoku-gen.glb` is a derivative of the ProjectVtuber VRM made by `tools/npc-model/import.mjs` (see its README); the VRM itself stays outside this repository. `ichimokuGen.ts` drives a procedural idle (float, rippling tentacles, eye following the player within the VRM look-at range, blink). Talking (**交談**) plays `content/dialogue/parlor/*.dlg`: an introduction on the first talk, then three rotating topics. Talks never change chapter progress; the count is kept separately in LocalStorage `rondo.parlor.v1`.
+
+Not done: no playable mahjong (the Virtual series web game may later be embedded through an arcade cabinet), no map/atlas marker for the parlor, and the furniture is procedural. Codex reference images for Tripo replacements (table, chair, signboard) are outside the repo in `Data\20_Assets\Art\2026-11-02_rondo-mahjong-parlor-tripo-refs`. The member's terms currently cover the Virtual series, streams and related content; confirm Rondo use before a public deploy.
+
+## 2026-11-02 — H01(Small Eyes)-B01 player and side-plate motion
+
+Imported ProjectVtuber `output/current/H01-B01-small-eyes/...-tsB-cs02-y30_VRM1.vrm` into the stable `player-v20.glb`
+(14.2 MB, was 12.9 MB). Importer policy: the split boot rim / steel sole / undersuit lining meshes are body; the steel
+sole's matcap is dropped by name and recorded; spring tail leaves may be pruned. Neutral geometry, skin, blink deltas
+(15 primitives) and checksum verified by `verify.mjs`.
+
+B01's side plates are no longer skinned to the thighs: the VRM drives them with two roll constraints and a spring.
+The importer now keeps those as receipt data and `secondaryMotion.ts` drives them in game (hinge roll, door splay,
+root-relative spring with thigh collision, falling air lift capped at 50°). Browser check on the 3D trial: idle, walk/run
+(plate swing 1–16°, door up to 17.5°, no thigh pass-through seen), jump (plates rise to 50° while falling and settle within
+~0.3 s of landing), homing dash, sword/shield grip, face close-up, forced blink and menu portrait.
+
+Update (same day): imported ProjectVtuber's soles rebuild (`trials/b01-soles-2026-11-02/...-y30-soles_VRM1.vrm`, 14.7 MB):
+soles now use the Armor atlas and the rim's dark fragments are gone. The rebuild left its old matcap sole material unused;
+the importer now skips materials no primitive draws (they are pruned) and the sole-matcap exception is gone.
+
+Heel stripes, root cause: the rims and soles are weighted 100% to Foot. With GPU skinning and bones stored in a texture,
+their base color showed the skeleton's 264×1 bone-matrix texture (u-only bands that changed with the pose). Reproducible
+both ways: CPU skinning or uniform-array bones → clean; texture bones → bands; removing the base texture → clean. The
+earlier material/outline/shadow experiments were noise from a whole-frame pixel metric that also counted other objects.
+Fix: `attachRigidSkinnedMeshes` re-parents single-joint meshes under their joint at the inverse bind transform after seating
+(knight and menu portrait); verified in the trial at the distances that striped before, idle and running. AVG video portraits
+still show the earlier knight (separate asset, todo).

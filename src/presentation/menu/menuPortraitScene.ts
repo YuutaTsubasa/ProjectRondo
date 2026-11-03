@@ -14,6 +14,8 @@ import {waitForSceneReadiness} from '../babylon/sceneReadiness';
 import {applyPlayerMaterials} from '../babylon/playerMaterials';
 import {applyPortraitPainting} from './portraitPainting';
 import {attachPlayerBlink} from '../babylon/playerBlink';
+import {attachSecondaryMotion} from '../babylon/secondaryMotion';
+import {attachRigidSkinnedMeshes} from '../babylon/rigidAttachments';
 import {measureSkinnedSole} from '../babylon/skinnedSole';
 
 export type PortraitPose='menu'|'loading';
@@ -30,7 +32,7 @@ export function createMenuPortraitScene(engine:AbstractEngine){
  const fill=new HemisphericLight('portraitFill',new Vector3(0,1,0),scene);
  fill.intensity=.8;fill.diffuse=new Color3(.83,.91,1);fill.groundColor=new Color3(.35,.4,.52);
  const holder=new TransformNode('portrait',scene);
- let container:AssetContainer|undefined,releaseBlink:(()=>void)|undefined;
+ let container:AssetContainer|undefined,releaseBlink:(()=>void)|undefined,releaseSecondary:(()=>void)|undefined;
  let releasePainting:(()=>void)|undefined;
  let disposed=false,loaded=false,active=false,reduced=false,dirty=true,snap=false,pose:PortraitPose='menu';
  const target=new Vector3(0,1.03,0);
@@ -38,7 +40,7 @@ export function createMenuPortraitScene(engine:AbstractEngine){
  const targets={menu:new Vector3(0,1.03,0),loading:new Vector3(0,1.57,0)};
  camera.setTarget(target);
  function dispose(){
-  if(disposed)return;disposed=true;releaseBlink?.();releasePainting?.();container?.dispose();scene.dispose();
+  if(disposed)return;disposed=true;releaseBlink?.();releaseSecondary?.();releasePainting?.();container?.dispose();scene.dispose();
  }
  const ready=LoadAssetContainerAsync(PLAYER_MODEL.url,scene).then(asset=>{
   if(disposed){asset.dispose();return;}
@@ -56,7 +58,9 @@ export function createMenuPortraitScene(engine:AbstractEngine){
   idle.play(true);idle.goToFrame(idle.from);
   const skinned=asset.meshes.filter(mesh=>mesh.skeleton&&mesh.getTotalVertices()>0);
   holder.position.y-=skinned.length?measureSkinnedSole(skinned):holder.getHierarchyBoundingVectors(true).min.y;
+  attachRigidSkinnedMeshes(asset.meshes);
   releaseBlink=attachPlayerBlink(scene,asset.meshes);
+  releaseSecondary=attachSecondaryMotion(scene,asset.transformNodes,PLAYER_MODEL.secondaryMotion,()=>({offGround:false,verticalSpeed:0}),undefined,holder);
   loaded=true;dirty=true;
  }).catch(error=>{if(disposed)return;dispose();throw error;});
  return {scene,ready,dispose,

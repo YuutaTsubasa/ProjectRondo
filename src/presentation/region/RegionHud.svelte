@@ -54,6 +54,8 @@
     <svg class="interact-icon" viewBox="0 0 32 32" aria-hidden="true">
      {#if promptVerb==='查看入口'}<path d="M7 27V5h16v22M5 27h22M18 16h1M11 5v22"/>
      {:else if promptVerb==='記錄風景'}<path d="m16 3 4 9 9 4-9 4-4 9-4-9-9-4 9-4ZM7 3v6M4 6h6"/>
+     {:else if promptVerb==='交談'}<path d="M5 7h22v14H14l-6 5v-5H5z"/><path d="M10 12h12M10 16h8"/>
+     {:else if promptVerb==='進入'||promptVerb==='離開'}<path d="M9 28V4h14v24M5 28h22"/><path d="M19 16h1"/>
      {:else}<circle cx="13" cy="13" r="8"/><path d="m19 19 9 9"/>{/if}
     </svg>
     <span class="interact-copy"><span class="interact-action">{interactAction}</span>{#if interactTarget}<span class="interact-target">{interactTarget}</span>{/if}</span>
