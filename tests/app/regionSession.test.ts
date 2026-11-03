@@ -27,7 +27,7 @@ it.each(['course','palace','course-2','course-3','course-4','course-5','palace-1
  button('fixture clear').click();await settle();button(id==='course'?'返回白塔廣場':'返回白色王城').click();await settle();
  expect(document.querySelector('.overlay')).toBeNull();expect(document.querySelector('[data-world-paused=false]')).not.toBeNull();
  const saved=JSON.parse(localStorage.getItem(REGION_SAVE_KEY)!);expect(saved.progress.chapter).toBe('arrival');expect(JSON.parse(document.querySelector('[data-spawn]')!.getAttribute('data-spawn')!)).toEqual(returnPosition);
- if(id==='course'||id==='palace')expect(saved.progress.completedExpeditions).toContain(id);
+ expect(saved.progress.completedExpeditions).toEqual([]);
  if(id==='course')expect(saved.position).toEqual({x:-20,y:1.3,z:40});
 });
 it.each(['relay-report','aqueduct-report'])('loads old %s progress without forcing a report',async(chapter)=>{

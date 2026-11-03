@@ -51,10 +51,11 @@ describe('first region progression', () => {
     expect(arrival.chapter).toBe('arrival');
   });
 
-  it('records freely entered expeditions without regressing story progress', () => {
+  it('leaves story expeditions unrecorded when a free clear comes before its chapter', () => {
     const initial = createRegionProgress();
-    expect(completeRegionExpedition(initial, 'course')).toEqual({...initial,completedExpeditions:['course']});
-    expect(completeRegionExpedition(relayReady(), 'palace').chapter).toBe('relay');
+    expect(completeRegionExpedition(initial, 'course')).toBe(initial);
+    expect(completeRegionExpedition(initial, 'palace')).toBe(initial);
+    expect(completeRegionExpedition(relayReady(), 'palace')).toEqual(relayReady());
     const aqueduct = aqueductReady();
     expect(canEnterRegionExpedition(aqueduct, 'course')).toBe(true);
     expect(completeRegionExpedition(aqueduct, 'course')).toBe(aqueduct);
@@ -111,4 +112,10 @@ describe('region progress persistence', () => {
   });
 });
 
-it('round trips independently completed stages before optional story starts',()=>{const progress=completeRegionExpedition(completeRegionExpedition(createRegionProgress(),'palace'),'course');expect(progress.chapter).toBe('arrival');expect(progress.completedExpeditions).toEqual(['palace','course']);expect(parseRegionProgress(JSON.stringify(progress))).toEqual(progress);});
+it('drops expeditions an older save recorded before the story reached them',()=>{
+ const load=(chapter:string,completedExpeditions:string[])=>parseRegionProgress(JSON.stringify({...createRegionProgress(),chapter,completedExpeditions}));
+ expect(load('arrival',['palace','course'])).toEqual(createRegionProgress());
+ expect(load('relay',['palace']).completedExpeditions).toEqual([]);
+ expect(load('aqueduct',['palace','course']).completedExpeditions).toEqual(['course']);
+ expect(load('homecoming',['palace','course']).completedExpeditions).toEqual(['palace','course']);
+});
